@@ -1,113 +1,54 @@
 # 🏥 MedSched - Hệ Thống Quản Lý Đặt Lịch Khám & Tiếp Đón Bệnh Viện Thông Minh
 
-> **Đề tài tốt nghiệp / Đồ án môn học:** Phát triển ứng dụng Web thông minh với Spring Boot & Trí tuệ nhân tạo (Developing Smart Web Apps with Spring Boot & AI)  
-> **Công nghệ chủ đạo:** Spring Boot 3, Spring AI, Ultralytics YOLO11 (Computer Vision), PostgreSQL, Next.js / React.
+> **Học phần:** Java Spring 2 - Phát triển ứng dụng Web thông minh với Spring Boot & AI  
+> **Đề tài:** Topic 01 - MedSched  
+> **Công nghệ tích hợp:** Spring Boot 3, Spring AI, Ultralytics YOLO11 (Computer Vision), PostgreSQL 16, Next.js / React.
 
 ---
 
-## 📌 Giới Thiệu Dự Án
+## 🎯 Cấu Trúc Hồ Sơ Theo 4 Yêu Cầu Của Giảng Viên
 
-**MedSched** là nền tảng quản lý đặt lịch khám bệnh thông minh, số hóa quy trình tiếp đón và hỗ trợ y bác sĩ tại các cơ sở y tế hiện đại. Hệ thống giải quyết bài toán quá tải khâu xếp hàng chờ khám thông qua việc tích hợp đa mô hình AI:
-
-1. **Spring AI:** 
-   - Chatbot tự động tư vấn triệu chứng bằng ngôn ngữ tự nhiên.
-   - Gợi ý chuyên khoa phù hợp dựa trên mô tả lâm sàng của bệnh nhân.
-   - Tự động trích xuất tóm tắt triệu chứng ngắn gọn (2 dòng) giúp bác sĩ nắm bắt bệnh án tức thì.
-2. **YOLO11 (Computer Vision):**
-   - **Check-in tự động tại quầy lễ tân:** Quét nhận diện căn cước công dân (CCCD) và thẻ bảo hiểm y tế (BHYT) kèm OCR bóc tách thông tin chỉ trong 3 giây.
-   - **Tiền sàng lọc hình ảnh lâm sàng:** Nhận diện và khoanh vùng các tổn thương ngoài da (mẩn ngứa, phát ban, viêm da...) khi bệnh nhân tải ảnh triệu chứng lên hệ thống, tự động điều hướng sang chuyên khoa Da liễu / Ngoại khoa.
-
----
-
-## 🏗️ Kiến Trúc Hệ Thống (System Architecture)
+Toàn bộ tài liệu đề tài được sắp xếp ngăn nắp thành **4 thư mục nghiệp vụ** tương ứng chính xác với 4 yêu cầu trên bảng của Giảng viên:
 
 ```
-[ Bệnh Nhân / Lễ Tân / Bác Sĩ ]
-               │
-               ▼
-[ Web Frontend (Next.js / React) ]
-               │ (REST API / JWT Auth)
-               ▼
-[ API Gateway & Backend (Spring Boot 3) ]
-       ├── Spring Security (RBAC: Patient, Receptionist, Doctor, Admin)
-       ├── Spring AI Module (Chatbot, Medical Summarization, Triage)
-       └── Business Logic Services (Booking, Check-in, Scheduling)
-          │                                      │
-   (HTTP / gRPC)                          (PostgreSQL 16)
-          ▼                                      ▼
-[ YOLO11 Vision Service ]                 [ medsched_db ]
-  - CCCD / BHYT OCR Check-in                - 9 Tables (Users, Appointments,
-  - Skin Lesion Detection                     Doctors, Schedules, TimeSlots,
-                                              Images, MedicalRecords...)
+📁 3. Đề tài tham khảo/
+│
+├── 📂 01_List_Feature/          ➔ [1] Danh sách 21 tính năng phân theo Actor & Module AI
+│   └── 📄 List_Feature.md
+│
+├── 📂 02_List_Actor/            ➔ [2] Danh sách 5 tác nhân hệ thống (Bệnh nhân, Lễ tân, Bác sĩ, Admin, AI)
+│   └── 📄 List_Actor.md
+│
+├── 📂 03_Luong_Chinh/           ➔ [3] 3 luồng quy trình chính kèm Sequence Diagram & Sơ đồ kiến trúc
+│   └── 📄 Luong_Nghiep_Vu_Chinh.md
+│
+└── 📂 04_Database_Design/       ➔ [4] Thiết kế 9 bảng CSDL PostgreSQL, mã nguồn DDL & dữ liệu mẫu
+    ├── 📄 Database_Design.md
+    └── 🗄️ medsched_schema.sql
 ```
 
 ---
 
-## 📁 Danh Mục Tài Liệu Trong Thư Mục
+## 📑 Bảng Điều Hướng Nhanh Đến Từng Thư Mục
 
-| Tên File | Loại | Mô Tả Chi Tiết |
-|---|---|---|
-| 📄 [`De_Xuat_Du_An_MedSched_Nhom.md`](./De_Xuat_Du_An_MedSched_Nhom.md) | **Tài liệu chính** | Bản đặc tả đề xuất dự án hoàn chỉnh: 5 tác nhân (Actor), 21 chức năng (F01–F21), sơ đồ tuần tự (Sequence Diagram), thiết kế cơ sở dữ liệu. |
-| 🗄️ [`medsched_schema.sql`](./medsched_schema.sql) | **Database Script** | Kịch bản SQL hoàn chỉnh khởi tạo 9 bảng chuẩn CSDL PostgreSQL cùng dữ liệu mẫu (Seed data). |
-| 🌐 [`medsched-architecture.html`](./medsched-architecture.html) | **Sơ đồ tương tác** | Sơ đồ kiến trúc hệ sinh thái tương tác trực quan (Interactive Architecture Viewer), hỗ trợ Light/Dark mode. |
-| 🖼️ `medsched-architecture.visual-check.*.png` | **Ảnh sơ đồ** | Ảnh chụp kiến trúc hệ thống ở các độ phân giải cao phục vụ chèn vào Slide/Báo cáo Word. |
-| 📑 [`01.md`](./01.md) / `01.docx` | **Đề cương gốc** | Yêu cầu gốc của giảng viên hướng dẫn về Đề tài 01: MedSched. |
-
----
-
-## 👥 Danh Sách Tác Nhân Hệ Thống (Actors)
-
-1. **Bệnh nhân (Patient):** Tìm kiếm bác sĩ, tư vấn triệu chứng với AI, đặt lịch trực tuyến, tải ảnh triệu chứng, nhận mã QR/vé hẹn.
-2. **Nhân viên Tiếp đón / Lễ tân (Receptionist):** Quét mã QR check-in, quét CCCD/BHYT bằng camera YOLO11 tự động phân luồng tiếp đón.
-3. **Bác sĩ (Doctor):** Quản lý lịch làm việc, xem hồ sơ bệnh án, xem ảnh tổn thương có bounding box từ YOLO11, kê đơn và nhập chẩn đoán.
-4. **Quản trị viên (Admin):** Quản lý tài khoản người dùng, cấu hình ca khám, xem báo cáo thống kê lượt khám theo thời gian thực.
-5. **Hệ thống AI (Spring AI & YOLO11):** Xử lý ngôn ngữ tự nhiên và thị giác máy tính chạy nền hỗ trợ nghiệp vụ.
+| Thư Mục | Yêu Cầu GV | Nội Dung Chi Tiết | Liên Kết |
+|:---|:---|:---|:---:|
+| 📂 **`01_List_Feature`** | **List feature** | Chi tiết 21 tính năng (F01–F21), phân loại theo Patient, Receptionist, Doctor, Admin cùng ma trận phân quyền RBAC. | [Xem Thư Mục](./01_List_Feature/List_Feature.md) |
+| 📂 **`02_List_Actor`** | **List Actor** | 5 tác nhân (Bệnh nhân, Nhân viên tiếp đón, Bác sĩ, Quản trị viên, Hệ thống AI: Spring AI & YOLO11) kèm trách nhiệm. | [Xem Thư Mục](./02_List_Actor/List_Actor.md) |
+| 📂 **`03_Luong_Chinh`** | **Clear luồng chính** | 3 quy trình then chốt: (1) Đặt lịch online + AI tư vấn; (2) Check-in tự động 3s bằng quét CCCD YOLO11; (3) Bác sĩ khám bệnh với bản tóm tắt AI. | [Xem Thư Mục](./03_Luong_Chinh/Luong_Nghiep_Vu_Chinh.md) |
+| 📂 **`04_Database_Design`** | **Database design (optional)** | Thiết kế 9 bảng quan hệ chuẩn 3NF, script SQL nạp vào PostgreSQL cổng 5433, hướng dẫn xem ERD trên DBeaver. | [Xem Thư Mục](./04_Database_Design/Database_Design.md) |
 
 ---
 
-## 🚀 Hướng Dẫn Cài Đặt Cơ Sở Dữ Liệu
-
-### 1. Yêu Cầu Môi Trường
-- **Docker** & **Docker Desktop** (hoặc PostgreSQL 16 cài trực tiếp).
-- **DBeaver** hoặc công cụ quản trị PostgreSQL (pgAdmin).
-
-### 2. Khởi Chạy Cơ Sở Dữ Liệu
-Cơ sở dữ liệu MedSched được cấu hình chạy trên cổng **`5433`** (để tránh xung đột cổng 5432 mặc định):
-
-- **Host:** `localhost`
-- **Port:** `5433`
-- **Database Name:** `medsched_db`
-- **Username:** `eshop`
-- **Password:** `eshop`
-
-### 3. Nạp Cấu Trúc & Dữ Liệu Mẫu
-Mở DBeaver kết nối vào `medsched_db` và thực thi toàn bộ script [`medsched_schema.sql`](./medsched_schema.sql):
-```bash
-# Hoặc thực thi qua Docker CLI:
-docker exec -i eshop-db psql -U eshop -d medsched_db < medsched_schema.sql
-```
-
-Sau khi chạy xong, hệ sinh thái CSDL gồm 9 bảng quan hệ chặt chẽ:
-- `users`: Tài khoản và phân quyền hệ thống.
-- `patients`: Thông tin chi tiết bệnh nhân, CCCD, BHYT.
-- `specialties`: Danh mục chuyên khoa y tế.
-- `doctors`: Thông tin bác sĩ, học hàm, kinh nghiệm.
-- `doctor_schedules` & `time_slots`: Ca trực và khung giờ khám (khóa chống trùng lịch).
-- `appointments`: Lịch hẹn khám bệnh, mã vé QR, trạng thái tiếp đón.
-- `symptom_images`: Ảnh tổn thương kèm tọa độ bounding box phân tích bởi YOLO11.
-- `medical_records`: Hồ sơ bệnh án sau khi bác sĩ khám xong.
+## 🌐 Các Tài Liệu Tham Khảo Khác
+- 📄 [**`De_Xuat_Du_An_MedSched_Nhom.md`**](./De_Xuat_Du_An_MedSched_Nhom.md): Tài liệu đề xuất tổng hợp hoàn chỉnh (dùng in nộp bản cứng hoặc làm Slide thuyết trình).
+- 🌐 [**`medsched-architecture.html`**](./medsched-architecture.html): Sơ đồ kiến trúc hệ thống tương tác đa chế độ (Interactive Architecture Diagram).
+- 🖼️ [**`medsched-architecture.visual-check.1440x900.dark.png`**](./medsched-architecture.visual-check.1440x900.dark.png): Ảnh chụp sơ đồ kiến trúc hệ thống phục vụ chèn vào báo cáo Word/Slide.
+- 🗄️ [**`medsched_schema.sql`**](./medsched_schema.sql): File kịch bản CSDL gốc nạp vào PostgreSQL.
 
 ---
 
-## 📊 Xem Sơ Đồ Quan Hệ Bảng (ER Diagram)
-1. Mở phần mềm **DBeaver**.
-2. Mở kết nối `medsched_db` ➔ `Schemas` ➔ `public`.
-3. Nhấp đúp vào thư mục **`Tables`** ➔ Chọn tab **`Diagram`** ở trên thanh công cụ để xem sơ đồ ERD toàn diện.
-4. Để xuất ảnh nộp báo cáo: Nhấp chuột phải vào khoảng trống sơ đồ ➔ Chọn **`Save diagram as ...`** ➔ Chọn định dạng **PNG**.
-
----
-
-## 🛠️ Nhóm Thực Hiện
-- **Học phần:** Java Spring 2 - Phát triển ứng dụng Web thông minh với Spring Boot & AI.
-- **Dự án:** MedSched - Smart Healthcare Scheduling System.
-- **Hạn chót bảo vệ đề xuất:** Thứ 6 tuần này.
+## 🚀 Hướng Dẫn Nhanh Chạy Cơ Sở Dữ Liệu
+1. Khởi động container PostgreSQL trên cổng **`5433`** (DB: `medsched_db`, User/Pass: `eshop`/`eshop`).
+2. Mở **DBeaver**, kết nối vào `medsched_db` và chạy script trong thư mục `04_Database_Design/medsched_schema.sql`.
+3. Nhấp đúp vào thư mục **Tables** ➔ chọn tab **Diagram** để xem và xuất ảnh sơ đồ quan hệ thực thể (ERD).
