@@ -1,0 +1,206 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "MedSched System Architecture",
+    "output": "medsched-architecture.html",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "full-overview",
+        "label": "Toàn cảnh hệ thống",
+        "focus": ["patient_app", "staff_portal", "api_gateway", "postgres_db", "yolo_service", "spring_ai", "vector_store"],
+        "note": "Kiến trúc tổng thể kết hợp Next.js, Spring Boot, PostgreSQL, YOLO11 và Spring AI."
+      },
+      {
+        "id": "ai-vision-pipeline",
+        "label": "Pipeline AI & Thị giác máy tính",
+        "focus": ["yolo_service", "spring_ai", "vector_store"],
+        "note": "Xử lý nhận diện thẻ CCCD/BHYT, phát hiện tổn thương da liễu và RAG y khoa."
+      },
+      {
+        "id": "booking-core",
+        "label": "Nghiệp vụ Đặt lịch & Tiếp đón",
+        "focus": ["patient_app", "staff_portal", "api_gateway", "postgres_db"],
+        "note": "Xử lý đặt lịch trực tuyến, quản lý Time Slots và Check-in tiếp đón tại quầy."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "patient_app",
+      "type": "frontend",
+      "brand": "next-js",
+      "label": "Patient Portal",
+      "sublabel": "Next.js 16 :3000",
+      "pos": [40, 160],
+      "size": [150, 68]
+    },
+    {
+      "id": "staff_portal",
+      "type": "frontend",
+      "brand": "next-js",
+      "label": "Reception Desk",
+      "sublabel": "Camera & QR Scanner",
+      "pos": [40, 310],
+      "size": [150, 68]
+    },
+    {
+      "id": "api_gateway",
+      "type": "backend",
+      "brand": "spring",
+      "label": "Spring Boot API",
+      "sublabel": "Java 21 / Clean Arch :8080",
+      "pos": [280, 220],
+      "size": [170, 72],
+      "tag": "JWT + REST API"
+    },
+    {
+      "id": "postgres_db",
+      "type": "database",
+      "brand": "postgresql",
+      "label": "PostgreSQL 16",
+      "sublabel": "Relational Core :5433",
+      "pos": [280, 400],
+      "size": [170, 68],
+      "tag": "Flyway Migrations"
+    },
+    {
+      "id": "yolo_service",
+      "type": "backend",
+      "brand": "python",
+      "label": "YOLO11 Vision",
+      "sublabel": "FastAPI :8001",
+      "pos": [560, 110],
+      "size": [170, 68],
+      "tag": "CCCD OCR & Skin AI"
+    },
+    {
+      "id": "spring_ai",
+      "type": "backend",
+      "brand": "spring",
+      "label": "Spring AI Service",
+      "sublabel": "ChatClient & Triage",
+      "pos": [560, 250],
+      "size": [170, 68],
+      "tag": "LLM Orchestration"
+    },
+    {
+      "id": "vector_store",
+      "type": "database",
+      "brand": "postgresql",
+      "label": "PGVector Store",
+      "sublabel": "Medical Knowledge Base",
+      "pos": [560, 400],
+      "size": [170, 68],
+      "tag": "Vector Embeddings"
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Docker Compose Deployment Environment",
+      "wraps": ["api_gateway", "postgres_db", "yolo_service", "spring_ai", "vector_store"]
+    },
+    {
+      "kind": "security-group",
+      "label": "AI & Computer Vision Pipeline",
+      "wraps": ["yolo_service", "spring_ai", "vector_store"]
+    }
+  ],
+  "connections": [
+    {
+      "id": "patient-to-api",
+      "from": "patient_app",
+      "to": "api_gateway",
+      "label": "REST / JSON",
+      "variant": "emphasis"
+    },
+    {
+      "id": "staff-to-api",
+      "from": "staff_portal",
+      "to": "api_gateway",
+      "label": "Check-in Stream",
+      "variant": "emphasis"
+    },
+    {
+      "id": "api-to-db",
+      "from": "api_gateway",
+      "to": "postgres_db",
+      "label": "JPA / JDBC",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [365, 345]
+    },
+    {
+      "id": "api-to-yolo",
+      "from": "api_gateway",
+      "to": "yolo_service",
+      "label": "Detect Image",
+      "fromSide": "top",
+      "toSide": "left"
+    },
+    {
+      "id": "api-to-springai",
+      "from": "api_gateway",
+      "to": "spring_ai",
+      "label": "Symptom Triage",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "yolo-to-springai",
+      "from": "yolo_service",
+      "to": "spring_ai",
+      "label": "Detected Tags",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "variant": "dashed",
+      "labelAt": [645, 214]
+    },
+    {
+      "id": "springai-to-vector",
+      "from": "spring_ai",
+      "to": "vector_store",
+      "label": "RAG Similarity",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [645, 358]
+    },
+    {
+      "id": "db-to-vector",
+      "from": "postgres_db",
+      "to": "vector_store",
+      "label": "PGVector Ext",
+      "fromSide": "right",
+      "toSide": "left",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Giao diện đa kênh (Client Layer)",
+      "items": [
+        "Patient Portal: Đặt lịch khám trực tuyến, chat định hướng triệu chứng và tải ảnh tổn thương.",
+        "Reception Desk: Quét mã QR vé khám và camera tự động bóc tách thông tin thẻ CCCD/BHYT."
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Nghiệp vụ lõi (Spring Boot Backend)",
+      "items": [
+        "Xây dựng theo kiến trúc Clean / Hexagonal Architecture chuẩn doanh nghiệp.",
+        "Quản lý vòng đời ca khám (Time Slots, Optimistic Locking, Flyway Database Migrations)."
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Trí tuệ nhân tạo (AI & YOLO11 Pipeline)",
+      "items": [
+        "YOLO11: Tự động trích xuất thông tin thẻ định danh trong 3s và khoanh vùng tổn thương da liễu.",
+        "Spring AI + PGVector: Tra cứu tri thức y khoa (RAG) và gợi ý chuyên khoa chính xác."
+      ]
+    }
+  ]
+}
