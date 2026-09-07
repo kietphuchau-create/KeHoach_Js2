@@ -13,16 +13,16 @@ Toàn bộ tài liệu đề tài được sắp xếp ngăn nắp thành **4 th
 ```
 📁 3. Đề tài tham khảo/
 │
-├── 📂 01_List_Feature/          ➔ [1] Danh sách 21 tính năng phân theo Actor & Module AI
+├── 📂 01_List_Feature/          ➔ [1] Danh sách 22 tính năng phân theo Actor & Module AI (thêm F22 Verified Review)
 │   └── 📄 List_Feature.md
 │
 ├── 📂 02_List_Actor/            ➔ [2] Danh sách 5 tác nhân hệ thống (Bệnh nhân, Lễ tân, Bác sĩ, Admin, AI)
 │   └── 📄 List_Actor.md
 │
-├── 📂 03_Luong_Chinh/           ➔ [3] 3 luồng quy trình chính kèm Sequence Diagram & Sơ đồ kiến trúc
+├── 📂 03_Luong_Chinh/           ➔ [3] 4 luồng quy trình chính kèm Sequence Diagram & Sơ đồ kiến trúc
 │   └── 📄 Luong_Nghiep_Vu_Chinh.md
 │
-└── 📂 04_Database_Design/       ➔ [4] Thiết kế 9 bảng CSDL PostgreSQL, mã nguồn DDL & dữ liệu mẫu
+└── 📂 04_Database_Design/       ➔ [4] Thiết kế 10 bảng CSDL PostgreSQL, mã nguồn DDL & dữ liệu mẫu
     ├── 📄 Database_Design.md
     └── 🗄️ medsched_schema.sql
 ```
@@ -33,10 +33,10 @@ Toàn bộ tài liệu đề tài được sắp xếp ngăn nắp thành **4 th
 
 | Thư Mục | Yêu Cầu GV | Nội Dung Chi Tiết | Liên Kết |
 |:---|:---|:---|:---:|
-| 📂 **`01_List_Feature`** | **List feature** | Chi tiết 21 tính năng (F01–F21), phân loại theo Patient, Receptionist, Doctor, Admin cùng ma trận phân quyền RBAC. | [Xem Thư Mục](./01_List_Feature/List_Feature.md) |
+| 📂 **`01_List_Feature`** | **List feature** | Chi tiết 22 tính năng (F01–F22), phân loại theo Patient, Receptionist, Doctor, Admin cùng ma trận phân quyền RBAC. | [Xem Thư Mục](./01_List_Feature/List_Feature.md) |
 | 📂 **`02_List_Actor`** | **List Actor** | 5 tác nhân (Bệnh nhân, Nhân viên tiếp đón, Bác sĩ, Quản trị viên, Hệ thống AI: Spring AI & YOLO11) kèm trách nhiệm. | [Xem Thư Mục](./02_List_Actor/List_Actor.md) |
-| 📂 **`03_Luong_Chinh`** | **Clear luồng chính** | 3 quy trình then chốt: (1) Đặt lịch online + AI tư vấn; (2) Check-in tự động 3s bằng quét CCCD YOLO11; (3) Bác sĩ khám bệnh với bản tóm tắt AI. | [Xem Thư Mục](./03_Luong_Chinh/Luong_Nghiep_Vu_Chinh.md) |
-| 📂 **`04_Database_Design`** | **Database design (optional)** | Thiết kế 9 bảng quan hệ chuẩn 3NF, script SQL nạp vào PostgreSQL cổng 5433, hướng dẫn xem ERD trên DBeaver. | [Xem Thư Mục](./04_Database_Design/Database_Design.md) |
+| 📂 **`03_Luong_Chinh`** | **Clear luồng chính** | 4 quy trình then chốt: (1) Đặt lịch online + AI tư vấn; (2) Check-in tự động 3s bằng quét CCCD YOLO11; (3) Bác sĩ khám bệnh với tóm tắt AI; (4) Đánh giá sau khám & Phân tích cảm xúc Spring AI. | [Xem Thư Mục](./03_Luong_Chinh/Luong_Nghiep_Vu_Chinh.md) |
+| 📂 **`04_Database_Design`** | **Database design (optional)** | Thiết kế 10 bảng quan hệ chuẩn 3NF (gồm `doctor_reviews`), script SQL nạp vào PostgreSQL cổng 5433, hướng dẫn xem ERD trên DBeaver. | [Xem Thư Mục](./04_Database_Design/Database_Design.md) |
 
 ---
 

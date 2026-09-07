@@ -14,6 +14,7 @@
 - **F04 - Tải ảnh tổn thương tiền sàng lọc qua YOLO11:** Cho phép bệnh nhân chụp và tải ảnh tổn thương ngoài da (mẩn ngứa, nốt ruồi, phát ban...). YOLO11 tự động phân tích và khoanh vùng tổn thương.
 - **F05 - Quản lý phiếu khám & Mã QR vé hẹn:** Sinh mã đặt chỗ duy nhất (Booking Code) kèm mã QR phục vụ check-in nhanh.
 - **F06 - Hủy / Thay đổi lịch hẹn:** Người dùng có thể hủy lịch trước giờ khám tối thiểu 2 tiếng theo quy định.
+- **F22 - Đánh giá chất lượng sau khám & Phân tích cảm xúc qua Spring AI (Verified Review & Sentiment Analysis):** Sau khi ca khám hoàn tất (`status = COMPLETED`), bệnh nhân được mở khóa form chấm điểm bác sĩ (1 - 5 sao) và nhận xét. Spring AI tự động phân tích cảm xúc (Positive / Neutral / Negative), phát hiện các phản hồi tiêu cực để cảnh báo Ban Giám Đốc chấn chỉnh chất lượng y tế.
 
 ### 1.2. Khối Tiếp Đón & Điều Phối (Receptionist Facing)
 - **F07 - Check-in bằng mã QR tại quầy:** Lễ tân quét mã QR trên điện thoại bệnh nhân, hệ thống chuyển trạng thái sang `CHECKED_IN` trong 1 giây.
@@ -66,3 +67,4 @@
 | **F19** | Cấu hình Template ca khám | ❌ | ❌ | ❌ | ✅ |
 | **F20** | Dashboard Báo cáo thống kê | ❌ | ❌ | ❌ | ✅ |
 | **F21** | Audit Log & Giám sát bảo mật | ❌ | ❌ | ❌ | ✅ |
+| **F22** | Đánh giá bác sĩ & Phân tích cảm xúc AI | ✅ (Tạo) | ❌ | ✅ (Xem) | ✅ (Quản lý) |

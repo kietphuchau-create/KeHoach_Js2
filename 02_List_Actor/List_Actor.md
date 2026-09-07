@@ -41,6 +41,7 @@ Hệ thống MedSched được thiết kế gồm **4 tác nhân con người (H
   - Chọn khung giờ (Time-slot) phù hợp và hoàn tất đặt lịch.
   - Nhận mã vé hẹn điện tử kèm QR Code.
   - Xem lại lịch sử các lần khám và đơn thuốc đã kê.
+  - **Đánh giá & Chấm điểm Bác sĩ sau khi khám:** Gửi điểm 1-5 sao, nhận xét về sự hài lòng và đóng góp ý kiến cải thiện dịch vụ.
 
 ### 2.2. Nhân Viên Lễ Tân / Tiếp Đón (Receptionist)
 - **Mục tiêu:** Tiếp đón bệnh nhân nhanh chóng, giảm ùn tắc tại sảnh chờ, chuyển bệnh nhân vào đúng phòng khám.
@@ -60,6 +61,7 @@ Hệ thống MedSched được thiết kế gồm **4 tác nhân con người (H
   - Ghi chép diễn biến khám bệnh, kết luận chẩn đoán (mã ICD-10).
   - Kê đơn thuốc điện tử và chỉ định tái khám / xét nghiệm.
   - Đăng ký và cập nhật lịch làm việc hàng tuần.
+  - **Theo dõi phản hồi & Điểm đánh giá (Rating/Feedback):** Xem mức độ hài lòng từ bệnh nhân để nâng cao chất lượng tư vấn và thái độ phục vụ.
 
 ### 2.4. Quản Trị Viên (System Administrator)
 - **Mục tiêu:** Đảm bảo hệ thống vận hành an toàn, thông suốt, bảo mật dữ liệu y tế.
@@ -68,12 +70,16 @@ Hệ thống MedSched được thiết kế gồm **4 tác nhân con người (H
   - Quản trị tài khoản người dùng và phân quyền RBAC (Role-Based Access Control).
   - Cấu hình ca trực của bác sĩ, độ dài slot khám, giới hạn số lượt mỗi ca.
   - Xem Dashboard thống kê: Lượng bệnh nhân theo chuyên khoa, tỷ lệ đúng giờ, doanh thu.
+  - **Giám sát chỉ số hài lòng (CSAT) & Đánh giá tiêu cực:** Nhận cảnh báo tự động từ AI khi có đánh giá tiêu cực để liên hệ hỗ trợ bệnh nhân và cải thiện quy trình y tế.
   - Giám sát nhật ký hệ thống (Audit Trail) để đảm bảo tuân thủ quy định y tế.
 
 ### 2.5. Tác Nhân Hệ Thống AI (AI System Actor)
 - **Bao gồm:** Spring AI (LLM Integration) và Ultralytics YOLO11 (Computer Vision Engine).
 - **Trách nhiệm tự động hóa:**
-  - **Spring AI:** Phân tích ngữ nghĩa mô tả của bệnh nhân để tự động đề xuất chuyên khoa khám phù hợp; trích xuất tóm tắt ngắn 2 dòng cho bác sĩ.
+  - **Spring AI:** 
+    - Phân tích ngữ nghĩa mô tả của bệnh nhân để tự động đề xuất chuyên khoa khám phù hợp.
+    - Trích xuất tóm tắt ngắn 2 dòng cho bác sĩ.
+    - **Phân tích cảm xúc nhận xét (Sentiment Analysis):** Đọc nội dung bình luận của bệnh nhân, phân loại tự động thành `POSITIVE`, `NEUTRAL`, hoặc `NEGATIVE` và gắn cờ cảnh báo quản trị viên nếu có vấn đề nghiêm trọng.
   - **YOLO11 Service:**
     - Phát hiện vùng phôi thẻ CCCD/BHYT trong luồng video camera lễ tân, xoay thẳng ảnh và kích hoạt OCR.
     - Nhận diện vùng tổn thương da trên ảnh bệnh nhân tải lên, vẽ bounding box và gán nhãn dự đoán.

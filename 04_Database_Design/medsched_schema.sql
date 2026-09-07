@@ -116,6 +116,21 @@ CREATE TABLE medical_records (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
+-- 10. BẢNG ĐÁNH GIÁ CHẤT LƯỢNG BÁC SĨ (VERIFIED REVIEWS & SPRING AI SENTIMENT)
+CREATE TABLE doctor_reviews (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    appointment_id UUID NOT NULL UNIQUE REFERENCES appointments(id) ON DELETE CASCADE,
+    patient_id UUID NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+    doctor_id UUID NOT NULL REFERENCES doctors(id) ON DELETE CASCADE,
+    rating INT NOT NULL CHECK (rating BETWEEN 1 AND 5), -- Điểm 1 đến 5 sao
+    comment TEXT, -- Nhận xét của bệnh nhân
+    ai_sentiment VARCHAR(20) CHECK (ai_sentiment IN ('POSITIVE', 'NEUTRAL', 'NEGATIVE')), -- Phân tích cảm xúc Spring AI
+    is_anonymous BOOLEAN NOT NULL DEFAULT FALSE, -- Ẩn danh người đánh giá
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_doctor_reviews_doctor ON doctor_reviews(doctor_id);
+
 -- ====================================================================
 -- DỮ LIỆU MẪU BAN ĐẦU (SEED DATA CHO MEDSCHED)
 -- ====================================================================

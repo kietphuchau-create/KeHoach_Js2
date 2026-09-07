@@ -145,8 +145,57 @@ sequenceDiagram
 
 ---
 
-## 4. Tài Liệu Kiến Trúc & Sơ Đồ Trực Quan Đi Kèm
+## 4. Luồng 4: Đánh Giá Chất Lượng Sau Khám & Phân Tích Cảm Xúc Bằng Spring AI (Verified Review & Sentiment Analysis)
+
+### 4.1. Diễn giải các bước thực hiện
+1. **Bước 1 (Mở khóa đánh giá):** Sau khi ca khám hoàn tất (`status = COMPLETED`), ứng dụng của bệnh nhân hiển thị thông báo mời đánh giá chất lượng dịch vụ của Bác sĩ.
+2. **Bước 2:** Bệnh nhân thực hiện:
+   - Chấm điểm số sao (từ 1 đến 5 ⭐).
+   - Viết cảm nghĩ / nhận xét cụ thể (ví dụ: *"Bác sĩ khám rất ân cần, giải thích kỹ phác đồ điều trị, phòng khám sạch sẽ"* hoặc *"Bác sĩ vội vàng, thời gian chờ quá lâu"*).
+   - Chọn chế độ hiển thị công khai hoặc ẩn danh (`is_anonymous`).
+3. **Bước 3 (Kiểm tra xác thực - Verified Check):** Backend kiểm tra ràng buộc `appointment_id` phải có `status = COMPLETED` và chưa từng có review nào trước đó (ngăn chặn hoàn toàn việc spam đánh giá ảo).
+4. **Bước 4 (Spring AI Sentiment Analysis):**
+   - Backend gửi đoạn nhận xét của bệnh nhân sang Spring AI.
+   - Spring AI phân tích ngữ nghĩa và trả về nhãn cảm xúc: `POSITIVE`, `NEUTRAL`, hoặc `NEGATIVE`.
+   - Nếu phát hiện cảm xúc `NEGATIVE` kèm điểm số thấp (<= 2 sao), hệ thống tự động đánh dấu cảnh báo để Ban Giám Đốc/Admin xử lý khiếu nại.
+5. **Bước 5:** Lưu đánh giá vào bảng `doctor_reviews`, tự động tính toán lại điểm đánh giá trung bình (Average Rating) của bác sĩ trên giao diện tìm kiếm.
+
+### 4.2. Sơ đồ tuần tự (Sequence Diagram)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor P as Bệnh nhân (Patient)
+    participant FE as Web/Mobile App (Next.js)
+    participant BE as Backend (Spring Boot 3)
+    participant AI as Spring AI (Sentiment Engine)
+    participant DB as PostgreSQL Database
+    actor A as Admin / Quản trị viên
+
+    Note over P,FE: Ca khám đã COMPLETED
+    FE->>BE: 1. Kiểm tra quyền đánh giá (Check Verified Appointment)
+    BE->>DB: 2. Query appointment_id & check doctor_reviews
+    DB-->>BE: 3. Hợp lệ (Chưa đánh giá lần nào)
+    BE-->>FE: 4. Mở khóa Form đánh giá (1-5 sao + bình luận)
+    
+    P->>FE: 5. Gửi điểm sao + nhận xét chi tiết
+    FE->>BE: 6. Submit Review (appointment_id, rating, comment)
+    BE->>AI: 7. Gửi nội dung nhận xét phân tích cảm xúc
+    AI-->>BE: 8. Trả về kết quả: POSITIVE / NEUTRAL / NEGATIVE
+    BE->>DB: 9. Lưu vào doctor_reviews (gồm cả ai_sentiment)
+    
+    opt Nếu nhãn NEGATIVE & rating <= 2 sao
+        BE->>A: 10. Gửi cảnh báo chất lượng dịch vụ tới Dashboard Quản trị
+    end
+    
+    BE-->>FE: 11. Xác nhận gửi đánh giá thành công!
+```
+
+---
+
+## 5. Tài Liệu Kiến Trúc & Sơ Đồ Trực Quan Đi Kèm
 - Xem sơ đồ tương tác trực quan toàn hệ thống tại file: [`medsched-architecture.html`](../medsched-architecture.html)
 - Các ảnh sơ đồ độ phân giải cao phục vụ thuyết trình:
   - Chế độ sáng (Light Mode): [`medsched-architecture.visual-check.1440x900.light.png`](../medsched-architecture.visual-check.1440x900.light.png)
   - Chế độ tối (Dark Mode): [`medsched-architecture.visual-check.1440x900.dark.png`](../medsched-architecture.visual-check.1440x900.dark.png)
+

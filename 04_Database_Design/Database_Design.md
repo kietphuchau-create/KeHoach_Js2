@@ -8,7 +8,7 @@
 
 ## 1. Danh Sách 9 Bảng Thực Thể (Entity Tables)
 
-Hệ thống được chuẩn hóa theo dạng chuẩn 3NF gồm **9 bảng** chặt chẽ, tối ưu hóa cho hiệu năng truy vấn và bảo toàn toàn vẹn dữ liệu y tế:
+Hệ thống được chuẩn hóa theo dạng chuẩn 3NF gồm **10 bảng** chặt chẽ, tối ưu hóa cho hiệu năng truy vấn và bảo toàn toàn vẹn dữ liệu y tế:
 
 ```
                       ┌───────────────┐
@@ -40,13 +40,13 @@ Hệ thống được chuẩn hóa theo dạng chuẩn 3NF gồm **9 bảng** ch
                       ┌───────────────┐
                       │ appointments  │
                       └───────┬───────┘
-                     1        │ 1
-             ┌────────────────┴────────────────┐
-             ▼                                 ▼
-     ┌────────────────┐               ┌─────────────────┐
-     │ symptom_images │               │ medical_records │
-     │   (YOLO11)     │               │   (Bệnh án)     │
-     └────────────────┘               └─────────────────┘
+            ┌─────────────────┼─────────────────┐
+           1│                1│                1│
+            ▼                 ▼                 ▼
+     ┌────────────────┐┌─────────────────┐┌──────────────────┐
+     │ symptom_images ││ medical_records ││  doctor_reviews  │
+     │   (YOLO11)     ││   (Bệnh án)     ││ (Spring AI Eval) │
+     └────────────────┘└─────────────────┘└──────────────────┘
 ```
 
 ---
@@ -148,6 +148,20 @@ Hệ thống được chuẩn hóa theo dạng chuẩn 3NF gồm **9 bảng** ch
   - `diagnosis` (TEXT): Chẩn đoán xác định bệnh của bác sĩ (kèm mã ICD-10).
   - `doctor_notes` (TEXT): Lời dặn dò, hẹn ngày tái khám.
   - `prescription` (TEXT): Đơn thuốc điện tử (dạng JSON hoặc văn bản kê chi tiết).
+
+### 2.10. Bảng `doctor_reviews` (Đánh giá chất lượng bác sĩ có xác thực & Spring AI Sentiment)
+- **Mục đích:** Lưu trữ phản hồi của bệnh nhân sau khi khám xong và kết quả phân tích cảm xúc từ Spring AI.
+- **Quy tắc nghiệp vụ:** Mỗi ca hẹn (`appointment_id`) chỉ được phép đánh giá đúng 1 lần (ràng buộc `UNIQUE`), chống spam và đánh giá ảo.
+- **Các trường:**
+  - `id` (UUID, PK): Khóa chính.
+  - `appointment_id` (UUID, UNIQUE, FK ➔ `appointments.id`): Ca hẹn đã hoàn thành được đánh giá.
+  - `patient_id` (UUID, FK ➔ `patients.id`): Bệnh nhân thực hiện đánh giá.
+  - `doctor_id` (UUID, FK ➔ `doctors.id`): Bác sĩ được đánh giá.
+  - `rating` (INT, CHECK (rating BETWEEN 1 AND 5)): Số sao từ 1 đến 5.
+  - `comment` (TEXT): Nhận xét chi tiết của bệnh nhân.
+  - `ai_sentiment` (VARCHAR(20), CHECK ('POSITIVE', 'NEUTRAL', 'NEGATIVE')): Nhãn cảm xúc do **Spring AI** tự động trích xuất.
+  - `is_anonymous` (BOOLEAN, DEFAULT FALSE): Tùy chọn ẩn danh trên giao diện công khai.
+  - `created_at` (TIMESTAMPTZ): Thời điểm gửi đánh giá.
 
 ---
 

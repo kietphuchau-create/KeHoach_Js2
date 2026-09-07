@@ -67,9 +67,10 @@
 * **F18. Gợi ý chuyên khoa đa phương thức (Multimodal Triage):** Kết hợp kết quả phân tích hình ảnh từ **YOLO11** + lời mô tả triệu chứng của bệnh nhân, **Spring AI** tổng hợp và đề xuất chuyên khoa chính xác nhất (ví dụ: *"Hình ảnh phát hiện nốt ban dạng mề đay dị ứng, hệ thống gợi ý bạn đặt khám tại Chuyên khoa Da liễu"*).
 * **F19. Tóm tắt lý do khám cho bác sĩ:** AI tự động tóm lược thông tin lời kể dài dòng của bệnh nhân thành bản tóm tắt 2 dòng ngắn gọn.
 
-### 3.7. Phân hệ Thông báo & Báo cáo (Notification & Analytics)
+### 3.7. Phân hệ Thông báo, Đánh giá & Báo cáo (Notification, Review & Analytics)
 * **F20. Nhắc lịch hẹn tự động:** Tự động gửi email/SMS nhắc nhở trước 24 giờ và trước 2 giờ khám.
 * **F21. Thống kê & Dashboard:** Thống kê số lượng ca khám, thời gian chờ trung bình tại quầy, tỷ lệ tiếp đón tự động bằng YOLO11.
+* **F22. Đánh giá chất lượng sau khám & Phân tích cảm xúc qua Spring AI (Verified Review & Sentiment Analysis):** Bệnh nhân hoàn tất ca khám (`status = COMPLETED`) được đánh giá 1-5 sao kèm nhận xét. Spring AI tự động phân tích cảm xúc (Positive/Neutral/Negative) để cảnh báo kịp thời các trường hợp dịch vụ chưa tốt.
 
 ---
 
@@ -175,6 +176,7 @@ erDiagram
     TIME_SLOTS ||--|| APPOINTMENTS : "chiếm slot"
     APPOINTMENTS ||--o{ SYMPTOM_IMAGES : "chứa ảnh YOLO"
     APPOINTMENTS ||--o| MEDICAL_RECORDS : "kết quả khám"
+    APPOINTMENTS ||--o| DOCTOR_REVIEWS : "đánh giá sau khám"
 
     USERS {
         uuid id PK
@@ -253,6 +255,18 @@ erDiagram
         text diagnosis
         text doctor_notes
         text prescription
+        timestamp created_at
+    }
+
+    DOCTOR_REVIEWS {
+        uuid id PK
+        uuid appointment_id FK "Ràng buộc 1-1 chống spam"
+        uuid patient_id FK
+        uuid doctor_id FK
+        int rating "1 - 5 sao"
+        text comment
+        string ai_sentiment "POSITIVE/NEUTRAL/NEGATIVE"
+        boolean is_anonymous
         timestamp created_at
     }
 ```
