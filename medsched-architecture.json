@@ -2,7 +2,7 @@
   "schema_version": 1,
   "diagram_type": "architecture",
   "meta": {
-    "title": "MedSched System Architecture",
+    "title": "Sơ Đồ Kiến Trúc Hệ Thống MedSched",
     "output": "medsched-architecture.html",
     "quality_profile": "showcase",
     "views": [
@@ -31,7 +31,7 @@
       "id": "patient_app",
       "type": "frontend",
       "brand": "next-js",
-      "label": "Patient Portal",
+      "label": "Cổng Bệnh Nhân",
       "sublabel": "Next.js 16 :3000",
       "pos": [40, 160],
       "size": [150, 68]
@@ -40,8 +40,8 @@
       "id": "staff_portal",
       "type": "frontend",
       "brand": "next-js",
-      "label": "Reception Desk",
-      "sublabel": "Camera & QR Scanner",
+      "label": "Quầy Tiếp Đón",
+      "sublabel": "Camera & Quét Mã QR",
       "pos": [40, 310],
       "size": [150, 68]
     },
@@ -53,58 +53,58 @@
       "sublabel": "Java 21 / Clean Arch :8080",
       "pos": [280, 220],
       "size": [170, 72],
-      "tag": "JWT + REST API"
+      "tag": "Bảo mật JWT & REST API"
     },
     {
       "id": "postgres_db",
       "type": "database",
       "brand": "postgresql",
       "label": "PostgreSQL 16",
-      "sublabel": "Relational Core :5433",
+      "sublabel": "CSDL Quan hệ lõi :5433",
       "pos": [280, 400],
       "size": [170, 68],
-      "tag": "Flyway Migrations"
+      "tag": "Quản lý CSDL Flyway"
     },
     {
       "id": "yolo_service",
       "type": "backend",
       "brand": "python",
-      "label": "YOLO11 Vision",
-      "sublabel": "FastAPI :8001",
+      "label": "Thị Giác YOLO11",
+      "sublabel": "Dịch vụ FastAPI :8001",
       "pos": [560, 110],
       "size": [170, 68],
-      "tag": "CCCD OCR & Skin AI"
+      "tag": "OCR CCCD & Phân tích da"
     },
     {
       "id": "spring_ai",
       "type": "backend",
       "brand": "spring",
-      "label": "Spring AI Service",
-      "sublabel": "ChatClient & Triage",
+      "label": "Dịch Vụ Spring AI",
+      "sublabel": "ChatClient & Sàng lọc",
       "pos": [560, 250],
       "size": [170, 68],
-      "tag": "LLM Orchestration"
+      "tag": "Điều phối mô hình LLM"
     },
     {
       "id": "vector_store",
       "type": "database",
       "brand": "postgresql",
-      "label": "PGVector Store",
-      "sublabel": "Medical Knowledge Base",
+      "label": "Kho PGVector",
+      "sublabel": "Tri thức y khoa RAG",
       "pos": [560, 400],
       "size": [170, 68],
-      "tag": "Vector Embeddings"
+      "tag": "Dữ liệu nhúng Vector"
     }
   ],
   "boundaries": [
     {
       "kind": "region",
-      "label": "Docker Compose Deployment Environment",
+      "label": "Môi trường Triển khai Docker Compose",
       "wraps": ["api_gateway", "postgres_db", "yolo_service", "spring_ai", "vector_store"]
     },
     {
       "kind": "security-group",
-      "label": "AI & Computer Vision Pipeline",
+      "label": "Quy trình AI & Thị giác máy tính",
       "wraps": ["yolo_service", "spring_ai", "vector_store"]
     }
   ],
@@ -113,21 +113,21 @@
       "id": "patient-to-api",
       "from": "patient_app",
       "to": "api_gateway",
-      "label": "REST / JSON",
+      "label": "REST API / JSON",
       "variant": "emphasis"
     },
     {
       "id": "staff-to-api",
       "from": "staff_portal",
       "to": "api_gateway",
-      "label": "Check-in Stream",
+      "label": "Luồng Check-in 3s",
       "variant": "emphasis"
     },
     {
       "id": "api-to-db",
       "from": "api_gateway",
       "to": "postgres_db",
-      "label": "JPA / JDBC",
+      "label": "Truy vấn JPA / JDBC",
       "fromSide": "bottom",
       "toSide": "top",
       "labelAt": [365, 345]
@@ -136,7 +136,7 @@
       "id": "api-to-yolo",
       "from": "api_gateway",
       "to": "yolo_service",
-      "label": "Detect Image",
+      "label": "Phân tích hình ảnh",
       "fromSide": "top",
       "toSide": "left"
     },
@@ -144,7 +144,7 @@
       "id": "api-to-springai",
       "from": "api_gateway",
       "to": "spring_ai",
-      "label": "Symptom Triage",
+      "label": "Sàng lọc triệu chứng",
       "fromSide": "right",
       "toSide": "left"
     },
@@ -152,7 +152,7 @@
       "id": "yolo-to-springai",
       "from": "yolo_service",
       "to": "spring_ai",
-      "label": "Detected Tags",
+      "label": "Nhãn tổn thương",
       "fromSide": "bottom",
       "toSide": "top",
       "variant": "dashed",
@@ -162,7 +162,7 @@
       "id": "springai-to-vector",
       "from": "spring_ai",
       "to": "vector_store",
-      "label": "RAG Similarity",
+      "label": "Truy vấn RAG",
       "fromSide": "bottom",
       "toSide": "top",
       "labelAt": [645, 358]
@@ -171,7 +171,7 @@
       "id": "db-to-vector",
       "from": "postgres_db",
       "to": "vector_store",
-      "label": "PGVector Ext",
+      "label": "Mở rộng PGVector",
       "fromSide": "right",
       "toSide": "left",
       "variant": "dashed"
@@ -182,8 +182,8 @@
       "dot": "cyan",
       "title": "Giao diện đa kênh (Client Layer)",
       "items": [
-        "Patient Portal: Đặt lịch khám trực tuyến, chat định hướng triệu chứng và tải ảnh tổn thương.",
-        "Reception Desk: Quét mã QR vé khám và camera tự động bóc tách thông tin thẻ CCCD/BHYT."
+        "Cổng Bệnh nhân: Đặt lịch khám trực tuyến, chat định hướng triệu chứng và tải ảnh tổn thương ngoài da.",
+        "Quầy Tiếp đón: Quét mã QR vé khám và camera tự động bóc tách thông tin thẻ CCCD/BHYT trong 3 giây."
       ]
     },
     {
@@ -191,14 +191,14 @@
       "title": "Nghiệp vụ lõi (Spring Boot Backend)",
       "items": [
         "Xây dựng theo kiến trúc Clean / Hexagonal Architecture chuẩn doanh nghiệp.",
-        "Quản lý vòng đời ca khám (Time Slots, Optimistic Locking, Flyway Database Migrations)."
+        "Quản lý vòng đời ca khám (Time Slots, Khóa lạc quan chống đặt trùng, Quản lý CSDL Flyway)."
       ]
     },
     {
       "dot": "rose",
       "title": "Trí tuệ nhân tạo (AI & YOLO11 Pipeline)",
       "items": [
-        "YOLO11: Tự động trích xuất thông tin thẻ định danh trong 3s và khoanh vùng tổn thương da liễu.",
+        "YOLO11: Tự động trích xuất thông tin thẻ CCCD/BHYT trong 3s và khoanh vùng tổn thương da liễu.",
         "Spring AI + PGVector: Tra cứu tri thức y khoa (RAG) và gợi ý chuyên khoa chính xác."
       ]
     }
