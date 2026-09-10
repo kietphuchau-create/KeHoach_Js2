@@ -1,172 +1,137 @@
-# 🗄️ 04. Thiết Kế Cơ Sở Dữ Liệu (Database Design) - Dự Án MedSched
+# 🗄️ 04. Thiết Kế Cơ Sở Dữ Liệu (Database Design) - Dự Án MedSched (Phiên Bản 2.0)
 
-> **Học phần:** Java Spring 2 - Phát triển ứng dụng Web thông minh với Spring Boot & AI  
-> **Hệ quản trị CSDL:** PostgreSQL 16 (chạy trên Docker container, Port `5433`)  
-> **File kịch bản SQL:** [`medsched_schema.sql`](./medsched_schema.sql)
+> **Học phần:** Java Spring 2 - Phát triển ứng dụng Web thông minh với Spring Boot & Spring AI  
+> **Hệ quản trị CSDL:** PostgreSQL 16 (chạy trên Docker container, Port `5433`, DB: `medsched_db`) / PostgreSQL 18 Local (`localhost:5432`)  
+> **File kịch bản SQL:** [`medsched_schema.sql`](./medsched_schema.sql)  
+> **Cập nhật:** Chuẩn hóa theo toàn bộ góp ý của Giảng viên & Kịch bản thực tế bệnh viện (Tập trung trọng tâm vào Spring Boot 3 + Spring AI, loại bỏ Computer Vision YOLO11).
 
 ---
 
-## 1. Danh Sách 9 Bảng Thực Thể (Entity Tables)
+## 1. Danh Sách 12 Bảng Thực Thể & Kiến Trúc Dữ Liệu
 
-Hệ thống được chuẩn hóa theo dạng chuẩn 3NF gồm **10 bảng** chặt chẽ, tối ưu hóa cho hiệu năng truy vấn và bảo toàn toàn vẹn dữ liệu y tế:
+Hệ thống được thiết kế theo chuẩn hóa 3NF gồm **12 bảng quan hệ chặt chẽ**, tích hợp đầy đủ 4 trường Audit tiêu chuẩn doanh nghiệp (`created_at`, `updated_at`, `created_by`, `updated_by`):
 
 ```
-                      ┌───────────────┐
-                      │     users     │
-                      └───────┬───────┘
-                     1        │ 1
-             ┌────────────────┴────────────────┐
-             ▼                                 ▼
-      ┌─────────────┐                   ┌─────────────┐
-      │  patients   │                   │   doctors   │
-      └──────┬──────┘                   └──────┬──────┘
-             │ 1                               │ 1
-             │       ┌───────────────┐         │
-             │       │  specialties  │◄────────┤
-             │       └───────────────┘         │
-             │                                 │ 1
-             │                                 ▼
-             │                      ┌─────────────────────┐
-             │                      │  doctor_schedules   │
-             │                      └──────────┬──────────┘
-             │                                 │ 1
-             │                                 ▼
-             │                      ┌─────────────────────┐
-             │                      │     time_slots      │
-             │                      └──────────┬──────────┘
-             │ 1                               │ 1 (One-to-One)
-             └───────────────┐   ┌─────────────┘
-                             ▼   ▼
-                      ┌───────────────┐
-                      │ appointments  │
-                      └───────┬───────┘
-            ┌─────────────────┼─────────────────┐
-           1│                1│                1│
-            ▼                 ▼                 ▼
-     ┌────────────────┐┌─────────────────┐┌──────────────────┐
-     │ symptom_images ││ medical_records ││  doctor_reviews  │
-     │   (YOLO11)     ││   (Bệnh án)     ││ (Spring AI Eval) │
-     └────────────────┘└─────────────────┘└──────────────────┘
+                                  ┌────────────────────┐
+                                  │  medical_centers   │ (Multi-tenant SaaS)
+                                  └─────────┬──────────┘
+                                            │ 1
+                 ┌──────────────────────────┼──────────────────────────┐
+                1│                         1│                         1│
+                 ▼                          ▼                          ▼
+       ┌───────────────────┐      ┌───────────────────┐      ┌───────────────────┐
+       │  system_settings  │      │       users       │      │    specialties    │
+       │(Slot & Buffer Cfg)│      └─────────┬─────────┘      └─────────┬─────────┘
+       └───────────────────┘                │ 1                        │ 1
+                                            ├────────────────┐         │
+                                           1│               1│         │
+                                            ▼                ▼         ▼
+                                 ┌───────────────────┐     ┌───────────────────┐
+                                 │ patient_profiles  │     │      doctors      │
+                                 │(Self & Người thân)│     └─────────┬─────────┘
+                                 └──────────┬────────┘               │ 1
+                                            │ 1                      ▼
+                                            │              ┌───────────────────┐
+                                            │              │ doctor_schedules  │
+                                            │              └─────────┬─────────┘
+                                            │                        │ 1
+                                            │                        ▼
+                                            │              ┌───────────────────┐
+                                            │              │    time_slots     │
+                                            │              │(Optimistic Lock)  │
+                                            │              └─────────┬─────────┘
+                                            │                        │ 1 (One-to-One)
+                                            └───────────┐   ┌────────┘
+                                                        ▼   ▼
+                                                 ┌───────────────────┐
+                                                 │   appointments    │
+                                                 │(Queue & Điều phối)│
+                                                 └─────────┬─────────┘
+                    ┌──────────────────────────────────────┼──────────────────────────────────────┐
+                   1│                                     1│                                     1│
+                    ▼                                      ▼                                      ▼
+         ┌─────────────────────┐                ┌─────────────────────┐                ┌─────────────────────┐
+         │appointment_status_  │                │   medical_records   │                │   doctor_reviews    │
+         │       logs          │                │(Hồ sơ bệnh án điện) │                │ (Verified & Spring  │
+         │ (Truy vết đổi lịch) │                └─────────────────────┘                │    AI Sentiment)    │
+         └─────────────────────┘                                                       └─────────────────────┘
 ```
 
 ---
 
-## 2. Chi Tiết Cấu Trúc Các Bảng
+## 2. Giải Trình Tiếp Thu Các Góp Ý Của Giảng Viên
 
-### 2.1. Bảng `users` (Tài khoản người dùng)
-- **Mục đích:** Quản lý thông tin xác thực đăng nhập, phân quyền RBAC và bảo mật mật khẩu băm.
-- **Các trường:**
-  - `id` (UUID, PK): Khóa chính ngẫu nhiên chống tấn công đoán số ID.
-  - `email` (VARCHAR(100), UNIQUE, NOT NULL): Tên đăng nhập.
-  - `password_hash` (VARCHAR(255), NOT NULL): Mật khẩu mã hóa BCrypt.
-  - `full_name` (VARCHAR(100), NOT NULL): Họ và tên đầy đủ.
-  - `phone` (VARCHAR(20)): Số điện thoại liên lạc.
-  - `role` (VARCHAR(20), CHECK): Vai trò (`PATIENT`, `RECEPTIONIST`, `DOCTOR`, `ADMIN`).
-  - `is_active` (BOOLEAN): Trạng thái kích hoạt.
-  - `created_at` (TIMESTAMPTZ): Thời điểm tạo tài khoản.
-
-### 2.2. Bảng `patients` (Thông tin hồ sơ bệnh nhân)
-- **Mục đích:** Lưu trữ hồ sơ định danh công dân và thẻ y tế phục vụ nhận diện tự động bằng YOLO11.
-- **Các trường:**
-  - `id` (UUID, PK): Khóa chính.
-  - `user_id` (UUID, FK ➔ `users.id`): Liên kết 1-1 với tài khoản người dùng (có thể NULL cho bệnh nhân vãng lai tiếp đón nhanh).
-  - `cccd_number` (VARCHAR(20), UNIQUE): Số Căn cước công dân (Dùng đối soát nhanh khi quét camera tại quầy).
-  - `health_insurance_no` (VARCHAR(20)): Mã thẻ Bảo hiểm y tế.
-  - `date_of_birth` (DATE): Ngày tháng năm sinh.
-  - `gender` (VARCHAR(10)): Giới tính (`MALE`, `FEMALE`, `OTHER`).
-  - `address` (VARCHAR(255)): Địa chỉ thường trú.
-  - `medical_history` (TEXT): Tiền sử dị ứng thuốc và bệnh mạn tính.
-
-### 2.3. Bảng `specialties` (Danh mục Chuyên khoa y tế)
-- **Mục đích:** Phân loại phòng khám phục vụ bộ gợi ý của Spring AI.
-- **Các trường:**
-  - `id` (UUID, PK): Khóa chính.
-  - `name` (VARCHAR(100), NOT NULL): Tên chuyên khoa (Tim mạch, Da liễu, Nhi khoa, Tai Mũi Họng...).
-  - `code` (VARCHAR(20), UNIQUE): Mã chuyên khoa (CARDIO, DERMA, PEDIA...).
-  - `description` (TEXT): Diễn giải phạm vi khám.
-  - `icon_url` (VARCHAR(255)): Biểu tượng minh họa trên giao diện.
-
-### 2.4. Bảng `doctors` (Thông tin bác sĩ chuyên khoa)
-- **Mục đích:** Lưu trữ học vị, chuyên khoa phụ trách và giá khám.
-- **Các trường:**
-  - `id` (UUID, PK): Khóa chính.
-  - `user_id` (UUID, FK ➔ `users.id`): Liên kết với tài khoản bác sĩ.
-  - `specialty_id` (UUID, FK ➔ `specialties.id`): Chuyên khoa phụ trách.
-  - `title` (VARCHAR(50)): Học hàm, học vị (ThS.BS, BSCKII, PGS.TS).
-  - `biography` (TEXT): Quá trình công tác và thế mạnh lâm sàng.
-  - `consultation_fee` (NUMERIC(12,2)): Giá khám cơ bản.
-
-### 2.5. Bảng `doctor_schedules` (Ca trực làm việc)
-- **Mục đích:** Quản lý ngày làm việc và độ dài từng ca của bác sĩ.
-- **Các trường:**
-  - `id` (UUID, PK): Khóa chính.
-  - `doctor_id` (UUID, FK ➔ `doctors.id`): Bác sĩ làm việc.
-  - `work_date` (DATE): Ngày khám.
-  - `start_time` (TIME): Giờ bắt đầu ca trực (ví dụ: 08:00:00).
-  - `end_time` (TIME): Giờ kết thúc ca trực (ví dụ: 12:00:00).
-  - `slot_duration_minutes` (INT): Độ dài mỗi lượt khám (mặc định 20 phút).
-
-### 2.6. Bảng `time_slots` (Khung giờ khám chi tiết)
-- **Mục đích:** Phân chia thành từng khung giờ cụ thể và quản lý trạng thái đặt chỗ.
-- **Các trường:**
-  - `id` (UUID, PK): Khóa chính.
-  - `schedule_id` (UUID, FK ➔ `doctor_schedules.id`).
-  - `doctor_id` (UUID, FK ➔ `doctors.id`).
-  - `start_time` (TIME) & `end_time` (TIME): Khung giờ cụ thể (vd: 08:00 - 08:20).
-  - `status` (VARCHAR(20)): Trạng thái (`AVAILABLE`, `BOOKED`, `BLOCKED`).
-  - `version` (INT): Khóa lạc quan (Optimistic Locking) chống tình trạng tranh chấp đặt trùng giờ từ nhiều người dùng đồng thời.
-
-### 2.7. Bảng `appointments` (Ca hẹn khám bệnh)
-- **Mục đích:** Bảng hạt nhân lưu trữ chi tiết lượt đặt khám, mã vé QR, phương thức tiếp đón và tóm tắt AI.
-- **Các trường:**
-  - `id` (UUID, PK): Khóa chính.
-  - `booking_code` (VARCHAR(16), UNIQUE): Mã vé đặt hẹn ngắn (dùng sinh QR Code).
-  - `patient_id` (UUID, FK ➔ `patients.id`): Bệnh nhân khám.
-  - `doctor_id` (UUID, FK ➔ `doctors.id`): Bác sĩ phụ trách.
-  - `slot_id` (UUID, UNIQUE, FK ➔ `time_slots.id`): Ràng buộc 1 slot chỉ chứa tối đa 1 ca hẹn.
-  - `patient_symptoms` (TEXT): Mô tả bệnh do người dùng nhập.
-  - `ai_summary` (TEXT): **Tóm tắt ngắn 2 dòng do Spring AI tự động trích xuất**.
-  - `checkin_method` (VARCHAR(30)): Phương thức check-in (`QR_CODE`, `YOLO_CARD_SCAN`, `MANUAL`).
-  - `status` (VARCHAR(30)): Trạng thái ca khám (`PENDING`, `CONFIRMED`, `CHECKED_IN`, `IN_PROGRESS`, `COMPLETED`, `CANCELLED`).
-  - `check_in_time` (TIMESTAMPTZ): Thời điểm lễ tân/camera xác nhận có mặt.
-
-### 2.8. Bảng `symptom_images` (Lưu kết quả phân tích thị giác máy tính YOLO11)
-- **Mục đích:** Lưu trữ ảnh gốc bệnh nhân tải lên và kết quả vẽ bounding box nhận diện của YOLO11.
-- **Các trường:**
-  - `id` (UUID, PK): Khóa chính.
-  - `appointment_id` (UUID, FK ➔ `appointments.id`).
-  - `original_image_url` (VARCHAR(500)): Đường dẫn ảnh gốc.
-  - `annotated_image_url` (VARCHAR(500)): Đường dẫn ảnh đã được YOLO11 khoanh vùng vết tổn thương.
-  - `detected_class` (VARCHAR(100)): Nhãn phân loại tổn thương (eczema, urticaria, rash...).
-  - `confidence_score` (NUMERIC(5,4)): Độ tin cậy dự đoán (vd: 0.8925).
-
-### 2.9. Bảng `medical_records` (Hồ sơ bệnh án sau khám)
-- **Mục đích:** Lưu trữ kết luận lâm sàng và đơn thuốc điện tử do bác sĩ kê.
-- **Các trường:**
-  - `id` (UUID, PK): Khóa chính.
-  - `appointment_id` (UUID, UNIQUE, FK ➔ `appointments.id`): Mỗi ca hẹn sinh ra 1 hồ sơ bệnh án.
-  - `diagnosis` (TEXT): Chẩn đoán xác định bệnh của bác sĩ (kèm mã ICD-10).
-  - `doctor_notes` (TEXT): Lời dặn dò, hẹn ngày tái khám.
-  - `prescription` (TEXT): Đơn thuốc điện tử (dạng JSON hoặc văn bản kê chi tiết).
-
-### 2.10. Bảng `doctor_reviews` (Đánh giá chất lượng bác sĩ có xác thực & Spring AI Sentiment)
-- **Mục đích:** Lưu trữ phản hồi của bệnh nhân sau khi khám xong và kết quả phân tích cảm xúc từ Spring AI.
-- **Quy tắc nghiệp vụ:** Mỗi ca hẹn (`appointment_id`) chỉ được phép đánh giá đúng 1 lần (ràng buộc `UNIQUE`), chống spam và đánh giá ảo.
-- **Các trường:**
-  - `id` (UUID, PK): Khóa chính.
-  - `appointment_id` (UUID, UNIQUE, FK ➔ `appointments.id`): Ca hẹn đã hoàn thành được đánh giá.
-  - `patient_id` (UUID, FK ➔ `patients.id`): Bệnh nhân thực hiện đánh giá.
-  - `doctor_id` (UUID, FK ➔ `doctors.id`): Bác sĩ được đánh giá.
-  - `rating` (INT, CHECK (rating BETWEEN 1 AND 5)): Số sao từ 1 đến 5.
-  - `comment` (TEXT): Nhận xét chi tiết của bệnh nhân.
-  - `ai_sentiment` (VARCHAR(20), CHECK ('POSITIVE', 'NEUTRAL', 'NEGATIVE')): Nhãn cảm xúc do **Spring AI** tự động trích xuất.
-  - `is_anonymous` (BOOLEAN, DEFAULT FALSE): Tùy chọn ẩn danh trên giao diện công khai.
-  - `created_at` (TIMESTAMPTZ): Thời điểm gửi đánh giá.
+1. **Chuẩn hóa 4 trường Audit trên mọi bảng:**
+   * Mọi bảng đều sở hữu: `created_at`, `updated_at`, `created_by`, `updated_by`.
+   * **Lợi ích:** Phục vụ phân trang (paging), sắp xếp (sorting) và truy vết trách nhiệm pháp lý bắt buộc trong lĩnh vực y tế số.
+2. **Tách bảng `system_settings` (Tránh hardcode `slot_duration_minutes`):**
+   * Không lưu cứng thời lượng khám trong từng dòng ca trực. Bảng cấu hình lưu tập trung: thời lượng khám mặc định (30 phút), khoảng đệm chuẩn bị (5 phút), quy định hủy lịch trước (2 giờ), giới hạn bỏ hẹn No-show (3 lần).
+3. **Bổ sung bảng `appointment_status_logs`:**
+   * Ghi nhận lịch sử mỗi khi ca hẹn chuyển trạng thái: từ `CONFIRMED` $\rightarrow$ `CANCELLED` hoặc `WAITING_FOR_LAB_RESULTS`. Lưu rõ ai đổi, lý do đổi và thời điểm đổi.
+4. **Bổ sung bảng `medical_centers` (Khả năng mở rộng SaaS / Multi-tenant):**
+   * Giúp hệ thống dễ dàng mở rộng từ 1 phòng khám đơn lẻ thành nền tảng quản lý chuỗi bệnh viện hoặc bán dịch vụ phần mềm y tế dạng SaaS.
+5. **Cải tiến bảng `patient_profiles` (Hỗ trợ đặt lịch hộ cho người thân):**
+   * 1 tài khoản `users` có thể quản lý nhiều hồ sơ gia đình (`SELF`, `PARENT`, `CHILD`, `SPOUSE`). Khi người thân đến khám và quét mã QR CCCD tại quầy, hệ thống luôn khớp chính xác thông tin bệnh nhân thực tế.
+6. **Tích hợp cơ chế Điều phối hàng đợi (Examination Queue) vào `appointments`:**
+   * Bổ sung cột `queue_number` (Số thứ tự khám: `APP-1000`, `WLK-001`, `LAB-01`).
+   * Bổ sung `queue_type` (`ONLINE_BOOKED`, `WALKIN`, `POST_LAB_RESULT`).
+   * Bổ sung `payment_status` (`UNPAID`, `PAID_AT_COUNTER`, `DEPOSITED_VNPAY`, `REFUNDED`).
+   * Bổ sung cờ báo ca trước kéo dài `is_delayed` và `delay_minutes` để tự động báo bệnh nhân sau không bị bất ngờ.
 
 ---
 
-## 3. Hướng Dẫn Xem ER Diagram Trên DBeaver
-1. Mở DBeaver kết nối vào database `medsched_db` (Port: `5433`).
-2. Mở nhánh **`Schemas`** ➔ **`public`** ➔ nhấp đúp vào **`Tables`**.
-3. Chọn tab **`Diagram`** ở thanh công cụ chính giữa.
-4. Nhấp chuột phải vào sơ đồ ➔ chọn **`Save diagram as ...`** để xuất ảnh PNG chất lượng cao.
+## 3. Chi Tiết Cấu Trúc Các Bảng Mới & Cải Tiến
+
+### 3.1. Bảng `medical_centers` (Cơ sở y tế / Chi nhánh)
+* `id` (UUID, PK): Khóa chính.
+* `code` (VARCHAR(50), UNIQUE): Mã cơ sở y tế (vd: `MED_Q1`, `MED_Q7`).
+* `name` (VARCHAR(255)): Tên cơ sở y tế / Bệnh viện.
+* `address` (VARCHAR(500)), `phone` (VARCHAR(20)), `is_active` (BOOLEAN).
+* 4 trường audit tiêu chuẩn.
+
+### 3.2. Bảng `system_settings` (Cấu hình hệ thống tập trung)
+* `id` (UUID, PK): Khóa chính.
+* `medical_center_id` (UUID, FK ➔ `medical_centers.id`).
+* `setting_key` (VARCHAR(100)): Tên biến cấu hình (vd: `DEFAULT_SLOT_DURATION_MINUTES`, `BUFFER_TIME_MINUTES`, `CANCELLATION_LIMIT_HOURS`).
+* `setting_value` (VARCHAR(255)): Giá trị cấu hình.
+* `description` (TEXT): Ý nghĩa tham số.
+
+### 3.3. Bảng `patient_profiles` (Hồ sơ người khám & Gia đình)
+* `id` (UUID, PK): Khóa chính.
+* `user_id` (UUID, FK ➔ `users.id`): Tài khoản người đặt lịch.
+* `relationship` (VARCHAR(30)): Mối quan hệ (`SELF`, `PARENT`, `CHILD`, `SPOUSE`, `OTHER`).
+* `full_name` (VARCHAR(255)): Họ tên bệnh nhân thực tế khám.
+* `cccd_number` (VARCHAR(20)): Số CCCD (phục vụ đối soát thẻ CCCD gắn chip và mã QR).
+* `health_insurance_no` (VARCHAR(30)): Mã thẻ BHYT.
+* `date_of_birth` (DATE), `gender` (VARCHAR(10)), `phone` (VARCHAR(20)), `address` (VARCHAR(500)), `medical_history` (TEXT).
+
+### 3.4. Bảng `appointments` (Ca hẹn khám & Điều phối hàng đợi)
+* `id` (UUID, PK): Khóa chính.
+* `booking_code` (VARCHAR(16), UNIQUE): Mã đặt hẹn phục vụ sinh mã QR tiếp đón.
+* `patient_profile_id` (UUID, FK ➔ `patient_profiles.id`): Bệnh nhân khám.
+* `doctor_id` (UUID, FK ➔ `doctors.id`): Bác sĩ chỉ định.
+* `slot_id` (UUID, NULLABLE, FK ➔ `time_slots.id`): Slot giờ (NULL nếu là khách vãng lai cấp số chờ).
+* `queue_number` (VARCHAR(20)): Số thứ tự hàng đợi (vd: `APP-1000`, `WLK-001`, `LAB-01`).
+* `queue_type` (VARCHAR(20)): Loại hàng đợi (`ONLINE_BOOKED`, `WALKIN`, `POST_LAB_RESULT`).
+* `payment_status` (VARCHAR(30)): Trạng thái thanh toán (`UNPAID`, `PAID_AT_COUNTER`, `DEPOSITED_VNPAY`, `REFUNDED`).
+* `status` (VARCHAR(30)): Vòng đời ca khám (`PENDING`, `CONFIRMED`, `CHECKED_IN`, `IN_PROGRESS`, `WAITING_FOR_LAB_RESULTS`, `COMPLETED`, `CANCELLED`, `MISSED_NO_SHOW`).
+* `is_delayed` (BOOLEAN) & `delay_minutes` (INT): Cờ báo ca trước kéo dài để điều phối thời gian thực.
+* `ai_summary` (TEXT): **Tóm tắt 2 dòng triệu chứng do Spring AI tự động trích xuất**.
+* `checkin_method` (VARCHAR(30)): `QR_CODE`, `CCCD_QR`, `MANUAL`.
+
+### 3.5. Bảng `appointment_status_logs` (Nhật ký thay đổi trạng thái ca khám)
+* `id` (UUID, PK): Khóa chính.
+* `appointment_id` (UUID, FK ➔ `appointments.id`).
+* `from_status` (VARCHAR(30)): Trạng thái trước khi đổi.
+* `to_status` (VARCHAR(30)): Trạng thái mới.
+* `reason` (TEXT): Lý do đổi trạng thái (bác sĩ bận cấp cứu, bệnh nhân xin dời giờ, no-show...).
+* `changed_by` (UUID, FK ➔ `users.id`): Người thực hiện thao tác.
+* `created_at` (TIMESTAMPTZ): Thời điểm ghi nhận.
+
+---
+
+## 4. Hướng Dẫn Nạp Schema Vào PostgreSQL Bằng DBeaver
+
+1. Mở **DBeaver**, kết nối vào PostgreSQL (Cổng `5433` qua Docker hoặc `5432` cục bộ, Database: `medsched_db`).
+2. Mở file script [`medsched_schema.sql`](./medsched_schema.sql) và nhấn tổ hợp phím **`Alt + X`** (Execute SQL Script).
+3. Sau khi chạy thành công, nhấp đúp vào thư mục **`Tables`** ➔ chuyển qua tab **`Diagram`** để kiểm tra và xuất ảnh sơ đồ quan hệ ERD 12 bảng.

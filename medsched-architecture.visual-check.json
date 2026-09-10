@@ -7,8 +7,8 @@
   "visualReview": "pending",
   "artifact": {
     "path": "D:\\MonHocITC\\Javaspring2\\Ly_Thuyet\\3. Đề tài tham khảo\\medsched-architecture.html",
-    "sha256": "1f917507ec90661e894c286a140932e49c62b135a6a0be50f5b327b0fabf8c92",
-    "bytes": 733470
+    "sha256": "b6fbb25069c823296263538111562909d29efb56b4a3a3485acdc7cfefa736db",
+    "bytes": 728020
   },
   "state": {
     "detail": "read",
@@ -35,7 +35,7 @@
         "innerWidth": 1440,
         "innerHeight": 900,
         "scrollWidth": 1440,
-        "scrollHeight": 1268,
+        "scrollHeight": 1284,
         "overflowX": false,
         "overflowY": true
       },
@@ -131,7 +131,7 @@
         "innerWidth": 1440,
         "innerHeight": 900,
         "scrollWidth": 1440,
-        "scrollHeight": 1268,
+        "scrollHeight": 1284,
         "overflowX": false,
         "overflowY": true
       },
@@ -174,7 +174,7 @@
         "innerWidth": 1440,
         "innerHeight": 900,
         "scrollWidth": 1440,
-        "scrollHeight": 1268,
+        "scrollHeight": 1284,
         "overflowX": false,
         "overflowY": true,
         "ok": false,
@@ -304,7 +304,7 @@
         "innerWidth": 1440,
         "innerHeight": 900,
         "scrollWidth": 1440,
-        "scrollHeight": 1268,
+        "scrollHeight": 1284,
         "overflowX": false,
         "overflowY": true,
         "ok": false,
@@ -433,7 +433,7 @@
         "innerWidth": 1440,
         "innerHeight": 900,
         "scrollWidth": 1440,
-        "scrollHeight": 1268,
+        "scrollHeight": 1284,
         "overflowX": false,
         "overflowY": true,
         "ok": false,
@@ -562,7 +562,7 @@
         "innerWidth": 1440,
         "innerHeight": 900,
         "scrollWidth": 1440,
-        "scrollHeight": 1268,
+        "scrollHeight": 1284,
         "overflowX": false,
         "overflowY": true,
         "ok": false,
@@ -594,7 +594,7 @@
         "innerWidth": 1440,
         "innerHeight": 900,
         "scrollWidth": 1440,
-        "scrollHeight": 1268,
+        "scrollHeight": 1284,
         "overflowX": false,
         "overflowY": true,
         "ok": false,

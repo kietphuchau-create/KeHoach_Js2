@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="vi" data-theme="dark" data-preset="classic">
+<html lang="en" data-theme="dark" data-preset="classic">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="generator" content="archify 2.17.0-dev.1">
-  <title>Sơ Đồ Kiến Trúc Hệ Thống MedSched</title>
+  <title>Sơ Đồ Kiến Trúc Hệ Thống MedSched Diagram</title>
   <script>
     // Resolve the theme before first paint so light-preference users don't
     // see a dark flash. The toolbar script below re-applies with UI state.
@@ -4917,31 +4917,31 @@
               aria-haspopup="menu"
               aria-expanded="false"
               aria-controls="export-menu">
-        Xuất sơ đồ <span class="toolbar-icon toolbar-chevron" aria-hidden="true"></span>
+        Export <span class="toolbar-icon toolbar-chevron" aria-hidden="true"></span>
       </button>
-      <div class="export-menu" id="export-menu" role="menu" aria-label="Xuất sơ đồ">
+      <div class="export-menu" id="export-menu" role="menu" aria-label="Export">
         <div class="export-menu-header" role="presentation">
-          <div><strong>Xuất sơ đồ</strong><span>Định dạng chuẩn, sắc nét</span></div>
+          <div><strong>Export diagram</strong><span>Portable, clean outputs</span></div>
           <kbd>E</kbd>
         </div>
-        <div class="export-menu-section" role="group" aria-label="Chia sẻ">
-          <span class="export-menu-heading" aria-hidden="true">Chia sẻ</span>
-          <button data-format="share-card" type="button" role="menuitem" tabindex="-1"><span class="export-item-copy"><strong>Thẻ chia sẻ (Share Card)</strong><small class="hint">1200&times;630 PNG</small></span></button>
-          <button data-action="route-share-card" type="button" role="menuitem" tabindex="-1" hidden disabled><span class="export-item-copy"><strong>Thẻ lộ trình (Route Card)</strong><small class="hint">1200&times;630 PNG</small></span></button>
-          <button data-action="reach-share-card" type="button" role="menuitem" tabindex="-1" hidden disabled><span class="export-item-copy"><strong>Thẻ phạm vi (Reach Card)</strong><small class="hint">1200&times;630 PNG</small></span></button>
-          <button data-action="copy-share-card" type="button" role="menuitem" tabindex="-1"><span class="export-item-copy"><strong>Sao chép thẻ chia sẻ</strong><small class="hint">Lưu PNG vào bộ nhớ tạm</small></span></button>
-          <button data-action="copy" type="button" role="menuitem" tabindex="-1"><span class="export-item-copy"><strong>Sao chép ảnh sơ đồ</strong><small class="hint">Lưu PNG vào bộ nhớ tạm</small></span></button>
+        <div class="export-menu-section" role="group" aria-label="Share">
+          <span class="export-menu-heading" aria-hidden="true">Share</span>
+          <button data-format="share-card" type="button" role="menuitem" tabindex="-1"><span class="export-item-copy"><strong>Share Card</strong><small class="hint">1200&times;630 PNG</small></span></button>
+          <button data-action="route-share-card" type="button" role="menuitem" tabindex="-1" hidden disabled><span class="export-item-copy"><strong>Route Share Card</strong><small class="hint">1200&times;630 PNG</small></span></button>
+          <button data-action="reach-share-card" type="button" role="menuitem" tabindex="-1" hidden disabled><span class="export-item-copy"><strong>Reach Share Card</strong><small class="hint">1200&times;630 PNG</small></span></button>
+          <button data-action="copy-share-card" type="button" role="menuitem" tabindex="-1"><span class="export-item-copy"><strong>Copy Share Card</strong><small class="hint">PNG to clipboard</small></span></button>
+          <button data-action="copy" type="button" role="menuitem" tabindex="-1"><span class="export-item-copy"><strong>Copy diagram</strong><small class="hint">PNG to clipboard</small></span></button>
         </div>
-        <div class="export-menu-section" role="group" aria-label="Hình ảnh Raster">
-          <span class="export-menu-heading" aria-hidden="true">Hình ảnh</span>
-          <button data-format="png" type="button" role="menuitem" tabindex="-1"><span class="export-item-copy"><strong>PNG</strong><small class="hint">Ảnh chất lượng cao</small></span></button>
-          <button data-format="jpeg" type="button" role="menuitem" tabindex="-1"><span class="export-item-copy"><strong>JPEG</strong><small class="hint">Ảnh dung lượng gọn</small></span></button>
-          <button data-format="webp" type="button" role="menuitem" tabindex="-1"><span class="export-item-copy"><strong>WebP</strong><small class="hint">Định dạng hiện đại</small></span></button>
+        <div class="export-menu-section" role="group" aria-label="Raster images">
+          <span class="export-menu-heading" aria-hidden="true">Image</span>
+          <button data-format="png" type="button" role="menuitem" tabindex="-1"><span class="export-item-copy"><strong>PNG</strong><small class="hint">Lossless image</small></span></button>
+          <button data-format="jpeg" type="button" role="menuitem" tabindex="-1"><span class="export-item-copy"><strong>JPEG</strong><small class="hint">Compact image</small></span></button>
+          <button data-format="webp" type="button" role="menuitem" tabindex="-1"><span class="export-item-copy"><strong>WebP</strong><small class="hint">Modern image</small></span></button>
         </div>
-        <div class="export-menu-section" role="group" aria-label="Vector và chuyển động">
-          <span class="export-menu-heading" aria-hidden="true">Vector &amp; chuyển động</span>
-          <button data-format="svg" type="button" role="menuitem" tabindex="-1"><span class="export-item-copy"><strong>SVG</strong><small class="hint">Vector chỉnh sửa</small></span></button>
-          <button data-format="webm" type="button" role="menuitem" tabindex="-1"><span class="export-item-copy"><strong>WebM</strong><small class="hint">Chuyển động 6 giây</small></span></button>
+        <div class="export-menu-section" role="group" aria-label="Vector and motion">
+          <span class="export-menu-heading" aria-hidden="true">Vector &amp; motion</span>
+          <button data-format="svg" type="button" role="menuitem" tabindex="-1"><span class="export-item-copy"><strong>SVG</strong><small class="hint">Editable vector</small></span></button>
+          <button data-format="webm" type="button" role="menuitem" tabindex="-1"><span class="export-item-copy"><strong>WebM</strong><small class="hint">6s motion</small></span></button>
         </div>
       </div>
     </div>
@@ -4959,44 +4959,44 @@
       </div>
     </div>
 
-    <script id="archify-guided-views-data" type="application/json">[{"id":"full-overview","label":"Toàn cảnh hệ thống","focus":["patient_app","staff_portal","api_gateway","postgres_db","yolo_service","spring_ai","vector_store"],"note":"Kiến trúc tổng thể kết hợp Next.js, Spring Boot, PostgreSQL, YOLO11 và Spring AI."},{"id":"ai-vision-pipeline","label":"Pipeline AI \u0026 Thị giác máy tính","focus":["yolo_service","spring_ai","vector_store"],"note":"Xử lý nhận diện thẻ CCCD/BHYT, phát hiện tổn thương da liễu và RAG y khoa."},{"id":"booking-core","label":"Nghiệp vụ Đặt lịch \u0026 Tiếp đón","focus":["patient_app","staff_portal","api_gateway","postgres_db"],"note":"Xử lý đặt lịch trực tuyến, quản lý Time Slots và Check-in tiếp đón tại quầy."}]</script>
+    <script id="archify-guided-views-data" type="application/json">[{"id":"full-overview","label":"Toàn cảnh hệ thống","focus":["patient_app","staff_portal","api_gateway","postgres_db","spring_ai","vector_store"],"note":"Kiến trúc thuần Spring Boot 3, Next.js, PostgreSQL và Spring AI (RAG \u0026 ChatClient)."},{"id":"ai-rag-pipeline","label":"Pipeline Spring AI \u0026 RAG","focus":["spring_ai","vector_store"],"note":"Xử lý hội thoại tự nhiên, sàng lọc chuyên khoa, tóm tắt bệnh án và tra cứu tri thức y khoa RAG."},{"id":"booking-core","label":"Nghiệp vụ Đặt lịch \u0026 Tiếp đón","focus":["patient_app","staff_portal","api_gateway","postgres_db"],"note":"Xử lý đặt lịch trực tuyến, quản lý Time Slots và Check-in tiếp đón bằng mã QR tại quầy."}]</script>
 
     <script id="archify-i18n-data" type="application/json">{"locale":"en","messages":{"viewer.kind.frontend":"Frontend","viewer.kind.backend":"Backend","viewer.kind.database":"Database","viewer.kind.cloud":"Cloud","viewer.kind.security":"Security","viewer.kind.messagebus":"Message bus","viewer.kind.external":"External","viewer.kind.neutral":"Neutral","viewer.kind.node":"Node","viewer.kind.start":"Start","viewer.kind.active":"Active","viewer.kind.waiting":"Waiting","viewer.kind.decision":"Decision","viewer.kind.success":"Success","viewer.kind.failure":"Failure","viewer.toolbar.actions":"Diagram actions","viewer.theme.toggle.title":"Toggle theme (T)","viewer.theme.toggle":"Toggle color theme","viewer.theme.dark":"Dark","viewer.theme.light":"Light","viewer.preset.choose.title":"Choose visual style (S cycles)","viewer.preset.choose":"Choose visual style","viewer.preset.style":"Style","viewer.preset.menu":"Visual style","viewer.preset.identity":"Visual identity","viewer.preset.cycles":"S cycles","viewer.preset.classic":"Classic","viewer.preset.classic.short":"Classic","viewer.preset.classic.hint":"Stable technical default","viewer.preset.flow":"Signal Flow","viewer.preset.flow.short":"Flow","viewer.preset.flow.hint":"Motion-forward presentation","viewer.preset.blueprint":"Blueprint","viewer.preset.blueprint.hint":"Engineering review","viewer.preset.editorial":"Editorial","viewer.preset.editorial.hint":"Publication and launch notes","viewer.preset.badge.signalFlow":"SIGNAL FLOW","viewer.preset.badge.blueprint":"BLUEPRINT / REV 01","viewer.preset.badge.editorial":"EDITORIAL / FIELD NOTE","viewer.preset.badge.editorialPlate":"ARCHIFY / PLATE 04","viewer.preset.current":"Visual style: {style}. Choose visual style","viewer.motion.live":"Live","viewer.motion.still":"Still","viewer.motion.pause":"Pause motion","viewer.motion.resume":"Resume motion","viewer.motion.reduced":"Motion paused by reduced-motion preference","viewer.motion.hidden":"Motion paused while this page is hidden","viewer.motion.yielding":"Pause motion; currently yielding to {owner}","viewer.motion.yielding.title":"Live preview enabled · yielding to {owner}","viewer.owner.story":"the guided story","viewer.owner.chapter":"the active chapter","viewer.owner.chapterPreview":"the chapter delta preview","viewer.owner.handoff":"the chapter handoff","viewer.owner.route":"Route Probe","viewer.owner.lens":"Semantic Lens","viewer.owner.relationship":"Relationship Preview","viewer.owner.intent":"Intent Trace","viewer.owner.focus":"semantic focus","viewer.owner.legend":"legend preview","viewer.owner.reader":"reader interaction","viewer.present.enter":"Enter presentation stage","viewer.present.enter.title":"Presentation stage (F)","viewer.present.exit":"Exit presentation stage","viewer.present.exit.title":"Exit presentation stage (F or Escape)","viewer.present.present":"Present","viewer.present.exit.label":"Exit","viewer.export.button":"Export","viewer.export.button.title":"Export diagram (E)","viewer.export.diagram":"Export diagram","viewer.export.menu":"Export","viewer.export.subtitle":"Portable, clean outputs","viewer.export.share":"Share","viewer.export.shareCard":"Share Card","viewer.export.routeShareCard":"Route Share Card","viewer.export.reachShareCard":"Reach Share Card","viewer.export.copyShareCard":"Copy Share Card","viewer.export.copyDiagram":"Copy diagram","viewer.export.clipboardPng":"PNG to clipboard","viewer.export.raster":"Raster images","viewer.export.image":"Image","viewer.export.lossless":"Lossless image","viewer.export.compact":"Compact image","viewer.export.modern":"Modern image","viewer.export.vectorMotion":"Vector and motion","viewer.export.vectorMotion.heading":"Vector \u0026 motion","viewer.export.editable":"Editable vector","viewer.export.motion6s":"6s motion","viewer.export.unsupported":"Not supported by this browser","viewer.export.clipboardUnsupported":"Clipboard image write not supported by this browser","viewer.export.clipboardUnsupported.period":"Clipboard image write not supported by this browser.","viewer.export.clipboardUnsupported.short":"Clipboard image write not supported in this browser.","viewer.export.motionUnavailable":"Motion capture unavailable in this browser","viewer.export.webmUnavailable":"WebM unavailable in this browser","viewer.export.failed":"Export failed: {message}","viewer.export.unknownVariant":"Unknown Share Card variant: {variant}","viewer.export.routeRequired":"Trace a route before exporting a Route Share Card","viewer.export.reachRequired":"Trace authored reach before exporting a Reach Share Card","viewer.export.unknown":"unknown","viewer.export.routeFailed":"Route Share Card export failed: {message}","viewer.export.reachFailed":"Reach Share Card export failed: {message}","viewer.export.copyFailed":"Copy failed: {message}","viewer.export.copiedPng":"Copied PNG to clipboard","viewer.export.copiedShare":"Copied Share Card","viewer.export.downloadedShare":"Downloaded Share Card","viewer.export.downloadedRoute":"Downloaded Route Share Card","viewer.export.downloadedReach":"Downloaded Reach Share Card","viewer.export.downloadedWebm":"Downloaded WebM","viewer.export.recording":"Recording 6 seconds of motion…","viewer.export.card.routeSummary.one":"Route: {source} → {target} · {count} directed hop","viewer.export.card.routeSummary.other":"Route: {source} → {target} · {count} directed hops","viewer.export.card.reachSummary":"Authored {direction} from {origin} · {nodes} · {links} · max {hops}","viewer.export.card.node.one":"{count} node","viewer.export.card.node.other":"{count} nodes","viewer.export.card.link.one":"{count} link","viewer.export.card.link.other":"{count} links","viewer.export.card.hop.one":"{count} hop","viewer.export.card.hop.other":"{count} hops","viewer.export.card.routeBadge":"ARCHIFY · ROUTE · {hops}","viewer.export.card.reachBadge":"ARCHIFY · {direction} REACH","viewer.export.card.defaultBadge":"ARCHIFY · {preset} · {theme}","viewer.export.direction.upstream":"Upstream","viewer.export.direction.downstream":"Downstream","viewer.export.error.canvasUnavailable":"Canvas unavailable for {label}","viewer.export.error.contextUnavailable":"2D canvas context unavailable for {label}","viewer.export.error.toBlobUnavailable":"canvas.toBlob unavailable for {label}","viewer.export.error.toBlobNull":"canvas.toBlob returned no data for {label}","viewer.export.error.variantsCombined":"Share Card variants cannot be combined","viewer.export.error.viewerState":"Share Card export could not remove temporary viewer state","viewer.export.error.routeState":"Route Card export could not preserve the resolved route safely","viewer.export.error.reachState":"Reach Card export could not preserve authored reach safely","viewer.export.error.webmRequirements":"WebM motion export requires a trace animation and browser MediaRecorder support","viewer.export.error.mediaRecorder":"MediaRecorder failed","viewer.export.error.emptyWebm":"MediaRecorder produced an empty WebM","viewer.export.error.webmBackground":"SVG background could not be loaded for WebM export","viewer.guided.region":"Guided diagram views","viewer.guided.previous":"Previous guided view","viewer.guided.previous.title":"Previous guided view ([)","viewer.guided.next":"Next guided view","viewer.guided.next.title":"Next guided view (])","viewer.guided.views":"Guided views","viewer.guided.explore":"Explore this system","viewer.guided.intro":"Step through curated paths without changing the source diagram.","viewer.guided.trail":"Story trail","viewer.guided.beat":"Beat","viewer.guided.nextBeat":"Next","viewer.guided.play":"Play guided story","viewer.guided.play.title":"Play guided story (P)","viewer.guided.pause":"Pause guided story","viewer.guided.pause.title":"Pause guided story (P)","viewer.guided.replay":"Replay guided story","viewer.guided.replay.title":"Replay guided story (P)","viewer.guided.playStory":"Play story","viewer.guided.pauseStory":"Pause","viewer.guided.replayStory":"Replay story","viewer.guided.motionUnavailable":"Story playback unavailable while motion is Still","viewer.guided.enableMotion":"Switch motion to Live to play the guided story","viewer.guided.selectBeatLink":"Select a Story Beat to copy its exact link","viewer.guided.copyMoment":"Copy moment","viewer.guided.momentCopied":"Moment link copied","viewer.guided.momentCopyFailed":"Could not copy story moment link","viewer.guided.copied":"Copied","viewer.guided.copyFailed":"Copy failed","viewer.guided.showAll":"Show all","viewer.guided.showAll.aria":"Show entire diagram","viewer.guided.chapters":"Story chapters","viewer.guided.storyTrail":"Story trail for {label}: {count} beats","viewer.guided.chapter.open":"Open chapter {index} of {total}: {label}, {count} stops","viewer.guided.chapter.current":"Current chapter {index} of {total}: {label}, {count} stops","viewer.guided.chapter.selectedNodes":"{count} selected nodes","viewer.guided.chapter.stops":"{count} stops","viewer.guided.chapter.stop.one":"{count} stop","viewer.guided.chapter.stop.other":"{count} stops","viewer.guided.chapter.current.title":"{label} — current chapter, {count} stops","viewer.guided.chapter.delta.expanded":"{stay} stay, {enter} enter, {leave} leave","viewer.guided.chapter.delta.aria":"Open chapter {index} of {total}: {label}. Chapter focus delta: {delta}","viewer.guided.chapter.delta.title":"{label} — {delta} chapter focus","viewer.guided.handoff":"{from} → {to} · via {label}","viewer.guided.share.chapter":"Chapter {index} / {total}","viewer.guided.share.initial":"Chapter 01 / 01","viewer.guided.share.default":"Guided chapter","viewer.guided.state.ready":"Ready","viewer.guided.state.playing":"Playing","viewer.guided.state.settled":"Settled","viewer.guided.state.paused":"Paused","viewer.guided.state.pinned":"Pinned","viewer.guided.state.still":"Still","viewer.guided.share.step":"Step {index} / {total} · {label}","viewer.guided.share.staticMoment":"{step} · Static moment","viewer.guided.share.complete":"{count} steps complete · {note}","viewer.guided.share.settled":"Path settled for reading.","viewer.guided.share.staticPath":"{count} steps · Static path","viewer.guided.share.ready":"{count} steps · Ready","viewer.guided.share.aria":"{state} chapter {index} of {total}: {label}. {beat}. {route}","viewer.guided.beat.start":"Beat {index} / {total} · {label} · starting point","viewer.guided.beat.forward":"Beat {index} / {total} · {from} → {to}","viewer.guided.beat.reverse":"Beat {index} / {total} · {from} → {to} · reverse authored link","viewer.guided.beat.multiple":"Beat {index} / {total} · {from} ⇄ {to} · {count} authored links","viewer.guided.beat.group":"Beat {index} / {total} · {from} · {to} · grouped · no direct link","viewer.guided.beat.aria.prefix":"Story beat {index} of {total}: {label}. ","viewer.guided.beat.aria.start":"Starting point.","viewer.guided.beat.aria.forward":"From {from} through one authored forward relationship.","viewer.guided.beat.aria.reverse":"From {from}; the authored relationship points from {to} to {from}.","viewer.guided.beat.aria.multiple":"From {from} through {count} authored relationships; shown without arbitrary motion.","viewer.guided.beat.aria.group":"Grouped from {from} with no direct authored relationship.","viewer.guided.caption.start":"Starting point","viewer.guided.caption.grouped":"Grouped transition · no direct authored link","viewer.guided.caption.more":" +{count} more","viewer.guided.caption.reverse":"Reverse authored relationship","viewer.guided.caption.relationships":"{count} authored relationships","viewer.guided.caption.relationship":"Authored relationship","viewer.guided.caption.direction":"authored direction: {from} → {to}","viewer.guided.caption.starting":"Authored starting point","viewer.guided.beatLink":"Copy link to current story moment: Beat {index} of {total}: {label}","viewer.guided.noStory":"This diagram has no authored guided story.","viewer.guide.eyebrow":"Diagram guide","viewer.guide.close":"Close diagram guide","viewer.guide.inspecting":"Inspecting compiled semantics","viewer.guide.actions":"Diagram exploration actions","viewer.guide.find":"Find any node","viewer.guide.find.hint":"Search labels, responsibilities, kinds, and stable IDs.","viewer.guide.route":"Trace a route","viewer.guide.route.aria":"Trace a directed route","viewer.guide.route.hint":"Ask how two semantic nodes connect in authored direction.","viewer.guide.map":"See the whole system","viewer.guide.map.hint":"Open Semantic Radar with a live viewport and stable nodes.","viewer.guide.lens":"Compare semantic kinds","viewer.guide.lens.hint":"Count roles, reveal their traffic, and compare direct authored links.","viewer.guide.story":"Play the guided story","viewer.guide.story.hint":"Walk the authored chapters and real relationships.","viewer.guide.present":"Enter Presentation Stage","viewer.guide.present.hint":"Give the live diagram the viewport without changing export.","viewer.guide.shortcuts":"Additional keyboard shortcuts","viewer.guide.shortcut.export":"Export","viewer.guide.shortcut.theme":"Theme","viewer.guide.shortcut.style":"Style","viewer.guide.shortcut.reset":"Reset","viewer.guide.shortcut.zoomIn":"Zoom in","viewer.guide.shortcut.zoomOut":"Zoom out","viewer.guide.shortcut.close":"Close","viewer.guide.facts":"{nodes} · {relationships} · {views}","viewer.guide.fact.node.one":"{count} semantic node","viewer.guide.fact.node.other":"{count} semantic nodes","viewer.guide.fact.relationship.one":"{count} relationship","viewer.guide.fact.relationship.other":"{count} relationships","viewer.guide.fact.view.one":"{count} guided view","viewer.guide.fact.view.other":"{count} guided views","viewer.guide.story.available.one":"Walk {count} authored chapter and its real relationships.","viewer.guide.story.available.other":"Walk {count} authored chapters and their real relationships.","viewer.guide.story.unavailable":"No authored guided story in this diagram.","viewer.guide.open":"Open diagram guide","viewer.guide.noStory":"This diagram has no authored guided story.","viewer.finder.title":"Find a node","viewer.finder.close":"Close node finder","viewer.finder.placeholder":"Search labels or IDs","viewer.finder.search":"Search diagram nodes","viewer.finder.results":"Diagram nodes","viewer.finder.empty":"No matching nodes","viewer.finder.result.focus":"Focus {label}","viewer.finder.result.routeStart":"Choose {label} as route start","viewer.finder.result.routeTarget":"Choose {label} as route destination, {links}","viewer.finder.status.empty":"No matching nodes","viewer.finder.status.count.one":"{count} matching node","viewer.finder.status.count.other":"{count} matching nodes","viewer.finder.noun.nodes":"nodes","viewer.finder.link.one":"{count} link","viewer.finder.link.other":"{count} links","viewer.finder.result.focus.one":"Focus {label}, {count} related connection","viewer.finder.result.focus.other":"Focus {label}, {count} related connections","viewer.finder.status.filtered":"{visible} of {available} {noun}","viewer.finder.status.all":"{available} {noun}","viewer.passport.eyebrow":"Semantic passport","viewer.passport.metadata":"Node metadata","viewer.passport.evidence":"Verified source evidence","viewer.passport.verified":"Verified source","viewer.passport.reach":"Authored reach","viewer.passport.reach.trace":"Trace authored reachability","viewer.passport.upstream":"Upstream","viewer.passport.downstream":"Downstream","viewer.passport.upstream.trace":"Trace upstream authored reachability","viewer.passport.downstream.trace":"Trace downstream authored reachability","viewer.passport.close":"Close semantic passport","viewer.passport.copy":"Copy link","viewer.passport.copy.focus":"Copy link to focused node","viewer.passport.relations":"Relations","viewer.passport.relations.show":"Show connected relationships","viewer.passport.relations.hide":"Hide connected relationships","viewer.passport.relations.list":"Connected relationships","viewer.passport.copyRelation":"Copy relation","viewer.passport.copyNode":"Copy node","viewer.passport.copyPinned":"Copy link to pinned relationship","viewer.passport.copySource":"Copy link to source node","viewer.passport.copy.focused.success":"Focused node link copied","viewer.passport.copy.pinned.success":"Pinned relationship link copied","viewer.passport.copy.focused.failed":"Could not copy focused node link","viewer.passport.copy.pinned.failed":"Could not copy pinned relationship link","viewer.passport.relationship.none":"No connected relationships","viewer.passport.relationship.count.one":"{count} relation","viewer.passport.relationship.count.other":"{count} relations","viewer.passport.relationship.show.one":"Show {count} connected relationship","viewer.passport.relationship.show.other":"Show {count} connected relationships","viewer.passport.relationship.summary":"{out} outgoing · {in} incoming{loops}","viewer.passport.relationship.loops":" · {count} loop","viewer.passport.relationship.explorer":"Direct relationship explorer","viewer.passport.relationship.help":"Use arrow keys to explore relationships. Press Enter or Space to pin details; Escape clears.","viewer.passport.relationship.loopsBack":"loops back","viewer.passport.relationship.connectsTo":"connects to","viewer.passport.relationship.connectsFrom":"connects from","viewer.passport.relationship.pinned":"Pinned relationship · {from} → {to} · {label}","viewer.passport.relationship.inspect":"Inspect relationship {index} of {total}: {from} to {to}, {label}. Press Enter for details.","viewer.passport.relationship.group.out":"Outgoing","viewer.passport.relationship.group.in":"Incoming","viewer.passport.relationship.group.loop":"Self loops","viewer.passport.relationship.row":"{group}: {relationship}, {neighbor}","viewer.passport.relationship.direction.out":"OUT →","viewer.passport.relationship.direction.in":"← IN","viewer.passport.relationship.direction.loop":"LOOP","viewer.passport.sourceCount.one":"{count} verified source reference","viewer.passport.sourceCount.other":"{count} verified source references","viewer.passport.sourceMarker":"SRC","viewer.passport.beacon.one":"{count} verified source; focus this node to inspect","viewer.passport.beacon.other":"{count} verified sources; focus this node to inspect","viewer.passport.repository.open":"Open verified repository revision {revision}","viewer.passport.source.open":"Open verified source {path} at revision {revision}","viewer.passport.source.openLink":"Open ↗","viewer.passport.reach.upstream.one":"Trace {count} upstream authored node","viewer.passport.reach.upstream.other":"Trace {count} upstream authored nodes","viewer.passport.reach.downstream.one":"Trace {count} downstream authored node","viewer.passport.reach.downstream.other":"Trace {count} downstream authored nodes","viewer.passport.reach.noUpstream":"No upstream authored nodes","viewer.passport.reach.noDownstream":"No downstream authored nodes","viewer.passport.reach.status":"{direction} · {nodes} nodes · {links} links · max {hops} hops","viewer.route.eyebrow":"Route probe","viewer.route.start":"Choose a start node","viewer.route.start.find":"Find start","viewer.route.start.find.aria":"Find a route start","viewer.route.copy":"Copy link","viewer.route.copy.aria":"Copy link to traced route","viewer.route.clear":"Clear","viewer.route.clear.aria":"Clear route probe","viewer.route.traced":"Traced route","viewer.route.pickTwo":"Pick two semantic nodes on the diagram","viewer.route.pickOne":"Pick a semantic node on the diagram","viewer.route.controls":"Route journey controls","viewer.route.previous":"Previous route position","viewer.route.play":"Play route journey","viewer.route.pause":"Pause route journey","viewer.route.replay":"Replay route journey","viewer.route.next":"Next route position","viewer.route.journey":"Journey","viewer.route.pause.label":"Pause","viewer.route.replay.label":"Replay","viewer.route.overview":"Overview","viewer.route.overview.aria":"Show complete route overview","viewer.route.instructions":"Choose the source, then the destination. Direction matters.","viewer.route.destination":"Choose a destination from {label}","viewer.route.destination.find":"Find target","viewer.route.destination.find.aria":"Find a reachable route destination","viewer.route.differentDestination":"Choose a different destination","viewer.route.distinct":"A route needs two distinct semantic nodes.","viewer.route.unreachable":"No directed route to {label}","viewer.route.unreachable.detail":"{target} is not reachable from {source}. Pick a highlighted destination.","viewer.route.start.instructions":"Select the source. The next step will reveal only directed destinations.","viewer.route.copy.success":"Traced route link copied","viewer.route.copy.failed":"Could not copy traced route link","viewer.route.position":"Route position {index} of {total}: {label}","viewer.route.step":"Step {index} of {total} · {phase} · {label}","viewer.route.motionRequired":"Automatic journey requires Live motion","viewer.route.trigger.clear":"Clear traced route","viewer.route.overview.status":"{nodes} · {hops} · shortest authored route","viewer.route.overview.node.one":"{count} node","viewer.route.overview.node.other":"{count} nodes","viewer.route.overview.hop.one":"{count} directed hop","viewer.route.overview.hop.other":"{count} directed hops","viewer.route.phase.playing":"Playing","viewer.route.phase.complete":"Complete","viewer.route.phase.inspecting":"Inspecting","viewer.route.destination.count.one":"{count} directed destination available. Pick a highlighted node.","viewer.route.destination.count.other":"{count} directed destinations available. Pick a highlighted node.","viewer.route.noOutgoing":"No outgoing route starts here. Clear and choose another source.","viewer.route.result.title":"{source} to {target}","viewer.route.finder.source.title":"Choose route start","viewer.route.finder.source.placeholder":"Search route sources","viewer.route.finder.source.empty":"No matching route sources","viewer.route.finder.source.results":"Nodes that can start a route","viewer.route.finder.source.noun":"route sources","viewer.route.finder.source.badge":"start","viewer.route.finder.target.title":"Destination from {label}","viewer.route.finder.target.placeholder":"Search reachable destinations","viewer.route.finder.target.empty":"No matching reachable destinations","viewer.route.finder.target.results":"Reachable route destinations","viewer.route.finder.target.noun":"reachable destinations","viewer.route.hop.one":"{count} hop","viewer.route.hop.other":"{count} hops","viewer.lens.eyebrow":"Semantic lens","viewer.lens.title":"Compare system roles","viewer.lens.close":"Close semantic lens","viewer.lens.instruction":"Choose up to two semantic kinds. One reveals its real traffic; two compare only direct authored relationships.","viewer.lens.kinds":"Semantic kinds","viewer.lens.choose":"Choose a kind to inspect its nodes and touching relationships.","viewer.lens.copy":"Copy link to semantic lens","viewer.lens.clear":"Clear semantic lens","viewer.lens.open":"Open semantic lens","viewer.lens.openActive":"Open active semantic lens","viewer.lens.legend":"Semantic legend","viewer.lens.legend.inspect.one":"Inspect {label}, {count} node","viewer.lens.legend.inspect.other":"Inspect {label}, {count} nodes","viewer.lens.kind.count.one":"{label}, {count} node","viewer.lens.kind.count.other":"{label}, {count} nodes","viewer.lens.compare.one":"{first} → {second}: {forward} · {second} → {first}: {reverse} · {count} direct relationship","viewer.lens.compare.other":"{first} → {second}: {forward} · {second} → {first}: {reverse} · {count} direct relationships","viewer.lens.single":"{nodes} · {relationships} · connected peers remain visible","viewer.lens.node.one":"{count} {label} node","viewer.lens.node.other":"{count} {label} nodes","viewer.lens.relationship.one":"{count} touching relationship","viewer.lens.relationship.other":"{count} touching relationships","viewer.radar.title":"Semantic radar","viewer.radar.building":"Building overview","viewer.radar.openFull":"Open full semantic radar","viewer.radar.open":"Open radar","viewer.radar.close":"Close semantic radar","viewer.radar.surface":"Diagram overview. Click a node to focus it, or use arrow keys to pan.","viewer.radar.click":"Click node","viewer.radar.drag":"Drag to pan","viewer.radar.space":"Semantic radar needs more MAP space.","viewer.radar.nodes":"Semantic diagram radar nodes","viewer.radar.focus":"Focus {label} from Semantic Radar","viewer.radar.status":"{count} nodes · {viewport}","viewer.radar.fullMap":"{count} nodes · full map","viewer.radar.compacted":"Radar compacted to avoid covering the Semantic Passport or MAP controls.","viewer.radar.cancelWaiting":"Cancel semantic radar waiting for more MAP space","viewer.radar.needsSpace":"Semantic radar needs more visible MAP space","viewer.radar.viewport.full":"full map","viewer.radar.viewport.width":"{percent}% width","viewer.radar.viewport.scale":"{percent}% viewport","viewer.nav.controls":"Diagram view controls","viewer.nav.route":"Trace a directed route","viewer.nav.route.title":"Trace route (R)","viewer.nav.route.short":"PATH","viewer.nav.radar":"Open semantic radar","viewer.nav.radar.title":"Semantic radar (M)","viewer.nav.radar.short":"MAP","viewer.nav.lens":"Open semantic lens","viewer.nav.lens.title":"Semantic lens (L)","viewer.nav.lens.short":"LENS","viewer.nav.find":"Find a node","viewer.nav.find.title":"Find a node (/)","viewer.nav.guide":"Open diagram guide","viewer.nav.guide.title":"Diagram guide (?)","viewer.nav.zoomOut":"Zoom out","viewer.nav.zoomOut.title":"Zoom out (-)","viewer.nav.reset":"Reset diagram view","viewer.nav.reset.title":"Reset view (0)","viewer.nav.read":"READ","viewer.nav.zoomIn":"Zoom in","viewer.nav.zoomIn.title":"Zoom in (+)","viewer.nav.camera":"{hint}. Reset diagram view","viewer.nav.camera.title":"{semantic}{hint} · reset view (0)","viewer.nav.camera.semantic":"Semantic camera active · ","viewer.nav.level.map":"MAP","viewer.nav.level.read":"READ","viewer.nav.level.full":"FULL","viewer.nav.level.auto":"AUTO","viewer.nav.detail.map":"Zoom in to reveal relationship labels and node context","viewer.nav.detail.read":"Zoom in again to reveal tags and annotations","viewer.nav.detail.full":"Full diagram detail","viewer.intent.summary":"{label}. {out} outgoing, {in} incoming{loops}. {total} connections. Press Enter for details.","viewer.intent.loops":", {count} self loop","viewer.common.copied":"Copied","viewer.common.copyFailed":"Copy failed","viewer.common.copyLink":"Copy link","viewer.common.clear":"Clear","viewer.common.close":"Close"}}</script>
-    <div class="guided-views no-print" id="guided-views" hidden aria-label="Góc nhìn hệ thống">
-      <button id="guided-view-prev" type="button" aria-label="Góc nhìn trước" title="Góc nhìn trước ([)">&#8592;</button>
+    <div class="guided-views no-print" id="guided-views" hidden aria-label="Guided diagram views">
+      <button id="guided-view-prev" type="button" aria-label="Previous guided view" title="Previous guided view ([)">&#8592;</button>
       <div class="guided-view-copy">
         <div class="guided-view-meta">
-          <span>Góc nhìn hệ thống</span>
+          <span>Guided views</span>
           <span id="guided-view-count"></span>
           <span class="guided-view-progress" aria-hidden="true"><span id="guided-view-progress-bar"></span></span>
           <span class="guided-view-handoff" id="guided-view-handoff" hidden aria-hidden="true"></span>
         </div>
-        <strong id="guided-view-label">Khám phá hệ thống</strong>
-        <small id="guided-view-note" aria-live="polite" aria-atomic="true">Duyệt qua các luồng quy trình chính mà không thay đổi cấu trúc sơ đồ.</small>
-        <div class="guided-view-trail" id="guided-view-trail" hidden role="group" aria-label="Lộ trình chi tiết"></div>
+        <strong id="guided-view-label">Explore this system</strong>
+        <small id="guided-view-note" aria-live="polite" aria-atomic="true">Step through curated paths without changing the source diagram.</small>
+        <div class="guided-view-trail" id="guided-view-trail" hidden role="group" aria-label="Story trail"></div>
         <div class="guided-story-caption" id="guided-story-caption" hidden aria-live="polite" aria-atomic="true">
-          <span class="guided-story-caption-index" id="guided-story-caption-index">Bước</span>
+          <span class="guided-story-caption-index" id="guided-story-caption-index">Beat</span>
           <strong id="guided-story-caption-route"></strong>
           <small id="guided-story-caption-detail"></small>
           <span class="guided-story-caption-next" id="guided-story-caption-next" hidden aria-hidden="true">
-            <small>Tiếp theo</small>
+            <small>Next</small>
             <strong id="guided-story-caption-next-label"></strong>
           </span>
         </div>
       </div>
-      <button id="guided-view-next" type="button" aria-label="Góc nhìn kế tiếp" title="Góc nhìn kế tiếp (])">&#8594;</button>
+      <button id="guided-view-next" type="button" aria-label="Next guided view" title="Next guided view (])">&#8594;</button>
       <div class="guided-view-actions">
-        <button class="guided-view-play" id="guided-view-play" type="button" aria-label="Trình chiếu hệ thống" aria-pressed="false" title="Trình chiếu (P)">
+        <button class="guided-view-play" id="guided-view-play" type="button" aria-label="Play guided story" aria-pressed="false" title="Play guided story (P)">
           <span id="guided-view-play-icon" aria-hidden="true">&#9654;</span>
-          <span id="guided-view-play-label">Trình chiếu</span>
+          <span id="guided-view-play-label">Play story</span>
         </button>
-        <button class="guided-view-beat-link" id="guided-view-beat-link" type="button" aria-label="Sao chép liên kết bước hiện tại" title="Sao chép liên kết bước hiện tại" disabled>
+        <button class="guided-view-beat-link" id="guided-view-beat-link" type="button" aria-label="Select a Story Beat to copy its exact link" title="Select a Story Beat to copy its exact link" disabled>
           <span aria-hidden="true">&#35;</span>
-          <span id="guided-view-beat-link-label">Sao chép liên kết</span>
+          <span id="guided-view-beat-link-label">Copy moment</span>
         </button>
-        <button class="guided-view-all" id="guided-view-all" type="button" aria-label="Hiển thị toàn bộ sơ đồ">Hiện tất cả</button>
+        <button class="guided-view-all" id="guided-view-all" type="button" aria-label="Show entire diagram">Show all</button>
       </div>
-      <nav class="guided-view-index" id="guided-view-index" aria-label="Các phân hệ">
+      <nav class="guided-view-index" id="guided-view-index" aria-label="Story chapters">
         <ol class="guided-view-chapters" id="guided-view-chapters"></ol>
       </nav>
     </div>
@@ -5030,19 +5030,17 @@
         <rect width="100%" height="100%" fill="url(#grid)" />
 
         <!-- Boundaries (behind everything) -->
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="region" data-composition-frame-id="0" data-composition-frame-label="Môi trường Triển khai Docker Compose" x="250" y="80" width="510" height="408" rx="12" class="c-region" stroke-width="1"/>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="region" data-composition-frame-id="0" data-composition-frame-label="Môi trường Triển khai Docker Compose" x="250" y="190" width="510" height="298" rx="12" class="c-region" stroke-width="1"/>
 
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="security-group" data-composition-frame-id="1" data-composition-frame-label="Quy trình AI &amp; Thị giác máy tính" x="530" y="80" width="230" height="408" rx="8" class="c-security-group" stroke-width="1"/>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="security-group" data-composition-frame-id="1" data-composition-frame-label="Quy trình Spring AI &amp; Tri thức RAG" x="530" y="190" width="230" height="298" rx="8" class="c-security-group" stroke-width="1"/>
 
         <!-- Connection paths (before components for correct z-order) -->
-        <path data-edge-from="patient_app" data-edge-to="api_gateway" data-edge-label="REST API / JSON" data-edge-key="0" data-edge-id="patient-to-api" data-composition-points="190,194;235,194;235,249;280,249" d="M 190 194 L 227 194 Q 235 194 235 202 L 235 241 Q 235 249 243 249 L 280 249" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="staff_portal" data-edge-to="api_gateway" data-edge-label="Luồng Check-in 3s" data-edge-key="1" data-edge-id="staff-to-api" data-composition-points="190,344;235,344;235,263;280,263" d="M 190 344 L 227 344 Q 235 344 235 336 L 235 271 Q 235 263 243 263 L 280 263" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="patient_app" data-edge-to="api_gateway" data-edge-label="REST / SSE Stream" data-edge-key="0" data-edge-id="patient-to-api" data-composition-points="190,194;235,194;235,256;280,256" d="M 190 194 L 227 194 Q 235 194 235 202 L 235 248 Q 235 256 243 256 L 280 256" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="staff_portal" data-edge-to="api_gateway" data-edge-label="Quét QR Check-in" data-edge-key="1" data-edge-id="staff-to-api" data-composition-points="190,344;235,344;235,256;280,256" d="M 190 344 L 227 344 Q 235 344 235 336 L 235 264 Q 235 256 243 256 L 280 256" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
         <path data-edge-from="api_gateway" data-edge-to="postgres_db" data-edge-label="Truy vấn JPA / JDBC" data-edge-key="2" data-edge-id="api-to-db" data-composition-points="365,292;365,400" d="M 365 292 L 365 400" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="api_gateway" data-edge-to="yolo_service" data-edge-label="Phân tích hình ảnh" data-edge-key="3" data-edge-id="api-to-yolo" data-composition-points="365,220;365,196;536,196;536,144;560,144" d="M 365 220 L 365 204 Q 365 196 373 196 L 528 196 Q 536 196 536 188 L 536 152 Q 536 144 544 144 L 560 144" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="api_gateway" data-edge-to="spring_ai" data-edge-label="Sàng lọc triệu chứng" data-edge-key="4" data-edge-id="api-to-springai" data-composition-points="450,256;505,256;505,284;560,284" d="M 450 256 L 497 256 Q 505 256 505 264 L 505 276 Q 505 284 513 284 L 560 284" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="yolo_service" data-edge-to="spring_ai" data-edge-label="Nhãn tổn thương" data-edge-key="5" data-edge-id="yolo-to-springai" data-composition-points="645,178;645,250" d="M 645 178 L 645 250" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
-        <path data-edge-from="spring_ai" data-edge-to="vector_store" data-edge-label="Truy vấn RAG" data-edge-key="6" data-edge-id="springai-to-vector" data-composition-points="645,318;645,400" d="M 645 318 L 645 400" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="postgres_db" data-edge-to="vector_store" data-edge-label="Mở rộng PGVector" data-edge-key="7" data-edge-id="db-to-vector" data-composition-points="450,434;560,434" d="M 450 434 L 560 434" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="api_gateway" data-edge-to="spring_ai" data-edge-label="Sàng lọc &amp; Tóm tắt" data-edge-key="3" data-edge-id="api-to-springai" data-composition-points="450,256;560,256" d="M 450 256 L 560 256" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="spring_ai" data-edge-to="vector_store" data-edge-label="Truy vấn RAG" data-edge-key="4" data-edge-id="springai-to-vector" data-composition-points="645,292;645,400" d="M 645 292 L 645 400" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <path data-edge-from="postgres_db" data-edge-to="vector_store" data-edge-label="Mở rộng PGVector" data-edge-key="5" data-edge-id="db-to-vector" data-composition-points="450,434;560,434" d="M 450 434 L 560 434" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
 
         <!-- Components -->
         <g id="node-patient_app" data-node-id="patient_app" data-node-label="Cổng Bệnh Nhân" tabindex="0" role="button" aria-label="Focus Cổng Bệnh Nhân, Next.js 16 :3000, Architecture component, Next.js" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="Next.js 16 :3000" data-node-context="Architecture component" data-node-brand="Next.js" data-node-brand-id="next-js" data-node-brand-status="preset" data-node-brand-source="https://vercel.com/design/brands#next-js">
@@ -5064,8 +5062,8 @@
         <text data-detail="context" x="115" y="208" class="t-muted" font-size="9" text-anchor="middle">Next.js 16 :3000</text>
         </g>
 
-        <g id="node-staff_portal" data-node-id="staff_portal" data-node-label="Quầy Tiếp Đón" tabindex="0" role="button" aria-label="Focus Quầy Tiếp Đón, Camera &amp; Quét Mã QR, Architecture component, Next.js" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="Camera &amp; Quét Mã QR" data-node-context="Architecture component" data-node-brand="Next.js" data-node-brand-id="next-js" data-node-brand-status="preset" data-node-brand-source="https://vercel.com/design/brands#next-js">
-          <title>Quầy Tiếp Đón · Camera &amp; Quét Mã QR · Architecture component · Next.js</title>
+        <g id="node-staff_portal" data-node-id="staff_portal" data-node-label="Quầy Tiếp Đón" tabindex="0" role="button" aria-label="Focus Quầy Tiếp Đón, Quét Mã QR &amp; Điều phối, Architecture component, Next.js" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="Quét Mã QR &amp; Điều phối" data-node-context="Architecture component" data-node-brand="Next.js" data-node-brand-id="next-js" data-node-brand-status="preset" data-node-brand-source="https://vercel.com/design/brands#next-js">
+          <title>Quầy Tiếp Đón · Quét Mã QR &amp; Điều phối · Architecture component · Next.js</title>
           <rect x="40" y="310" width="150" height="68" rx="6" class="c-mask"/>
           <rect x="40" y="310" width="150" height="68" rx="6" class="c-frontend" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(46 316) scale(0.6875)">
@@ -5080,7 +5078,7 @@
             <rect width="16" height="16" rx="4" class="brand-mark-frame"/>
           </g>
           <text data-node-label="" data-detail-anchor="" x="115" y="342" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Quầy Tiếp Đón</text>
-        <text data-detail="context" x="115" y="358" class="t-muted" font-size="9" text-anchor="middle">Camera &amp; Quét Mã QR</text>
+        <text data-detail="context" x="115" y="358" class="t-muted" font-size="9" text-anchor="middle">Quét Mã QR &amp; Điều phối</text>
         </g>
 
         <g id="node-api_gateway" data-node-id="api_gateway" data-node-label="Spring Boot API" tabindex="0" role="button" aria-label="Focus Spring Boot API, Java 21 / Clean Arch :8080, Môi trường Triển khai Docker Compose, Spring" aria-pressed="false" data-node-kind="backend" data-node-sublabel="Java 21 / Clean Arch :8080" data-node-tag="Bảo mật JWT &amp; REST API" data-node-context="Môi trường Triển khai Docker Compose" data-node-brand="Spring" data-node-brand-id="spring" data-node-brand-status="preset" data-node-brand-source="https://spring.io/trademarks">
@@ -5118,42 +5116,25 @@
         <text data-detail="fine" x="365" y="460" class="t-database" font-size="7" text-anchor="middle">Quản lý CSDL Flyway</text>
         </g>
 
-        <g id="node-yolo_service" data-node-id="yolo_service" data-node-label="Thị Giác YOLO11" tabindex="0" role="button" aria-label="Focus Thị Giác YOLO11, Dịch vụ FastAPI :8001, Môi trường Triển khai Docker Compose › Quy trình AI &amp; Thị giác máy tính, Python" aria-pressed="false" data-node-kind="backend" data-node-sublabel="Dịch vụ FastAPI :8001" data-node-tag="OCR CCCD &amp; Phân tích da" data-node-context="Môi trường Triển khai Docker Compose › Quy trình AI &amp; Thị giác máy tính" data-node-brand="Python" data-node-brand-id="python" data-node-brand-status="preset" data-node-brand-source="https://www.python.org/community/logos/">
-          <title>Thị Giác YOLO11 · Dịch vụ FastAPI :8001 · Môi trường Triển khai Docker Compose › Quy trình AI &amp; Thị giác máy tính · OCR CCCD &amp; Phân tích da · Python</title>
-          <rect x="560" y="110" width="170" height="68" rx="6" class="c-mask"/>
-          <rect x="560" y="110" width="170" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(566 116) scale(0.6875)">
+        <g id="node-spring_ai" data-node-id="spring_ai" data-node-label="Dịch Vụ Spring AI" tabindex="0" role="button" aria-label="Focus Dịch Vụ Spring AI, ChatClient &amp; LangChain4j, Môi trường Triển khai Docker Compose › Quy trình Spring AI &amp; Tri thức RAG, Spring" aria-pressed="false" data-node-kind="backend" data-node-sublabel="ChatClient &amp; LangChain4j" data-node-tag="Điều phối LLM AI" data-node-context="Môi trường Triển khai Docker Compose › Quy trình Spring AI &amp; Tri thức RAG" data-node-brand="Spring" data-node-brand-id="spring" data-node-brand-status="preset" data-node-brand-source="https://spring.io/trademarks">
+          <title>Dịch Vụ Spring AI · ChatClient &amp; LangChain4j · Môi trường Triển khai Docker Compose › Quy trình Spring AI &amp; Tri thức RAG · Điều phối LLM AI · Spring</title>
+          <rect x="560" y="220" width="170" height="72" rx="6" class="c-mask"/>
+          <rect x="560" y="220" width="170" height="72" rx="6" class="c-backend" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(566 226) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <g aria-hidden="true" data-brand-mark="python" data-brand-title="Python" data-brand-status="preset" data-brand-source="https://www.python.org/community/logos/" class="brand-mark" transform="translate(708 116)">
-            <rect width="16" height="16" rx="4" class="brand-mark-badge"/>
-            <path d="M14.25.18l.9.2.73.26.59.3.45.32.34.34.25.34.16.33.1.3.04.26.02.2-.01.13V8.5l-.05.63-.13.55-.21.46-.26.38-.3.31-.33.25-.35.19-.35.14-.33.1-.3.07-.26.04-.21.02H8.77l-.69.05-.59.14-.5.22-.41.27-.33.32-.27.35-.2.36-.15.37-.1.35-.07.32-.04.27-.02.21v3.06H3.17l-.21-.03-.28-.07-.32-.12-.35-.18-.36-.26-.36-.36-.35-.46-.32-.59-.28-.73-.21-.88-.14-1.05-.05-1.23.06-1.22.16-1.04.24-.87.32-.71.36-.57.4-.44.42-.33.42-.24.4-.16.36-.1.32-.05.24-.01h.16l.06.01h8.16v-.83H6.18l-.01-2.75-.02-.37.05-.34.11-.31.17-.28.25-.26.31-.23.38-.2.44-.18.51-.15.58-.12.64-.1.71-.06.77-.04.84-.02 1.27.05zm-6.3 1.98l-.23.33-.08.41.08.41.23.34.33.22.41.09.41-.09.33-.22.23-.34.08-.41-.08-.41-.23-.33-.33-.22-.41-.09-.41.09zm13.09 3.95l.28.06.32.12.35.18.36.27.36.35.35.47.32.59.28.73.21.88.14 1.04.05 1.23-.06 1.23-.16 1.04-.24.86-.32.71-.36.57-.4.45-.42.33-.42.24-.4.16-.36.09-.32.05-.24.02-.16-.01h-8.22v.82h5.84l.01 2.76.02.36-.05.34-.11.31-.17.29-.25.25-.31.24-.38.2-.44.17-.51.15-.58.13-.64.09-.71.07-.77.04-.84.01-1.27-.04-1.07-.14-.9-.2-.73-.25-.59-.3-.45-.33-.34-.34-.25-.34-.16-.33-.1-.3-.04-.25-.02-.2.01-.13v-5.34l.05-.64.13-.54.21-.46.26-.38.3-.32.33-.24.35-.2.35-.14.33-.1.3-.06.26-.04.21-.02.13-.01h5.84l.69-.05.59-.14.5-.21.41-.28.33-.32.27-.35.2-.36.15-.36.1-.35.07-.32.04-.28.02-.21V6.07h2.09l.14.01zm-6.47 14.25l-.23.33-.08.41.08.41.23.33.33.23.41.08.41-.08.33-.23.23-.33.08-.41-.08-.41-.23-.33-.33-.23-.41-.08-.41.08z" transform="translate(3 3) scale(0.4166666666666667)" fill="#3776AB"/>
-            <rect width="16" height="16" rx="4" class="brand-mark-frame"/>
-          </g>
-          <text data-node-label="" data-detail-anchor="" x="645" y="142" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Thị Giác YOLO11</text>
-        <text data-detail="context" x="645" y="158" class="t-muted" font-size="9" text-anchor="middle">Dịch vụ FastAPI :8001</text>
-        <text data-detail="fine" x="645" y="170" class="t-backend" font-size="7" text-anchor="middle">OCR CCCD &amp; Phân tích da</text>
-        </g>
-
-        <g id="node-spring_ai" data-node-id="spring_ai" data-node-label="Dịch Vụ Spring AI" tabindex="0" role="button" aria-label="Focus Dịch Vụ Spring AI, ChatClient &amp; Sàng lọc, Môi trường Triển khai Docker Compose › Quy trình AI &amp; Thị giác máy tính, Spring" aria-pressed="false" data-node-kind="backend" data-node-sublabel="ChatClient &amp; Sàng lọc" data-node-tag="Điều phối mô hình LLM" data-node-context="Môi trường Triển khai Docker Compose › Quy trình AI &amp; Thị giác máy tính" data-node-brand="Spring" data-node-brand-id="spring" data-node-brand-status="preset" data-node-brand-source="https://spring.io/trademarks">
-          <title>Dịch Vụ Spring AI · ChatClient &amp; Sàng lọc · Môi trường Triển khai Docker Compose › Quy trình AI &amp; Thị giác máy tính · Điều phối mô hình LLM · Spring</title>
-          <rect x="560" y="250" width="170" height="68" rx="6" class="c-mask"/>
-          <rect x="560" y="250" width="170" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(566 256) scale(0.6875)">
-            <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
-          </g>
-          <g aria-hidden="true" data-brand-mark="spring" data-brand-title="Spring" data-brand-status="preset" data-brand-source="https://spring.io/trademarks" class="brand-mark" transform="translate(708 256)">
+          <g aria-hidden="true" data-brand-mark="spring" data-brand-title="Spring" data-brand-status="preset" data-brand-source="https://spring.io/trademarks" class="brand-mark" transform="translate(708 226)">
             <rect width="16" height="16" rx="4" class="brand-mark-badge"/>
             <path d="M21.8537 1.4158a10.4504 10.4504 0 0 1-1.284 2.2471A11.9666 11.9666 0 1 0 3.8518 20.7757l.4445.3951a11.9543 11.9543 0 0 0 19.6316-8.2971c.3457-3.0126-.568-6.8649-2.0743-11.458zM5.5805 20.8745a1.0174 1.0174 0 1 1-.1482-1.4323 1.0396 1.0396 0 0 1 .1482 1.4323zm16.1991-3.5806c-2.9385 3.9263-9.2601 2.5928-13.2852 2.7904 0 0-.7161.0494-1.4323.1481 0 0 .2717-.1234.6174-.2469 2.8398-.9877 4.1732-1.1853 5.9018-2.0743 3.2349-1.6545 6.4698-5.2844 7.1118-9.0379-1.2347 3.6053-4.9881 6.7167-8.3959 7.9761-2.3459.8643-6.5685 1.7039-6.5685 1.7039l-.1729-.0988c-2.8645-1.4076-2.9632-7.6304 2.2718-9.6306 2.2966-.889 4.4696-.395 6.9637-.9877 2.6422-.6174 5.7043-2.5929 6.939-5.1857 1.3828 4.1732 3.062 10.643.0493 14.6434z" transform="translate(3 3) scale(0.4166666666666667)" fill="#6DB33F"/>
             <rect width="16" height="16" rx="4" class="brand-mark-frame"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="645" y="282" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Dịch Vụ Spring AI</text>
-        <text data-detail="context" x="645" y="298" class="t-muted" font-size="9" text-anchor="middle">ChatClient &amp; Sàng lọc</text>
-        <text data-detail="fine" x="645" y="310" class="t-backend" font-size="7" text-anchor="middle">Điều phối mô hình LLM</text>
+          <text data-node-label="" data-detail-anchor="" x="645" y="254" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Dịch Vụ Spring AI</text>
+        <text data-detail="context" x="645" y="270" class="t-muted" font-size="9" text-anchor="middle">ChatClient &amp; LangChain4j</text>
+        <text data-detail="fine" x="645" y="284" class="t-backend" font-size="7" text-anchor="middle">Điều phối LLM AI</text>
         </g>
 
-        <g id="node-vector_store" data-node-id="vector_store" data-node-label="Kho PGVector" tabindex="0" role="button" aria-label="Focus Kho PGVector, Tri thức y khoa RAG, Môi trường Triển khai Docker Compose › Quy trình AI &amp; Thị giác máy tính, PostgreSQL" aria-pressed="false" data-node-kind="database" data-node-sublabel="Tri thức y khoa RAG" data-node-tag="Dữ liệu nhúng Vector" data-node-context="Môi trường Triển khai Docker Compose › Quy trình AI &amp; Thị giác máy tính" data-node-brand="PostgreSQL" data-node-brand-id="postgresql" data-node-brand-status="preset" data-node-brand-source="https://wiki.postgresql.org/wiki/Logo">
-          <title>Kho PGVector · Tri thức y khoa RAG · Môi trường Triển khai Docker Compose › Quy trình AI &amp; Thị giác máy tính · Dữ liệu nhúng Vector · PostgreSQL</title>
+        <g id="node-vector_store" data-node-id="vector_store" data-node-label="Kho PGVector" tabindex="0" role="button" aria-label="Focus Kho PGVector, Tri thức y khoa RAG, Môi trường Triển khai Docker Compose › Quy trình Spring AI &amp; Tri thức RAG, PostgreSQL" aria-pressed="false" data-node-kind="database" data-node-sublabel="Tri thức y khoa RAG" data-node-tag="Dữ liệu nhúng Vector" data-node-context="Môi trường Triển khai Docker Compose › Quy trình Spring AI &amp; Tri thức RAG" data-node-brand="PostgreSQL" data-node-brand-id="postgresql" data-node-brand-status="preset" data-node-brand-source="https://wiki.postgresql.org/wiki/Logo">
+          <title>Kho PGVector · Tri thức y khoa RAG · Môi trường Triển khai Docker Compose › Quy trình Spring AI &amp; Tri thức RAG · Dữ liệu nhúng Vector · PostgreSQL</title>
           <rect x="560" y="400" width="170" height="68" rx="6" class="c-mask"/>
           <rect x="560" y="400" width="170" height="68" rx="6" class="c-database" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(566 406) scale(0.6875)">
@@ -5171,64 +5152,56 @@
         </g>
 
         <!-- Connection labels -->
-        <g data-detail="context" data-edge-from="patient_app" data-edge-to="api_gateway" data-edge-label="REST API / JSON" data-edge-key="0" data-edge-id="patient-to-api">
-          <rect x="194" y="201.5" width="82" height="14" rx="3" class="c-mask"/>
-          <text x="235" y="211.5" class="t-backend" font-size="8" text-anchor="middle">REST API / JSON</text>
+        <g data-detail="context" data-edge-from="patient_app" data-edge-to="api_gateway" data-edge-label="REST / SSE Stream" data-edge-key="0" data-edge-id="patient-to-api">
+          <rect x="189.2" y="225" width="91.6" height="14" rx="3" class="c-mask"/>
+          <text x="235" y="235" class="t-backend" font-size="8" text-anchor="middle">REST / SSE Stream</text>
         </g>
-        <g data-detail="context" data-edge-from="staff_portal" data-edge-to="api_gateway" data-edge-label="Luồng Check-in 3s" data-edge-key="1" data-edge-id="staff-to-api">
-          <rect x="189.2" y="283.5" width="91.6" height="14" rx="3" class="c-mask"/>
-          <text x="235" y="293.5" class="t-backend" font-size="8" text-anchor="middle">Luồng Check-in 3s</text>
+        <g data-detail="context" data-edge-from="staff_portal" data-edge-to="api_gateway" data-edge-label="Quét QR Check-in" data-edge-key="1" data-edge-id="staff-to-api">
+          <rect x="191.6" y="280" width="86.8" height="14" rx="3" class="c-mask"/>
+          <text x="235" y="290" class="t-backend" font-size="8" text-anchor="middle">Quét QR Check-in</text>
         </g>
         <g data-detail="context" data-edge-from="api_gateway" data-edge-to="postgres_db" data-edge-label="Truy vấn JPA / JDBC" data-edge-key="2" data-edge-id="api-to-db">
           <rect x="314.4" y="335" width="101.2" height="14" rx="3" class="c-mask"/>
           <text x="365" y="345" class="t-muted" font-size="8" text-anchor="middle">Truy vấn JPA / JDBC</text>
         </g>
-        <g data-detail="context" data-edge-from="api_gateway" data-edge-to="yolo_service" data-edge-label="Phân tích hình ảnh" data-edge-key="3" data-edge-id="api-to-yolo">
-          <rect x="402.3" y="176" width="96.39999999999999" height="14" rx="3" class="c-mask"/>
-          <text x="450.5" y="186" class="t-muted" font-size="8" text-anchor="middle">Phân tích hình ảnh</text>
+        <g data-detail="context" data-edge-from="api_gateway" data-edge-to="spring_ai" data-edge-label="Sàng lọc &amp; Tóm tắt" data-edge-key="3" data-edge-id="api-to-springai">
+          <rect x="456.8" y="236" width="96.39999999999999" height="14" rx="3" class="c-mask"/>
+          <text x="505" y="246" class="t-muted" font-size="8" text-anchor="middle">Sàng lọc &amp; Tóm tắt</text>
         </g>
-        <g data-detail="context" data-edge-from="api_gateway" data-edge-to="spring_ai" data-edge-label="Sàng lọc triệu chứng" data-edge-key="4" data-edge-id="api-to-springai">
-          <rect x="452" y="250" width="106" height="14" rx="3" class="c-mask"/>
-          <text x="505" y="260" class="t-muted" font-size="8" text-anchor="middle">Sàng lọc triệu chứng</text>
+        <g data-detail="context" data-edge-from="spring_ai" data-edge-to="vector_store" data-edge-label="Truy vấn RAG" data-edge-key="4" data-edge-id="springai-to-vector">
+          <rect x="611.2" y="335" width="67.6" height="14" rx="3" class="c-mask"/>
+          <text x="645" y="345" class="t-muted" font-size="8" text-anchor="middle">Truy vấn RAG</text>
         </g>
-        <g data-detail="context" data-edge-from="yolo_service" data-edge-to="spring_ai" data-edge-label="Nhãn tổn thương" data-edge-key="5" data-edge-id="yolo-to-springai">
-          <rect x="604" y="204" width="82" height="14" rx="3" class="c-mask"/>
-          <text x="645" y="214" class="t-messagebus" font-size="8" text-anchor="middle">Nhãn tổn thương</text>
-        </g>
-        <g data-detail="context" data-edge-from="spring_ai" data-edge-to="vector_store" data-edge-label="Truy vấn RAG" data-edge-key="6" data-edge-id="springai-to-vector">
-          <rect x="611.2" y="348" width="67.6" height="14" rx="3" class="c-mask"/>
-          <text x="645" y="358" class="t-muted" font-size="8" text-anchor="middle">Truy vấn RAG</text>
-        </g>
-        <g data-detail="context" data-edge-from="postgres_db" data-edge-to="vector_store" data-edge-label="Mở rộng PGVector" data-edge-key="7" data-edge-id="db-to-vector">
+        <g data-detail="context" data-edge-from="postgres_db" data-edge-to="vector_store" data-edge-label="Mở rộng PGVector" data-edge-key="5" data-edge-id="db-to-vector">
           <rect x="461.6" y="414" width="86.8" height="14" rx="3" class="c-mask"/>
           <text x="505" y="424" class="t-messagebus" font-size="8" text-anchor="middle">Mở rộng PGVector</text>
         </g>
 
         <!-- Boundary labels (foreground masks keep routes out of titles) -->
         <g data-graph-role="structural-frame-label" data-composition-frame-id="0" data-composition-frame-kind="region" data-composition-frame-label="Môi trường Triển khai Docker Compose">
-          <rect data-graph-role="structural-frame-label-mask" x="254" y="90" width="204.4" height="16" rx="3" class="c-mask"/>
-          <text data-boundary-label="" x="258" y="103" class="t-cloud" font-size="9" font-weight="600">Môi trường Triển khai Docker Compose</text>
+          <rect data-graph-role="structural-frame-label-mask" x="254" y="200" width="204.4" height="16" rx="3" class="c-mask"/>
+          <text data-boundary-label="" x="258" y="213" class="t-cloud" font-size="9" font-weight="600">Môi trường Triển khai Docker Compose</text>
         </g>
 
-        <g data-graph-role="structural-frame-label" data-composition-frame-id="1" data-composition-frame-kind="security-group" data-composition-frame-label="Quy trình AI &amp; Thị giác máy tính">
-          <rect data-graph-role="structural-frame-label-mask" x="534" y="90" width="182.79999999999998" height="16" rx="3" class="c-mask"/>
-          <text data-boundary-label="" x="538" y="103" class="t-security" font-size="9" font-weight="600">Quy trình AI &amp; Thị giác máy tính</text>
+        <g data-graph-role="structural-frame-label" data-composition-frame-id="1" data-composition-frame-kind="security-group" data-composition-frame-label="Quy trình Spring AI &amp; Tri thức RAG">
+          <rect data-graph-role="structural-frame-label-mask" x="534" y="200" width="193.6" height="16" rx="3" class="c-mask"/>
+          <text data-boundary-label="" x="538" y="213" class="t-security" font-size="9" font-weight="600">Quy trình Spring AI &amp; Tri thức RAG</text>
         </g>
 
         <!-- Legend -->
         <g data-legend="" data-legend-bridge="">
-          <text x="40" y="520" class="t-primary" font-size="12" font-weight="650">Chú thích</text>
-          <g data-legend-semantic-kind="frontend" data-legend-kind="frontend" data-legend-label="Frontend" data-legend-x="40" data-legend-baseline="540" data-legend-width="120">
+          <text x="40" y="520" class="t-primary" font-size="12" font-weight="650">Legend</text>
+          <g data-legend-semantic-kind="frontend" data-legend-kind="frontend" data-legend-label="Frontend" data-legend-x="40" data-legend-baseline="540" data-legend-width="83">
             <rect x="40" y="531" width="16" height="10" rx="2.5" class="c-frontend" stroke-width="1"/>
-            <text x="62" y="540" class="t-muted" font-size="10" font-weight="500">Giao diện (Frontend)</text>
+            <text x="62" y="540" class="t-muted" font-size="10" font-weight="500">Frontend</text>
           </g>
-          <g data-legend-semantic-kind="backend" data-legend-kind="backend" data-legend-label="Backend" data-legend-x="185" data-legend-baseline="540" data-legend-width="120">
-            <rect x="185" y="531" width="16" height="10" rx="2.5" class="c-backend" stroke-width="1"/>
-            <text x="207" y="540" class="t-muted" font-size="10" font-weight="500">Máy chủ (Backend)</text>
+          <g data-legend-semantic-kind="backend" data-legend-kind="backend" data-legend-label="Backend" data-legend-x="145" data-legend-baseline="540" data-legend-width="78">
+            <rect x="145" y="531" width="16" height="10" rx="2.5" class="c-backend" stroke-width="1"/>
+            <text x="167" y="540" class="t-muted" font-size="10" font-weight="500">Backend</text>
           </g>
-          <g data-legend-semantic-kind="database" data-legend-kind="database" data-legend-label="Database" data-legend-x="330" data-legend-baseline="540" data-legend-width="125">
-            <rect x="330" y="531" width="16" height="10" rx="2.5" class="c-database" stroke-width="1"/>
-            <text x="352" y="540" class="t-muted" font-size="10" font-weight="500">Cơ sở dữ liệu (Database)</text>
+          <g data-legend-semantic-kind="database" data-legend-kind="database" data-legend-label="Database" data-legend-x="245" data-legend-baseline="540" data-legend-width="83">
+            <rect x="245" y="531" width="16" height="10" rx="2.5" class="c-database" stroke-width="1"/>
+            <text x="267" y="540" class="t-muted" font-size="10" font-weight="500">Database</text>
           </g>
         </g>
       </svg>
@@ -5423,8 +5396,8 @@
           <h3>Giao diện đa kênh (Client Layer)</h3>
         </div>
         <ul>
-          <li>&bull; Cổng Bệnh nhân: Đặt lịch khám trực tuyến, chat định hướng triệu chứng và tải ảnh tổn thương ngoài da.</li>
-          <li>&bull; Quầy Tiếp đón: Quét mã QR vé khám và camera tự động bóc tách thông tin thẻ CCCD/BHYT trong 3 giây.</li>
+          <li>&bull; Cổng Bệnh nhân: Đặt lịch khám trực tuyến, chat định hướng chuyên khoa thời gian thực qua Server-Sent Events (SSE).</li>
+          <li>&bull; Quầy Tiếp đón: Quét mã QR vé khám trên điện thoại hoặc mã QR trên thẻ CCCD chip hoàn tất check-in trong 1 giây.</li>
         </ul>
       </div>
 
@@ -5434,19 +5407,19 @@
           <h3>Nghiệp vụ lõi (Spring Boot Backend)</h3>
         </div>
         <ul>
-          <li>&bull; Xây dựng theo kiến trúc Clean / Hexagonal Architecture chuẩn doanh nghiệp.</li>
-          <li>&bull; Quản lý vòng đời ca khám (Time Slots, Khóa lạc quan chống đặt trùng, Quản lý CSDL Flyway).</li>
+          <li>&bull; Kiến trúc Clean / Hexagonal Architecture chuẩn doanh nghiệp, bảo mật JWT &amp; phân quyền RBAC.</li>
+          <li>&bull; Bộ điều phối hàng đợi khám bệnh thông minh (Smart Queue Engine) giải quyết tối ưu ca Online vs Khách vãng lai.</li>
         </ul>
       </div>
 
       <div class="card">
         <div class="card-header">
           <div class="card-dot rose"></div>
-          <h3>Trí tuệ nhân tạo (AI &amp; YOLO11 Pipeline)</h3>
+          <h3>Trí tuệ nhân tạo (Spring AI &amp; RAG Pipeline)</h3>
         </div>
         <ul>
-          <li>&bull; YOLO11: Tự động trích xuất thông tin thẻ CCCD/BHYT trong 3s và khoanh vùng tổn thương da liễu.</li>
-          <li>&bull; Spring AI + PGVector: Tra cứu tri thức y khoa (RAG) và gợi ý chuyên khoa chính xác.</li>
+          <li>&bull; Spring AI ChatClient: Sàng lọc triệu chứng, tóm tắt bệnh án 2 dòng cho bác sĩ và phân tích cảm xúc đánh giá.</li>
+          <li>&bull; PGVector Store: Kho tri thức y khoa phục vụ kỹ thuật RAG đảm bảo câu trả lời chuẩn xác, chống hallucination.</li>
         </ul>
       </div>
     </div>
