@@ -1,0 +1,39 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: medsched
+  profiles:
+    active: mysql-xampp
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+  flyway:
+    enabled: false
+
+medsched:
+  jwt:
+    secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+    access-token-duration: 3600s
+    refresh-token-duration: 604800s
+  cors:
+    allowed-origins: http://localhost:3000
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+    expiration: 86400
+
+---
+# Cấu hình kết nối MySQL trong XAMPP (Mặc định cho toàn bộ thành viên trong nhóm)
+spring:
+  config:
+    activate:
+      on-profile: mysql-xampp
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/medsched_db?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Ho_Chi_Minh}
+    username: ${DB_USER:root}
+    password: ${DB_PASSWORD:}
+

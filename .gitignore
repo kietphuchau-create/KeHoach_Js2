@@ -1,0 +1,54 @@
+# ==============================================================================
+# Git Ignore - DuAnChinhThuc (MedSched Smart Healthcare System)
+# ==============================================================================
+
+# --- Node & Next.js (Frontend) ---
+**/node_modules/
+**/.next/
+**/out/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# --- Java & Gradle (Backend) ---
+.gradle/
+**/build/
+!src/**/build/
+*.class
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+hs_err_pid*
+replay_pid*
+
+# --- IDEs & Editors ---
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+*.swp
+*~
+.classpath
+.project
+.settings/
+
+# --- Operating System Files ---
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+.DS_Store
+.AppleDouble
+.LSOverride

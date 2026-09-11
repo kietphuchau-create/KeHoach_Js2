@@ -1,0 +1,179 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Sơ Đồ Kiến Trúc Hệ Thống MedSched",
+    "output": "medsched-architecture.html",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "full-overview",
+        "label": "Toàn cảnh hệ thống",
+        "focus": ["patient_app", "staff_portal", "api_gateway", "postgres_db", "spring_ai", "vector_store"],
+        "note": "Kiến trúc thuần Spring Boot 3, Next.js, PostgreSQL và Spring AI (RAG & ChatClient)."
+      },
+      {
+        "id": "ai-rag-pipeline",
+        "label": "Pipeline Spring AI & RAG",
+        "focus": ["spring_ai", "vector_store"],
+        "note": "Xử lý hội thoại tự nhiên, sàng lọc chuyên khoa, tóm tắt bệnh án và tra cứu tri thức y khoa RAG."
+      },
+      {
+        "id": "booking-core",
+        "label": "Nghiệp vụ Đặt lịch & Tiếp đón",
+        "focus": ["patient_app", "staff_portal", "api_gateway", "postgres_db"],
+        "note": "Xử lý đặt lịch trực tuyến, quản lý Time Slots và Check-in tiếp đón bằng mã QR tại quầy."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "patient_app",
+      "type": "frontend",
+      "brand": "next-js",
+      "label": "Cổng Bệnh Nhân",
+      "sublabel": "Next.js 16 :3000",
+      "pos": [40, 160],
+      "size": [150, 68]
+    },
+    {
+      "id": "staff_portal",
+      "type": "frontend",
+      "brand": "next-js",
+      "label": "Quầy Tiếp Đón",
+      "sublabel": "Quét Mã QR & Điều phối",
+      "pos": [40, 310],
+      "size": [150, 68]
+    },
+    {
+      "id": "api_gateway",
+      "type": "backend",
+      "brand": "spring",
+      "label": "Spring Boot API",
+      "sublabel": "Java 21 / Clean Arch :8080",
+      "pos": [280, 220],
+      "size": [170, 72],
+      "tag": "Bảo mật JWT & REST API"
+    },
+    {
+      "id": "postgres_db",
+      "type": "database",
+      "brand": "postgresql",
+      "label": "PostgreSQL 16",
+      "sublabel": "CSDL Quan hệ lõi :5433",
+      "pos": [280, 400],
+      "size": [170, 68],
+      "tag": "Quản lý CSDL Flyway"
+    },
+    {
+      "id": "spring_ai",
+      "type": "backend",
+      "brand": "spring",
+      "label": "Dịch Vụ Spring AI",
+      "sublabel": "ChatClient & LangChain4j",
+      "pos": [560, 220],
+      "size": [170, 72],
+      "tag": "Điều phối LLM AI"
+    },
+    {
+      "id": "vector_store",
+      "type": "database",
+      "brand": "postgresql",
+      "label": "Kho PGVector",
+      "sublabel": "Tri thức y khoa RAG",
+      "pos": [560, 400],
+      "size": [170, 68],
+      "tag": "Dữ liệu nhúng Vector"
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Môi trường Triển khai Docker Compose",
+      "wraps": ["api_gateway", "postgres_db", "spring_ai", "vector_store"]
+    },
+    {
+      "kind": "security-group",
+      "label": "Quy trình Spring AI & Tri thức RAG",
+      "wraps": ["spring_ai", "vector_store"]
+    }
+  ],
+  "connections": [
+    {
+      "id": "patient-to-api",
+      "from": "patient_app",
+      "to": "api_gateway",
+      "label": "REST / SSE Stream",
+      "variant": "emphasis",
+      "labelAt": [235, 235]
+    },
+    {
+      "id": "staff-to-api",
+      "from": "staff_portal",
+      "to": "api_gateway",
+      "label": "Quét QR Check-in",
+      "variant": "emphasis"
+    },
+    {
+      "id": "api-to-db",
+      "from": "api_gateway",
+      "to": "postgres_db",
+      "label": "Truy vấn JPA / JDBC",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [365, 345]
+    },
+    {
+      "id": "api-to-springai",
+      "from": "api_gateway",
+      "to": "spring_ai",
+      "label": "Sàng lọc & Tóm tắt",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "springai-to-vector",
+      "from": "spring_ai",
+      "to": "vector_store",
+      "label": "Truy vấn RAG",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [645, 345]
+    },
+    {
+      "id": "db-to-vector",
+      "from": "postgres_db",
+      "to": "vector_store",
+      "label": "Mở rộng PGVector",
+      "fromSide": "right",
+      "toSide": "left",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Giao diện đa kênh (Client Layer)",
+      "items": [
+        "Cổng Bệnh nhân: Đặt lịch khám trực tuyến, chat định hướng chuyên khoa thời gian thực qua Server-Sent Events (SSE).",
+        "Quầy Tiếp đón: Quét mã QR vé khám trên điện thoại hoặc mã QR trên thẻ CCCD chip hoàn tất check-in trong 1 giây."
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Nghiệp vụ lõi (Spring Boot Backend)",
+      "items": [
+        "Kiến trúc Clean / Hexagonal Architecture chuẩn doanh nghiệp, bảo mật JWT & phân quyền RBAC.",
+        "Bộ điều phối hàng đợi khám bệnh thông minh (Smart Queue Engine) giải quyết tối ưu ca Online vs Khách vãng lai."
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Trí tuệ nhân tạo (Spring AI & RAG Pipeline)",
+      "items": [
+        "Spring AI ChatClient: Sàng lọc triệu chứng, tóm tắt bệnh án 2 dòng cho bác sĩ và phân tích cảm xúc đánh giá.",
+        "PGVector Store: Kho tri thức y khoa phục vụ kỹ thuật RAG đảm bảo câu trả lời chuẩn xác, chống hallucination."
+      ]
+    }
+  ]
+}
