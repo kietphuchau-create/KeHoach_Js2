@@ -135,3 +135,193 @@ Hệ thống được thiết kế theo chuẩn hóa 3NF gồm **12 bảng quan 
 1. Mở **DBeaver**, kết nối vào PostgreSQL (Cổng `5433` qua Docker hoặc `5432` cục bộ, Database: `medsched_db`).
 2. Mở file script [`medsched_schema.sql`](./medsched_schema.sql) và nhấn tổ hợp phím **`Alt + X`** (Execute SQL Script).
 3. Sau khi chạy thành công, nhấp đúp vào thư mục **`Tables`** ➔ chuyển qua tab **`Diagram`** để kiểm tra và xuất ảnh sơ đồ quan hệ ERD 12 bảng.
+
+---
+
+## 5. Phiên Bản Chuyển Đổi Cho XAMPP / MySQL / MariaDB (phpMyAdmin)
+
+> Dùng khi nhóm muốn chạy CSDL ngay trên máy cá nhân bằng **XAMPP** (không cần cài Docker/PostgreSQL), phục vụ code nhanh Spring Boot bằng driver MySQL hoặc demo offline khi báo cáo.
+>
+> File script: [`medsched_schema_mysql_xampp.sql`](./medsched_schema_mysql_xampp.sql) — **đã được kiểm thử thực tế và chạy thành công (không lỗi)** trên chính bản MariaDB `10.4.32` đi kèm XAMPP.
+
+### 5.1. Bảng quy đổi kiểu dữ liệu (PostgreSQL ➔ MySQL/MariaDB)
+
+| Kiểu trong PostgreSQL | Kiểu tương đương MySQL/MariaDB | Ghi chú |
+|:---|:---|:---|
+| `UUID` + `DEFAULT gen_random_uuid()` | `CHAR(36)` + `DEFAULT (UUID())` | MariaDB ≥ 10.2.1 / MySQL ≥ 8.0.13 hỗ trợ default là biểu thức. Khuyến nghị: tầng Spring Boot (Hibernate) tự sinh `UUID.randomUUID()` trước khi insert để không phụ thuộc phiên bản DB. |
+| `TIMESTAMP WITH TIME ZONE` | `DATETIME` | MySQL không có kiểu có múi giờ đúng nghĩa; quy ước lưu giờ theo **UTC+7 (giờ Việt Nam)** thống nhất toàn hệ thống. |
+| `NOW()` | `CURRENT_TIMESTAMP` | Cột `updated_at` dùng thêm `ON UPDATE CURRENT_TIMESTAMP` để tự cập nhật khi `UPDATE`. |
+| `NUMERIC(19,2)` | `DECIMAL(19,2)` | Tương đương 1-1, không mất độ chính xác số tiền. |
+| `BOOLEAN` | `BOOLEAN` (map ngầm sang `TINYINT(1)`) | Không cần đổi cú pháp. |
+| `CHECK (...)` | Giữ nguyên `CHECK (...)` | Được **thực thi thật** (không bị bỏ qua) trên MariaDB ≥ 10.2.1 và MySQL ≥ 8.0.16 — tức là mọi bản XAMPP hiện hành (8.x) đều dùng được. |
+| Không khai báo charset | `ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci` | Bắt buộc `utf8mb4` để không vỡ font tiếng Việt có dấu. |
+
+### 5.2. Kết quả kiểm thử trên máy có XAMPP cài sẵn
+Đã dựng một instance MariaDB `10.4.32` tạm thời (cùng phiên bản đóng gói trong `C:\xampp\mysql`) và nạp trực tiếp file `medsched_schema_mysql_xampp.sql` để xác nhận:
+* ✅ Tạo đủ **12/12 bảng**, đủ **18 khóa ngoại (FK)** đúng chiều tham chiếu như bản Postgres.
+* ✅ Ràng buộc `CHECK` hoạt động thật — thử insert `role = 'ROLE_HACKER'` (giá trị không hợp lệ) bị **MariaDB từ chối đúng như thiết kế** (`ERROR 4025: CONSTRAINT 'users.role' failed`).
+* ✅ `DEFAULT (UUID())` tự sinh khóa chính hợp lệ khi insert không truyền `id`.
+* ✅ Dữ liệu mẫu tiếng Việt có dấu (`Bệnh Viện Đa Khoa...`, `Lễ Tân Tiếp Đón 01`...) lưu và đọc lại đúng nhờ `utf8mb4`.
+
+### 5.3. Hướng Dẫn Nạp Schema Vào XAMPP Bằng phpMyAdmin
+1. Mở **XAMPP Control Panel** ➔ bấm **Start** ở dòng `MySQL` (và `Apache` nếu cần chạy phpMyAdmin qua trình duyệt).
+2. Truy cập `http://localhost/phpmyadmin`.
+3. Chọn tab **Import** (Nhập) ➔ **Choose File** ➔ trỏ tới [`medsched_schema_mysql_xampp.sql`](./medsched_schema_mysql_xampp.sql) ➔ bấm **Go**.
+   * File tự tạo database `medsched_db` (nếu chưa có) nên **không cần** tạo database thủ công trước.
+4. Sau khi Import báo thành công, vào database `medsched_db` ➔ tab **Structure** ➔ liên kết **Designer** (hoặc **Relation view**) để xem sơ đồ ERD trực quan tương tự DBeaver.
+5. Cấu hình `application.properties` / `application.yml` phía Spring Boot trỏ về:
+   ```properties
+   spring.datasource.url=jdbc:mysql://localhost:3306/medsched_db?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Ho_Chi_Minh
+   spring.datasource.username=root
+   spring.datasource.password=
+   spring.jpa.hibernate.ddl-auto=validate
+   ```
+
+### 5.4. Sơ Đồ Thực Thể Liên Kết (ERD) — Bản Vẽ Lại Cho MySQL/XAMPP
+
+```mermaid
+erDiagram
+    MEDICAL_CENTERS ||--o{ SYSTEM_SETTINGS : "cấu hình"
+    MEDICAL_CENTERS ||--o{ USERS : "thuộc chi nhánh"
+    MEDICAL_CENTERS ||--o{ SPECIALTIES : "quản lý khoa"
+    USERS ||--o{ PATIENT_PROFILES : "quản lý hồ sơ gia đình"
+    USERS ||--o{ DOCTORS : "1-1 hồ sơ bác sĩ"
+    USERS ||--o{ APPOINTMENT_STATUS_LOGS : "người thay đổi trạng thái"
+    SPECIALTIES ||--o{ DOCTORS : "chuyên môn"
+    DOCTORS ||--o{ DOCTOR_SCHEDULES : "đăng ký ca"
+    DOCTORS ||--o{ TIME_SLOTS : "phụ trách slot"
+    DOCTOR_SCHEDULES ||--o{ TIME_SLOTS : "sinh slot"
+    PATIENT_PROFILES ||--o{ APPOINTMENTS : "người khám"
+    DOCTORS ||--o{ APPOINTMENTS : "phụ trách"
+    TIME_SLOTS ||--o| APPOINTMENTS : "chiếm slot (nullable)"
+    APPOINTMENTS ||--o{ APPOINTMENT_STATUS_LOGS : "lịch sử trạng thái"
+    APPOINTMENTS ||--o| MEDICAL_RECORDS : "hồ sơ bệnh án"
+    APPOINTMENTS ||--o| DOCTOR_REVIEWS : "đánh giá sau khám"
+    PATIENT_PROFILES ||--o{ DOCTOR_REVIEWS : "người đánh giá"
+
+    MEDICAL_CENTERS {
+        char_36 id PK "DEFAULT (UUID())"
+        varchar_50 code UK
+        varchar_255 name
+        varchar_500 address
+        varchar_20 phone
+        boolean is_active
+        datetime created_at
+        datetime updated_at
+    }
+
+    SYSTEM_SETTINGS {
+        char_36 id PK
+        char_36 medical_center_id FK
+        varchar_100 setting_key
+        varchar_255 setting_value
+        text description
+    }
+
+    USERS {
+        char_36 id PK
+        char_36 medical_center_id FK
+        varchar_255 email UK
+        varchar_255 password_hash
+        varchar_255 full_name
+        varchar_32 role "CHECK IN (PATIENT/DOCTOR/STAFF/ADMIN)"
+        boolean is_active
+    }
+
+    PATIENT_PROFILES {
+        char_36 id PK
+        char_36 user_id FK
+        varchar_30 relationship "SELF/PARENT/CHILD/SPOUSE"
+        varchar_255 full_name
+        varchar_20 cccd_number
+        varchar_30 health_insurance_no
+        date date_of_birth
+        text medical_history
+    }
+
+    SPECIALTIES {
+        char_36 id PK
+        char_36 medical_center_id FK
+        varchar_255 name
+        varchar_50 code
+    }
+
+    DOCTORS {
+        char_36 id PK
+        char_36 user_id FK
+        char_36 specialty_id FK
+        varchar_100 academic_title
+        int experience_years
+        decimal_19_2 consultation_fee
+        varchar_50 room_number
+    }
+
+    DOCTOR_SCHEDULES {
+        char_36 id PK
+        char_36 doctor_id FK
+        date work_date
+        time start_time
+        time end_time
+        int slot_duration_minutes "NULL = kế thừa system_settings"
+        varchar_30 status
+    }
+
+    TIME_SLOTS {
+        char_36 id PK
+        char_36 schedule_id FK
+        char_36 doctor_id FK
+        datetime start_time
+        datetime end_time
+        varchar_20 status "AVAILABLE/BOOKED/LOCKED/BLOCKED"
+        int version "Optimistic Locking"
+    }
+
+    APPOINTMENTS {
+        char_36 id PK
+        varchar_16 booking_code UK
+        char_36 patient_profile_id FK
+        char_36 doctor_id FK
+        char_36 slot_id FK "nullable = khách vãng lai"
+        varchar_20 queue_number "APP-1000/WLK-001/LAB-01"
+        varchar_20 queue_type
+        text ai_summary
+        varchar_30 payment_status
+        decimal_19_2 payment_amount
+        varchar_30 status
+        boolean is_delayed
+        int delay_minutes
+    }
+
+    APPOINTMENT_STATUS_LOGS {
+        char_36 id PK
+        char_36 appointment_id FK
+        varchar_30 from_status
+        varchar_30 to_status
+        text reason
+        char_36 changed_by FK
+    }
+
+    MEDICAL_RECORDS {
+        char_36 id PK
+        char_36 appointment_id FK
+        text diagnosis
+        text doctor_notes
+        text prescription
+    }
+
+    DOCTOR_REVIEWS {
+        char_36 id PK
+        char_36 appointment_id FK
+        char_36 patient_profile_id FK
+        char_36 doctor_id FK
+        int rating "1-5"
+        text comment
+        varchar_20 ai_sentiment
+    }
+```
+
+> **Ghi chú đọc sơ đồ:** GitHub tự render khối ```mermaid``` ở trên thành hình ERD trực quan ngay trong trang này. Nếu muốn xuất ảnh PNG để chèn slide báo cáo, mở database `medsched_db` đã import trong **phpMyAdmin ➔ Designer** (hoặc DBeaver nếu kết nối MySQL) rồi xuất ảnh từ tab Diagram.
+
+### 5.5. Chọn Postgres hay MySQL/XAMPP?
+* **PostgreSQL (`medsched_schema.sql`)** vẫn là phương án **chính thức nộp báo cáo**, đúng với công nghệ đã cam kết với Giảng viên (Spring Boot 3 + Spring AI + PGVector cho RAG y khoa — PGVector **chỉ chạy trên PostgreSQL**, MySQL không có kiểu vector tương đương).
+* **MySQL/XAMPP (`medsched_schema_mysql_xampp.sql`)** là phương án **dự phòng / phát triển cá nhân**: dùng khi thành viên nào chưa cài Docker, cần code offline nhanh trên Windows, hoặc muốn demo cục bộ không phụ thuộc mạng. Cấu trúc bảng, tên cột, ràng buộc nghiệp vụ **giữ nguyên 100%** giữa hai bản để code Spring Boot (Entity/DTO) dùng chung, chỉ khác `application-{profile}.yml` (đổi driver + dialect Hibernate: `PostgreSQLDialect` ⇄ `MySQLDialect`).

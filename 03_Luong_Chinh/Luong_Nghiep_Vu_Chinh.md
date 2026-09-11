@@ -14,7 +14,7 @@
 4. **Luồng 4:** Đánh giá chất lượng sau khám & Phân tích cảm xúc bằng Spring AI (Verified Review & Sentiment Analysis).
 5. **Luồng 5:** Điều phối hàng đợi khám bệnh thông minh (Smart Examination Queue: Khách Online vs Khách Vãng lai).
 6. **Luồng 6:** Khám cận lâm sàng 2 pha (Xét nghiệm / X-Quang và tái khám đọc kết quả).
-7. **Luồng 7:** Xử lý 5 tình huống biên không lý tưởng (Edge Cases & Fallbacks).
+7. **Luồng 7:** Bản tóm tắt chuyên sâu về các trường hợp thực tế — 1 ví dụ điều phối theo phút trả lời trực tiếp câu hỏi của Giảng viên + 9 tình huống biên không lý tưởng (Real-world Scenarios & Edge Cases).
 
 ---
 
@@ -138,7 +138,27 @@ flowchart TD
 
 ---
 
-## 7. Luồng 7: Xử Lý 5 Kịch Bản Không Lý Tưởng (Edge Cases & Fallbacks)
+## 7. Luồng 7: Bản Tóm Tắt Chuyên Sâu Về Các Trường Hợp Thực Tế (Real-world Scenarios & Edge Cases)
+
+> Phần này trả lời trực tiếp câu hỏi phản biện của Giảng viên: *"Appointment ↔ Slot có hợp lý không? 1 bác sĩ khám 1 ca chỉ 10 phút trong khi 1 slot quy định 30 phút, 20 phút dư ra nếu có khách vãng lai thì xử lý sao? Nếu có bệnh nhân khác đã đến thì có được vào khám ngay không? 9:30 có 10 khách vãng lai, 10:00 mới có 1 slot đặt online — điều phối khách hàng lúc đó như thế nào?"*
+
+### 7.0. Ví Dụ Điều Phối Theo Từng Phút (Trả Lời Trực Tiếp Câu Hỏi Của Giảng Viên)
+
+**Bối cảnh:** Phòng khám mở cửa 9:00. Slot online đầu tiên trong ngày là `10:00 - 10:30` (`APP-1000`). Từ 9:00 đến 9:30 có 10 bệnh nhân vãng lai xếp hàng (`WLK-001` → `WLK-010`), mỗi ca khám thực tế trung bình chỉ mất ~10 phút.
+
+| Giờ thực tế | Sự kiện | Trạng thái `appointments` liên quan | Quyết định của thuật toán điều phối |
+|:---|:---|:---|:---|
+| 09:00 | Phòng khám mở cửa, chưa có ai đặt online cho khung 9h | — | Gọi lần lượt `WLK-001`, `WLK-002`... mỗi ca ~10 phút |
+| 09:30 | Đã khám xong khoảng 3 ca vãng lai (`WLK-001..003`), còn 7 người đang chờ (`WLK-004..010`) | `status = IN_PROGRESS` cho ca hiện tại | Tiếp tục gọi tuần tự `WLK-004`, `WLK-005`... không có ca online nào tranh chấp ở mốc này |
+| 09:50 | Bệnh nhân đặt online cho slot `10:00` đã **Check-in sớm** (quét mã QR vé hẹn) | `APP-1000` chuyển `CONFIRMED → CHECKED_IN` | Hệ thống **giữ chỗ ưu tiên** cho `APP-1000` trong hàng đợi hiển thị (không chèn ngang, chỉ đứng chờ đúng vị trí slot của nó) |
+| 10:00 | Đúng mốc giờ hẹn. Ca vãng lai đang khám (giả sử `WLK-006`) vẫn chưa xong | `WLK-006 = IN_PROGRESS` | **Không giành chỗ**: `APP-1000` không thể "chen vào" một ca đang diễn ra. Hệ thống hiển thị ước lượng "còn khoảng X phút" cho bệnh nhân online chờ |
+| 10:04 | Bác sĩ bấm **Hoàn thành khám** cho `WLK-006` | `WLK-006 = COMPLETED` | **Quy tắc 1 – Ưu tiên Slot hẹn trước:** vì `APP-1000` đã Check-in và đã tới đúng/qua giờ hẹn, hệ thống gọi `APP-1000` **trước** `WLK-007` dù `WLK-007` xếp hàng lâu hơn |
+| 10:04 – 10:14 | Bác sĩ khám `APP-1000`, chỉ mất 10 phút thay vì hết 30 phút slot | `APP-1000 = IN_PROGRESS → COMPLETED` | — |
+| 10:14 | Slot `10:00-10:30` còn dư **16 phút** trước khi slot online tiếp theo (nếu có) bắt đầu | Slot tiếp theo `10:30` còn `AVAILABLE`/chưa tới giờ | **Quy tắc 2 – Lấp Buffer Time:** bác sĩ bấm "Gọi số tiếp theo" → hệ thống tự động gọi `WLK-007` vào lấp khoảng trống, không chờ tới 10:30 |
+| 10:24 | Nếu slot `10:30` cũng chưa có khách online Check-in | `time_slots.status = AVAILABLE` | Tiếp tục gọi thêm `WLK-008` nếu đủ thời gian ước tính trước 10:30, hoặc giữ lại chờ nếu không đủ thời gian an toàn |
+| 10:31 | Khách đặt online cho `10:30` vẫn chưa Check-in (đến trễ) | Sau 15 phút không check-in | **Quy tắc 3 – Chống tắc nghẽn:** ca online bị đẩy xuống cuối hàng đợi của khung giờ kế tiếp thay vì giữ chỗ mãi, để khách vãng lai phía sau không bị treo vô thời hạn |
+
+**Kết luận thiết kế:** cột `slot_id` trong `appointments` **chỉ mang tính chất giữ vé/định danh khung giờ ưu tiên**, không phải một "hàng đợi cứng" theo đúng nghĩa FIFO thời gian thực. Thứ tự gọi số thực tế do **`queue_number` + `queue_type` + trạng thái `CHECKED_IN`** của toàn bộ hàng đợi quyết định tại đúng thời điểm bác sĩ rảnh, xử lý được nghịch lý "1 ca 10 phút trong slot 30 phút" mà vẫn tôn trọng ưu tiên của khách đã đặt hẹn.
 
 ### 7.1. Bác sĩ nghỉ đột xuất / Có ca cấp cứu khẩn cấp (Emergency Cancellation)
 * **Kịch bản:** Bác sĩ đang trực thì phải vào phòng mổ cấp cứu đột xuất, còn 6 bệnh nhân đang chờ hoặc đã đặt lịch.
@@ -163,3 +183,19 @@ flowchart TD
 * **Xử lý:** Bộ lọc an toàn y tế trong Spring AI phát hiện từ khóa đỏ (`đau tim`, `đột quỵ`, `nôn ra máu`, `ngất xỉu`, `khó thở cấp`) $\rightarrow$ Bật cảnh báo khẩn cấp màu đỏ toàn màn hình:  
   > 🚨 **CẢNH BÁO Y TẾ KHẨN CẤP:**  
   > Bạn đang có dấu hiệu nguy kịch! Vui lòng gọi ngay **115** hoặc đến Khoa Cấp cứu của bệnh viện gần nhất, tuyệt đối không chờ đợi đặt lịch khám định kỳ!
+
+### 7.6. Hai bệnh nhân bấm "Xác nhận đặt lịch" cùng lúc trên 1 Slot (Race Condition)
+* **Kịch bản:** Slot `10:00` chỉ còn đúng 1 chỗ trống. Hai bệnh nhân A và B cùng bấm xác nhận trong cùng 1 giây (2 tab trình duyệt, hoặc 2 thiết bị khác nhau).
+* **Xử lý:** Cột `time_slots.version` (Optimistic Locking) đảm bảo chỉ **transaction ghi đầu tiên** cập nhật thành công `status = BOOKED`; transaction thứ hai bị `OptimisticLockException` do version đã lệch. Backend bắt lỗi này và trả về `HTTP 409 Conflict` kèm thông báo *"Rất tiếc, khung giờ này vừa có người đặt trước. Vui lòng chọn slot khác"* thay vì để 2 người cùng chiếm 1 slot hoặc tự động retry vô hạn.
+
+### 7.7. Nhầm hồ sơ người thân khi Check-in tại quầy (Family Profile Mismatch)
+* **Kịch bản:** Tài khoản của con đặt lịch hộ cho Bố (`patient_profile.relationship = PARENT`), nhưng khi tới quầy, người con lại đưa CCCD của **chính mình** để quét check-in.
+* **Xử lý:** Hệ thống đối soát số CCCD quét được với `cccd_number` đã lưu trong đúng `patient_profile_id` gắn với `appointment.booking_code` — nếu **không khớp**, hệ thống **không tự động check-in** mà cảnh báo Lễ tân: *"CCCD quét được không khớp hồ sơ người khám đã đặt (Bố: Trần Văn Bảy). Vui lòng xác nhận lại người đến khám là ai."* Lễ tân xác nhận thủ công (`checkin_method = MANUAL`) sau khi hỏi trực tiếp, tránh nhầm bệnh án giữa 2 người thân.
+
+### 7.8. Hủy ca đã đặt cọc VNPay & Hoàn tiền (Refund Flow)
+* **Kịch bản:** Bệnh nhân đã đặt cọc giữ chỗ qua VNPay (`payment_status = DEPOSITED_VNPAY`), nhưng sau đó bác sĩ báo nghỉ đột xuất (xem mục 7.1) hoặc bệnh nhân hủy lịch hợp lệ trước hạn (> 2 giờ theo `CANCELLATION_LIMIT_HOURS`).
+* **Xử lý:** `appointment_status_logs` ghi nhận lý do hủy (`from_status=CONFIRMED, to_status=CANCELLED, reason='Bác sĩ nghỉ đột xuất'`). Job hoàn tiền gọi API Refund của VNPay Sandbox, cập nhật `payment_status = REFUNDED` chỉ sau khi cổng thanh toán xác nhận thành công (idempotent theo `booking_code`, tránh hoàn tiền 2 lần nếu webhook gọi lặp). Nếu bệnh nhân tự hủy **trong vòng 2 giờ trước giờ hẹn** (vi phạm quy định `CANCELLATION_LIMIT_HOURS`), tiền cọc **không hoàn** và ghi rõ lý do trong log để tránh khiếu nại.
+
+### 7.9. Bác sĩ làm việc tại nhiều cơ sở y tế (Multi-branch Scheduling Conflict)
+* **Kịch bản:** Mô hình SaaS đa chi nhánh (`medical_centers`) cho phép 1 bác sĩ (`users.id`) đăng ký ca trực ở cả Chi nhánh Quận 1 buổi sáng và Chi nhánh Quận 7 buổi chiều trong cùng ngày.
+* **Xử lý:** Khi tạo `doctor_schedules` mới, hệ thống kiểm tra chồng chéo thời gian (`work_date` + `start_time`/`end_time`) trên **tất cả chi nhánh** mà bác sĩ đó có hồ sơ (`doctors.user_id` là duy nhất, join qua toàn bộ `medical_center_id` liên quan), chứ không chỉ kiểm tra trong phạm vi 1 chi nhánh — tránh trường hợp bác sĩ vô tình được xếp trực cùng lúc ở 2 nơi khác nhau.
