@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import React from "react";
 
 export const metadata: Metadata = {
-  title: "MedSched - Smart Healthcare Appointment & Reception",
+  title: "MedSched - Hệ Thống Đặt Lịch & Tiếp Đón Bệnh Viện Thông Minh",
   description: "Hệ thống Đặt lịch & Tiếp đón Y tế Thông minh Tích hợp Spring Boot 3, Spring AI và Quét thẻ CCCD",
 };
 
