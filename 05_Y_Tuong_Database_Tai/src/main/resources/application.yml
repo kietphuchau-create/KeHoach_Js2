@@ -1,0 +1,39 @@
+# Mac dinh: profile "postgres" - chinh thuc nop bao cao, dung PGVector cho RAG y khoa sau nay.
+# Doi sang XAMPP/MySQL cuc bo bang: --spring.profiles.active=mysql-xampp
+spring:
+  application:
+    name: medsched-persistence-prototype
+  profiles:
+    active: postgres
+  jpa:
+    hibernate:
+      # Flyway la nguon su that duy nhat cho schema; Hibernate chi doi chieu (validate),
+      # khong tu sinh/sua bang - tranh lech schema giua cac moi truong cua tung thanh vien.
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+
+---
+spring:
+  config:
+    activate:
+      on-profile: postgres
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/medsched_db}
+    username: ${DB_USER:medsched}
+    password: ${DB_PASSWORD:medsched}
+  flyway:
+    locations: classpath:db/migration/postgresql
+
+---
+spring:
+  config:
+    activate:
+      on-profile: mysql-xampp
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/medsched_db?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Ho_Chi_Minh}
+    username: ${DB_USER:root}
+    password: ${DB_PASSWORD:}
+  flyway:
+    locations: classpath:db/migration/mysql

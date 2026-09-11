@@ -42,6 +42,14 @@ Toàn bộ tài liệu đề tài được sắp xếp ngăn nắp thành **4 th
 
 ---
 
+## 💡 Ý Tưởng Cá Nhân (Không thuộc 4 yêu cầu bắt buộc của Giảng viên)
+
+| Thư Mục | Tác giả | Nội Dung | Liên Kết |
+|:---|:---|:---|:---:|
+| 📂 **`05_Y_Tuong_Database_Tai`** | Lê Thành Tài | Prototype code thật (Spring Boot + JPA Entity + Flyway migration cho cả Postgres lẫn MySQL/XAMPP) minh họa cách 12 bảng ở mục [4] trở thành tầng persistence, viết theo đúng convention đã đọc từ repo Hexagonal Architecture tham khảo của nhóm. Chỉ là đề xuất cá nhân của phần CSDL, chưa đụng đến use case/controller/AI/frontend của các thành viên khác. | [Xem Thư Mục](./05_Y_Tuong_Database_Tai/README.md) |
+
+---
+
 ## 🌐 Các Tài Liệu Tham Khảo Khác
 - 📄 [**`De_Xuat_Du_An_MedSched_Nhom.md`**](./De_Xuat_Du_An_MedSched_Nhom.md): Báo cáo đề xuất hoàn chỉnh gồm phân công 6 thành viên và mục **Tiếp thu & Giải trình góp ý của Giảng viên**.
 - 🌐 [**`medsched-architecture.html`**](./medsched-architecture.html): Sơ đồ kiến trúc hệ thống tương tác đa chế độ (Đã Việt hóa toàn bộ).

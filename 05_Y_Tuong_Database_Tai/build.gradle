@@ -1,0 +1,43 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.5.16'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.medsched'
+version = '0.0.1-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.flywaydb:flyway-core'
+
+    // Ca hai driver + module Flyway duoc khai bao de mot module chay duoc ca 2
+    // phuong an trong Database_Design.md muc 5.5: PostgreSQL (chinh thuc nop bao
+    // cao) va MySQL/MariaDB qua XAMPP (demo offline / phat trien ca nhan). Chon
+    // qua Spring profile trong application.yml, khong can doi dependency thu cong.
+    implementation 'org.flywaydb:flyway-database-postgresql'
+    implementation 'org.flywaydb:flyway-mysql'
+    runtimeOnly 'org.postgresql:postgresql'
+    runtimeOnly 'com.mysql:mysql-connector-j'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+tasks.named('bootJar') {
+    archiveFileName = 'medsched-persistence-prototype.jar'
+}
