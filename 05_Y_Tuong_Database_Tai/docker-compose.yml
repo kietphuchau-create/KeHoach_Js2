@@ -1,6 +1,6 @@
-# Chi dung cho profile "postgres" (mac dinh). Voi profile "mysql-xampp" thi
-# KHONG can Docker - chi can bat MySQL trong XAMPP Control Panel la du (xem
-# muc 5.3 trong ../04_Database_Design/Database_Design.md).
+# Chỉ dùng cho profile "postgres" (mặc định). Với profile "mysql-xampp" thì
+# KHÔNG cần Docker - chỉ cần bật MySQL trong XAMPP Control Panel là đủ (xem
+# mục 5.3 trong ../04_Database_Design/Database_Design.md).
 services:
   db:
     image: postgres:16-alpine

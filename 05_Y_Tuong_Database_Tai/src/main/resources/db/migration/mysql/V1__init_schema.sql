@@ -1,9 +1,9 @@
 -- ====================================================================
 -- Flyway V1 - MedSched persistence prototype (MySQL/MariaDB - XAMPP)
--- Tuong duong 04_Database_Design/medsched_schema_mysql_xampp.sql (da kiem
--- thu thuc te tren MariaDB 10.4.32 di kem XAMPP), nhung bo DEFAULT (UUID()),
--- DROP TABLE va CREATE DATABASE/USE vi Flyway migrate tren 1 database co san
--- va id luon do tang ung dung sinh truoc khi insert (khop String id trong entity).
+-- Tương đương 04_Database_Design/medsched_schema_mysql_xampp.sql (đã kiểm
+-- thử thực tế trên MariaDB 10.4.32 đi kèm XAMPP), nhưng bỏ DEFAULT (UUID()),
+-- DROP TABLE và CREATE DATABASE/USE vì Flyway migrate trên 1 database có sẵn
+-- và id luôn do tầng ứng dụng sinh trước khi insert (khớp String id trong entity).
 -- ====================================================================
 
 CREATE TABLE medical_centers (

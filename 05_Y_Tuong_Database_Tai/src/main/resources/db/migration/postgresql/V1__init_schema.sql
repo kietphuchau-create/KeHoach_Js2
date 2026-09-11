@@ -1,12 +1,12 @@
 -- ====================================================================
 -- Flyway V1 - MedSched persistence prototype (PostgreSQL)
--- Tuong duong noi dung voi 04_Database_Design/medsched_schema.sql, nhung:
---   * id dung VARCHAR(36) thay vi kieu UUID native cua Postgres, va KHONG
---     con DEFAULT gen_random_uuid() - id luon do tang ung dung (Java) sinh
---     truoc khi insert, khop 1-1 voi "private String id" trong cac entity
---     ben duoi (giong cach lam cua repo tham khao spring-ai-demo).
---   * DROP TABLE / CREATE DATABASE khong con vi Flyway chi ap dung migration
---     tren 1 database da duoc tao san (xem docker-compose.yml canh file nay).
+-- Tương đương nội dung với 04_Database_Design/medsched_schema.sql, nhưng:
+--   * id dùng VARCHAR(36) thay vì kiểu UUID native của Postgres, và KHÔNG
+--     còn DEFAULT gen_random_uuid() - id luôn do tầng ứng dụng (Java) sinh
+--     trước khi insert, khớp 1-1 với "private String id" trong các entity
+--     bên dưới (giống cách làm của repo tham khảo spring-ai-demo).
+--   * DROP TABLE / CREATE DATABASE không còn vì Flyway chỉ áp dụng migration
+--     trên 1 database đã được tạo sẵn (xem docker-compose.yml cạnh file này).
 -- ====================================================================
 
 CREATE TABLE medical_centers (

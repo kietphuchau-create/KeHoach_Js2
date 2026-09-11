@@ -1,5 +1,5 @@
-# Mac dinh: profile "postgres" - chinh thuc nop bao cao, dung PGVector cho RAG y khoa sau nay.
-# Doi sang XAMPP/MySQL cuc bo bang: --spring.profiles.active=mysql-xampp
+# Mặc định: profile "postgres" - chính thức nộp báo cáo, dùng PGVector cho RAG y khoa sau này.
+# Đổi sang XAMPP/MySQL cục bộ bằng: --spring.profiles.active=mysql-xampp
 spring:
   application:
     name: medsched-persistence-prototype
@@ -7,8 +7,8 @@ spring:
     active: postgres
   jpa:
     hibernate:
-      # Flyway la nguon su that duy nhat cho schema; Hibernate chi doi chieu (validate),
-      # khong tu sinh/sua bang - tranh lech schema giua cac moi truong cua tung thanh vien.
+      # Flyway là nguồn sự thật duy nhất cho schema; Hibernate chỉ đối chiếu (validate),
+      # không tự sinh/sửa bảng - tránh lệch schema giữa các môi trường của từng thành viên.
       ddl-auto: validate
     open-in-view: false
   flyway:

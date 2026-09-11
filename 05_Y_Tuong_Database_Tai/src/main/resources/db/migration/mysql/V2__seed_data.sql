@@ -1,4 +1,4 @@
--- Flyway V2 - du lieu mau (MySQL/MariaDB - XAMPP), dong bo voi ban PostgreSQL
+-- Flyway V2 - dữ liệu mẫu (MySQL/MariaDB - XAMPP), đồng bộ với bản PostgreSQL
 
 INSERT INTO medical_centers (id, code, name, address, phone) VALUES
 ('00000000-0000-0000-0000-000000000001', 'MED_Q1', 'Bệnh Viện Đa Khoa MedSched - Chi Nhánh Quận 1', 'Số 123 Nguyễn Thị Minh Khai, P. Bến Thành, Q.1, TP.HCM', '02839123456');

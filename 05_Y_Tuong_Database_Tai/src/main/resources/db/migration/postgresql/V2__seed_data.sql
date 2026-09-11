@@ -1,4 +1,4 @@
--- Flyway V2 - du lieu mau (PostgreSQL), dong bo voi 04_Database_Design/medsched_schema.sql
+-- Flyway V2 - dữ liệu mẫu (PostgreSQL), đồng bộ với 04_Database_Design/medsched_schema.sql
 
 INSERT INTO medical_centers (id, code, name, address, phone) VALUES
 ('00000000-0000-0000-0000-000000000001', 'MED_Q1', 'Bệnh Viện Đa Khoa MedSched - Chi Nhánh Quận 1', 'Số 123 Nguyễn Thị Minh Khai, P. Bến Thành, Q.1, TP.HCM', '02839123456');

@@ -21,10 +21,10 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.flywaydb:flyway-core'
 
-    // Ca hai driver + module Flyway duoc khai bao de mot module chay duoc ca 2
-    // phuong an trong Database_Design.md muc 5.5: PostgreSQL (chinh thuc nop bao
-    // cao) va MySQL/MariaDB qua XAMPP (demo offline / phat trien ca nhan). Chon
-    // qua Spring profile trong application.yml, khong can doi dependency thu cong.
+    // Cả hai driver + module Flyway được khai báo để một module chạy được cả 2
+    // phương án trong Database_Design.md mục 5.5: PostgreSQL (chính thức nộp báo
+    // cáo) và MySQL/MariaDB qua XAMPP (demo offline / phát triển cá nhân). Chọn
+    // qua Spring profile trong application.yml, không cần đổi dependency thủ công.
     implementation 'org.flywaydb:flyway-database-postgresql'
     implementation 'org.flywaydb:flyway-mysql'
     runtimeOnly 'org.postgresql:postgresql'
