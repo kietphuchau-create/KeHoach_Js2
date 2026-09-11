@@ -4,12 +4,15 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 
 import java.time.Instant;
 
+/** Danh mục thuốc của một chi nhánh, dùng để kê đơn trong prescription_items. */
 @Entity
-@Table(name = "specialties")
-public class SpecialtyEntity {
+@Table(name = "medicines", uniqueConstraints = @UniqueConstraint(
+        name = "uq_center_medicine", columnNames = {"medical_center_id", "code"}))
+public class MedicineEntity {
 
     @Id
     @Column(nullable = false, length = 36)
@@ -18,17 +21,21 @@ public class SpecialtyEntity {
     @Column(name = "medical_center_id", nullable = false, length = 36)
     private String medicalCenterId;
 
-    @Column(nullable = false, length = 255)
-    private String name;
-
     @Column(nullable = false, length = 50)
     private String code;
 
-    @Column(columnDefinition = "TEXT")
-    private String description;
+    @Column(nullable = false, length = 255)
+    private String name;
 
-    @Column(name = "icon_url", length = 500)
-    private String iconUrl;
+    @Column(name = "active_ingredient", length = 255)
+    private String activeIngredient;
+
+    /** Đơn vị cấp phát: VIÊN, CHAI, ỐNG, GÓI, TUÝP... */
+    @Column(nullable = false, length = 30)
+    private String unit;
+
+    @Column(name = "is_active", nullable = false)
+    private boolean active;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
@@ -42,17 +49,18 @@ public class SpecialtyEntity {
     @Column(name = "updated_by", length = 36)
     private String updatedBy;
 
-    protected SpecialtyEntity() {
+    protected MedicineEntity() {
     }
 
-    public SpecialtyEntity(String id, String medicalCenterId, String name, String code, String description,
-                           String iconUrl, Instant createdAt, Instant updatedAt) {
+    public MedicineEntity(String id, String medicalCenterId, String code, String name, String activeIngredient,
+                          String unit, Instant createdAt, Instant updatedAt) {
         this.id = id;
         this.medicalCenterId = medicalCenterId;
-        this.name = name;
         this.code = code;
-        this.description = description;
-        this.iconUrl = iconUrl;
+        this.name = name;
+        this.activeIngredient = activeIngredient;
+        this.unit = unit;
+        this.active = true;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
@@ -65,20 +73,40 @@ public class SpecialtyEntity {
         return medicalCenterId;
     }
 
-    public String getName() {
-        return name;
-    }
-
     public String getCode() {
         return code;
     }
 
-    public String getDescription() {
-        return description;
+    public String getName() {
+        return name;
     }
 
-    public String getIconUrl() {
-        return iconUrl;
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getActiveIngredient() {
+        return activeIngredient;
+    }
+
+    public void setActiveIngredient(String activeIngredient) {
+        this.activeIngredient = activeIngredient;
+    }
+
+    public String getUnit() {
+        return unit;
+    }
+
+    public void setUnit(String unit) {
+        this.unit = unit;
+    }
+
+    public boolean isActive() {
+        return active;
+    }
+
+    public void setActive(boolean active) {
+        this.active = active;
     }
 
     public Instant getCreatedAt() {

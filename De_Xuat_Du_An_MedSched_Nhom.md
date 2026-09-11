@@ -28,7 +28,7 @@
 
 ### 3.1. Phân hệ Quản trị & Xác thực người dùng (Auth & User Management)
 * **F01. Đăng ký & Đăng nhập:** Xác thực người dùng qua Email/Password kết hợp mã hóa BCrypt và cấp JWT Access/Refresh Token.
-* **F02. Phân quyền RBAC:** Phân tách quyền chặt chẽ: `ROLE_PATIENT`, `ROLE_DOCTOR`, `ROLE_STAFF`, `ROLE_ADMIN`.
+* **F02. Phân quyền RBAC theo từng chi nhánh:** Quyền nhân sự `ROLE_DOCTOR`, `ROLE_STAFF`, `ROLE_ADMIN` được cấp trong bảng nối `user_medical_center_roles` (1 bác sĩ trực 2 chi nhánh = 2 dòng). **Không có `ROLE_PATIENT`** — mọi tài khoản đều mặc định đặt lịch khám được ở mọi chi nhánh.
 * **F03. Quản lý hồ sơ gia đình:** 1 tài khoản có thể quản lý nhiều hồ sơ người khám (`Bản thân`, `Bố mẹ`, `Con cái`, `Vợ/chồng`) phục vụ đặt lịch hộ chính xác.
 
 ### 3.2. Phân hệ Quản lý Lịch làm việc & Khung giờ (Doctor Scheduling & Time Slots)
@@ -151,14 +151,25 @@ sequenceDiagram
 
 ## 5. THIẾT KẾ CƠ SỞ DỮ LIỆU CHI TIẾT (DATABASE DESIGN)
 
-### 5.1. Sơ đồ thực thể liên kết (Entity Relationship Diagram - ERD 12 Bảng)
+### 5.1. Sơ đồ thực thể liên kết (Entity Relationship Diagram - ERD 16 Bảng)
+
+> **Ảnh ERD đầy đủ:** [`04_Database_Design/medsched_erd_v3.png`](./04_Database_Design/medsched_erd_v3.png)
+> **Phiên bản 3.0** đã sửa 3 lỗi thiết kế được phản biện — xem mục 0 của [`Database_Design.md`](./04_Database_Design/Database_Design.md):
+> 1. `USERS` **không còn** `medical_center_id` / `role` ➔ tài khoản là **danh tính toàn cục**, 1 bệnh nhân khám được ở mọi chi nhánh với cùng hồ sơ bệnh án. Quyền nhân sự tách sang bảng nối `USER_MEDICAL_CENTER_ROLES`.
+> 2. Thêm bảng `PAYMENTS` đúng nghĩa (nhiều lần thu, hoàn tiền, mã giao dịch) thay cho 2 cột nhét trong `APPOINTMENTS`.
+> 3. Thêm `MEDICINES` + `PRESCRIPTION_ITEMS` thay cột `prescription TEXT`.
+
 ```mermaid
 erDiagram
     MEDICAL_CENTERS ||--o{ SYSTEM_SETTINGS : "cấu hình"
-    MEDICAL_CENTERS ||--o{ USERS : "thuộc chi nhánh"
     MEDICAL_CENTERS ||--o{ SPECIALTIES : "quản lý khoa"
+    MEDICAL_CENTERS ||--o{ MEDICINES : "danh mục thuốc"
+    MEDICAL_CENTERS ||--o{ APPOINTMENTS : "nơi diễn ra ca khám"
+    MEDICAL_CENTERS ||--o{ USER_MEDICAL_CENTER_ROLES : "cấp quyền nhân sự"
+    USERS ||--o{ USER_MEDICAL_CENTER_ROLES : "quyền theo chi nhánh"
     USERS ||--o{ PATIENT_PROFILES : "quản lý hồ sơ gia đình"
-    USERS ||--o{ DOCTORS : "1-1 hồ sơ bác sĩ"
+    USERS ||--o{ DOCTORS : "hành nghề (nhiều khoa)"
+    USERS ||--o{ PAYMENTS : "lễ tân thu tiền"
     SPECIALTIES ||--o{ DOCTORS : "chuyên môn"
     DOCTORS ||--o{ DOCTOR_SCHEDULES : "đăng ký ca"
     DOCTOR_SCHEDULES ||--o{ TIME_SLOTS : "sinh slot"
@@ -166,18 +177,28 @@ erDiagram
     DOCTORS ||--o{ APPOINTMENTS : "phụ trách"
     TIME_SLOTS ||--o| APPOINTMENTS : "chiếm slot"
     APPOINTMENTS ||--o{ APPOINTMENT_STATUS_LOGS : "lịch sử trạng thái"
+    APPOINTMENTS ||--o{ PAYMENTS : "nhiều lần thu tiền"
     APPOINTMENTS ||--o| MEDICAL_RECORDS : "hồ sơ bệnh án"
     APPOINTMENTS ||--o| DOCTOR_REVIEWS : "đánh giá sau khám"
+    MEDICAL_RECORDS ||--o{ PRESCRIPTION_ITEMS : "các dòng thuốc"
+    MEDICINES ||--o{ PRESCRIPTION_ITEMS : "thuốc trong danh mục"
 
     USERS {
         uuid id PK
-        string email UK
+        string email UK "danh tính TOÀN CỤC"
         string password_hash
         string full_name
         string phone
-        string role "PATIENT/DOCTOR/STAFF/ADMIN"
         boolean is_active
         timestamp created_at
+    }
+
+    USER_MEDICAL_CENTER_ROLES {
+        uuid id PK
+        uuid user_id FK
+        uuid medical_center_id FK
+        string role "DOCTOR/STAFF/ADMIN (KHÔNG có PATIENT)"
+        boolean is_active
     }
 
     PATIENT_PROFILES {
@@ -205,6 +226,7 @@ erDiagram
     APPOINTMENTS {
         uuid id PK
         string booking_code UK
+        uuid medical_center_id FK "ca khám ở chi nhánh nào"
         uuid patient_profile_id FK
         uuid doctor_id FK
         uuid slot_id FK
@@ -213,12 +235,22 @@ erDiagram
         text patient_symptoms
         text ai_summary
         string checkin_method "QR_CODE/CCCD_QR/MANUAL"
-        string payment_status "UNPAID/PAID_AT_COUNTER/DEPOSITED_VNPAY"
         string status "CONFIRMED/CHECKED_IN/IN_PROGRESS/WAITING_FOR_LAB_RESULTS/COMPLETED"
         boolean is_delayed
         int delay_minutes
         timestamp check_in_time
-        timestamp created_at
+    }
+
+    PAYMENTS {
+        uuid id PK
+        uuid appointment_id FK
+        decimal amount
+        string method "CASH/CARD/VNPAY/MOMO/BANK_TRANSFER"
+        string status "PENDING/SUCCEEDED/FAILED/REFUNDED"
+        string transaction_ref UK "chống webhook gọi lặp"
+        timestamp paid_at
+        decimal refunded_amount
+        uuid collected_by FK "lễ tân thu tiền"
     }
 
     APPOINTMENT_STATUS_LOGS {
@@ -236,8 +268,29 @@ erDiagram
         uuid appointment_id FK
         text diagnosis
         text doctor_notes
-        text prescription
         timestamp created_at
+    }
+
+    MEDICINES {
+        uuid id PK
+        uuid medical_center_id FK
+        string code
+        string name
+        string active_ingredient
+        string unit "VIÊN/CHAI/ỐNG/GÓI/TUÝP"
+    }
+
+    PRESCRIPTION_ITEMS {
+        uuid id PK
+        uuid medical_record_id FK
+        uuid medicine_id FK "nullable = thuốc ngoài danh mục"
+        string medicine_name "snapshot lúc kê đơn"
+        string unit
+        string dosage "500mg"
+        string frequency "2 lần/ngày sau ăn"
+        int duration_days
+        decimal quantity
+        string instruction
     }
 
     DOCTOR_REVIEWS {
@@ -270,8 +323,8 @@ Hệ thống được tổ chức theo kiến trúc phân tầng sạch (Clean /
 | :---: | :--- | :--- | :--- |
 | **1** | **Châu Tuấn Kiệt** | **Nhóm trưởng (Leader)** | Quản lý tiến độ chung, thiết kế kiến trúc hệ thống, kiểm soát chất lượng luồng nghiệp vụ và thuyết trình chính. |
 | **2** | **Nguyễn Văn Hiếu** | Thành viên | Phát triển Backend Core Spring Boot 3, xây dựng API Time-slots, khóa lạc quan Optimistic Locking và Spring Security JWT. |
-| **3** | **Lê Thành Tài** | Thành viên | Phụ trách CSDL PostgreSQL, tối ưu schema 12 bảng chuẩn hóa 3NF, viết seed data và quản lý migration Flyway/Liquibase. |
-| **4** | **Nguyễn Thị Yến Nhi** | Thành viên | Phân tích nghiệp vụ (BA), hoàn thiện danh sách tính năng (F01–F26), ma trận phân quyền RBAC và kịch bản người dùng. |
+| **3** | **Lê Thành Tài** | Thành viên | Phụ trách CSDL, tối ưu schema 16 bảng chuẩn hóa 3NF cho cả PostgreSQL và MySQL/XAMPP, viết seed data và quản lý migration Flyway. |
+| **4** | **Nguyễn Thị Yến Nhi** | Thành viên | Phân tích nghiệp vụ (BA), hoàn thiện danh sách tính năng (F01–F31), ma trận phân quyền RBAC và kịch bản người dùng. |
 | **5** | **Tân Cùng Bàn** (Tân) | Thành viên | Tích hợp Spring AI Service: Xây dựng ChatClient, Prompt engineering cho Triage phân loại khoa, Tóm tắt bệnh án 2 dòng và Sentiment Analysis. |
 | **6** | **Trang Huynh** (Trang) | Thành viên | Phát triển giao diện Frontend Next.js (Màn hình đặt lịch, Quầy tiếp đón QR, Bàn làm việc bác sĩ) và thiết kế Slide thuyết trình. |
 
@@ -306,5 +359,5 @@ Hệ thống được tổ chức theo kiến trúc phân tầng sạch (Clean /
   5. **Medical RAG (PGVector):** Truy vấn cơ sở tri thức y khoa chuẩn xác.
 
 ### 8.4. Luồng thanh toán (Payment Flow)
-* **Giai đoạn 1:** Mặc định hỗ trợ thanh toán tại quầy khi Check-in (`PAID_AT_COUNTER`).
-* **Giai đoạn 2:** Tích hợp tùy chọn đặt cọc giữ chỗ online qua cổng VNPay/MoMo Sandbox nhằm giảm thiểu tỷ lệ bùng lịch (No-show).
+* **Giai đoạn 1:** Mặc định hỗ trợ thanh toán tại quầy khi Check-in — ghi 1 dòng `payments` với `method = CASH/CARD`, `collected_by` = lễ tân thu tiền.
+* **Giai đoạn 2:** Tích hợp tùy chọn đặt cọc giữ chỗ online qua cổng VNPay/MoMo Sandbox nhằm giảm thiểu tỷ lệ bùng lịch (No-show). Bảng `payments` cho phép **1 ca khám có nhiều dòng thu tiền** (cọc online + thu thêm tại quầy) và hoàn tiền từng phần; `transaction_ref` UNIQUE chặn webhook cổng thanh toán gọi lặp.

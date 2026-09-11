@@ -18,7 +18,8 @@
 - **F22 - Đánh giá chất lượng sau khám & Phân tích cảm xúc qua Spring AI (Verified Review & Sentiment Analysis):** Chỉ mở khóa form đánh giá cho ca khám đã `COMPLETED`. Spring AI tự động phân tích cảm xúc (Positive / Neutral / Negative) để cảnh báo phản hồi tiêu cực cho Quản trị viên.
 - **F24 (MỚI) - Quản lý hồ sơ gia đình & Đặt lịch hộ người thân:** 1 tài khoản có thể tạo nhiều hồ sơ người khám (`Bản thân`, `Bố mẹ`, `Con cái`, `Vợ/chồng`) để khi người thân đến quét CCCD tại quầy luôn khớp chính xác thông tin.
 - **F26 (MỚI) - Bộ lọc cảnh báo đỏ triệu chứng cấp cứu (Spring AI Red-Flag Guardrails):** Tự động phát hiện các từ khóa triệu chứng nguy kịch (đau tim, ngất xỉu, nôn ra máu) để hiển thị cảnh báo đỏ yêu cầu gọi ngay 115 hoặc đi cấp cứu, tuyệt đối không cho đặt lịch khám thường.
-- **F28 (MỚI) - Cổng thanh toán linh hoạt:** Hỗ trợ thanh toán tiền mặt/quẹt thẻ tại quầy khi Check-in (`PAID_AT_COUNTER`), kèm tùy chọn đặt cọc giữ slot online qua VNPay/MoMo Sandbox nhằm giảm thiểu tỷ lệ bùng hẹn (No-show).
+- **F28 (MỚI) - Cổng thanh toán linh hoạt (bảng `payments`):** Hỗ trợ thanh toán tiền mặt/quẹt thẻ tại quầy khi Check-in, kèm tùy chọn đặt cọc giữ slot online qua VNPay/MoMo Sandbox nhằm giảm thiểu tỷ lệ bùng hẹn (No-show). **Mỗi lần thu tiền là 1 dòng riêng** trong bảng `payments` nên ghi được đầy đủ: cọc online rồi thu thêm tại quầy, lần trả thất bại, hoàn tiền từng phần, mã giao dịch cổng thanh toán để đối soát và ai là người thu tiền.
+- **F30 (MỚI) - Một tài khoản khám được ở mọi chi nhánh:** Tài khoản người dùng là **danh tính toàn cục**, không bị gắn vào một phòng khám. Bệnh nhân đăng ký 1 lần rồi đặt lịch ở bất kỳ cơ sở nào trong chuỗi, dùng chung hồ sơ bệnh án / tiền sử dị ứng — không phải tạo tài khoản mới khi đổi chi nhánh.
 
 ### 1.2. Khối Tiếp Đón & Điều Phối Hàng Đợi (Receptionist Facing)
 - **F07 - Check-in bằng mã QR tại quầy:** Lễ tân quét mã QR trên vé điện tử của bệnh nhân, chuyển trạng thái sang `CHECKED_IN` trong 1 giây.
@@ -34,14 +35,15 @@
 - **F11 - Danh sách ca khám trong ngày:** Bác sĩ xem danh sách bệnh nhân theo thứ tự số và khung giờ đã check-in.
 - **F12 - Xem tóm tắt triệu chứng AI (Spring AI 2-line Summary):** Bản tóm tắt súc tích giúp bác sĩ nắm tình trạng bệnh nhân trong 5 giây trước khi vào phòng.
 - **F13 - Xem lịch sử khám bệnh & Toa thuốc cũ (Medical History Viewer):** Truy xuất tức thì lịch sử khám, bệnh lý nền và đơn thuốc đã kê trong các lần khám trước.
-- **F14 - Cập nhật hồ sơ bệnh án & Kê đơn thuốc điện tử:** Nhập chẩn đoán ICD-10, chỉ định cận lâm sàng và đơn thuốc.
+- **F14 - Cập nhật hồ sơ bệnh án & Kê đơn thuốc điện tử có cấu trúc:** Nhập chẩn đoán ICD-10, chỉ định cận lâm sàng và đơn thuốc. Đơn thuốc **không lưu dạng văn bản tự do** mà là từng dòng `prescription_items` (thuốc, hàm lượng, cách dùng, số ngày, số lượng) chọn từ danh mục thuốc `medicines` của chi nhánh ➔ thống kê được thuốc kê nhiều nhất, sẵn sàng nối kho dược và kiểm tra tương tác thuốc.
 - **F15 - Hoàn tất ca khám:** Chuyển trạng thái ca hẹn sang `COMPLETED`, lưu trữ hồ sơ bệnh án số.
 - **F16 - Đăng ký / Quản lý lịch trực cá nhân:** Bác sĩ đăng ký ca trực tuần tới hoặc báo trạng thái khẩn cấp/nghỉ đột xuất (`CANCELLED_EMERGENCY`) để hệ thống kích hoạt luồng điều chuyển bệnh nhân tự động.
 - **F29 (MỚI) - Quy trình cận lâm sàng 2 pha (Two-Phase Flow):** Bác sĩ chuyển ca hẹn sang `WAITING_FOR_LAB_RESULTS` khi chỉ định xét nghiệm/X-quang; khi bệnh nhân quay lại đọc kết quả sẽ được cấp số ưu tiên (`LAB-xx`) xen kẽ với ca mới mà không phải xếp hàng lại từ đầu.
 
 ### 1.4. Khối Quản Trị Hệ Thống (Admin Facing)
 - **F17 - Quản lý danh mục Chuyên khoa & Dịch vụ y tế:** Thêm, sửa, đóng/mở các chuyên khoa trong bệnh viện.
-- **F18 - Quản trị tài khoản & Phân quyền RBAC:** Cấp tài khoản Bác sĩ, Lễ tân, Admin với quyền truy cập nghiêm ngặt.
+- **F18 - Quản trị tài khoản & Phân quyền RBAC theo từng chi nhánh:** Cấp quyền Bác sĩ / Lễ tân / Admin trong bảng nối `user_medical_center_roles` — quyền có **phạm vi theo chi nhánh**, nên 1 bác sĩ trực ở 2 cơ sở chỉ cần 1 tài khoản (2 dòng quyền). Thu hồi quyền bằng cờ `is_active` để vẫn giữ lịch sử.
+- **F31 (MỚI) - Quản lý danh mục thuốc theo chi nhánh (`medicines`):** Mỗi cơ sở y tế có danh mục thuốc riêng (mã thuốc, hoạt chất, đơn vị cấp phát). Bác sĩ vẫn kê được thuốc ngoài danh mục khi cần, và đơn thuốc luôn lưu **bản chụp tên thuốc lúc kê** để in lại chính xác về sau dù danh mục có đổi.
 - **F19 - Cấu hình hệ thống tập trung (System Settings):** Cấu hình thời lượng slot (30 phút), khoảng đệm buffer (5 phút), thời hạn hủy lịch (2 giờ), số lần vi phạm No-show tối đa.
 - **F20 - Báo cáo thống kê thời gian thực:** Biểu đồ lượt khám theo chuyên khoa, tỷ lệ đúng giờ, tỷ lệ hủy lịch, thời gian chờ trung bình.
 - **F21 - Nhật ký hệ thống & Kiểm toán (Audit Logs):** Ghi vết các hành động sửa lịch hẹn, hủy vé, cập nhật bệnh án đảm bảo an toàn y tế.
@@ -83,3 +85,5 @@
 | **F27** | Quản lý đa cơ sở y tế (SaaS Model) | ❌ | ❌ | ❌ | ✅ |
 | **F28** | Thanh toán quầy & Cọc trực tuyến | ✅ | ✅ | ❌ | ✅ |
 | **F29** | Quy trình cận lâm sàng 2 pha | ❌ | ✅ | ✅ | ❌ |
+| **F30** | 1 tài khoản khám mọi chi nhánh | ✅ | ✅ | ✅ | ✅ |
+| **F31** | Quản lý danh mục thuốc chi nhánh | ❌ | ❌ | ✅ (Kê đơn) | ✅ (Quản lý) |

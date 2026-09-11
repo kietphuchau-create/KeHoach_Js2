@@ -24,9 +24,6 @@ public class MedicalRecordEntity {
     @Column(name = "doctor_notes", columnDefinition = "TEXT")
     private String doctorNotes;
 
-    @Column(columnDefinition = "TEXT")
-    private String prescription;
-
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -43,12 +40,11 @@ public class MedicalRecordEntity {
     }
 
     public MedicalRecordEntity(String id, String appointmentId, String diagnosis, String doctorNotes,
-                               String prescription, Instant createdAt, Instant updatedAt) {
+                               Instant createdAt, Instant updatedAt) {
         this.id = id;
         this.appointmentId = appointmentId;
         this.diagnosis = diagnosis;
         this.doctorNotes = doctorNotes;
-        this.prescription = prescription;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
@@ -67,10 +63,6 @@ public class MedicalRecordEntity {
 
     public String getDoctorNotes() {
         return doctorNotes;
-    }
-
-    public String getPrescription() {
-        return prescription;
     }
 
     public Instant getCreatedAt() {

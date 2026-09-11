@@ -4,19 +4,21 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 
 @Entity
-@Table(name = "doctors")
+@Table(name = "doctors", uniqueConstraints = @UniqueConstraint(
+        name = "uq_doctors_user_specialty", columnNames = {"user_id", "specialty_id"}))
 public class DoctorEntity {
 
     @Id
     @Column(nullable = false, length = 36)
     private String id;
 
-    @Column(name = "user_id", nullable = false, unique = true, length = 36)
+    @Column(name = "user_id", nullable = false, length = 36)
     private String userId;
 
     @Column(name = "specialty_id", nullable = false, length = 36)

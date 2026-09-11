@@ -2,7 +2,6 @@ package com.medsched.persistence.entity;
 
 import com.medsched.persistence.enums.AppointmentStatus;
 import com.medsched.persistence.enums.CheckinMethod;
-import com.medsched.persistence.enums.PaymentStatus;
 import com.medsched.persistence.enums.QueueType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -11,7 +10,6 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 
 @Entity
@@ -24,6 +22,14 @@ public class AppointmentEntity {
 
     @Column(name = "booking_code", nullable = false, unique = true, length = 16)
     private String bookingCode;
+
+    /**
+     * Chi nhánh diễn ra ca khám. Vì UserEntity là danh tính toàn cục (không gắn
+     * chi nhánh), đây là nơi duy nhất cho biết bệnh nhân đến khám ở đâu - nhờ vậy
+     * 1 tài khoản có ca khám ở nhiều chi nhánh mà không cần tạo account mới.
+     */
+    @Column(name = "medical_center_id", nullable = false, length = 36)
+    private String medicalCenterId;
 
     @Column(name = "patient_profile_id", nullable = false, length = 36)
     private String patientProfileId;
@@ -53,13 +59,6 @@ public class AppointmentEntity {
     private CheckinMethod checkinMethod;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "payment_status", nullable = false, length = 30)
-    private PaymentStatus paymentStatus;
-
-    @Column(name = "payment_amount", nullable = false, precision = 19, scale = 2)
-    private BigDecimal paymentAmount;
-
-    @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private AppointmentStatus status;
 
@@ -87,20 +86,20 @@ public class AppointmentEntity {
     protected AppointmentEntity() {
     }
 
-    public AppointmentEntity(String id, String bookingCode, String patientProfileId, String doctorId, String slotId,
+    public AppointmentEntity(String id, String bookingCode, String medicalCenterId, String patientProfileId,
+                             String doctorId, String slotId,
                              String queueNumber, QueueType queueType, String patientSymptoms,
-                             PaymentStatus paymentStatus, BigDecimal paymentAmount, AppointmentStatus status,
+                             AppointmentStatus status,
                              Instant createdAt, Instant updatedAt) {
         this.id = id;
         this.bookingCode = bookingCode;
+        this.medicalCenterId = medicalCenterId;
         this.patientProfileId = patientProfileId;
         this.doctorId = doctorId;
         this.slotId = slotId;
         this.queueNumber = queueNumber;
         this.queueType = queueType;
         this.patientSymptoms = patientSymptoms;
-        this.paymentStatus = paymentStatus;
-        this.paymentAmount = paymentAmount;
         this.status = status;
         this.delayed = false;
         this.delayMinutes = 0;
@@ -114,6 +113,10 @@ public class AppointmentEntity {
 
     public String getBookingCode() {
         return bookingCode;
+    }
+
+    public String getMedicalCenterId() {
+        return medicalCenterId;
     }
 
     public String getPatientProfileId() {
@@ -158,22 +161,6 @@ public class AppointmentEntity {
 
     public void setCheckinMethod(CheckinMethod checkinMethod) {
         this.checkinMethod = checkinMethod;
-    }
-
-    public PaymentStatus getPaymentStatus() {
-        return paymentStatus;
-    }
-
-    public void setPaymentStatus(PaymentStatus paymentStatus) {
-        this.paymentStatus = paymentStatus;
-    }
-
-    public BigDecimal getPaymentAmount() {
-        return paymentAmount;
-    }
-
-    public void setPaymentAmount(BigDecimal paymentAmount) {
-        this.paymentAmount = paymentAmount;
     }
 
     public AppointmentStatus getStatus() {

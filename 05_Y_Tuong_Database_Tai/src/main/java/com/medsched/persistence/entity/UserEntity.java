@@ -1,10 +1,7 @@
 package com.medsched.persistence.entity;
 
-import com.medsched.persistence.enums.UserRole;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
@@ -18,9 +15,6 @@ public class UserEntity {
     @Column(nullable = false, length = 36)
     private String id;
 
-    @Column(name = "medical_center_id", length = 36)
-    private String medicalCenterId;
-
     @Column(nullable = false, unique = true, length = 255)
     private String email;
 
@@ -32,10 +26,6 @@ public class UserEntity {
 
     @Column(length = 20)
     private String phone;
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 32)
-    private UserRole role;
 
     @Column(name = "is_active", nullable = false)
     private boolean active;
@@ -55,15 +45,13 @@ public class UserEntity {
     protected UserEntity() {
     }
 
-    public UserEntity(String id, String medicalCenterId, String email, String passwordHash, String fullName,
-                      String phone, UserRole role, boolean active, Instant createdAt, Instant updatedAt) {
+    public UserEntity(String id, String email, String passwordHash, String fullName,
+                      String phone, boolean active, Instant createdAt, Instant updatedAt) {
         this.id = id;
-        this.medicalCenterId = medicalCenterId;
         this.email = email;
         this.passwordHash = passwordHash;
         this.fullName = fullName;
         this.phone = phone;
-        this.role = role;
         this.active = active;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
@@ -71,10 +59,6 @@ public class UserEntity {
 
     public String getId() {
         return id;
-    }
-
-    public String getMedicalCenterId() {
-        return medicalCenterId;
     }
 
     public String getEmail() {
@@ -91,10 +75,6 @@ public class UserEntity {
 
     public String getPhone() {
         return phone;
-    }
-
-    public UserRole getRole() {
-        return role;
     }
 
     public boolean isActive() {
