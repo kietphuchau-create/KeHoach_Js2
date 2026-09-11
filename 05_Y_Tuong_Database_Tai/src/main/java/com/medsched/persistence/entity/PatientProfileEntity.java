@@ -162,4 +162,35 @@ public class PatientProfileEntity {
         this.updatedBy = updatedBy;
     }
 
+
+    // Setter phục vụ các luồng cập nhật của Task 1 (sửa hồ sơ, đổi mật khẩu, CRUD danh mục).
+
+    public void setFullName(String fullName) {
+        this.fullName = fullName;
+    }
+
+    public void setCccdNumber(String cccdNumber) {
+        this.cccdNumber = cccdNumber;
+    }
+
+    public void setHealthInsuranceNo(String healthInsuranceNo) {
+        this.healthInsuranceNo = healthInsuranceNo;
+    }
+
+    public void setDateOfBirth(LocalDate dateOfBirth) {
+        this.dateOfBirth = dateOfBirth;
+    }
+
+    public void setGender(Gender gender) {
+        this.gender = gender;
+    }
+
+    public void setPhone(String phone) {
+        this.phone = phone;
+    }
+
+    public void setAddress(String address) {
+        this.address = address;
+    }
+
 }

@@ -34,7 +34,7 @@ sequenceDiagram
     participant FE as Frontend (Next.js)
     participant BE as Backend (Spring Boot 3)
     participant AI as Spring AI Service
-    participant DB as PostgreSQL Database
+    participant DB as MySQL Database (XAMPP)
 
     P->>FE: 1. Chọn hồ sơ (Bản thân / Người thân) & Nhập triệu chứng
     FE->>BE: 2. Gửi request phân tích triệu chứng
@@ -61,7 +61,7 @@ sequenceDiagram
     actor R as Lễ tân (Receptionist)
     participant SCN as Đầu Đọc QR (CCCD Chip / Vé Hẹn)
     participant BE as Backend (Spring Boot 3)
-    participant DB as PostgreSQL Database
+    participant DB as MySQL Database (XAMPP)
     participant PRN as Máy in phiếu số
 
     P->>SCN: 1. Quét mã QR vé hẹn trên điện thoại HOẶC mã QR thẻ CCCD gắn chip

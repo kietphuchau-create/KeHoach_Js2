@@ -21,13 +21,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.flywaydb:flyway-core'
 
-    // Cả hai driver + module Flyway được khai báo để một module chạy được cả 2
-    // phương án trong Database_Design.md mục 5.5: PostgreSQL (chính thức nộp báo
-    // cáo) và MySQL/MariaDB qua XAMPP (demo offline / phát triển cá nhân). Chọn
-    // qua Spring profile trong application.yml, không cần đổi dependency thủ công.
-    implementation 'org.flywaydb:flyway-database-postgresql'
+    // Đồ án chạy bằng XAMPP nên chỉ khai báo driver MySQL/MariaDB.
     implementation 'org.flywaydb:flyway-mysql'
-    runtimeOnly 'org.postgresql:postgresql'
     runtimeOnly 'com.mysql:mysql-connector-j'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'

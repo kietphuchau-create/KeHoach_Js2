@@ -27,11 +27,20 @@ INSERT INTO specialties (id, medical_center_id, name, code, description) VALUES
 -- nhờ UNIQUE(medical_center_id, code))
 ('55555555-5555-5555-5555-555555555557', '00000000-0000-0000-0000-000000000002', 'Chuyên khoa Da liễu', 'DERMATOLOGY', 'Khoa Da liễu chi nhánh Quận 7');
 
+-- Danh mục dịch vụ khám (bảng giá) của từng chuyên khoa - phục vụ CRUD service
+INSERT INTO services (id, specialty_id, name, code, description, price, estimated_duration_minutes) VALUES
+('5e100000-0000-0000-0000-000000000001', '55555555-5555-5555-5555-555555555551', 'Khám Da liễu cơ bản', 'DERM_BASIC', 'Khám và tư vấn các bệnh da liễu thông thường', 300000.00, 30),
+('5e100000-0000-0000-0000-000000000002', '55555555-5555-5555-5555-555555555551', 'Điều trị Laser vết nám', 'DERM_LASER', 'Điều trị nám, tàn nhang bằng công nghệ laser', 1200000.00, 45),
+('5e100000-0000-0000-0000-000000000003', '55555555-5555-5555-5555-555555555552', 'Khám Nội tổng quát', 'INT_BASIC', 'Khám nội khoa tổng quát, đo huyết áp, tư vấn dinh dưỡng', 250000.00, 30);
+
 -- Tài khoản: KHÔNG có cột role, KHÔNG gắn chi nhánh (danh tính toàn cục)
+-- Mật khẩu của TẤT CẢ tài khoản mẫu: Medsched@123 (hash BCrypt cost 10).
+-- Dùng để đăng nhập thử 4 luồng Login của Task 1.
 INSERT INTO users (id, email, password_hash, full_name, phone) VALUES
-('11111111-1111-1111-1111-111111111111', 'dr.minhanh@medsched.vn', '$2a$10$rN6NY395V9uszxxN3QEGu.maNnA7xSWa6oEmHZe6DBNryOXAfKVd.', 'BS.CKII Nguyễn Minh Anh', '0901234567'),
-('22222222-2222-2222-2222-222222222222', 'benhnhan.demo@gmail.com', '$2a$10$rN6NY395V9uszxxN3QEGu.maNnA7xSWa6oEmHZe6DBNryOXAfKVd.', 'Trần Văn Hoàng', '0912345678'),
-('33333333-3333-3333-3333-333333333333', 'letan.q1@medsched.vn', '$2a$10$rN6NY395V9uszxxN3QEGu.maNnA7xSWa6oEmHZe6DBNryOXAfKVd.', 'Lễ Tân Tiếp Đón 01', '0988776655');
+('11111111-1111-1111-1111-111111111111', 'dr.minhanh@medsched.vn', '$2a$10$ahoI91g3N9UKv5TBC8/KnugbB5LeGWqti0P/cwgrxYh..X9Jxxwti', 'BS.CKII Nguyễn Minh Anh', '0901234567'),
+('22222222-2222-2222-2222-222222222222', 'benhnhan.demo@gmail.com', '$2a$10$ahoI91g3N9UKv5TBC8/KnugbB5LeGWqti0P/cwgrxYh..X9Jxxwti', 'Trần Văn Hoàng', '0912345678'),
+('33333333-3333-3333-3333-333333333333', 'letan.q1@medsched.vn', '$2a$10$ahoI91g3N9UKv5TBC8/KnugbB5LeGWqti0P/cwgrxYh..X9Jxxwti', 'Lễ Tân Tiếp Đón 01', '0988776655'),
+('ad000000-0000-0000-0000-000000000001', 'admin@medsched.vn', '$2a$10$ahoI91g3N9UKv5TBC8/KnugbB5LeGWqti0P/cwgrxYh..X9Jxxwti', 'Quản Trị Viên Hệ Thống', '0900000001');
 
 -- Quyền nhân sự theo chi nhánh. Bác sĩ Minh Anh trực CẢ Q1 VÀ Q7 (2 dòng).
 -- Tài khoản bệnh nhân (2222...) cố ý KHÔNG có dòng nào ở đây: mọi tài khoản
@@ -39,7 +48,8 @@ INSERT INTO users (id, email, password_hash, full_name, phone) VALUES
 INSERT INTO user_medical_center_roles (id, user_id, medical_center_id, role) VALUES
 ('77777777-7777-7777-7777-777777777771', '11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000001', 'ROLE_DOCTOR'),
 ('77777777-7777-7777-7777-777777777772', '11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000002', 'ROLE_DOCTOR'),
-('77777777-7777-7777-7777-777777777773', '33333333-3333-3333-3333-333333333333', '00000000-0000-0000-0000-000000000001', 'ROLE_STAFF');
+('77777777-7777-7777-7777-777777777773', '33333333-3333-3333-3333-333333333333', '00000000-0000-0000-0000-000000000001', 'ROLE_STAFF'),
+('77777777-7777-7777-7777-777777777774', 'ad000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'ROLE_ADMIN');
 
 -- Cùng 1 user_id nhưng 2 hồ sơ bác sĩ ở 2 chuyên khoa/chi nhánh khác nhau
 -- (hợp lệ nhờ UNIQUE(user_id, specialty_id) thay cho UNIQUE(user_id))

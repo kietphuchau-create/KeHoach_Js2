@@ -109,4 +109,23 @@ public class SpecialtyEntity {
         this.updatedBy = updatedBy;
     }
 
+
+    // Setter phục vụ các luồng cập nhật của Task 1 (sửa hồ sơ, đổi mật khẩu, CRUD danh mục).
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public void setCode(String code) {
+        this.code = code;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public void setIconUrl(String iconUrl) {
+        this.iconUrl = iconUrl;
+    }
+
 }

@@ -1,30 +1,22 @@
 -- ====================================================================
--- CƠ SỞ DỮ LIỆU DỰ ÁN MEDSCHED - PHIÊN BẢN MYSQL / MARIADB (XAMPP)
--- Hệ quản trị: MariaDB 10.4+ / MySQL 8.0+ (đi kèm XAMPP, chạy qua phpMyAdmin)
--- Đây là bản chuyển đổi tương đương 1-1 của "medsched_schema.sql" (PostgreSQL)
--- sang cú pháp MySQL/MariaDB để nhóm chạy nhanh trên máy cá nhân (Windows +
--- XAMPP) khi không có Docker/PostgreSQL, phục vụ demo offline & chấm điểm.
+-- CƠ SỞ DỮ LIỆU DỰ ÁN MEDSCHED - MYSQL / MARIADB (XAMPP)
+-- Hệ quản trị CHÍNH THỨC của đồ án: MySQL/MariaDB đi kèm XAMPP (phpMyAdmin).
 --
--- PHIÊN BẢN 3.0 - 16 BẢNG, SỬA 3 LỖI THIẾT KẾ ĐƯỢC PHẢN BIỆN:
---   [1] users KHÔNG còn medical_center_id / role -> tài khoản là danh tính
---       TOÀN CỤC, 1 bệnh nhân dùng 1 account đi khám ở mọi chi nhánh; quyền
---       nhân sự tách sang bảng nối user_medical_center_roles theo chi nhánh.
---   [2] Thêm bảng payments đúng nghĩa (nhiều lần thu, hoàn tiền, mã giao dịch).
---   [3] Thêm medicines + prescription_items thay cột prescription TEXT.
+-- PHIÊN BẢN 3.1 - 17 BẢNG
+--   Bản 3.0 sửa 3 lỗi thiết kế được phản biện:
+--     [1] users KHÔNG còn medical_center_id / role -> tài khoản là danh tính
+--         TOÀN CỤC, 1 bệnh nhân dùng 1 account đi khám ở mọi chi nhánh; quyền
+--         nhân sự tách sang bảng nối user_medical_center_roles theo chi nhánh.
+--     [2] Thêm bảng payments đúng nghĩa (nhiều lần thu, hoàn tiền, mã giao dịch).
+--     [3] Thêm medicines + prescription_items thay cột prescription TEXT.
+--   Bản 3.1 thêm bảng services (bảng giá dịch vụ khám của từng chuyên khoa)
+--   phục vụ chức năng CRUD dịch vụ của Admin trong Task 1.
 --
--- Bảng quy đổi kiểu dữ liệu Postgres -> MySQL áp dụng trong file này:
---   UUID                      -> CHAR(36)            (sinh giá trị bằng UUID())
---   TIMESTAMP WITH TIME ZONE  -> DATETIME             (lưu giờ theo múi giờ server, quy ước UTC+7)
---   NOW()                     -> CURRENT_TIMESTAMP
---   NUMERIC(19,2)             -> DECIMAL(19,2)
---   BOOLEAN                   -> BOOLEAN (MySQL/MariaDB tự map sang TINYINT(1))
---   CHECK (...)               -> giữ nguyên (được thực thi trên MariaDB >= 10.2.1 / MySQL >= 8.0.16)
+-- CÁCH NẠP: XAMPP Control Panel -> Start MySQL -> http://localhost/phpmyadmin
+--           -> tab Import -> chọn file này -> Go. File tự tạo database medsched_db.
 --
--- Yêu cầu tối thiểu: MariaDB 10.4+ (bản đi kèm XAMPP 8.x hiện hành) hoặc
--- MySQL 8.0.16+. Nếu dự án dùng bản MySQL cũ hơn (5.6/5.7 trong XAMPP cũ),
--- CHECK sẽ bị bỏ qua âm thầm và cột id nên để tầng ứng dụng (Spring Boot/
--- Hibernate sinh UUID.randomUUID() trước khi insert) tự đảm nhiệm thay vì
--- phụ thuộc DEFAULT (UUID()).
+-- Yêu cầu tối thiểu: MariaDB 10.4+ (bản trong XAMPP 8.x) hoặc MySQL 8.0.16+
+-- để ràng buộc CHECK được thực thi thật.
 -- ====================================================================
 
 CREATE DATABASE IF NOT EXISTS medsched_db
@@ -43,6 +35,7 @@ DROP TABLE IF EXISTS appointments;
 DROP TABLE IF EXISTS time_slots;
 DROP TABLE IF EXISTS doctor_schedules;
 DROP TABLE IF EXISTS doctors;
+DROP TABLE IF EXISTS services;
 DROP TABLE IF EXISTS specialties;
 DROP TABLE IF EXISTS patient_profiles;
 DROP TABLE IF EXISTS user_medical_center_roles;
@@ -157,7 +150,27 @@ CREATE TABLE specialties (
     CONSTRAINT fk_specialties_center FOREIGN KEY (medical_center_id) REFERENCES medical_centers(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 7. HỒ SƠ BÁC SĨ
+-- 7. DANH MỤC DỊCH VỤ KHÁM CỦA TỪNG CHUYÊN KHOA (BẢNG GIÁ)
+CREATE TABLE services (
+    id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    specialty_id CHAR(36) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    code VARCHAR(50) NOT NULL,
+    description TEXT,
+    price DECIMAL(19, 2) NOT NULL,
+    estimated_duration_minutes INT NOT NULL DEFAULT 30,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    created_by CHAR(36),
+    updated_by CHAR(36),
+    CONSTRAINT uq_specialty_service UNIQUE (specialty_id, code),
+    CONSTRAINT chk_service_price CHECK (price >= 0),
+    CONSTRAINT chk_service_duration CHECK (estimated_duration_minutes > 0),
+    CONSTRAINT fk_services_specialty FOREIGN KEY (specialty_id) REFERENCES specialties(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 8. HỒ SƠ BÁC SĨ
 -- UNIQUE(user_id, specialty_id) thay cho UNIQUE(user_id): 1 người có thể hành
 -- nghề ở nhiều chuyên khoa / nhiều chi nhánh (specialty đã gắn medical_center).
 CREATE TABLE doctors (
@@ -181,7 +194,7 @@ CREATE TABLE doctors (
 
 CREATE INDEX idx_doctors_user ON doctors(user_id);
 
--- 8. LỊCH ĐĂNG KÝ LÀM VIỆC CỦA BÁC SĨ
+-- 9. LỊCH ĐĂNG KÝ LÀM VIỆC CỦA BÁC SĨ
 CREATE TABLE doctor_schedules (
     id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
     doctor_id CHAR(36) NOT NULL,
@@ -197,7 +210,7 @@ CREATE TABLE doctor_schedules (
     CONSTRAINT fk_schedules_doctor FOREIGN KEY (doctor_id) REFERENCES doctors(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 9. KHUNG GIỜ KHÁM - CHỐNG TRÙNG LỊCH BẰNG OPTIMISTIC LOCKING
+-- 10. KHUNG GIỜ KHÁM - CHỐNG TRÙNG LỊCH BẰNG OPTIMISTIC LOCKING
 CREATE TABLE time_slots (
     id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
     schedule_id CHAR(36) NOT NULL,
@@ -216,7 +229,7 @@ CREATE TABLE time_slots (
 
 CREATE INDEX idx_time_slots_doctor_date ON time_slots(doctor_id, start_time);
 
--- 10. CA HẸN KHÁM
+-- 11. CA HẸN KHÁM
 -- medical_center_id: ghi rõ ca khám này diễn ra ở CHI NHÁNH NÀO. Vì users đã
 -- toàn cục, đây là chỗ duy nhất cho biết bệnh nhân đến khám ở đâu -> 1 tài
 -- khoản có thể có ca khám ở nhiều chi nhánh khác nhau.
@@ -256,7 +269,7 @@ CREATE INDEX idx_appointments_status ON appointments(status);
 CREATE INDEX idx_appointments_queue ON appointments(doctor_id, queue_type, status);
 CREATE INDEX idx_appointments_center_date ON appointments(medical_center_id, created_at);
 
--- 11. NHẬT KÝ THAY ĐỔI TRẠNG THÁI CA KHÁM
+-- 12. NHẬT KÝ THAY ĐỔI TRẠNG THÁI CA KHÁM
 CREATE TABLE appointment_status_logs (
     id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
     appointment_id CHAR(36) NOT NULL,
@@ -271,7 +284,7 @@ CREATE TABLE appointment_status_logs (
 
 CREATE INDEX idx_status_logs_appointment ON appointment_status_logs(appointment_id);
 
--- 12. HỒ SƠ BỆNH ÁN (KẾT LUẬN KHÁM) - đơn thuốc xem prescription_items
+-- 13. HỒ SƠ BỆNH ÁN (KẾT LUẬN KHÁM) - đơn thuốc xem prescription_items
 CREATE TABLE medical_records (
     id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
     appointment_id CHAR(36) NOT NULL UNIQUE,
@@ -284,7 +297,7 @@ CREATE TABLE medical_records (
     CONSTRAINT fk_records_appointment FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 13. DANH MỤC THUỐC CỦA CHI NHÁNH
+-- 14. DANH MỤC THUỐC CỦA CHI NHÁNH
 CREATE TABLE medicines (
     id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
     medical_center_id CHAR(36) NOT NULL,
@@ -301,7 +314,7 @@ CREATE TABLE medicines (
     CONSTRAINT fk_medicines_center FOREIGN KEY (medical_center_id) REFERENCES medical_centers(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 14. TỪNG DÒNG THUỐC TRONG ĐƠN (THAY CHO medical_records.prescription TEXT)
+-- 15. TỪNG DÒNG THUỐC TRONG ĐƠN (THAY CHO medical_records.prescription TEXT)
 -- medicine_name / unit là BẢN CHỤP (snapshot) tên thuốc lúc kê đơn - bắt buộc
 -- về mặt y tế: đơn thuốc cũ phải in lại đúng như đã kê, dù sau này danh mục
 -- thuốc bị đổi tên hoặc ngừng dùng. Cùng nguyên tắc với order_items lưu kèm
@@ -330,7 +343,7 @@ CREATE TABLE prescription_items (
 
 CREATE INDEX idx_prescription_items_record ON prescription_items(medical_record_id);
 
--- 15. THANH TOÁN (THAY CHO 2 CỘT payment_status / payment_amount)
+-- 16. THANH TOÁN (THAY CHO 2 CỘT payment_status / payment_amount)
 -- 1 ca hẹn có thể có NHIỀU dòng: đặt cọc online + thu thêm tại quầy, hoặc
 -- lần trả thất bại rồi trả lại. transaction_ref UNIQUE là chốt chống webhook
 -- cổng thanh toán gọi lặp làm ghi nhận/hoàn tiền 2 lần (kịch bản 7.8).
@@ -361,7 +374,7 @@ CREATE TABLE payments (
 CREATE INDEX idx_payments_appointment ON payments(appointment_id);
 CREATE INDEX idx_payments_status ON payments(status);
 
--- 16. ĐÁNH GIÁ BÁC SĨ (VERIFIED REVIEW & SPRING AI SENTIMENT)
+-- 17. ĐÁNH GIÁ BÁC SĨ (VERIFIED REVIEW & SPRING AI SENTIMENT)
 CREATE TABLE doctor_reviews (
     id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
     appointment_id CHAR(36) NOT NULL UNIQUE,
@@ -384,6 +397,7 @@ CREATE INDEX idx_doctor_reviews_doctor ON doctor_reviews(doctor_id);
 
 -- ====================================================================
 -- DỮ LIỆU MẪU BAN ĐẦU (SEED DATA CHO HỆ THỐNG MEDSCHED)
+-- Mật khẩu của mọi tài khoản mẫu: Medsched@123
 -- ====================================================================
 
 -- [1] Hai chi nhánh
@@ -406,11 +420,20 @@ INSERT INTO specialties (id, medical_center_id, name, code, description) VALUES
 -- nhờ UNIQUE(medical_center_id, code))
 ('55555555-5555-5555-5555-555555555557', '00000000-0000-0000-0000-000000000002', 'Chuyên khoa Da liễu', 'DERMATOLOGY', 'Khoa Da liễu chi nhánh Quận 7');
 
+-- Danh mục dịch vụ khám (bảng giá) của từng chuyên khoa - phục vụ CRUD service
+INSERT INTO services (id, specialty_id, name, code, description, price, estimated_duration_minutes) VALUES
+('5e100000-0000-0000-0000-000000000001', '55555555-5555-5555-5555-555555555551', 'Khám Da liễu cơ bản', 'DERM_BASIC', 'Khám và tư vấn các bệnh da liễu thông thường', 300000.00, 30),
+('5e100000-0000-0000-0000-000000000002', '55555555-5555-5555-5555-555555555551', 'Điều trị Laser vết nám', 'DERM_LASER', 'Điều trị nám, tàn nhang bằng công nghệ laser', 1200000.00, 45),
+('5e100000-0000-0000-0000-000000000003', '55555555-5555-5555-5555-555555555552', 'Khám Nội tổng quát', 'INT_BASIC', 'Khám nội khoa tổng quát, đo huyết áp, tư vấn dinh dưỡng', 250000.00, 30);
+
 -- Tài khoản: KHÔNG có cột role, KHÔNG gắn chi nhánh (danh tính toàn cục)
+-- Mật khẩu của TẤT CẢ tài khoản mẫu: Medsched@123 (hash BCrypt cost 10).
+-- Dùng để đăng nhập thử 4 luồng Login của Task 1.
 INSERT INTO users (id, email, password_hash, full_name, phone) VALUES
-('11111111-1111-1111-1111-111111111111', 'dr.minhanh@medsched.vn', '$2a$10$rN6NY395V9uszxxN3QEGu.maNnA7xSWa6oEmHZe6DBNryOXAfKVd.', 'BS.CKII Nguyễn Minh Anh', '0901234567'),
-('22222222-2222-2222-2222-222222222222', 'benhnhan.demo@gmail.com', '$2a$10$rN6NY395V9uszxxN3QEGu.maNnA7xSWa6oEmHZe6DBNryOXAfKVd.', 'Trần Văn Hoàng', '0912345678'),
-('33333333-3333-3333-3333-333333333333', 'letan.q1@medsched.vn', '$2a$10$rN6NY395V9uszxxN3QEGu.maNnA7xSWa6oEmHZe6DBNryOXAfKVd.', 'Lễ Tân Tiếp Đón 01', '0988776655');
+('11111111-1111-1111-1111-111111111111', 'dr.minhanh@medsched.vn', '$2a$10$ahoI91g3N9UKv5TBC8/KnugbB5LeGWqti0P/cwgrxYh..X9Jxxwti', 'BS.CKII Nguyễn Minh Anh', '0901234567'),
+('22222222-2222-2222-2222-222222222222', 'benhnhan.demo@gmail.com', '$2a$10$ahoI91g3N9UKv5TBC8/KnugbB5LeGWqti0P/cwgrxYh..X9Jxxwti', 'Trần Văn Hoàng', '0912345678'),
+('33333333-3333-3333-3333-333333333333', 'letan.q1@medsched.vn', '$2a$10$ahoI91g3N9UKv5TBC8/KnugbB5LeGWqti0P/cwgrxYh..X9Jxxwti', 'Lễ Tân Tiếp Đón 01', '0988776655'),
+('ad000000-0000-0000-0000-000000000001', 'admin@medsched.vn', '$2a$10$ahoI91g3N9UKv5TBC8/KnugbB5LeGWqti0P/cwgrxYh..X9Jxxwti', 'Quản Trị Viên Hệ Thống', '0900000001');
 
 -- Quyền nhân sự theo chi nhánh. Bác sĩ Minh Anh trực CẢ Q1 VÀ Q7 (2 dòng).
 -- Tài khoản bệnh nhân (2222...) cố ý KHÔNG có dòng nào ở đây: mọi tài khoản
@@ -418,7 +441,8 @@ INSERT INTO users (id, email, password_hash, full_name, phone) VALUES
 INSERT INTO user_medical_center_roles (id, user_id, medical_center_id, role) VALUES
 ('77777777-7777-7777-7777-777777777771', '11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000001', 'ROLE_DOCTOR'),
 ('77777777-7777-7777-7777-777777777772', '11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000002', 'ROLE_DOCTOR'),
-('77777777-7777-7777-7777-777777777773', '33333333-3333-3333-3333-333333333333', '00000000-0000-0000-0000-000000000001', 'ROLE_STAFF');
+('77777777-7777-7777-7777-777777777773', '33333333-3333-3333-3333-333333333333', '00000000-0000-0000-0000-000000000001', 'ROLE_STAFF'),
+('77777777-7777-7777-7777-777777777774', 'ad000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'ROLE_ADMIN');
 
 -- Cùng 1 user_id nhưng 2 hồ sơ bác sĩ ở 2 chuyên khoa/chi nhánh khác nhau
 -- (hợp lệ nhờ UNIQUE(user_id, specialty_id) thay cho UNIQUE(user_id))

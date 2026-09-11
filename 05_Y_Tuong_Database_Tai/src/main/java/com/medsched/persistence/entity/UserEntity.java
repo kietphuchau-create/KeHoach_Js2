@@ -113,4 +113,19 @@ public class UserEntity {
         this.updatedBy = updatedBy;
     }
 
+
+    // Setter phục vụ các luồng cập nhật của Task 1 (sửa hồ sơ, đổi mật khẩu, CRUD danh mục).
+
+    public void setPasswordHash(String passwordHash) {
+        this.passwordHash = passwordHash;
+    }
+
+    public void setFullName(String fullName) {
+        this.fullName = fullName;
+    }
+
+    public void setPhone(String phone) {
+        this.phone = phone;
+    }
+
 }

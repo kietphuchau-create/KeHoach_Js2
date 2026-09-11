@@ -124,7 +124,27 @@ CREATE TABLE specialties (
     CONSTRAINT fk_specialties_center FOREIGN KEY (medical_center_id) REFERENCES medical_centers(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 7. HỒ SƠ BÁC SĨ
+-- 7. DANH MỤC DỊCH VỤ KHÁM CỦA TỪNG CHUYÊN KHOA (BẢNG GIÁ)
+CREATE TABLE services (
+    id VARCHAR(36) PRIMARY KEY,
+    specialty_id VARCHAR(36) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    code VARCHAR(50) NOT NULL,
+    description TEXT,
+    price DECIMAL(19, 2) NOT NULL,
+    estimated_duration_minutes INT NOT NULL DEFAULT 30,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    created_by VARCHAR(36),
+    updated_by VARCHAR(36),
+    CONSTRAINT uq_specialty_service UNIQUE (specialty_id, code),
+    CONSTRAINT chk_service_price CHECK (price >= 0),
+    CONSTRAINT chk_service_duration CHECK (estimated_duration_minutes > 0),
+    CONSTRAINT fk_services_specialty FOREIGN KEY (specialty_id) REFERENCES specialties(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 8. HỒ SƠ BÁC SĨ
 -- UNIQUE(user_id, specialty_id) thay cho UNIQUE(user_id): 1 người có thể hành
 -- nghề ở nhiều chuyên khoa / nhiều chi nhánh (specialty đã gắn medical_center).
 CREATE TABLE doctors (
@@ -148,7 +168,7 @@ CREATE TABLE doctors (
 
 CREATE INDEX idx_doctors_user ON doctors(user_id);
 
--- 8. LỊCH ĐĂNG KÝ LÀM VIỆC CỦA BÁC SĨ
+-- 9. LỊCH ĐĂNG KÝ LÀM VIỆC CỦA BÁC SĨ
 CREATE TABLE doctor_schedules (
     id VARCHAR(36) PRIMARY KEY,
     doctor_id VARCHAR(36) NOT NULL,
@@ -164,7 +184,7 @@ CREATE TABLE doctor_schedules (
     CONSTRAINT fk_schedules_doctor FOREIGN KEY (doctor_id) REFERENCES doctors(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 9. KHUNG GIỜ KHÁM - CHỐNG TRÙNG LỊCH BẰNG OPTIMISTIC LOCKING
+-- 10. KHUNG GIỜ KHÁM - CHỐNG TRÙNG LỊCH BẰNG OPTIMISTIC LOCKING
 CREATE TABLE time_slots (
     id VARCHAR(36) PRIMARY KEY,
     schedule_id VARCHAR(36) NOT NULL,
@@ -183,7 +203,7 @@ CREATE TABLE time_slots (
 
 CREATE INDEX idx_time_slots_doctor_date ON time_slots(doctor_id, start_time);
 
--- 10. CA HẸN KHÁM
+-- 11. CA HẸN KHÁM
 -- medical_center_id: ghi rõ ca khám này diễn ra ở CHI NHÁNH NÀO. Vì users đã
 -- toàn cục, đây là chỗ duy nhất cho biết bệnh nhân đến khám ở đâu -> 1 tài
 -- khoản có thể có ca khám ở nhiều chi nhánh khác nhau.
@@ -223,7 +243,7 @@ CREATE INDEX idx_appointments_status ON appointments(status);
 CREATE INDEX idx_appointments_queue ON appointments(doctor_id, queue_type, status);
 CREATE INDEX idx_appointments_center_date ON appointments(medical_center_id, created_at);
 
--- 11. NHẬT KÝ THAY ĐỔI TRẠNG THÁI CA KHÁM
+-- 12. NHẬT KÝ THAY ĐỔI TRẠNG THÁI CA KHÁM
 CREATE TABLE appointment_status_logs (
     id VARCHAR(36) PRIMARY KEY,
     appointment_id VARCHAR(36) NOT NULL,
@@ -238,7 +258,7 @@ CREATE TABLE appointment_status_logs (
 
 CREATE INDEX idx_status_logs_appointment ON appointment_status_logs(appointment_id);
 
--- 12. HỒ SƠ BỆNH ÁN (KẾT LUẬN KHÁM) - đơn thuốc xem prescription_items
+-- 13. HỒ SƠ BỆNH ÁN (KẾT LUẬN KHÁM) - đơn thuốc xem prescription_items
 CREATE TABLE medical_records (
     id VARCHAR(36) PRIMARY KEY,
     appointment_id VARCHAR(36) NOT NULL UNIQUE,
@@ -251,7 +271,7 @@ CREATE TABLE medical_records (
     CONSTRAINT fk_records_appointment FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 13. DANH MỤC THUỐC CỦA CHI NHÁNH
+-- 14. DANH MỤC THUỐC CỦA CHI NHÁNH
 CREATE TABLE medicines (
     id VARCHAR(36) PRIMARY KEY,
     medical_center_id VARCHAR(36) NOT NULL,
@@ -268,7 +288,7 @@ CREATE TABLE medicines (
     CONSTRAINT fk_medicines_center FOREIGN KEY (medical_center_id) REFERENCES medical_centers(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 14. TỪNG DÒNG THUỐC TRONG ĐƠN (THAY CHO medical_records.prescription TEXT)
+-- 15. TỪNG DÒNG THUỐC TRONG ĐƠN (THAY CHO medical_records.prescription TEXT)
 -- medicine_name / unit là BẢN CHỤP (snapshot) tên thuốc lúc kê đơn - bắt buộc
 -- về mặt y tế: đơn thuốc cũ phải in lại đúng như đã kê, dù sau này danh mục
 -- thuốc bị đổi tên hoặc ngừng dùng. Cùng nguyên tắc với order_items lưu kèm
@@ -297,7 +317,7 @@ CREATE TABLE prescription_items (
 
 CREATE INDEX idx_prescription_items_record ON prescription_items(medical_record_id);
 
--- 15. THANH TOÁN (THAY CHO 2 CỘT payment_status / payment_amount)
+-- 16. THANH TOÁN (THAY CHO 2 CỘT payment_status / payment_amount)
 -- 1 ca hẹn có thể có NHIỀU dòng: đặt cọc online + thu thêm tại quầy, hoặc
 -- lần trả thất bại rồi trả lại. transaction_ref UNIQUE là chốt chống webhook
 -- cổng thanh toán gọi lặp làm ghi nhận/hoàn tiền 2 lần (kịch bản 7.8).
@@ -328,7 +348,7 @@ CREATE TABLE payments (
 CREATE INDEX idx_payments_appointment ON payments(appointment_id);
 CREATE INDEX idx_payments_status ON payments(status);
 
--- 16. ĐÁNH GIÁ BÁC SĨ (VERIFIED REVIEW & SPRING AI SENTIMENT)
+-- 17. ĐÁNH GIÁ BÁC SĨ (VERIFIED REVIEW & SPRING AI SENTIMENT)
 CREATE TABLE doctor_reviews (
     id VARCHAR(36) PRIMARY KEY,
     appointment_id VARCHAR(36) NOT NULL UNIQUE,

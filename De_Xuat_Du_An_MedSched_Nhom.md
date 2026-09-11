@@ -6,7 +6,7 @@
 ## 1. TỔNG QUAN DỰ ÁN
 * **Tên dự án:** **MedSched – Smart Healthcare Appointment Management System**
 * **Mục tiêu:** Xây dựng nền tảng đặt lịch khám và điều phối tiếp đón bệnh nhân trực tuyến đa kênh, kết hợp sức mạnh của:
-  * **Spring Boot 3 & Clean Architecture:** Quản trị nghiệp vụ lõi, bảo mật JWT, điều phối hàng đợi thông minh và cơ sở dữ liệu PostgreSQL chuẩn 3NF.
+  * **Spring Boot 3 & Clean Architecture:** Quản trị nghiệp vụ lõi, bảo mật JWT, điều phối hàng đợi thông minh và cơ sở dữ liệu MySQL/MariaDB (XAMPP) chuẩn 3NF.
   * **Spring AI (LLM / RAG / Guardrails):** Chatbot hỗ trợ hội thoại tự nhiên, phân luồng chuyên khoa (Clinical Triage), tóm tắt bệnh án 2 dòng cho bác sĩ, phân tích cảm xúc đánh giá sau khám (Sentiment Analysis) và bộ lọc an toàn cấp cứu (Red-Flag Guardrails).
   * **Tiếp đón y tế hiện đại bằng QR Code & CCCD Chip:** Tiếp đón siêu tốc trong 1 giây qua máy quét mã QR vé hẹn và mã QR chuẩn Bộ Công An trên thẻ Căn cước công dân gắn chip / Thẻ BHYT, loại bỏ các mô hình thị giác máy tính nặng nề không cần thiết.
 
@@ -81,7 +81,7 @@ sequenceDiagram
     participant UI as Giao diện Web (Next.js)
     participant BE as Backend Spring Boot 3
     participant AI as Spring AI Engine
-    participant DB as PostgreSQL
+    participant DB as MySQL (XAMPP)
 
     Patient->>UI: Chọn hồ sơ khám (Bản thân / Người thân) & Nhập triệu chứng
     UI->>BE: POST /api/v1/ai/triage (symptoms)
@@ -111,7 +111,7 @@ sequenceDiagram
     actor Staff as Nhân viên quầy tiếp đón
     participant SCN as Đầu đọc mã QR (CCCD Chip / Vé hẹn)
     participant BE as Backend Spring Boot 3
-    participant DB as PostgreSQL
+    participant DB as MySQL (XAMPP)
     participant PRN as Máy in phiếu số
 
     Patient->>SCN: Đưa mã QR vé hẹn HOẶC mã QR trên thẻ CCCD gắn chip
@@ -313,7 +313,7 @@ Hệ thống được tổ chức theo kiến trúc phân tầng sạch (Clean /
 1. **Frontend App:** Next.js 16 (React 19, TypeScript, Vanilla CSS/Design System) – Giao diện đặt lịch cho bệnh nhân & Cổng điều phối tiếp đón cho Lễ tân và Bác sĩ.
 2. **Backend API Core:** Java 21 & Spring Boot 3 – Xử lý nghiệp vụ lõi, bảo mật Spring Security & JWT, Quản trị hàng đợi, Audit trail.
 3. **AI Engine (Spring AI):** Tích hợp trực tiếp trong Spring Boot qua thư viện `spring-ai-core` (kết nối OpenAI / Gemini / Ollama cục bộ) – Thực hiện Triage, 2-line summary, Sentiment analysis và Red-flag guardrails.
-4. **Database & Vector Store:** PostgreSQL (hỗ trợ lưu trữ quan hệ chuẩn 3NF và mở rộng vector embeddings PGVector).
+4. **Database:** MySQL/MariaDB chạy trên **XAMPP** (17 bảng quan hệ chuẩn 3NF). Kho vector cho RAG y khoa giai đoạn sau sẽ dùng giải pháp ngoài (file-based hoặc dịch vụ vector riêng) để không phải đổi hệ quản trị.
 
 ---
 
@@ -323,7 +323,7 @@ Hệ thống được tổ chức theo kiến trúc phân tầng sạch (Clean /
 | :---: | :--- | :--- | :--- |
 | **1** | **Châu Tuấn Kiệt** | **Nhóm trưởng (Leader)** | Quản lý tiến độ chung, thiết kế kiến trúc hệ thống, kiểm soát chất lượng luồng nghiệp vụ và thuyết trình chính. |
 | **2** | **Nguyễn Văn Hiếu** | Thành viên | Phát triển Backend Core Spring Boot 3, xây dựng API Time-slots, khóa lạc quan Optimistic Locking và Spring Security JWT. |
-| **3** | **Lê Thành Tài** | Thành viên | Phụ trách CSDL, tối ưu schema 16 bảng chuẩn hóa 3NF cho cả PostgreSQL và MySQL/XAMPP, viết seed data và quản lý migration Flyway. |
+| **3** | **Lê Thành Tài** | Thành viên | Phụ trách CSDL: schema 17 bảng chuẩn 3NF trên MySQL/XAMPP, JPA Entity + Repository, seed data và migration Flyway. |
 | **4** | **Nguyễn Thị Yến Nhi** | Thành viên | Phân tích nghiệp vụ (BA), hoàn thiện danh sách tính năng (F01–F31), ma trận phân quyền RBAC và kịch bản người dùng. |
 | **5** | **Tân Cùng Bàn** (Tân) | Thành viên | Tích hợp Spring AI Service: Xây dựng ChatClient, Prompt engineering cho Triage phân loại khoa, Tóm tắt bệnh án 2 dòng và Sentiment Analysis. |
 | **6** | **Trang Huynh** (Trang) | Thành viên | Phát triển giao diện Frontend Next.js (Màn hình đặt lịch, Quầy tiếp đón QR, Bàn làm việc bác sĩ) và thiết kế Slide thuyết trình. |
@@ -356,7 +356,7 @@ Hệ thống được tổ chức theo kiến trúc phân tầng sạch (Clean /
   2. **2-line Clinical Summary:** Tự động tóm tắt bệnh án 2 dòng cho bác sĩ (`ai_summary`).
   3. **Sentiment Analysis:** Phân tích cảm xúc phản hồi sau khám trên verified review.
   4. **Emergency Red-Flag Guardrails:** Bộ lọc an toàn tự động phát hiện triệu chứng nguy kịch và kích hoạt cảnh báo gọi 115 ngay.
-  5. **Medical RAG (PGVector):** Truy vấn cơ sở tri thức y khoa chuẩn xác.
+  5. **Medical RAG:** Truy vấn cơ sở tri thức y khoa chuẩn xác (kho vector dùng giải pháp ngoài, không phụ thuộc hệ quản trị CSDL chính).
 
 ### 8.4. Luồng thanh toán (Payment Flow)
 * **Giai đoạn 1:** Mặc định hỗ trợ thanh toán tại quầy khi Check-in — ghi 1 dòng `payments` với `method = CASH/CARD`, `collected_by` = lễ tân thu tiền.

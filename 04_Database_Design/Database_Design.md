@@ -1,10 +1,10 @@
-# 🗄️ 04. Thiết Kế Cơ Sở Dữ Liệu (Database Design) - Dự Án MedSched (Phiên Bản 3.0)
+# 🗄️ 04. Thiết Kế Cơ Sở Dữ Liệu (Database Design) - Dự Án MedSched (Phiên Bản 3.1)
 
 > **Học phần:** Java Spring 2 - Phát triển ứng dụng Web thông minh với Spring Boot & Spring AI  
-> **Hệ quản trị CSDL:** PostgreSQL 16/18 (chính thức) — kèm bản MySQL/MariaDB chạy trên XAMPP (mục 5)  
-> **File kịch bản SQL:** [`medsched_schema.sql`](./medsched_schema.sql) (PostgreSQL) · [`medsched_schema_mysql_xampp.sql`](./medsched_schema_mysql_xampp.sql) (XAMPP)  
+> **Hệ quản trị CSDL:** MySQL/MariaDB trên **XAMPP** (phpMyAdmin) — đồ án bắt buộc chạy bằng XAMPP  
+> **File kịch bản SQL:** [`medsched_schema_mysql_xampp.sql`](./medsched_schema_mysql_xampp.sql)  
 > **Sơ đồ ERD:** [`medsched_erd_v3.png`](./medsched_erd_v3.png) — xem mục 5.4  
-> **Cập nhật:** Phiên bản 3.0 — **16 bảng**, sửa 3 lỗi thiết kế được phản biện (xem mục 0).
+> **Cập nhật:** Phiên bản 3.1 — **17 bảng** (bản 3.0 sửa 3 lỗi thiết kế được phản biện — xem mục 0; bản 3.1 thêm bảng `services` phục vụ CRUD dịch vụ khám của Admin trong Task 1).
 
 ---
 
@@ -39,9 +39,9 @@ Bản 2.0 (12 bảng) bị phản biện đúng 3 điểm. Cả 3 đều **có t
 
 ---
 
-## 1. Danh Sách 16 Bảng Thực Thể & Kiến Trúc Dữ Liệu
+## 1. Danh Sách 17 Bảng Thực Thể & Kiến Trúc Dữ Liệu
 
-Hệ thống được thiết kế theo chuẩn hóa 3NF gồm **16 bảng quan hệ chặt chẽ** (12 bảng cũ + 4 bảng mới: `user_medical_center_roles`, `payments`, `medicines`, `prescription_items`), tích hợp đầy đủ 4 trường Audit tiêu chuẩn doanh nghiệp (`created_at`, `updated_at`, `created_by`, `updated_by`):
+Hệ thống được thiết kế theo chuẩn hóa 3NF gồm **17 bảng quan hệ chặt chẽ** (12 bảng cũ + 5 bảng mới: `user_medical_center_roles`, `payments`, `medicines`, `prescription_items`, `services`), tích hợp đầy đủ 4 trường Audit tiêu chuẩn doanh nghiệp (`created_at`, `updated_at`, `created_by`, `updated_by`):
 
 ```
                         ┌──────────────────────────┐
@@ -201,7 +201,7 @@ Hệ thống được thiết kế theo chuẩn hóa 3NF gồm **16 bảng quan 
 * `id` (UUID, PK), `appointment_id` (UUID, FK ➔ `appointments.id`, `ON DELETE RESTRICT` để **không bao giờ xóa mất lịch sử tiền**).
 * `amount` (NUMERIC(19,2)), `method` (`CASH`, `CARD`, `VNPAY`, `MOMO`, `BANK_TRANSFER`).
 * `status` (`PENDING`, `SUCCEEDED`, `FAILED`, `REFUNDED`).
-* `transaction_ref` (VARCHAR(100), **UNIQUE**): Mã giao dịch cổng thanh toán. Ràng buộc UNIQUE này chính là **chốt chống webhook gọi lặp** làm ghi nhận/hoàn tiền 2 lần (kịch bản 7.8 trong [`Luong_Nghiep_Vu_Chinh.md`](../03_Luong_Chinh/Luong_Nghiep_Vu_Chinh.md)). NULL với tiền mặt (nhiều dòng NULL vẫn hợp lệ ở cả MySQL và PostgreSQL).
+* `transaction_ref` (VARCHAR(100), **UNIQUE**): Mã giao dịch cổng thanh toán. Ràng buộc UNIQUE này chính là **chốt chống webhook gọi lặp** làm ghi nhận/hoàn tiền 2 lần (kịch bản 7.8 trong [`Luong_Nghiep_Vu_Chinh.md`](../03_Luong_Chinh/Luong_Nghiep_Vu_Chinh.md)). NULL với tiền mặt (MySQL cho phép nhiều dòng NULL trong cột UNIQUE nên vẫn hợp lệ).
 * `paid_at`, `refunded_amount`, `refunded_at`, `refund_ref`, `collected_by` (FK ➔ `users.id` — lễ tân thu tiền), `note`.
 * Ràng buộc dữ liệu: `CHECK (amount > 0)` và `CHECK (refunded_amount >= 0 AND refunded_amount <= amount)` — không thể hoàn nhiều hơn số đã thu.
 * **1 ca khám có nhiều dòng payments.** Tình trạng thanh toán không lưu trùng ở `appointments` mà **suy ra** bằng truy vấn:
@@ -235,23 +235,13 @@ Hệ thống được thiết kế theo chuẩn hóa 3NF gồm **16 bảng quan 
 
 ---
 
-## 4. Hướng Dẫn Nạp Schema Vào PostgreSQL Bằng DBeaver
+## 4. Nạp Schema Vào XAMPP / MySQL / MariaDB (phpMyAdmin)
 
-1. Mở **DBeaver**, kết nối vào PostgreSQL (Cổng `5433` qua Docker hoặc `5432` cục bộ, Database: `medsched_db`).
-2. Mở file script [`medsched_schema.sql`](./medsched_schema.sql) và nhấn tổ hợp phím **`Alt + X`** (Execute SQL Script).
-3. Sau khi chạy thành công, nhấp đúp vào thư mục **`Tables`** ➔ chuyển qua tab **`Diagram`** để kiểm tra và xuất ảnh sơ đồ quan hệ ERD 16 bảng.
-
----
-
-## 5. Phiên Bản Chuyển Đổi Cho XAMPP / MySQL / MariaDB (phpMyAdmin)
-
-> Dùng khi nhóm muốn chạy CSDL ngay trên máy cá nhân bằng **XAMPP** (không cần cài Docker/PostgreSQL), phục vụ code nhanh Spring Boot bằng driver MySQL hoặc demo offline khi báo cáo.
->
 > File script: [`medsched_schema_mysql_xampp.sql`](./medsched_schema_mysql_xampp.sql) — **đã được kiểm thử thực tế và chạy thành công (không lỗi)** trên chính bản MariaDB `10.4.32` đi kèm XAMPP.
 
-### 5.1. Bảng quy đổi kiểu dữ liệu (PostgreSQL ➔ MySQL/MariaDB)
+### 4.1. Ghi chú kiểu dữ liệu dùng trong MySQL/MariaDB
 
-| Kiểu trong PostgreSQL | Kiểu tương đương MySQL/MariaDB | Ghi chú |
+| Kiểu dữ liệu | Dùng cho | Ghi chú |
 |:---|:---|:---|
 | `UUID` + `DEFAULT gen_random_uuid()` | `CHAR(36)` + `DEFAULT (UUID())` | MariaDB ≥ 10.2.1 / MySQL ≥ 8.0.13 hỗ trợ default là biểu thức. Khuyến nghị: tầng Spring Boot (Hibernate) tự sinh `UUID.randomUUID()` trước khi insert để không phụ thuộc phiên bản DB. |
 | `TIMESTAMP WITH TIME ZONE` | `DATETIME` | MySQL không có kiểu có múi giờ đúng nghĩa; quy ước lưu giờ theo **UTC+7 (giờ Việt Nam)** thống nhất toàn hệ thống. |
@@ -261,10 +251,10 @@ Hệ thống được thiết kế theo chuẩn hóa 3NF gồm **16 bảng quan 
 | `CHECK (...)` | Giữ nguyên `CHECK (...)` | Được **thực thi thật** (không bị bỏ qua) trên MariaDB ≥ 10.2.1 và MySQL ≥ 8.0.16 — tức là mọi bản XAMPP hiện hành (8.x) đều dùng được. |
 | Không khai báo charset | `ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci` | Bắt buộc `utf8mb4` để không vỡ font tiếng Việt có dấu. |
 
-### 5.2. Kết quả kiểm thử thực tế bản 3.0 (đã chạy, không phải đoán cú pháp)
+### 4.2. Kết quả kiểm thử thực tế bản 3.0 (đã chạy, không phải đoán cú pháp)
 
 **a) MariaDB 10.4.32** (đúng bản đóng gói trong `C:\xampp\mysql`, dựng instance tạm ở port 3307):
-* ✅ Tạo đủ **16/16 bảng**, **25 khóa ngoại**, **16 CHECK**, **11 UNIQUE**, **16 PRIMARY KEY**.
+* ✅ Tạo đủ **17/17 bảng**, **26 khóa ngoại**, **18 CHECK**, **12 UNIQUE**, **17 PRIMARY KEY**.
 * ✅ Nạp seed data thành công và **truy vấn chứng minh sửa đổi [1]**: cùng 1 tài khoản `benhnhan.demo@gmail.com` có 2 ca khám ở 2 chi nhánh `MED_Q1` và `MED_Q7` — **không cần tạo account thứ hai**.
 * ✅ Chứng minh sửa đổi [2]: 1 ca khám có 2 dòng `payments` (cọc VNPay 100.000đ + thu tiền mặt tại quầy 200.000đ = đủ 300.000đ phí khám).
 * ✅ Chứng minh sửa đổi [3]: đơn thuốc gồm 2 dòng `prescription_items` (1 thuốc trong danh mục, 1 thuốc ngoài danh mục với `medicine_id = NULL`), và chạy được truy vấn thống kê thuốc kê nhiều nhất.
@@ -280,22 +270,18 @@ Hệ thống được thiết kế theo chuẩn hóa 3NF gồm **16 bảng quan 
   | Dòng thuốc số lượng = 0 | `ERROR 4025: CONSTRAINT 'chk_item_quantity' failed` |
   | Xóa ca khám đã có thanh toán | `ERROR 1451: Cannot delete or update a parent row` (bảo vệ lịch sử tiền) |
 
-**b) PostgreSQL 18.6** (dựng cluster tạm ở port 5433, tách biệt hoàn toàn instance có sẵn trên máy):
-* ✅ Cả `medsched_schema.sql` (bản standalone) và 2 file Flyway `postgresql/V1+V2` chạy với `ON_ERROR_STOP=1` — **không lỗi**, tạo đủ 16 bảng.
-* ✅ Số ràng buộc **khớp y hệt MariaDB**: 16 CHECK / 25 FK / 16 PK / 11 UNIQUE.
-* ✅ Ràng buộc `CHECK` và truy vấn chứng minh đa chi nhánh cho kết quả giống hệt bản MySQL.
 
-**c) Đối chiếu chống lệch giữa các file:**
+**b) Đối chiếu chống lệch giữa các file:**
 * ✅ So sánh `information_schema` giữa bản standalone XAMPP và bản Flyway MySQL: **185/185 cột khớp**, **68/68 ràng buộc khớp**. Khác biệt duy nhất là 16 cột `id` (bản standalone có thêm `DEFAULT (UUID())`) — đúng như thiết kế đã ghi trong header 2 file.
 * ✅ Đối chiếu **16 JPA Entity ↔ schema thật**: toàn bộ **185 `@Column`** đều tồn tại trong DB và trùng khớp ràng buộc `NOT NULL` (tương đương Hibernate `ddl-auto=validate` PASS).
 * ✅ `javac` compile sạch **44/44 file** `.java` của module `05_Y_Tuong_Database_Tai`.
 
-### 5.3. Hướng Dẫn Nạp Schema Vào XAMPP Bằng phpMyAdmin
+### 4.3. Hướng Dẫn Nạp Schema Vào XAMPP Bằng phpMyAdmin
 1. Mở **XAMPP Control Panel** ➔ bấm **Start** ở dòng `MySQL` (và `Apache` nếu cần chạy phpMyAdmin qua trình duyệt).
 2. Truy cập `http://localhost/phpmyadmin`.
 3. Chọn tab **Import** (Nhập) ➔ **Choose File** ➔ trỏ tới [`medsched_schema_mysql_xampp.sql`](./medsched_schema_mysql_xampp.sql) ➔ bấm **Go**.
    * File tự tạo database `medsched_db` (nếu chưa có) nên **không cần** tạo database thủ công trước.
-4. Sau khi Import báo thành công, vào database `medsched_db` ➔ tab **Structure** ➔ liên kết **Designer** (hoặc **Relation view**) để xem sơ đồ ERD trực quan tương tự DBeaver.
+4. Sau khi Import báo thành công, vào database `medsched_db` ➔ tab **Structure** ➔ liên kết **Designer** (hoặc **Relation view**) để xem sơ đồ ERD trực quan.
 5. Cấu hình `application.properties` / `application.yml` phía Spring Boot trỏ về:
    ```properties
    spring.datasource.url=jdbc:mysql://localhost:3306/medsched_db?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Ho_Chi_Minh
@@ -304,13 +290,13 @@ Hệ thống được thiết kế theo chuẩn hóa 3NF gồm **16 bảng quan 
    spring.jpa.hibernate.ddl-auto=validate
    ```
 
-### 5.4. Sơ Đồ Thực Thể Liên Kết (ERD) 16 Bảng — Bản Vẽ Lại
+### 4.4. Sơ Đồ Thực Thể Liên Kết (ERD) 17 Bảng
 
-![Sơ đồ ERD MedSched v3.0 - 16 bảng](./medsched_erd_v3.png)
+![Sơ đồ ERD MedSched v3.1 - 17 bảng](./medsched_erd_v3.png)
 
 > **Ảnh gốc:** [`medsched_erd_v3.png`](./medsched_erd_v3.png) (3375 × 2190 px, chèn trực tiếp vào slide/báo cáo).
 > **File nguồn:** [`medsched_erd_v3.html`](./medsched_erd_v3.html) — mở bằng trình duyệt để xem/zoom, hoặc chụp lại ảnh sau khi schema đổi.
-> Sơ đồ này được **sinh tự động trực tiếp từ file SQL** (`db/migration/mysql/V1__init_schema.sql`) nên không thể lệch với schema thật: tên bảng, tên cột, kiểu dữ liệu, dấu PK/FK và 25 đường khóa ngoại đều đọc ra từ chính DDL. Chữ **mờ nhạt** = cột cho phép NULL.
+> Sơ đồ này được **sinh tự động trực tiếp từ file SQL** (`db/migration/mysql/V1__init_schema.sql`) nên không thể lệch với schema thật: tên bảng, tên cột, kiểu dữ liệu, dấu PK/FK và 26 đường khóa ngoại đều đọc ra từ chính DDL. Chữ **mờ nhạt** = cột cho phép NULL.
 
 Bản Mermaid dưới đây để GitHub render nhanh ngay trong trang (cùng nội dung, gọn hơn):
 
@@ -482,8 +468,5 @@ erDiagram
     }
 ```
 
-> **Xuất ảnh ERD từ công cụ GUI:** sau khi import, mở `medsched_db` trong **phpMyAdmin ➔ Designer** (hoặc DBeaver tab **Diagram** nếu dùng PostgreSQL) rồi xuất ảnh — cách này cho sơ đồ do chính DBMS đọc ra từ metadata.
+> **Xuất ảnh ERD từ công cụ GUI:** sau khi import, mở `medsched_db` trong **phpMyAdmin ➔ Designer** rồi xuất ảnh — cách này cho sơ đồ do chính DBMS đọc ra từ metadata.
 
-### 5.5. Chọn Postgres hay MySQL/XAMPP?
-* **PostgreSQL (`medsched_schema.sql`)** vẫn là phương án **chính thức nộp báo cáo**, đúng với công nghệ đã cam kết với Giảng viên (Spring Boot 3 + Spring AI + PGVector cho RAG y khoa — PGVector **chỉ chạy trên PostgreSQL**, MySQL không có kiểu vector tương đương).
-* **MySQL/XAMPP (`medsched_schema_mysql_xampp.sql`)** là phương án **dự phòng / phát triển cá nhân**: dùng khi thành viên nào chưa cài Docker, cần code offline nhanh trên Windows, hoặc muốn demo cục bộ không phụ thuộc mạng. Cấu trúc bảng, tên cột, ràng buộc nghiệp vụ **giữ nguyên 100%** giữa hai bản để code Spring Boot (Entity/DTO) dùng chung, chỉ khác `application-{profile}.yml` (đổi driver + dialect Hibernate: `PostgreSQLDialect` ⇄ `MySQLDialect`).

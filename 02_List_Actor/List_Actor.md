@@ -77,10 +77,10 @@ Hệ thống MedSched được thiết kế gồm **4 tác nhân con người (H
   - Giám sát nhật ký hệ thống (Audit Trail) và lịch sử thay đổi trạng thái ca khám để đảm bảo tuân thủ quy định y tế.
 
 ### 2.5. Tác Nhân Hệ Thống AI (Spring AI Engine Actor)
-- **Bao gồm:** Spring Boot 3 + Spring AI ChatClient, LangChain4j, Vector Database (PostgreSQL PGVector).
+- **Bao gồm:** Spring Boot 3 + Spring AI ChatClient, LangChain4j, kho vector cho RAG y khoa (giải pháp ngoài, CSDL chính vẫn là MySQL/XAMPP).
 - **Trách nhiệm tự động hóa:**
   - **Tư vấn & Phân luồng chuyên khoa (Clinical Triage):** Phân tích ngữ nghĩa mô tả triệu chứng tự nhiên của bệnh nhân để tự động đề xuất chuyên khoa khám phù hợp nhất.
   - **Bản tóm tắt bệnh án 2 dòng (2-line Clinical Summary):** Trích xuất ngắn gọn triệu chứng chính, thời gian khởi phát và thuốc đang dùng để bác sĩ nắm bắt nhanh trước khi bệnh nhân bước vào phòng khám.
   - **Phân tích cảm xúc nhận xét (Sentiment Analysis):** Đọc nội dung bình luận của bệnh nhân, phân loại tự động thành `POSITIVE`, `NEUTRAL`, hoặc `NEGATIVE` và gắn cờ cảnh báo quản trị viên nếu có vấn đề nghiêm trọng.
   - **Bộ lọc cảnh báo đỏ (Emergency Red-Flag Guardrails):** Kiểm tra các triệu chứng nguy kịch (khó thở cấp, đau thắt ngực, đột quỵ, nôn ra máu) để hiển thị cảnh báo đỏ khẩn cấp, hướng dẫn gọi 115 hoặc đến phòng cấp cứu gần nhất thay vì đặt lịch khám thường.
-  - **RAG Y khoa (Retrieval-Augmented Generation):** Truy vấn cơ sở tri thức y khoa được vector hóa trong PostgreSQL PGVector để cung cấp các lời khuyên sơ cứu và giải thích thuật ngữ y tế chuẩn xác.
+  - **RAG Y khoa (Retrieval-Augmented Generation):** Truy vấn cơ sở tri thức y khoa đã được vector hóa để cung cấp các lời khuyên sơ cứu và giải thích thuật ngữ y tế chuẩn xác.
