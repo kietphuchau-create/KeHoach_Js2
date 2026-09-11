@@ -1,17 +1,24 @@
-# 05. Tầng Dữ Liệu MedSched (chạy bằng XAMPP)
+# 05. Backend MedSched — Database + Khung Sườn Task 1 (chạy bằng XAMPP)
 
-> **Nhánh này chỉ chứa cơ sở dữ liệu.** 17 bảng trong [`04_Database_Design`](../04_Database_Design/)
-> được hiện thực bằng JPA Entity + Flyway migration, chạy trên **MySQL/MariaDB của XAMPP**.
+> **Nhánh này = nhánh database + khung sườn Task 1.**
+> - Tầng dữ liệu: 17 bảng trong [`04_Database_Design`](../04_Database_Design/) hiện thực bằng JPA Entity + Flyway.
+> - **Khung sườn Task 1**: REST API xác thực & quản lý người dùng cho cả 4 vai trò — xem hướng dẫn đầy đủ trong [**`TASK1_KHUNG_SUON.md`**](./TASK1_KHUNG_SUON.md) (cách chạy, danh sách API, code mẫu để thêm tính năng, quy ước chung, phân công gợi ý).
 >
-> Phần API (đăng nhập, quản lý người dùng...) nằm ở nhánh `feature/task1-khung-suon`.
+> Chạy trên **MySQL/MariaDB của XAMPP**, không dùng PostgreSQL, không cần Docker.
 
-## 1. Chạy trong 2 bước
+## 1. Chạy trong 3 bước
 
 ```bash
 # 1. Mở XAMPP Control Panel -> bấm Start ở dòng MySQL
-# 2. Chạy:
+# 2. Chạy ứng dụng:
 ./gradlew bootRun
+
+# 3. Kiểm thử toàn bộ API Task 1 (terminal thứ 2):
+bash test-task1.sh
 ```
+
+Tài khoản mẫu (mật khẩu đều là `Medsched@123`): `benhnhan.demo@gmail.com` (khách hàng),
+`dr.minhanh@medsched.vn` (bác sĩ), `letan.q1@medsched.vn` (lễ tân), `admin@medsched.vn` (quản trị).
 
 Flyway tự tạo database `medsched_db` với 17 bảng + dữ liệu mẫu ngay lần chạy đầu.
 Chạy xong không lỗi nghĩa là **Hibernate đã đối chiếu 17 Entity khớp 100% với
@@ -34,6 +41,11 @@ trong phpMyAdmin (file tự tạo database).
 └── src/main/
     ├── java/com/medsched/
     │   ├── MedSchedApplication.java
+    │   ├── security/        # JWT, phân quyền theo chi nhánh  (dùng chung - đừng sửa)
+    │   ├── common/          # khuôn JSON lỗi + xử lý lỗi chung (dùng chung - đừng sửa)
+    │   ├── auth/            # Task 1: register / login / refresh
+    │   ├── account/         # Task 1: /me, đổi mật khẩu, cập nhật hồ sơ
+    │   ├── admin/           # Task 1: quản lý user + CRUD danh mục
     │   └── persistence/
     │       ├── entity/      # 17 @Entity, khớp 17 bảng
     │       ├── enums/       # 12 enum trạng thái (@Enumerated(STRING))
@@ -71,4 +83,5 @@ trong phpMyAdmin (file tự tạo database).
 * ✅ **MariaDB 10.4.32** (đúng bản trong `C:\xampp`): chạy `V1 + V2` ➔ **17 bảng, 26 khóa ngoại, 18 CHECK, 12 UNIQUE**, seed thành công, không lỗi.
 * ✅ **Ứng dụng khởi động thật**: Flyway migrate xong, Hibernate `ddl-auto=validate` PASS ➔ 17 Entity khớp tuyệt đối schema.
 * ✅ **Đối chiếu 17 Entity ↔ schema thật**: 197/197 cột tồn tại và trùng khớp ràng buộc `NOT NULL`.
+* ✅ **68/68 phép kiểm thử API Task 1 PASS** (`bash test-task1.sh`) — chi tiết trong [`TASK1_KHUNG_SUON.md`](./TASK1_KHUNG_SUON.md) mục 6.
 * ✅ **7/7 phép thử dữ liệu sai bị DB từ chối đúng thiết kế**: cấp `ROLE_PATIENT` cho bảng quyền nhân sự, trùng quyền, tiền âm, hoàn quá số đã thu, webhook trùng `transaction_ref`, số lượng thuốc = 0, xóa ca khám đã có thanh toán. Bảng chi tiết ở mục 5.2 của [`Database_Design.md`](../04_Database_Design/Database_Design.md).
