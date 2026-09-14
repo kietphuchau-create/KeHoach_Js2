@@ -37,6 +37,8 @@ DuAnChinhThuc/
     │   ├── 📂 core/                            ➔ Domain Model, Ports & Use Cases thuần Java
     │   └── 📂 app/                             ➔ Spring Boot Web, Task 1 (Auth, Account, Admin), JPA 17 bảng
     ├── 📂 frontend/                             ➔ Giao diện Next.js 15+ (React 19, TypeScript)
+    ├── 📂 Giao_DienCuaTrang/                    ➔ Giao diện Task 1 của Trang (React 19 + Vite: Login, Register, Profile, Admin)
+    │   └── ⚡ CHAY_GIAO_DIEN_TRANG.bat          ➔ 1-Click chạy giao diện của Trang (cổng 5173)
     ├── 📂 database/                             ➔ Chứa 1 file medsched_db.sql duy nhất (17 bảng + seed data)
     ├── 📄 TASK1_KHUNG_SUON.md                   ➔ Hướng dẫn Task 1 của Tài (68 test cases pass 100%)
     └── ⚡ start_all.bat                         ➔ 1-Click tự động chạy song song cả Backend và Frontend
