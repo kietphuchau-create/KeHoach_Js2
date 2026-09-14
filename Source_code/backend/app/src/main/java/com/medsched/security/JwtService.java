@@ -35,9 +35,16 @@ public class JwtService {
     private final Duration accessTtl;
     private final Duration refreshTtl;
 
+    /**
+     * Tên tham số khớp đúng với application.yml của nhóm
+     * ({@code access-token-duration} / {@code refresh-token-duration}).
+     * Trước đây mã nguồn đọc {@code access-ttl} / {@code refresh-ttl} - hai tên
+     * này không tồn tại trong file cấu hình nên giá trị nhóm đặt (1 giờ / 7 ngày)
+     * bị bỏ qua âm thầm và token luôn dùng giá trị mặc định 30 phút.
+     */
     public JwtService(@Value("${medsched.jwt.secret}") String secret,
-                      @Value("${medsched.jwt.access-ttl:PT30M}") Duration accessTtl,
-                      @Value("${medsched.jwt.refresh-ttl:P7D}") Duration refreshTtl) {
+                      @Value("${medsched.jwt.access-token-duration:PT1H}") Duration accessTtl,
+                      @Value("${medsched.jwt.refresh-token-duration:P7D}") Duration refreshTtl) {
         byte[] raw = secret.getBytes(StandardCharsets.UTF_8);
         if (raw.length < 32) {
             throw new IllegalStateException(
