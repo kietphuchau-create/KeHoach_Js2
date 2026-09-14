@@ -8,18 +8,18 @@ spring:
     active: mysql-xampp
   jpa:
     hibernate:
-      # database/medsched_db.sql la nguon su that duy nhat cua schema.
-      # Dung "validate": Hibernate chi doi chieu, khong tu y ALTER bang.
-      # ("update" truoc day khien ung dung khong khoi dong duoc vi Hibernate co
-      #  sua cot dang bi khoa ngoai tham chieu.)
+      # database/medsched_db.sql is the single source of truth for the schema.
+      # "validate" means Hibernate only checks it and is never allowed to ALTER
+      # tables. ("update" used to stop the application from starting because
+      # Hibernate tried to change columns referenced by foreign keys.)
       ddl-auto: validate
     open-in-view: false
   flyway:
     enabled: false
 
-# Spring AI: neu khong dat bien moi truong OPENAI_API_KEY thi van cho ung dung
-# khoi dong (chi cac API goi AI moi bao loi). Truoc day thieu key la CA backend
-# khong chay duoc, chan luon ca nguoi lam Auth / Dat lich / Frontend.
+# Spring AI: without the OPENAI_API_KEY environment variable the application
+# still starts; only the AI endpoints fail. Previously a missing key stopped the
+# WHOLE backend, blocking everyone working on Auth / Booking / Frontend.
 spring.ai.openai.api-key: ${OPENAI_API_KEY:chua-cau-hinh}
 
 medsched:
@@ -36,7 +36,7 @@ app:
     expiration: 86400
 
 ---
-# Cấu hình kết nối MySQL trong XAMPP (Mặc định cho toàn bộ thành viên trong nhóm)
+# MySQL connection for XAMPP (the default every team member uses)
 spring:
   config:
     activate:

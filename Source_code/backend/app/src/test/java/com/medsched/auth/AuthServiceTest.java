@@ -34,7 +34,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** Kiểm thử quy tắc nghiệp vụ của đăng ký / đăng nhập / làm mới token. */
+/** Business rules of register / login / token refresh. */
 class AuthServiceTest {
 
     private static final String SECRET = "404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970";
@@ -64,66 +64,67 @@ class AuthServiceTest {
         return new UserEntity(id, email, "$2a$10$hash", fullName, "0912345678", true, now, now);
     }
 
-    private AppUserDetails benhNhan(UserEntity user) {
+    private AppUserDetails patient(UserEntity user) {
         return new AppUserDetails(user, List.<UserMedicalCenterRoleEntity>of());
     }
 
     @Test
-    @DisplayName("Đăng ký: tạo tài khoản và tự tạo luôn hồ sơ người khám SELF")
-    void dangKyTaoKemHoSoSelf() {
+    @DisplayName("Register also creates the SELF patient profile")
+    void registerCreatesSelfPatientProfile() {
         when(users.existsByEmail("moi@gmail.com")).thenReturn(false);
         when(users.save(any(UserEntity.class))).thenAnswer(inv -> inv.getArgument(0));
         when(userDetailsService.loadUserById(anyString()))
-                .thenAnswer(inv -> benhNhan(user(inv.getArgument(0), "moi@gmail.com", "Nguyen Van A")));
+                .thenAnswer(inv -> patient(user(inv.getArgument(0), "moi@gmail.com", "Nguyen Van A")));
 
         AuthDtos.AuthResponse res = authService.register(new AuthDtos.RegisterRequest(
                 "  MOI@Gmail.com  ", "Matkhau@123", "  Nguyen Van A  ", "0912345678"));
 
-        ArgumentCaptor<PatientProfileEntity> hoSo = ArgumentCaptor.forClass(PatientProfileEntity.class);
-        verify(patientProfiles).save(hoSo.capture());
-        assertThat(hoSo.getValue().getRelationship()).isEqualTo(RelationshipType.SELF);
-        assertThat(hoSo.getValue().getFullName()).isEqualTo("Nguyen Van A");
+        ArgumentCaptor<PatientProfileEntity> profile = ArgumentCaptor.forClass(PatientProfileEntity.class);
+        verify(patientProfiles).save(profile.capture());
+        assertThat(profile.getValue().getRelationship()).isEqualTo(RelationshipType.SELF);
+        assertThat(profile.getValue().getFullName()).isEqualTo("Nguyen Van A");
         assertThat(res.tokenType()).isEqualTo("Bearer");
         assertThat(res.expiresIn()).isEqualTo(3600L);
+        // A brand new account is a patient only: no staff role is granted.
         assertThat(res.roles()).containsExactly(AppUserDetails.ROLE_PATIENT);
     }
 
     @Test
-    @DisplayName("Đăng ký: email chuẩn hóa về chữ thường, số điện thoại rỗng lưu thành NULL")
-    void dangKyChuanHoaEmail() {
+    @DisplayName("Register normalises the email to lowercase and stores a blank phone as NULL")
+    void registerNormalisesEmail() {
         when(users.existsByEmail("moi@gmail.com")).thenReturn(false);
         when(users.save(any(UserEntity.class))).thenAnswer(inv -> inv.getArgument(0));
         when(userDetailsService.loadUserById(anyString()))
-                .thenAnswer(inv -> benhNhan(user(inv.getArgument(0), "moi@gmail.com", "A")));
+                .thenAnswer(inv -> patient(user(inv.getArgument(0), "moi@gmail.com", "A")));
 
         authService.register(new AuthDtos.RegisterRequest("  MOI@Gmail.com ", "Matkhau@123", "A", ""));
 
-        ArgumentCaptor<UserEntity> daLuu = ArgumentCaptor.forClass(UserEntity.class);
-        verify(users).save(daLuu.capture());
-        assertThat(daLuu.getValue().getEmail()).isEqualTo("moi@gmail.com");
-        assertThat(daLuu.getValue().getPhone()).isNull();
+        ArgumentCaptor<UserEntity> saved = ArgumentCaptor.forClass(UserEntity.class);
+        verify(users).save(saved.capture());
+        assertThat(saved.getValue().getEmail()).isEqualTo("moi@gmail.com");
+        assertThat(saved.getValue().getPhone()).isNull();
     }
 
     @Test
-    @DisplayName("Đăng ký: mật khẩu phải được băm, không bao giờ lưu dạng thô")
-    void dangKyBamMatKhau() {
+    @DisplayName("Register hashes the password and never stores it in clear text")
+    void registerHashesPassword() {
         when(users.existsByEmail(anyString())).thenReturn(false);
         when(users.save(any(UserEntity.class))).thenAnswer(inv -> inv.getArgument(0));
         when(userDetailsService.loadUserById(anyString()))
-                .thenAnswer(inv -> benhNhan(user(inv.getArgument(0), "a@b.com", "A")));
+                .thenAnswer(inv -> patient(user(inv.getArgument(0), "a@b.com", "A")));
 
         authService.register(new AuthDtos.RegisterRequest("a@b.com", "Matkhau@123", "A", null));
 
-        ArgumentCaptor<UserEntity> daLuu = ArgumentCaptor.forClass(UserEntity.class);
-        verify(users).save(daLuu.capture());
-        assertThat(daLuu.getValue().getPasswordHash())
+        ArgumentCaptor<UserEntity> saved = ArgumentCaptor.forClass(UserEntity.class);
+        verify(users).save(saved.capture());
+        assertThat(saved.getValue().getPasswordHash())
                 .isNotEqualTo("Matkhau@123")
                 .startsWith("$2a$");
     }
 
     @Test
-    @DisplayName("Đăng ký: trùng email bị từ chối và không ghi gì vào CSDL")
-    void dangKyTrungEmailBiTuChoi() {
+    @DisplayName("Register rejects a duplicate email and writes nothing to the database")
+    void registerRejectsDuplicateEmail() {
         when(users.existsByEmail("trung@gmail.com")).thenReturn(true);
 
         assertThatThrownBy(() -> authService.register(
@@ -135,18 +136,18 @@ class AuthServiceTest {
     }
 
     @Test
-    @DisplayName("Đăng nhập: sai thông tin thì lỗi được ném nguyên vẹn cho tầng trên xử lý")
-    void dangNhapSaiThongTin() {
+    @DisplayName("Login lets the authentication error bubble up for the error handler to translate")
+    void loginPropagatesBadCredentials() {
         when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
                 .thenThrow(new BadCredentialsException("Bad credentials"));
 
-        assertThatThrownBy(() -> authService.login(new AuthDtos.LoginRequest("a@b.com", "sai")))
+        assertThatThrownBy(() -> authService.login(new AuthDtos.LoginRequest("a@b.com", "wrong")))
                 .isInstanceOf(BadCredentialsException.class);
     }
 
     @Test
-    @DisplayName("Làm mới token: từ chối khi đưa nhầm access token")
-    void refreshTuChoiAccessToken() {
+    @DisplayName("Refresh rejects an access token sent in place of a refresh token")
+    void refreshRejectsAccessToken() {
         String accessToken = jwtService.generateAccessToken("user-1", "a@b.com", List.of());
 
         assertThatThrownBy(() -> authService.refresh(new AuthDtos.RefreshRequest(accessToken)))
@@ -155,18 +156,18 @@ class AuthServiceTest {
     }
 
     @Test
-    @DisplayName("Làm mới token: từ chối token rác hoặc đã hết hạn")
-    void refreshTuChoiTokenHong() {
-        assertThatThrownBy(() -> authService.refresh(new AuthDtos.RefreshRequest("token-bia-dat")))
+    @DisplayName("Refresh rejects a malformed or expired token")
+    void refreshRejectsBrokenToken() {
+        assertThatThrownBy(() -> authService.refresh(new AuthDtos.RefreshRequest("made-up-token")))
                 .isInstanceOf(AppExceptions.BadRequestException.class)
                 .hasMessageContaining("không hợp lệ");
     }
 
     @Test
-    @DisplayName("Làm mới token: refresh token hợp lệ đổi được cặp token mới")
-    void refreshThanhCong() {
+    @DisplayName("A valid refresh token is exchanged for a new token pair")
+    void refreshReturnsNewTokenPair() {
         UserEntity u = user("user-1", "a@b.com", "Nguyen Van A");
-        when(userDetailsService.loadUserById("user-1")).thenReturn(benhNhan(u));
+        when(userDetailsService.loadUserById("user-1")).thenReturn(patient(u));
         when(users.findById("user-1")).thenReturn(Optional.of(u));
 
         AuthDtos.AuthResponse res = authService.refresh(

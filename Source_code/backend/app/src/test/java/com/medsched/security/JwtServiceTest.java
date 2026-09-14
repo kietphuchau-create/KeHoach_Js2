@@ -13,8 +13,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
 /**
- * Kiểm thử JwtService - phần rủi ro cao nhất của luồng đăng nhập.
- * Không cần Spring context nên chạy rất nhanh.
+ * Tests for JwtService, the highest-risk part of the login flow.
+ * Runs without a Spring context, so it stays fast.
  */
 class JwtServiceTest {
 
@@ -25,8 +25,8 @@ class JwtServiceTest {
     }
 
     @Test
-    @DisplayName("Access token mang đúng danh tính và quyền của người đăng nhập")
-    void accessTokenChuaDungThongTin() {
+    @DisplayName("Access token carries the correct identity and roles")
+    void accessTokenCarriesIdentityAndRoles() {
         JwtService jwt = jwtService();
 
         String token = jwt.generateAccessToken("user-1", "a@b.com", List.of("ROLE_PATIENT", "ROLE_STAFF@center-1"));
@@ -39,8 +39,8 @@ class JwtServiceTest {
     }
 
     @Test
-    @DisplayName("Refresh token không bị nhận nhầm thành access token và ngược lại")
-    void haiLoaiTokenTachBiet() {
+    @DisplayName("Access and refresh tokens can never be mistaken for each other")
+    void accessAndRefreshTokensStaySeparate() {
         JwtService jwt = jwtService();
 
         Claims refresh = jwt.parse(jwt.generateRefreshToken("user-1"));
@@ -52,54 +52,54 @@ class JwtServiceTest {
     }
 
     @Test
-    @DisplayName("Token ký bằng secret khác bị từ chối")
-    void tuChoiTokenKyBangSecretKhac() {
+    @DisplayName("A token signed with a different secret is rejected")
+    void rejectsTokenSignedWithAnotherSecret() {
         String token = jwtService().generateAccessToken("user-1", "a@b.com", List.of());
-        JwtService keHacKhac = new JwtService(
-                "mot-secret-hoan-toan-khac-nhung-van-du-32-ky-tu", Duration.ofHours(1), Duration.ofDays(7));
+        JwtService attacker = new JwtService(
+                "a-completely-different-secret-but-still-32-chars", Duration.ofHours(1), Duration.ofDays(7));
 
-        assertThatThrownBy(() -> keHacKhac.parse(token)).isInstanceOf(JwtException.class);
+        assertThatThrownBy(() -> attacker.parse(token)).isInstanceOf(JwtException.class);
     }
 
     @Test
-    @DisplayName("Token bị sửa chữ ký bị từ chối")
-    void tuChoiTokenBiSuaChuKy() {
+    @DisplayName("A token with a tampered signature is rejected")
+    void rejectsTokenWithTamperedSignature() {
         JwtService jwt = jwtService();
         String token = jwt.generateAccessToken("user-1", "a@b.com", List.of());
-        String giaMao = token.substring(0, token.lastIndexOf('.') + 1) + "chu-ky-gia-mao";
+        String tampered = token.substring(0, token.lastIndexOf('.') + 1) + "forged-signature";
 
-        assertThatThrownBy(() -> jwt.parse(giaMao)).isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> jwt.parse(tampered)).isInstanceOf(RuntimeException.class);
     }
 
     @Test
-    @DisplayName("Token hết hạn bị từ chối")
-    void tuChoiTokenHetHan() {
+    @DisplayName("An expired token is rejected")
+    void rejectsExpiredToken() {
         JwtService jwt = jwtService();
-        JwtService phatHanhTokenDaHetHan = new JwtService(SECRET, Duration.ofSeconds(-10), Duration.ofDays(7));
-        String tokenHetHan = phatHanhTokenDaHetHan.generateAccessToken("user-1", "a@b.com", List.of());
+        JwtService issuerOfExpiredTokens = new JwtService(SECRET, Duration.ofSeconds(-10), Duration.ofDays(7));
+        String expiredToken = issuerOfExpiredTokens.generateAccessToken("user-1", "a@b.com", List.of());
 
-        assertThatThrownBy(() -> jwt.parse(tokenHetHan)).isInstanceOf(JwtException.class);
+        assertThatThrownBy(() -> jwt.parse(expiredToken)).isInstanceOf(JwtException.class);
     }
 
     @Test
-    @DisplayName("Secret ngắn hơn 32 ký tự bị chặn ngay khi khởi động")
-    void chanSecretYeu() {
-        assertThatThrownBy(() -> new JwtService("qua-ngan", Duration.ofHours(1), Duration.ofDays(7)))
+    @DisplayName("A secret shorter than 32 characters is refused at startup")
+    void refusesWeakSecret() {
+        assertThatThrownBy(() -> new JwtService("too-short", Duration.ofHours(1), Duration.ofDays(7)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("32");
     }
 
     @Test
-    @DisplayName("Thời hạn access token lấy đúng từ cấu hình (1 giờ = 3600 giây)")
-    void expiresInLayTuCauHinh() {
+    @DisplayName("Access token lifetime comes from configuration (1 hour = 3600 seconds)")
+    void expiresInComesFromConfiguration() {
         assertThat(jwtService().accessTtlSeconds()).isEqualTo(3600L);
         assertThat(new JwtService(SECRET, Duration.ofMinutes(30), Duration.ofDays(7)).accessTtlSeconds())
                 .isEqualTo(1800L);
     }
 
     @Test
-    @DisplayName("Secret mặc định trong application.yml đủ mạnh để khởi động")
-    void secretMacDinhHopLe() {
+    @DisplayName("The default secret in application.yml is strong enough to boot")
+    void defaultSecretIsAccepted() {
         assertDoesNotThrow(this::jwtService);
     }
 }

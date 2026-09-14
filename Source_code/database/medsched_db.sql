@@ -1,7 +1,8 @@
--- LUU Y KY THUAT (CLAB-102): cac cot khoa dung VARCHAR(36), KHONG dung CHAR(36).
--- Entity JPA khai bao @Column(length = 36) -> Hibernate hieu la varchar(36).
--- Neu file nay tao cot CHAR(36), Hibernate se tim cach ALTER lai cot va MySQL
--- tu choi vi cot dang bi khoa ngoai tham chieu -> ung dung KHONG khoi dong duoc.
+-- TECHNICAL NOTE (CLAB-102): key columns must be VARCHAR(36), never CHAR(36).
+-- The JPA entities declare @Column(length = 36), which Hibernate maps to
+-- varchar(36). If this script creates CHAR(36) columns, Hibernate tries to ALTER
+-- them and MySQL refuses because they are referenced by foreign keys, so the
+-- application FAILS TO START.
 -- ====================================================================
 -- CƠ SỞ DỮ LIỆU DỰ ÁN MEDSCHED - MYSQL / MARIADB (XAMPP)
 -- Hệ quản trị CHÍNH THỨC của đồ án: MySQL/MariaDB đi kèm XAMPP (phpMyAdmin).
