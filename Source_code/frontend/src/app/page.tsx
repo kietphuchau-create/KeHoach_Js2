@@ -26,7 +26,7 @@ export default function HomePage() {
           </div>
 
           <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white leading-tight">
-            Xin chào <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-300">Nhi</span>
+            Xin chào <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-300">2 bạn</span>
           </h1>
 
           <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
