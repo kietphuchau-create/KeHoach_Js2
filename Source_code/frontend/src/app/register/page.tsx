@@ -1,16 +1,20 @@
-import { useState } from 'react';
+'use client';
+
+import React, { useState } from 'react';
 import { User, Mail, Lock, Phone, Eye, EyeOff, ShieldAlert, CheckCircle } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { api } from '@/lib/api';
 
 export default function RegisterPage() {
-  const navigate = useNavigate();
+  const router = useRouter();
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
     phone: '',
     password: '',
     confirmPassword: '',
-    agreeTerms: false,
+    agreeTerms: true,
   });
 
   const [showPassword, setShowPassword] = useState(false);
@@ -18,7 +22,7 @@ export default function RegisterPage() {
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
-  const handleChange = (e) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
     setFormData({
       ...formData,
@@ -26,7 +30,7 @@ export default function RegisterPage() {
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccessMessage('');
@@ -36,52 +40,67 @@ export default function RegisterPage() {
       return;
     }
 
+    if (formData.password.length < 6) {
+      setError('Mật khẩu phải có ít nhất 6 ký tự!');
+      return;
+    }
+
     if (!formData.agreeTerms) {
-      setError('Bạn cần đồng ý với Điều khoản & Dịch vụ.');
+      setError('Bạn cần đồng ý với Điều khoản & Dịch vụ khám chữa bệnh.');
       return;
     }
 
     setLoading(true);
 
-    // Giả lập API Đăng ký tài khoản Customer thành công
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      await api.register({
+        fullName: formData.fullName.trim(),
+        email: formData.email.trim(),
+        phone: formData.phone.trim(),
+        password: formData.password,
+      });
+
       setSuccessMessage('Đăng ký tài khoản thành công! Đang chuyển sang trang Đăng nhập...');
-      
-      // Chuyển sang trang Login sau 1.5 giây
       setTimeout(() => {
-        navigate('/login');
+        router.push('/login');
       }, 1500);
-    }, 1000);
+    } catch (err: any) {
+      setError(err.message || 'Đăng ký không thành công. Email có thể đã được sử dụng.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4">
+    <div className="min-h-[85vh] flex items-center justify-center p-4">
       <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border border-slate-200">
         <div className="text-center mb-6">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-emerald-50 text-emerald-600 mb-3">
+            <User size={28} />
+          </div>
           <h1 className="text-3xl font-bold text-slate-800">Tạo Tài Khoản</h1>
           <p className="text-slate-500 text-sm mt-1">
-            Đăng ký tài khoản Khách hàng (Customer) để trải nghiệm dịch vụ
+            Đăng ký tài khoản Bệnh nhân để đặt lịch và theo dõi bệnh án MedSched
           </p>
         </div>
 
         {error && (
           <div className="mb-4 p-3 bg-red-50 border-l-4 border-red-500 flex items-center gap-2 text-red-700 text-sm rounded">
-            <ShieldAlert size={18} />
+            <ShieldAlert size={18} className="shrink-0" />
             <span>{error}</span>
           </div>
         )}
 
         {successMessage && (
-          <div className="mb-4 p-3 bg-green-50 border-l-4 border-green-500 flex items-center gap-2 text-green-700 text-sm rounded">
-            <CheckCircle size={18} />
+          <div className="mb-4 p-3 bg-emerald-50 border-l-4 border-emerald-500 flex items-center gap-2 text-emerald-700 text-sm rounded">
+            <CheckCircle size={18} className="shrink-0" />
             <span>{successMessage}</span>
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Họ và tên</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Họ và tên bệnh nhân</label>
             <div className="relative">
               <User className="absolute left-3 top-3 text-slate-400" size={18} />
               <input
@@ -120,7 +139,6 @@ export default function RegisterPage() {
                 type="tel"
                 name="phone"
                 required
-                pattern="[0-9]{10,11}"
                 value={formData.phone}
                 onChange={handleChange}
                 placeholder="0987654321"
@@ -140,7 +158,7 @@ export default function RegisterPage() {
                 minLength={6}
                 value={formData.password}
                 onChange={handleChange}
-                placeholder="Tối thiểu 6 ký tự"
+                placeholder="Ít nhất 6 ký tự"
                 className="w-full pl-10 pr-10 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
               />
               <button
@@ -169,37 +187,37 @@ export default function RegisterPage() {
             </div>
           </div>
 
-          <div className="flex items-center text-sm">
+          <div className="flex items-center">
             <input
               type="checkbox"
               id="agreeTerms"
               name="agreeTerms"
               checked={formData.agreeTerms}
               onChange={handleChange}
-              className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500 mr-2 cursor-pointer"
+              className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
             />
-            <label htmlFor="agreeTerms" className="text-slate-600 cursor-pointer">
-              Tôi đồng ý với <a href="#" className="text-blue-600 hover:underline font-medium">Điều khoản & Dịch vụ</a>
+            <label htmlFor="agreeTerms" className="ml-2 text-sm text-slate-600 cursor-pointer">
+              Tôi đồng ý với Quy chế & Chính sách bảo mật y tế
             </label>
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full mt-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-lg shadow transition disabled:bg-blue-300 flex justify-center items-center"
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-lg shadow transition disabled:bg-blue-300 flex justify-center items-center cursor-pointer"
           >
             {loading ? (
               <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
             ) : (
-              'Đăng ký tài khoản'
+              'Hoàn tất Đăng ký'
             )}
           </button>
         </form>
 
-        <div className="text-center mt-6 text-sm text-slate-600">
+        <div className="text-center mt-5 text-sm text-slate-600">
           Đã có tài khoản?{' '}
-          <Link to="/login" className="text-blue-600 font-semibold hover:underline">
-            Đăng nhập ngay
+          <Link href="/login" className="text-blue-600 font-semibold hover:underline">
+            Đăng nhập
           </Link>
         </div>
       </div>

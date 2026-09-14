@@ -13,20 +13,20 @@ echo [1/3] Dang khoi dong Backend Spring Boot (cong 8080)...
 start "MedSched - Backend" cmd /k "cd /d "%~dp0backend" && gradlew.bat :app:bootRun"
 
 echo.
-echo [2/3] Dang khoi dong Giao dien cua Trang (React Vite - cong 5173)...
-start "MedSched - Frontend" cmd /k "cd /d "%~dp0Giao_DienCuaTrang\my-app" && pnpm dev"
+echo [2/3] Dang khoi dong Frontend Next.js bang pnpm (cong 3000)...
+start "MedSched - Frontend" cmd /k "cd /d "%~dp0frontend" && pnpm dev"
 
 echo.
-echo [3/3] Dang mo trinh duyet Web vao thang trang Dang Nhap...
-timeout /t 3 >nul
-start http://localhost:5173
+echo [3/3] Dang cho Next.js san sang de tu dong mo trinh duyet Web...
+timeout /t 5 >nul
+start http://localhost:3000
 
 echo.
 echo ========================================================
 echo   DA KHOI DONG THANH CONG!
-echo   - Backend API  : http://localhost:8080
-echo   - Giao dien Web: http://localhost:5173 (Trang Dang Nhap)
-echo   - Trinh duyet da tu dong mo trang Dang Nhap len man hinh!
+echo   - Backend API : http://localhost:8080
+echo   - Frontend Web: http://localhost:3000
+echo   - Trinh duyet da duoc tu dong mo len man hinh!
 echo ========================================================
 echo.
 echo Cua so nay se tu dong dong sau 3 giay...

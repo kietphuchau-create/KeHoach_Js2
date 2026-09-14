@@ -2,11 +2,10 @@
 # Git Ignore - DuAnChinhThuc (MedSched Smart Healthcare System)
 # ==============================================================================
 
-# --- Node, Next.js & Vite (Frontend) ---
+# --- Node & Next.js (Frontend) ---
 **/node_modules/
 **/.next/
 **/out/
-**/dist/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

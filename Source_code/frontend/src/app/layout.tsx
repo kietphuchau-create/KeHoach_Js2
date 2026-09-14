@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import React from "react";
+import "./globals.css";
+import HeaderNav from "@/components/HeaderNav";
 
 export const metadata: Metadata = {
   title: "MedSched - Smart Healthcare Appointment & Reception",
@@ -13,20 +15,17 @@ export default function RootLayout({
 }) {
   return (
     <html lang="vi">
-      <body style={{ margin: 0, fontFamily: "system-ui, -apple-system, sans-serif", background: "#f8fafc", color: "#0f172a" }}>
-        <header style={{ background: "#1e293b", color: "#fff", padding: "1rem 2rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{ fontSize: "1.25rem", fontWeight: "bold", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            🏥 MedSched
-          </div>
-          <nav style={{ display: "flex", gap: "1.5rem" }}>
-            <a href="/" style={{ color: "#94a3b8", textDecoration: "none" }}>Trang Chủ</a>
-            <a href="/booking" style={{ color: "#38bdf8", textDecoration: "none", fontWeight: 600 }}>Đặt Lịch Khám</a>
-            <a href="/reception" style={{ color: "#34d399", textDecoration: "none", fontWeight: 600 }}>Quầy Tiếp Đón QR</a>
-          </nav>
-        </header>
-        <main style={{ padding: "2rem", maxWidth: "1200px", margin: "0 auto" }}>
+      <body className="min-h-screen bg-slate-100 text-slate-900 flex flex-col font-sans antialiased">
+        <HeaderNav />
+        <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
           {children}
         </main>
+        <footer className="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500">
+          <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+            <span>© 2026 MedSched Healthcare System. All rights reserved.</span>
+            <span className="text-slate-400">Hệ thống Y tế Thông minh Spring Boot 3 + Next.js 15</span>
+          </div>
+        </footer>
       </body>
     </html>
   );

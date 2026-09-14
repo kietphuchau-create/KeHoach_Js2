@@ -81,7 +81,7 @@ export default function ReceptionPage() {
           <p><strong>Mã Hẹn:</strong> {result.bookingCode}</p>
           <p><strong>Số Thứ Tự Vào Khám:</strong> <span style={{ color: "#059669", fontSize: "1.3rem", fontWeight: "bold" }}>{result.queueNumber}</span></p>
           <p><strong>Trạng Thái Mới:</strong> <span style={{ background: "#10b981", color: "#fff", padding: "0.2rem 0.6rem", borderRadius: "4px" }}>{result.status}</span></p>
-          <p><strong>Thời Điểm Tiếp Đón:</strong> {new Date(result.checkInTime).toLocaleString("vi-VN")}</p>
+          <p><strong>Thời Điểm Tiếp Đón:</strong> {result.checkInTime ? new Date(result.checkInTime).toLocaleString("vi-VN") : "Vừa xong"}</p>
           <button
             onClick={() => setResult(null)}
             style={{ marginTop: "1rem", background: "#059669", color: "#fff", border: "none", padding: "0.6rem 1.2rem", borderRadius: "6px", cursor: "pointer" }}>

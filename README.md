@@ -37,8 +37,6 @@ DuAnChinhThuc/
     │   ├── 📂 core/                            ➔ Domain Model, Ports & Use Cases thuần Java
     │   └── 📂 app/                             ➔ Spring Boot Web, Task 1 (Auth, Account, Admin), JPA 17 bảng
     ├── 📂 frontend/                             ➔ Giao diện Next.js 15+ (React 19, TypeScript)
-    ├── 📂 Giao_DienCuaTrang/                    ➔ Giao diện Task 1 của Trang (React 19 + Vite: Login, Register, Profile, Admin)
-    │   └── ⚡ CHAY_GIAO_DIEN_TRANG.bat          ➔ 1-Click chạy giao diện của Trang (cổng 5173)
     ├── 📂 database/                             ➔ Chứa 1 file medsched_db.sql duy nhất (17 bảng + seed data)
     ├── 📄 TASK1_KHUNG_SUON.md                   ➔ Hướng dẫn Task 1 của Tài (68 test cases pass 100%)
     └── ⚡ start_all.bat                         ➔ 1-Click tự động chạy song song cả Backend và Frontend
@@ -72,22 +70,41 @@ cd DuAnChinhThuc/Source_code/backend
 ```
 Backend chạy tại: **`http://localhost:8080`**
 
-#### Khởi chạy Frontend (Next.js 15)
+#### Khởi chạy Frontend (Next.js 15 & TailwindCSS v4)
 ```powershell
 cd DuAnChinhThuc/Source_code/frontend
-npm run dev
+pnpm dev
 ```
 Giao diện chạy tại: **`http://localhost:3000`**
 
 ---
 
-## 📡 4. DANH SÁCH REST API ĐÃ SẴN SÀNG
+## 📡 4. CÁC PHÂN HỆ GIAO DIỆN & API CHÍNH
+
+### A. Giao diện Người Dùng (Next.js 15 + TypeScript + Tailwind v4)
+- **`/`**: Trang chủ giới thiệu hệ thống MedSched và tổng quan các module.
+- **`/login`**: Đăng nhập xác thực JWT, phân luồng theo 4 Roles và có sẵn nút chọn nhanh tài khoản Demo.
+- **`/register`**: Đăng ký tài khoản bệnh nhân mới.
+- **`/profile`**: Quản lý hồ sơ cá nhân, đổi mật khẩu và cập nhật thông tin chuyên môn bác sĩ.
+- **`/admin`**: Dashboard quản trị viên, bảng danh sách người dùng, tìm kiếm, lọc vai trò và khóa/mở khóa tài khoản.
+- **`/admin/create-user`**: Biểu mẫu cấp tài khoản cho Bác sĩ (chuyên khoa, học vị, phòng khám) và Nhân viên Lễ tân.
+- **`/booking`**: Đặt lịch khám và phân tích triệu chứng tự động bằng Spring AI.
+- **`/reception`**: Quầy tiếp đón siêu tốc trong 1 giây qua quét mã QR vé hẹn hoặc thẻ CCCD gắn chip.
+
+### B. Danh sách REST API Backend (Spring Boot 3)
 
 | Phương thức | Endpoint | Chức năng | Phụ trách chính |
 | :---: | :--- | :--- | :---: |
-| **POST** | `/api/appointments` | Đặt lịch khám mới (kiểm tra slot, khóa lạc quan, tóm tắt AI) | Hiếu & Kiệt |
-| **GET** | `/api/appointments/{id}` | Lấy chi tiết lịch hẹn theo ID | Hiếu |
-| **GET** | `/api/appointments/booking-code/{code}` | Tra cứu lịch hẹn bằng mã đặt chỗ (phục vụ quét QR) | Hiếu |
-| **POST** | `/api/reception/checkin/qr` | Tiếp đón bệnh nhân trong 1 giây qua mã QR vé khám | Hiếu & Trang |
-| **POST** | `/api/reception/checkin/cccd` | Tiếp đón siêu tốc qua thẻ CCCD gắn chip Bộ Công An | Hiếu & Trang |
-| **POST** | `/api/ai/triage` | Spring AI phân loại chuyên khoa và tóm tắt triệu chứng | Tân |
+| **POST** | `/api/v1/auth/login` | Đăng nhập hệ thống, cấp phát Access Token & Refresh Token | Tài |
+| **POST** | `/api/v1/auth/register` | Đăng ký tài khoản bệnh nhân | Tài |
+| **GET / PUT** | `/api/v1/me` | Lấy & cập nhật thông tin cá nhân tài khoản đang đăng nhập | Tài |
+| **POST** | `/api/v1/me/change-password` | Đổi mật khẩu | Tài |
+| **PUT** | `/api/v1/me/doctor-profile` | Cập nhật thông tin chuyên môn bác sĩ | Tài |
+| **GET** | `/api/v1/admin/users` | Lấy danh sách tài khoản theo vai trò, tìm kiếm & phân trang | Tài |
+| **PATCH** | `/api/v1/admin/users/{id}/status` | Khóa hoặc kích hoạt lại tài khoản người dùng | Tài |
+| **POST** | `/api/v1/admin/users/staff` | Admin tạo tài khoản nhân viên lễ tân | Tài |
+| **POST** | `/api/v1/admin/users/doctors` | Admin tạo tài khoản bác sĩ | Tài |
+| **POST** | `/api/v1/appointments` | Đặt lịch khám mới (kiểm tra slot, khóa lạc quan, tóm tắt AI) | Hiếu & Kiệt |
+| **GET** | `/api/v1/appointments/{id}` | Lấy chi tiết lịch hẹn theo ID | Hiếu |
+| **POST** | `/api/v1/appointments/check-in` | Tiếp đón bệnh nhân trong 1 giây qua mã QR vé khám / thẻ CCCD | Hiếu & Trang |
+| **POST** | `/api/v1/ai/triage` | Spring AI phân loại chuyên khoa và tóm tắt triệu chứng | Tân |
