@@ -1,0 +1,1292 @@
+openapi: 3.0.3
+
+info:
+  title: MedSched API
+  version: "1.0.0"
+  description: |
+    API Spec cho hệ thống đặt lịch khám MedSched.
+
+    Tài liệu này là **contract** (bản cam kết) giữa Backend và Frontend:
+    - Backend code đúng theo spec này, không tự thêm/bớt field.
+    - Frontend dùng spec này để mock data và dựng UI mà không phải chờ Backend.
+
+    Xem README.md cùng thư mục để biết cách dùng (Swagger UI, Postman, mock server).
+
+servers:
+  - url: http://localhost:8080
+    description: Local development (backend chạy bằng ./gradlew bootRun)
+
+tags:
+  - name: Auth
+    description: Đăng ký, đăng nhập, refresh token. Không cần token.
+  - name: Me
+    description: Hồ sơ của chính người đang đăng nhập. Dùng chung cho cả 4 role.
+  - name: Admin Users
+    description: Quản lý người dùng. Chỉ ROLE_ADMIN.
+  - name: Catalog
+    description: Cơ sở y tế, chuyên khoa, dịch vụ khám.
+  - name: Appointments
+    description: Đặt lịch khám.
+  - name: Reception
+    description: Tiếp đón - check-in tại quầy.
+  - name: AI
+    description: Gợi ý chuyên khoa và tóm tắt bệnh sử.
+
+security:
+  - bearerAuth: []
+
+components:
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Gửi kèm header: `Authorization: Bearer <accessToken>`.
+        Lấy accessToken từ `POST /api/v1/auth/login`.
+
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      required: false
+      schema: { type: integer, minimum: 0, default: 0 }
+      description: Số thứ tự trang, bắt đầu từ 0.
+    SizeParam:
+      name: size
+      in: query
+      required: false
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      description: Số bản ghi mỗi trang. Tối đa 100, vượt quá sẽ bị ép về 20.
+    SortParam:
+      name: sort
+      in: query
+      required: false
+      schema:
+        type: string
+        example: createdAt,desc
+      description: |
+        Định dạng `field,direction`. direction nhận `asc` hoặc `desc` (mặc định `asc`).
+        Chỉ chấp nhận field trong whitelist: `createdAt`, `updatedAt`, `email`,
+        `fullName`, `active`. Field ngoài whitelist -> 400.
+        Mặc định khi không truyền: `createdAt,desc`.
+    SearchParam:
+      name: q
+      in: query
+      required: false
+      schema: { type: string }
+      description: Từ khóa tìm kiếm, khớp một phần (LIKE) trên `email` và `fullName`, không phân biệt hoa thường.
+
+  responses:
+    Unauthorized:
+      description: Chưa đăng nhập, thiếu token, token sai hoặc hết hạn.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+          example:
+            timestamp: "2026-09-14T06:45:47Z"
+            status: 401
+            error: Unauthorized
+            message: Bạn cần đăng nhập để dùng chức năng này
+            path: /api/v1/me
+            fieldErrors: null
+    Forbidden:
+      description: Đã đăng nhập nhưng không đủ quyền.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+          example:
+            timestamp: "2026-09-14T06:45:47Z"
+            status: 403
+            error: Forbidden
+            message: Tài khoản của bạn không có quyền thực hiện chức năng này
+            path: /api/v1/admin/users
+            fieldErrors: null
+    NotFound:
+      description: Không tìm thấy dữ liệu.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+    Conflict:
+      description: Xung đột dữ liệu (trùng email, trùng mã, slot đã bị giữ...).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+    ValidationError:
+      description: Dữ liệu gửi lên không hợp lệ. Chi tiết từng field nằm trong `fieldErrors`.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+          example:
+            timestamp: "2026-09-14T06:45:47Z"
+            status: 400
+            error: Bad Request
+            message: Dữ liệu gửi lên không hợp lệ
+            path: /api/v1/auth/register
+            fieldErrors:
+              email: Email không đúng định dạng
+              password: Mật khẩu phải từ 8 đến 72 ký tự
+
+  schemas:
+
+    ApiError:
+      type: object
+      description: Khuôn lỗi dùng chung cho MỌI API. Frontend chỉ cần viết một hàm xử lý lỗi.
+      properties:
+        timestamp: { type: string, format: date-time }
+        status: { type: integer, example: 400 }
+        error: { type: string, example: Bad Request }
+        message: { type: string, description: Thông báo tiếng Việt hiển thị được cho người dùng }
+        path: { type: string, example: /api/v1/auth/login }
+        fieldErrors:
+          type: object
+          nullable: true
+          additionalProperties: { type: string }
+          description: Chỉ có khi lỗi validation. Key là tên field, value là thông báo.
+
+    PageResponseUserSummary:
+      type: object
+      description: Khuôn phân trang chuẩn cho API List.
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/UserSummary' }
+        page: { type: integer, example: 0, description: Trang hiện tại (từ 0) }
+        size: { type: integer, example: 20, description: Số bản ghi mỗi trang }
+        totalItems: { type: integer, format: int64, example: 42, description: Tổng số bản ghi khớp điều kiện }
+        totalPages: { type: integer, example: 3 }
+
+    RegisterRequest:
+      type: object
+      required: [email, password, fullName]
+      properties:
+        email: { type: string, format: email, maxLength: 255, example: benhnhan@gmail.com }
+        password: { type: string, minLength: 8, maxLength: 72, example: Matkhau@123 }
+        fullName: { type: string, maxLength: 255, example: Nguyễn Văn A }
+        phone: { type: string, pattern: '^$|^0[0-9]{8,10}$', example: "0912345678" }
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email, example: admin@medsched.vn }
+        password: { type: string, example: Medsched@123 }
+
+    RefreshRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken: { type: string }
+
+    AuthResponse:
+      type: object
+      properties:
+        tokenType: { type: string, example: Bearer }
+        accessToken: { type: string, description: Sống 30 phút. Gửi kèm mọi request sau khi đăng nhập. }
+        refreshToken: { type: string, description: Sống 7 ngày. CHỈ dùng cho /auth/refresh, không gọi API khác được. }
+        expiresIn: { type: integer, format: int64, example: 1800, description: Số giây còn hiệu lực của accessToken }
+        userId: { type: string, format: uuid }
+        email: { type: string }
+        fullName: { type: string }
+        roles:
+          type: array
+          items: { type: string }
+          example: ["ROLE_PATIENT", "ROLE_STAFF", "ROLE_STAFF@00000000-0000-0000-0000-000000000001"]
+          description: |
+            Gồm cả quyền dạng scoped theo chi nhánh (`ROLE_X@<medicalCenterId>`).
+            Mọi tài khoản luôn có `ROLE_PATIENT`.
+
+    MeResponse:
+      type: object
+      properties:
+        userId: { type: string, format: uuid }
+        email: { type: string }
+        fullName: { type: string }
+        phone: { type: string, nullable: true }
+        active: { type: boolean }
+        roles:
+          type: array
+          items: { type: string }
+        doctorProfiles:
+          type: array
+          description: Rỗng nếu không phải bác sĩ. Bác sĩ trực 2 chi nhánh sẽ có 2 phần tử.
+          items: { $ref: '#/components/schemas/DoctorProfileView' }
+        patientProfile:
+          allOf: [{ $ref: '#/components/schemas/PatientProfileView' }]
+          nullable: true
+
+    DoctorProfileView:
+      type: object
+      properties:
+        doctorId: { type: string, format: uuid }
+        specialtyId: { type: string, format: uuid }
+        specialtyName: { type: string, nullable: true }
+        medicalCenterId: { type: string, format: uuid, nullable: true }
+        medicalCenterName: { type: string, nullable: true }
+        academicTitle: { type: string, nullable: true, example: BS.CKII }
+        experienceYears: { type: integer, example: 15 }
+        consultationFee: { type: number, format: double, example: 300000.00 }
+        roomNumber: { type: string, nullable: true, example: P.205 }
+        bio: { type: string, nullable: true }
+        avatarUrl: { type: string, nullable: true }
+
+    PatientProfileView:
+      type: object
+      properties:
+        profileId: { type: string, format: uuid }
+        fullName: { type: string }
+        cccdNumber: { type: string, nullable: true }
+        healthInsuranceNo: { type: string, nullable: true }
+        dateOfBirth: { type: string, format: date, nullable: true }
+        gender: { type: string, enum: [MALE, FEMALE, OTHER], nullable: true }
+        phone: { type: string, nullable: true }
+        address: { type: string, nullable: true }
+        medicalHistory: { type: string, nullable: true }
+
+    UpdateProfileRequest:
+      type: object
+      required: [fullName]
+      properties:
+        fullName: { type: string, maxLength: 255 }
+        phone: { type: string, pattern: '^$|^0[0-9]{8,10}$' }
+
+    ChangePasswordRequest:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword: { type: string }
+        newPassword: { type: string, minLength: 8, maxLength: 72, description: Phải khác mật khẩu hiện tại }
+
+    UpdateDoctorProfileRequest:
+      type: object
+      properties:
+        academicTitle: { type: string, maxLength: 100 }
+        experienceYears: { type: integer, minimum: 0, maximum: 70 }
+        bio: { type: string }
+        avatarUrl: { type: string, maxLength: 500 }
+      description: Không cho sửa consultationFee và roomNumber - đó là quyền của Admin.
+
+    UpdatePatientProfileRequest:
+      type: object
+      required: [fullName]
+      properties:
+        fullName: { type: string, maxLength: 255 }
+        cccdNumber: { type: string, pattern: '^$|^[0-9]{9,12}$' }
+        healthInsuranceNo: { type: string, maxLength: 30 }
+        dateOfBirth: { type: string, format: date }
+        gender: { type: string, enum: [MALE, FEMALE, OTHER] }
+        phone: { type: string, pattern: '^$|^0[0-9]{8,10}$' }
+        address: { type: string, maxLength: 500 }
+        medicalHistory: { type: string }
+
+    UserSummary:
+      type: object
+      properties:
+        userId: { type: string, format: uuid }
+        email: { type: string }
+        fullName: { type: string }
+        phone: { type: string, nullable: true }
+        active: { type: boolean }
+        roles:
+          type: array
+          items: { $ref: '#/components/schemas/RoleAssignment' }
+          description: Rỗng nghĩa là khách hàng thuần (không có quyền nhân sự).
+        createdAt: { type: string, format: date-time }
+
+    RoleAssignment:
+      type: object
+      properties:
+        assignmentId: { type: string, format: uuid, description: Dùng để thu hồi quyền này }
+        role: { type: string, enum: [ROLE_DOCTOR, ROLE_STAFF, ROLE_ADMIN] }
+        medicalCenterId: { type: string, format: uuid }
+        medicalCenterName: { type: string, nullable: true }
+        active: { type: boolean }
+
+    CreateStaffRequest:
+      type: object
+      required: [email, password, fullName, medicalCenterId]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8, maxLength: 72 }
+        fullName: { type: string }
+        phone: { type: string, pattern: '^$|^0[0-9]{8,10}$' }
+        medicalCenterId: { type: string, format: uuid, description: Chi nhánh mà lễ tân này làm việc }
+
+    CreateDoctorRequest:
+      type: object
+      required: [email, password, fullName, specialtyId, consultationFee]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8, maxLength: 72 }
+        fullName: { type: string }
+        phone: { type: string, pattern: '^$|^0[0-9]{8,10}$' }
+        specialtyId: { type: string, format: uuid, description: Chi nhánh được suy ra từ chuyên khoa, không cần truyền riêng }
+        academicTitle: { type: string, maxLength: 100 }
+        experienceYears: { type: integer, minimum: 0 }
+        consultationFee: { type: number, format: double, minimum: 0 }
+        roomNumber: { type: string, maxLength: 50 }
+
+    UpdateStatusRequest:
+      type: object
+      required: [active]
+      properties:
+        active: { type: boolean, description: false = khóa tài khoản, true = mở lại }
+
+    GrantRoleRequest:
+      type: object
+      required: [role, medicalCenterId]
+      properties:
+        role: { type: string, enum: [ROLE_DOCTOR, ROLE_STAFF, ROLE_ADMIN] }
+        medicalCenterId: { type: string, format: uuid }
+
+    MedicalCenterResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string, example: MED_Q1 }
+        name: { type: string }
+        address: { type: string }
+        phone: { type: string, nullable: true }
+        active: { type: boolean }
+
+    MedicalCenterRequest:
+      type: object
+      required: [code, name, address]
+      properties:
+        code: { type: string, maxLength: 50 }
+        name: { type: string, maxLength: 255 }
+        address: { type: string, maxLength: 500 }
+        phone: { type: string, pattern: '^$|^0[0-9]{8,10}$' }
+
+    SpecialtyResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        medicalCenterId: { type: string, format: uuid }
+        medicalCenterName: { type: string, nullable: true }
+        name: { type: string }
+        code: { type: string, example: DERMATOLOGY }
+        description: { type: string, nullable: true }
+        iconUrl: { type: string, nullable: true }
+
+    SpecialtyRequest:
+      type: object
+      required: [medicalCenterId, name, code]
+      properties:
+        medicalCenterId: { type: string, format: uuid }
+        name: { type: string, maxLength: 255 }
+        code: { type: string, maxLength: 50 }
+        description: { type: string }
+        iconUrl: { type: string, maxLength: 500 }
+
+    ServiceResponse:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        specialtyId: { type: string, format: uuid }
+        specialtyName: { type: string, nullable: true }
+        name: { type: string }
+        code: { type: string, example: DERM_BASIC }
+        description: { type: string, nullable: true }
+        price: { type: number, format: double, example: 300000.00 }
+        estimatedDurationMinutes: { type: integer, example: 30 }
+        active: { type: boolean }
+
+    ServiceRequest:
+      type: object
+      required: [specialtyId, name, code, price, estimatedDurationMinutes]
+      properties:
+        specialtyId: { type: string, format: uuid }
+        name: { type: string, maxLength: 255 }
+        code: { type: string, maxLength: 50 }
+        description: { type: string }
+        price: { type: number, format: double, minimum: 0 }
+        estimatedDurationMinutes: { type: integer, minimum: 1, maximum: 480 }
+
+    BookAppointmentRequest:
+      type: object
+      required: [medicalCenterId, patientProfileId, doctorId, slotId]
+      properties:
+        medicalCenterId: { type: string, format: uuid }
+        patientProfileId: { type: string, format: uuid }
+        doctorId: { type: string, format: uuid }
+        slotId: { type: string, format: uuid, description: Khung giờ phải đang ở trạng thái AVAILABLE }
+        symptoms: { type: string, description: Nếu có, hệ thống tự sinh aiSummary }
+        medicalHistory: { type: string }
+
+    Appointment:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        bookingCode: { type: string, example: MED269780, description: Mã in trên vé hẹn, dùng để check-in }
+        medicalCenterId: { type: string, format: uuid }
+        patientProfileId: { type: string, format: uuid }
+        doctorId: { type: string, format: uuid }
+        slotId: { type: string, format: uuid, nullable: true }
+        queueNumber: { type: string, example: APP-1552 }
+        queueType: { type: string, enum: [ONLINE_BOOKED, WALKIN, POST_LAB_RESULT] }
+        patientSymptoms: { type: string, nullable: true }
+        aiSummary: { type: string, nullable: true }
+        checkinMethod: { type: string, enum: [QR_CODE, CCCD_QR, MANUAL], nullable: true }
+        status:
+          type: string
+          enum: [PENDING, CONFIRMED, CHECKED_IN, IN_PROGRESS, WAITING_FOR_LAB_RESULTS, COMPLETED, CANCELLED, MISSED_NO_SHOW]
+        isDelayed: { type: boolean }
+        delayMinutes: { type: integer }
+        checkInTime: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    QrCheckinRequest:
+      type: object
+      required: [bookingCode]
+      properties:
+        bookingCode: { type: string, example: MED269780 }
+
+    CccdCheckinRequest:
+      type: object
+      required: [cccdNumber, fullName]
+      properties:
+        cccdNumber: { type: string, example: "079201008899" }
+        fullName: { type: string }
+
+    CheckinResult:
+      type: object
+      properties:
+        appointment:
+          allOf: [{ $ref: '#/components/schemas/Appointment' }]
+          nullable: true
+          description: null khi check-in bằng CCCD cho khách vãng lai chưa có lịch hẹn.
+        queueNumber: { type: string, example: APP-1552 }
+        message: { type: string }
+
+    TriageRequest:
+      type: object
+      required: [symptoms]
+      properties:
+        symptoms: { type: string, example: Nổi mẩn đỏ và ngứa nhiều ở tay }
+        medicalHistory: { type: string, example: Dị ứng phấn hoa }
+
+    TriageResponse:
+      type: object
+      properties:
+        suggestedSpecialty: { type: string, example: DERMATOLOGY, description: Mã chuyên khoa trong bảng specialties }
+        clinicalSummary: { type: string }
+        disclaimer: { type: string, description: Bắt buộc hiển thị trên UI - kết quả AI chỉ mang tính tham khảo }
+
+paths:
+
+  /api/v1/auth/register:
+    post:
+      tags: [Auth]
+      summary: Khách hàng tự đăng ký tài khoản
+      description: |
+        Tạo tài khoản mới và tự động tạo luôn patient profile (relationship = SELF)
+        để đặt lịch được ngay. Tài khoản mới KHÔNG có quyền nhân sự nào, chỉ có
+        `ROLE_PATIENT` mặc định. Trả về luôn token nên không cần gọi login sau đó.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        '201':
+          description: Đăng ký thành công.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '409':
+          description: Email đã được đăng ký.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiError' }
+
+  /api/v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: Đăng nhập (dùng chung cho cả 4 role)
+      description: |
+        Sai mật khẩu và email không tồn tại đều trả 401 với cùng một thông báo -
+        cố ý như vậy để không lộ email nào đã đăng ký trong hệ thống.
+        Tài khoản bị khóa trả 403.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Đăng nhập thành công.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401':
+          description: Email hoặc mật khẩu không đúng.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiError' }
+        '403':
+          description: Tài khoản đã bị khóa.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiError' }
+
+  /api/v1/auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Lấy access token mới bằng refresh token
+      description: |
+        Quyền được nạp lại từ database nên nếu Admin vừa thu hồi quyền thì token
+        mới không còn quyền đó. Gửi nhầm access token vào đây sẽ bị từ chối 400.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshRequest' }
+      responses:
+        '200':
+          description: Cấp token mới thành công.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+        '400':
+          description: Refresh token không hợp lệ, đã hết hạn, hoặc gửi nhầm access token.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiError' }
+
+  /api/v1/me:
+    get:
+      tags: [Me]
+      summary: Xem hồ sơ của chính mình
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MeResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    put:
+      tags: [Me]
+      summary: Cập nhật thông tin tài khoản (Update Profile)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateProfileRequest' }
+      responses:
+        '200':
+          description: Cập nhật thành công, trả về hồ sơ mới nhất.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MeResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/v1/me/change-password:
+    post:
+      tags: [Me]
+      summary: Đổi mật khẩu (Change Password)
+      description: Bắt buộc nhập đúng mật khẩu hiện tại. Mật khẩu mới phải khác mật khẩu cũ.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChangePasswordRequest' }
+      responses:
+        '204': { description: Đổi mật khẩu thành công, không có body. }
+        '400':
+          description: Sai mật khẩu hiện tại, mật khẩu mới trùng mật khẩu cũ, hoặc mật khẩu mới quá ngắn.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/v1/me/patient-profile:
+    put:
+      tags: [Me]
+      summary: Cập nhật hồ sơ y tế của chính chủ
+      description: Tự tạo mới hồ sơ nếu chưa có. Mọi role đều gọi được vì ai cũng có thể đi khám.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdatePatientProfileRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PatientProfileView' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/v1/me/doctor-profile:
+    put:
+      tags: [Me]
+      summary: Bác sĩ cập nhật hồ sơ chuyên môn
+      description: |
+        Chỉ `ROLE_DOCTOR`. Áp dụng cho TẤT CẢ hồ sơ hành nghề của tài khoản
+        (bác sĩ trực 2 chi nhánh thì cả 2 cùng được cập nhật).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateDoctorProfileRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/DoctorProfileView' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: Tài khoản chưa có hồ sơ bác sĩ.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiError' }
+
+  /api/v1/admin/users:
+    get:
+      tags: [Admin Users]
+      summary: Danh sách người dùng (API List chuẩn - pagination, filter, search, sort)
+      description: |
+        Đây là API List mẫu, áp dụng đủ 4 yêu cầu thiết kế:
+        - **Pagination**: `page`, `size` -> response trả `page`, `size`, `totalItems`, `totalPages`
+        - **Filter**: `role`, `centerId`
+        - **Search**: `q` (khớp một phần trên email và fullName)
+        - **Sort**: `sort=field,direction` với whitelist field
+
+        Chỉ `ROLE_ADMIN` gọi được.
+      parameters:
+        - name: role
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [ALL, CUSTOMER, ROLE_DOCTOR, ROLE_STAFF, ROLE_ADMIN]
+            default: ALL
+          description: |
+            Filter theo vai trò. `CUSTOMER` = tài khoản không có quyền nhân sự nào
+            (khách hàng thuần). `ALL` hoặc bỏ trống = lấy tất cả.
+        - name: centerId
+          in: query
+          required: false
+          schema: { type: string, format: uuid }
+          description: Filter theo chi nhánh. Chỉ có tác dụng khi lọc theo role nhân sự.
+        - $ref: '#/components/parameters/SearchParam'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+        - $ref: '#/components/parameters/SortParam'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PageResponseUserSummary' }
+        '400':
+          description: Sort field không nằm trong whitelist, hoặc role không hợp lệ.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/v1/admin/users/{userId}:
+    get:
+      tags: [Admin Users]
+      summary: Xem chi tiết một tài khoản
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserSummary' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/admin/users/staff:
+    post:
+      tags: [Admin Users]
+      summary: Tạo tài khoản Lễ tân
+      description: Tạo user + cấp quyền ROLE_STAFF tại chi nhánh chỉ định, trong cùng một transaction.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateStaffRequest' }
+      responses:
+        '201':
+          description: Tạo thành công.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserSummary' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: Không tìm thấy chi nhánh.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiError' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/v1/admin/users/doctors:
+    post:
+      tags: [Admin Users]
+      summary: Tạo tài khoản Bác sĩ
+      description: |
+        Tạo user + cấp quyền ROLE_DOCTOR + tạo hồ sơ bác sĩ (giá khám, phòng, học vị).
+        Chi nhánh được suy ra từ `specialtyId` nên không thể gán nhầm bác sĩ vào
+        chi nhánh không có chuyên khoa đó.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateDoctorRequest' }
+      responses:
+        '201':
+          description: Tạo thành công.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserSummary' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: Không tìm thấy chuyên khoa.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiError' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/v1/admin/users/{userId}/status:
+    patch:
+      tags: [Admin Users]
+      summary: Khóa / mở khóa tài khoản
+      description: Tài khoản bị khóa không đăng nhập được ngay. Admin không tự khóa được chính mình.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateStatusRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserSummary' }
+        '400':
+          description: Tự khóa chính mình.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/admin/users/{userId}/roles:
+    post:
+      tags: [Admin Users]
+      summary: Cấp thêm quyền nhân sự tại một chi nhánh
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GrantRoleRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserSummary' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Tài khoản đã có quyền này tại chi nhánh đó.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiError' }
+
+  /api/v1/admin/users/{userId}/roles/{assignmentId}:
+    delete:
+      tags: [Admin Users]
+      summary: Thu hồi quyền nhân sự
+      description: Đánh dấu active = false, KHÔNG xóa dòng, để giữ lịch sử ai từng làm ở đâu.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: assignmentId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserSummary' }
+        '400':
+          description: Quyền này không thuộc tài khoản đã chọn.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/medical-centers:
+    get:
+      tags: [Catalog]
+      summary: Danh sách cơ sở y tế
+      description: |
+        Mọi tài khoản đã đăng nhập đều xem được.
+
+        LƯU Ý: hiện trả về mảng thuần, CHƯA có pagination/sort. Xem mục
+        "Chuẩn API List" trong README.md - dự kiến nâng cấp ở giai đoạn sau.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/MedicalCenterResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/v1/admin/medical-centers:
+    post:
+      tags: [Catalog]
+      summary: Thêm cơ sở y tế (ADMIN)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MedicalCenterRequest' }
+      responses:
+        '201':
+          description: Tạo thành công.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MedicalCenterResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: Mã cơ sở y tế đã tồn tại.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiError' }
+
+  /api/v1/admin/medical-centers/{id}:
+    put:
+      tags: [Catalog]
+      summary: Sửa cơ sở y tế (ADMIN)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MedicalCenterRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MedicalCenterResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Catalog]
+      summary: Ngừng hoạt động cơ sở y tế (ADMIN)
+      description: Soft delete - đặt `active = false`, KHÔNG xóa dữ liệu để giữ lịch sử khám.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { description: Thành công, không có body. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/specialties:
+    get:
+      tags: [Catalog]
+      summary: Danh sách chuyên khoa
+      parameters:
+        - name: centerId
+          in: query
+          required: false
+          schema: { type: string, format: uuid }
+          description: Filter theo chi nhánh. Bỏ trống = lấy tất cả.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/SpecialtyResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/v1/admin/specialties:
+    post:
+      tags: [Catalog]
+      summary: Thêm chuyên khoa (ADMIN)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SpecialtyRequest' }
+      responses:
+        '201':
+          description: Tạo thành công.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SpecialtyResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: Mã chuyên khoa đã tồn tại trong chi nhánh này.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiError' }
+
+  /api/v1/admin/specialties/{id}:
+    put:
+      tags: [Catalog]
+      summary: Sửa chuyên khoa (ADMIN)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SpecialtyRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SpecialtyResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Catalog]
+      summary: Xóa chuyên khoa (ADMIN)
+      description: Hard delete. Bị chặn 409 nếu chuyên khoa đang có bác sĩ.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { description: Xóa thành công. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Chuyên khoa đang có bác sĩ, phải chuyển bác sĩ đi trước.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiError' }
+
+  /api/v1/services:
+    get:
+      tags: [Catalog]
+      summary: Danh sách dịch vụ khám (bảng giá)
+      parameters:
+        - name: specialtyId
+          in: query
+          required: false
+          schema: { type: string, format: uuid }
+          description: Filter theo chuyên khoa. Bỏ trống = lấy tất cả.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ServiceResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/v1/admin/services:
+    post:
+      tags: [Catalog]
+      summary: Thêm dịch vụ khám (ADMIN)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ServiceRequest' }
+      responses:
+        '201':
+          description: Tạo thành công.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ServiceResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: Mã dịch vụ đã tồn tại trong chuyên khoa này.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiError' }
+
+  /api/v1/admin/services/{id}:
+    put:
+      tags: [Catalog]
+      summary: Sửa dịch vụ khám (ADMIN)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ServiceRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ServiceResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Catalog]
+      summary: Ngừng cung cấp dịch vụ (ADMIN)
+      description: Soft delete - đặt `active = false` để hóa đơn cũ vẫn tra được tên dịch vụ.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { description: Thành công. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/appointments:
+    post:
+      tags: [Appointments]
+      summary: Đặt lịch khám
+      description: |
+        Giữ chỗ slot bằng compare-and-set (chỉ đổi được khi slot đang AVAILABLE).
+        Hai người cùng bấm một slot: người sau nhận 409.
+        Nếu có `symptoms`, hệ thống tự sinh `aiSummary` cho bác sĩ đọc trước.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BookAppointmentRequest' }
+      responses:
+        '201':
+          description: Đặt lịch thành công.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Appointment' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: Không tìm thấy khung giờ khám.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiError' }
+        '409':
+          description: Khung giờ đã có người đặt trước hoặc tạm khóa.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiError' }
+              example:
+                timestamp: "2026-09-14T06:47:47Z"
+                status: 409
+                error: Conflict
+                message: Khung giờ này đã có người đặt trước hoặc tạm khóa
+                path: /api/appointments
+                fieldErrors: null
+
+  /api/appointments/{id}:
+    get:
+      tags: [Appointments]
+      summary: Xem chi tiết một ca khám theo id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Appointment' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: Không tìm thấy ca khám. }
+
+  /api/appointments/booking-code/{code}:
+    get:
+      tags: [Appointments]
+      summary: Tra ca khám theo mã đặt chỗ (bookingCode)
+      description: Dùng ở quầy tiếp đón khi bệnh nhân đưa vé hẹn.
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema: { type: string }
+          example: MED269780
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Appointment' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: Không tìm thấy ca khám với mã này. }
+
+  /api/appointments/patient/{patientProfileId}:
+    get:
+      tags: [Appointments]
+      summary: Lịch sử khám của một hồ sơ bệnh nhân
+      description: Sắp xếp mới nhất trước. Hiện chưa có pagination - xem mục "Chuẩn API List" trong README.
+      parameters:
+        - name: patientProfileId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Appointment' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/reception/checkin/qr:
+    post:
+      tags: [Reception]
+      summary: Check-in bằng mã QR trên vé hẹn
+      description: |
+        Chuyển trạng thái ca khám sang `CHECKED_IN` và ghi `checkinMethod = QR_CODE`.
+
+        CẢNH BÁO: endpoint này hiện CHƯA giới hạn role - mọi tài khoản đăng nhập
+        đều gọi được. Cần bổ sung `@PreAuthorize("hasRole('STAFF')")`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/QrCheckinRequest' }
+      responses:
+        '200':
+          description: Check-in thành công.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CheckinResult' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: Không tìm thấy lịch hẹn với mã này.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiError' }
+
+  /api/reception/checkin/cccd:
+    post:
+      tags: [Reception]
+      summary: Check-in bằng thẻ CCCD gắn chip
+      description: |
+        Dùng cho khách vãng lai chưa đặt lịch: cấp số thứ tự chờ dạng `WLK-xxx`.
+        Hiện `appointment` trả về null vì chưa tạo ca khám - phần tạo ca khám cho
+        khách vãng lai thuộc giai đoạn sau.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CccdCheckinRequest' }
+      responses:
+        '200':
+          description: Tiếp đón thành công.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CheckinResult' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/ai/triage:
+    post:
+      tags: [AI]
+      summary: Gợi ý chuyên khoa và tóm tắt bệnh sử
+      description: |
+        Nhận mô tả triệu chứng, trả về mã chuyên khoa gợi ý + bản tóm tắt ngắn.
+
+        Bản hiện tại chạy bằng bộ quy tắc từ khóa (không cần API key). Khi phần
+        Spring AI hoàn thiện, response giữ nguyên cấu trúc nên Frontend không phải sửa.
+
+        Frontend BẮT BUỘC hiển thị trường `disclaimer` kèm kết quả.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TriageRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TriageResponse' }
+              example:
+                suggestedSpecialty: DERMATOLOGY
+                clinicalSummary: "Triệu chứng chính: Nổi mẩn đỏ và ngứa nhiều ở tay | Tiền sử: Dị ứng phấn hoa | Hướng chuyên khoa: DERMATOLOGY"
+                disclaimer: "Lưu ý: Kết quả định hướng bởi AI chỉ mang tính tham khảo, vui lòng tham vấn bác sĩ chuyên khoa."
+        '401': { $ref: '#/components/responses/Unauthorized' }

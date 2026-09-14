@@ -37,6 +37,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         this.userDetailsService = userDetailsService;
     }
 
+    /**
+     * Mặc định OncePerRequestFilter bỏ qua error dispatch, khiến mọi lỗi chưa
+     * bắt được đều biến thành 401 gây hiểu nhầm. Bật lên để giữ nguyên danh
+     * tính người dùng và trả đúng mã lỗi thật.
+     */
+    @Override
+    protected boolean shouldNotFilterErrorDispatch() {
+        return false;
+    }
+
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {

@@ -38,8 +38,9 @@ public class AdminUserController {
             @RequestParam(required = false) String centerId,
             @RequestParam(required = false) String q,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        return adminUserService.list(role, centerId, q, page, size);
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String sort) {
+        return adminUserService.list(role, centerId, q, page, size, sort);
     }
 
     @GetMapping("/{userId}")
