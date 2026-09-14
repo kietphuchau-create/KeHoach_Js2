@@ -63,13 +63,17 @@ public class SecurityConfig {
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
+                                "/error",
                                 "/api/v1/auth/**",
                                 "/api/v1/medical-centers",
                                 "/api/v1/specialties",
                                 "/api/v1/services",
                                 "/api/appointments/**",
+                                "/api/v1/appointments/**",
                                 "/api/reception/**",
-                                "/api/ai/**"
+                                "/api/v1/reception/**",
+                                "/api/ai/**",
+                                "/api/v1/ai/**"
                         ).permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex
