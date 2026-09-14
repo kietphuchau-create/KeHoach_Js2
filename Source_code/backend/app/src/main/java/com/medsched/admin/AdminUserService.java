@@ -28,6 +28,10 @@ import java.util.UUID;
 @Service
 public class AdminUserService {
 
+    /** Danh sách trắng các field được phép sort, tránh lộ cột nhạy cảm. */
+    private static final List<String> SORTABLE_FIELDS =
+            List.of("createdAt", "updatedAt", "email", "fullName", "active");
+
     private final UserJpaRepository users;
     private final UserMedicalCenterRoleJpaRepository roles;
     private final DoctorJpaRepository doctors;
@@ -57,10 +61,9 @@ public class AdminUserService {
      */
     @Transactional(readOnly = true)
     public AdminDtos.PageResponse<AdminDtos.UserSummary> list(String role, String centerId, String keyword,
-                                                              int page, int size) {
+                                                              int page, int size, String sort) {
         String q = "%" + (keyword == null ? "" : keyword.trim().toLowerCase()) + "%";
-        var pageable = PageRequest.of(Math.max(page, 0), size <= 0 || size > 100 ? 20 : size,
-                Sort.by(Sort.Direction.DESC, "createdAt"));
+        var pageable = PageRequest.of(Math.max(page, 0), size <= 0 || size > 100 ? 20 : size, parseSort(sort));
 
         Page<UserEntity> result;
         if (role == null || role.isBlank() || "ALL".equalsIgnoreCase(role)) {
@@ -200,6 +203,28 @@ public class AdminUserService {
     private UserEntity requireUser(String userId) {
         return users.findById(userId)
                 .orElseThrow(() -> new AppExceptions.NotFoundException("Không tìm thấy tài khoản"));
+    }
+
+    /**
+     * Chuyển tham số sort dạng "field,direction" (ví dụ "fullName,asc") thành
+     * {@link Sort}. Chỉ chấp nhận các field trong danh sách trắng để người dùng
+     * không sắp xếp theo cột nhạy cảm (như passwordHash) hoặc gây lỗi truy vấn.
+     */
+    private static Sort parseSort(String sort) {
+        Sort defaultSort = Sort.by(Sort.Direction.DESC, "createdAt");
+        if (sort == null || sort.isBlank()) {
+            return defaultSort;
+        }
+        String[] parts = sort.split(",");
+        String field = parts[0].trim();
+        if (!SORTABLE_FIELDS.contains(field)) {
+            throw new AppExceptions.BadRequestException(
+                    "Không sắp xếp được theo trường '" + field + "'. Chỉ nhận: " + String.join(", ", SORTABLE_FIELDS));
+        }
+        Sort.Direction direction = parts.length > 1 && "desc".equalsIgnoreCase(parts[1].trim())
+                ? Sort.Direction.DESC
+                : Sort.Direction.ASC;
+        return Sort.by(direction, field);
     }
 
     private static UserRole parseRole(String role) {

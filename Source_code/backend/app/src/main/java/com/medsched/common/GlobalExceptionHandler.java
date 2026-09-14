@@ -1,5 +1,7 @@
 package com.medsched.common;
 
+import com.medsched.core.domain.exception.ResourceNotFoundException;
+import com.medsched.core.domain.exception.SlotNotAvailableException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -30,6 +32,22 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AppExceptions.BadRequestException.class)
     public ResponseEntity<ApiError> handleBadRequest(AppExceptions.BadRequestException ex, HttpServletRequest req) {
         return build(HttpStatus.BAD_REQUEST, ex.getMessage(), req);
+    }
+
+    /**
+     * Lỗi nghiệp vụ của tầng core (đặt lịch, tiếp đón). Không map thì exception
+     * lọt ra ngoài, Spring chuyển sang trang /error và trả về 401 sai lệch thay
+     * vì mã lỗi thật.
+     */
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<ApiError> handleCoreNotFound(ResourceNotFoundException ex, HttpServletRequest req) {
+        return build(HttpStatus.NOT_FOUND, ex.getMessage(), req);
+    }
+
+    /** Slot vừa bị người khác giữ mất -> 409 Conflict để client hiển thị đúng. */
+    @ExceptionHandler(SlotNotAvailableException.class)
+    public ResponseEntity<ApiError> handleSlotNotAvailable(SlotNotAvailableException ex, HttpServletRequest req) {
+        return build(HttpStatus.CONFLICT, ex.getMessage(), req);
     }
 
     @ExceptionHandler(BadCredentialsException.class)
