@@ -1,0 +1,941 @@
+openapi: 3.0.3
+info:
+  title: MedSched - Smart Healthcare API Specification
+  description: |
+    Đặc tả RESTful API chính thức của hệ thống Đặt lịch & Tiếp đón Y tế Thông minh MedSched.
+    Tuân thủ mô hình Kiến trúc Lục giác (Hexagonal Architecture) và Spring Boot 3.
+    Áp dụng theo chỉ đạo quy chuẩn API Design của Thầy Trương Thanh Bình (14/09/2026).
+  version: 1.0.0
+  contact:
+    name: MedSched Development Team
+    email: support@medsched.vn
+
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Local Spring Boot 3 Development Server
+
+paths:
+  # =========================================================================
+  # 1. XÁC THỰC & ĐĂNG NHẬP (AUTH)
+  # =========================================================================
+  /auth/login:
+    post:
+      summary: Đăng nhập hệ thống (Lấy JWT Token)
+      description: Xác thực bằng Email và Mật khẩu. Trả về Access Token, Refresh Token và thông tin User kèm Role.
+      tags: [1. Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Đăng nhập thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/400BadRequest'
+        '401':
+          $ref: '#/components/responses/401Unauthorized'
+
+  /auth/register:
+    post:
+      summary: Đăng ký tài khoản Bệnh nhân mới
+      description: Tạo tài khoản Bệnh nhân (CUSTOMER). Mặc định có vai trò Khách hàng và trạng thái hoạt động.
+      tags: [1. Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Đăng ký tài khoản thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDto'
+        '400':
+          $ref: '#/components/responses/400BadRequest'
+        '409':
+          description: Email hoặc Số điện thoại đã tồn tại trên hệ thống
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # =========================================================================
+  # 2. HỒ SƠ CÁ NHÂN (ME)
+  # =========================================================================
+  /me:
+    get:
+      summary: Lấy thông tin tài khoản hiện tại
+      description: Đọc thông tin từ Access Token của người dùng đang đăng nhập.
+      tags: [2. User Profile]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Lấy thông tin cá nhân thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDto'
+        '401':
+          $ref: '#/components/responses/401Unauthorized'
+
+    put:
+      summary: Cập nhật thông tin cơ bản
+      description: Cho phép người dùng sửa Họ tên và Số điện thoại cá nhân.
+      tags: [2. User Profile]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProfileRequest'
+      responses:
+        '200':
+          description: Cập nhật thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDto'
+        '400':
+          $ref: '#/components/responses/400BadRequest'
+
+  /me/change-password:
+    post:
+      summary: Đổi mật khẩu tài khoản
+      description: Yêu cầu nhập đúng mật khẩu hiện tại và mật khẩu mới tối thiểu 6 ký tự.
+      tags: [2. User Profile]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+      responses:
+        '200':
+          description: Đổi mật khẩu thành công
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Đổi mật khẩu thành công"
+        '400':
+          $ref: '#/components/responses/400BadRequest'
+
+  /me/doctor-profile:
+    put:
+      summary: Cập nhật thông tin Bác sĩ
+      description: Dành riêng cho tài khoản có quyền ROLE_DOCTOR cập nhật học hàm, số phòng khám, kinh nghiệm và giới thiệu.
+      tags: [2. User Profile]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DoctorProfileUpdateRequest'
+      responses:
+        '200':
+          description: Cập nhật thông tin bác sĩ thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DoctorDto'
+        '403':
+          $ref: '#/components/responses/403Forbidden'
+
+  # =========================================================================
+  # 3. QUẢN TRỊ VIÊN (ADMIN - USER MANAGEMENT)
+  # =========================================================================
+  /admin/users:
+    get:
+      summary: Danh sách người dùng (Có phân trang, tìm kiếm, lọc vai trò & sắp xếp)
+      description: |
+        Quy chuẩn API List bắt buộc:
+        - **Phân trang**: `page` (tính từ 0), `size` (mặc định 10)
+        - **Lọc theo vai trò**: `role` (CUSTOMER, ROLE_DOCTOR, ROLE_STAFF, ROLE_ADMIN)
+        - **Tìm kiếm**: `q` (tìm theo tên, email, số điện thoại)
+        - **Sắp xếp**: `sort` (ví dụ: `createdAt,desc`)
+      tags: [3. Admin Management]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: Số thứ tự trang (0-indexed)
+          schema:
+            type: integer
+            default: 0
+        - name: size
+          in: query
+          description: Số lượng bản ghi trên một trang
+          schema:
+            type: integer
+            default: 10
+        - name: role
+          in: query
+          description: Lọc theo vai trò người dùng
+          schema:
+            type: string
+            enum: [ALL, CUSTOMER, ROLE_DOCTOR, ROLE_STAFF, ROLE_ADMIN]
+        - name: q
+          in: query
+          description: Từ khóa tìm kiếm (họ tên, email, số điện thoại)
+          schema:
+            type: string
+        - name: sort
+          in: query
+          description: Trường cần sắp xếp và hướng (field,asc|desc)
+          schema:
+            type: string
+            example: "createdAt,desc"
+      responses:
+        '200':
+          description: Danh sách người dùng phân trang thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageUserDto'
+        '403':
+          $ref: '#/components/responses/403Forbidden'
+
+  /admin/users/{id}/status:
+    patch:
+      summary: Khóa hoặc Kích hoạt tài khoản
+      description: Thay đổi trạng thái hoạt động (active: true/false) của người dùng.
+      tags: [3. Admin Management]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID của người dùng cần cập nhật
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [active]
+              properties:
+                active:
+                  type: boolean
+                  example: false
+      responses:
+        '200':
+          description: Cập nhật trạng thái thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDto'
+        '404':
+          $ref: '#/components/responses/404NotFound'
+
+  /admin/users/staff:
+    post:
+      summary: Admin cấp tài khoản Nhân viên Lễ tân
+      description: Tạo tài khoản Lễ tân gắn liền với một Cơ sở y tế cụ thể.
+      tags: [3. Admin Management]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateStaffRequest'
+      responses:
+        '201':
+          description: Tạo tài khoản Lễ tân thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDto'
+        '400':
+          $ref: '#/components/responses/400BadRequest'
+
+  /admin/users/doctors:
+    post:
+      summary: Admin cấp tài khoản Bác sĩ chuyên khoa
+      description: Tạo tài khoản Bác sĩ kèm thông tin chuyên khoa, cơ sở y tế, giá khám và phòng khám.
+      tags: [3. Admin Management]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDoctorRequest'
+      responses:
+        '201':
+          description: Tạo tài khoản Bác sĩ thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DoctorDto'
+        '400':
+          $ref: '#/components/responses/400BadRequest'
+
+  # =========================================================================
+  # 4. DANH MỤC KHÁM (CATALOG & REFERENCE DATA)
+  # =========================================================================
+  /medical-centers:
+    get:
+      summary: Danh sách Cơ sở Y tế / Bệnh viện
+      description: Lấy danh sách các chi nhánh bệnh viện phục vụ đặt lịch và tiếp đón.
+      tags: [4. Catalog]
+      responses:
+        '200':
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MedicalCenterDto'
+
+  /specialties:
+    get:
+      summary: Danh sách Chuyên khoa Y tế
+      description: Lấy danh mục các chuyên khoa (Tim mạch, Thần kinh, Nhi, Tiêu hóa...).
+      tags: [4. Catalog]
+      responses:
+        '200':
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SpecialtyDto'
+
+  /services:
+    get:
+      summary: Danh sách Dịch vụ Y tế & Bảng giá
+      description: Lấy danh sách dịch vụ khám, xét nghiệm, chẩn đoán hình ảnh.
+      tags: [4. Catalog]
+      responses:
+        '200':
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MedicalServiceDto'
+
+  # =========================================================================
+  # 5. ĐẶT LỊCH KHÁM (APPOINTMENT)
+  # =========================================================================
+  /appointments:
+    post:
+      summary: Đặt lịch khám mới (Tích hợp Spring AI Tóm tắt & Kiểm tra Slot)
+      description: |
+        Tạo lịch hẹn khám bệnh trực tuyến:
+        - Áp dụng khóa lạc quan (Optimistic Locking) tránh trùng khung giờ.
+        - Gọi Spring AI tạo bản tóm tắt bệnh án 2 dòng và gợi ý phân loại.
+        - Sinh mã vé hẹn (Booking Code) kèm mã QR.
+      tags: [5. Appointments]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAppointmentRequest'
+      responses:
+        '201':
+          description: Đặt lịch hẹn thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppointmentResponse'
+        '400':
+          $ref: '#/components/responses/400BadRequest'
+        '409':
+          description: Khung giờ khám (Slot) đã có bệnh nhân khác đặt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /appointments/{id}:
+    get:
+      summary: Tra cứu chi tiết lịch hẹn theo ID
+      tags: [5. Appointments]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Chi tiết lịch hẹn
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppointmentResponse'
+        '404':
+          $ref: '#/components/responses/404NotFound'
+
+  /appointments/booking-code/{code}:
+    get:
+      summary: Tra cứu lịch hẹn bằng Mã đặt chỗ (Booking Code)
+      description: Phục vụ thiết bị quét mã QR vé hẹn để lấy nhanh thông tin trước khi tiếp đón.
+      tags: [5. Appointments]
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "MED-2026-8899"
+      responses:
+        '200':
+          description: Tìm thấy lịch hẹn
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppointmentResponse'
+        '404':
+          $ref: '#/components/responses/404NotFound'
+
+  # =========================================================================
+  # 6. QUẦY TIẾP ĐÓN SIÊU TỐC (RECEPTION & CHECK-IN)
+  # =========================================================================
+  /appointments/check-in:
+    post:
+      summary: Tiếp đón bệnh nhân trong 1 giây (QR Code vé hẹn / Thẻ CCCD gắn chip)
+      description: |
+        Hỗ trợ 2 phương thức tiếp đón siêu tốc:
+        - `QR_CODE`: Quét mã QR trên phiếu khám điện tử điện thoại.
+        - `CCCD_QR`: Quét chuỗi QR 12 số trên thẻ CCCD chip Bộ Công An.
+        Tự động chuyển trạng thái lịch hẹn sang `CHECKED_IN`, phát số thứ tự vào phòng khám.
+      tags: [6. Reception Check-in]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckInRequest'
+      responses:
+        '200':
+          description: Tiếp đón thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppointmentResponse'
+        '400':
+          $ref: '#/components/responses/400BadRequest'
+        '404':
+          description: Không tìm thấy hồ sơ lịch hẹn phù hợp
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # =========================================================================
+  # 7. TRÍ TUỆ NHÂN TẠO Y TẾ (SPRING AI CLINICAL TRIAGE)
+  # =========================================================================
+  /ai/triage:
+    post:
+      summary: Phân luồng triệu chứng y tế tự động (Spring AI Triage)
+      description: |
+        Sử dụng mô hình ngôn ngữ lớn Spring AI để:
+        1. Đánh giá mức độ khẩn cấp (URGENT, NORMAL, LOW).
+        2. Gợi ý chuyên khoa khám phù hợp nhất theo triệu chứng mô tả.
+        3. Tạo bản tóm tắt lâm sàng 2 dòng cho Bác sĩ đọc trước khi khám.
+      tags: [7. Spring AI]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AiTriageRequest'
+      responses:
+        '200':
+          description: Phân tích AI thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiTriageResponse'
+        '500':
+          description: Lỗi kết nối dịch vụ Spring AI
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+# =========================================================================
+# COMPONENTS: SCHEMAS & RESPONSES
+# =========================================================================
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Nhập JWT Token được cấp phát từ endpoint `/auth/login`.
+
+  responses:
+    400BadRequest:
+      description: Dữ liệu gửi lên không hợp lệ hoặc thiếu trường bắt buộc
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    401Unauthorized:
+      description: Chưa xác thực danh tính hoặc Token hết hạn
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    403Forbidden:
+      description: Không đủ quyền hạn thực hiện hành động này
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    404NotFound:
+      description: Không tìm thấy tài nguyên yêu cầu
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    # Error Standard (RFC 7807 Problem Details)
+    ErrorResponse:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 400
+        error:
+          type: string
+          example: "Bad Request"
+        message:
+          type: string
+          example: "Email hoặc mật khẩu không chính xác"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2026-09-14T10:30:00Z"
+
+    # Auth Schemas
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: "admin@medsched.vn"
+        password:
+          type: string
+          format: password
+          example: "Medsched@123"
+
+    AuthResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        refreshToken:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        tokenType:
+          type: string
+          example: "Bearer"
+        expiresIn:
+          type: integer
+          example: 86400
+        user:
+          $ref: '#/components/schemas/UserDto'
+
+    RegisterRequest:
+      type: object
+      required: [fullName, email, phone, password]
+      properties:
+        fullName:
+          type: string
+          example: "Nguyễn Văn An"
+        email:
+          type: string
+          format: email
+          example: "nguyenvanan@gmail.com"
+        phone:
+          type: string
+          example: "0912345678"
+        password:
+          type: string
+          format: password
+          minLength: 6
+          example: "Medsched@123"
+
+    UserDto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "u0000001-0000-0000-0000-000000000001"
+        email:
+          type: string
+          example: "nguyenvanan@gmail.com"
+        fullName:
+          type: string
+          example: "Nguyễn Văn An"
+        phone:
+          type: string
+          example: "0912345678"
+        roles:
+          type: array
+          items:
+            type: string
+          example: ["CUSTOMER"]
+        active:
+          type: boolean
+          example: true
+        medicalCenterId:
+          type: string
+          example: "mc000001-0000-0000-0000-000000000001"
+        medicalCenterName:
+          type: string
+          example: "Bệnh viện Đa khoa MedSched Quận 1"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-09-14T08:00:00Z"
+
+    PageUserDto:
+      type: object
+      description: Dữ liệu phân trang chuẩn Spring Data Page
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserDto'
+        totalElements:
+          type: integer
+          example: 45
+        totalPages:
+          type: integer
+          example: 5
+        size:
+          type: integer
+          example: 10
+        number:
+          type: integer
+          example: 0
+
+    UpdateProfileRequest:
+      type: object
+      required: [fullName, phone]
+      properties:
+        fullName:
+          type: string
+          example: "Nguyễn Văn An"
+        phone:
+          type: string
+          example: "0988776655"
+
+    ChangePasswordRequest:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword:
+          type: string
+          example: "Medsched@123"
+        newPassword:
+          type: string
+          minLength: 6
+          example: "NewPass@2026"
+
+    DoctorProfileUpdateRequest:
+      type: object
+      required: [academicTitle, experienceYears, roomNumber, bio]
+      properties:
+        academicTitle:
+          type: string
+          example: "PGS.TS.BS"
+        experienceYears:
+          type: integer
+          example: 15
+        roomNumber:
+          type: string
+          example: "P.201 Lầu 2"
+        bio:
+          type: string
+          example: "Chuyên gia đầu ngành về can thiệp tim mạch và hồi sức tích cực."
+
+    DoctorDto:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "d0000001-0000-0000-0000-000000000001"
+        userId:
+          type: string
+          example: "u0000002-0000-0000-0000-000000000001"
+        fullName:
+          type: string
+          example: "Trần Văn Hùng"
+        email:
+          type: string
+          example: "doctor.hung@medsched.vn"
+        phone:
+          type: string
+          example: "0909123456"
+        academicTitle:
+          type: string
+          example: "PGS.TS.BS"
+        experienceYears:
+          type: integer
+          example: 20
+        consultationFee:
+          type: number
+          example: 300000
+        roomNumber:
+          type: string
+          example: "P.201 - Lầu 2"
+        specialtyName:
+          type: string
+          example: "Nội Tim Mạch"
+        medicalCenterName:
+          type: string
+          example: "Bệnh viện Đa khoa MedSched Quận 1"
+        bio:
+          type: string
+          example: "Trưởng khoa Nội Tim Mạch Bệnh viện Đa khoa MedSched."
+
+    CreateStaffRequest:
+      type: object
+      required: [fullName, email, phone, medicalCenterId]
+      properties:
+        fullName:
+          type: string
+          example: "Lê Thị Hạnh"
+        email:
+          type: string
+          format: email
+          example: "letan01@medsched.vn"
+        phone:
+          type: string
+          example: "0912345678"
+        temporaryPassword:
+          type: string
+          example: "Medsched@123"
+        medicalCenterId:
+          type: string
+          example: "mc000001-0000-0000-0000-000000000001"
+
+    CreateDoctorRequest:
+      type: object
+      required: [fullName, email, phone, specialtyId, medicalCenterId, academicTitle, experienceYears, consultationFee, roomNumber]
+      properties:
+        fullName:
+          type: string
+          example: "Nguyễn Văn Bình"
+        email:
+          type: string
+          format: email
+          example: "doctor.binh@medsched.vn"
+        phone:
+          type: string
+          example: "0987654321"
+        temporaryPassword:
+          type: string
+          example: "Medsched@123"
+        specialtyId:
+          type: string
+          example: "sp000001-0000-0000-0000-000000000001"
+        medicalCenterId:
+          type: string
+          example: "mc000001-0000-0000-0000-000000000001"
+        academicTitle:
+          type: string
+          example: "ThS.BS"
+        experienceYears:
+          type: integer
+          example: 8
+        consultationFee:
+          type: number
+          example: 250000
+        roomNumber:
+          type: string
+          example: "P.105"
+        bio:
+          type: string
+          example: "Bác sĩ chuyên khoa tiêu hóa với 8 năm kinh nghiệm."
+
+    MedicalCenterDto:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "mc000001-0000-0000-0000-000000000001"
+        name:
+          type: string
+          example: "Bệnh viện Đa khoa MedSched Quận 1"
+        address:
+          type: string
+          example: "Số 120 Hai Bà Trưng, Phường Bến Nghé, Quận 1, TP.HCM"
+        phone:
+          type: string
+          example: "1900 1234"
+
+    SpecialtyDto:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "sp000001-0000-0000-0000-000000000001"
+        name:
+          type: string
+          example: "Nội Tim Mạch"
+        code:
+          type: string
+          example: "CARDIO"
+        description:
+          type: string
+          example: "Chẩn đoán và điều trị bệnh lý tim mạch, cao huyết áp, suy tim."
+
+    MedicalServiceDto:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "sv000001-0000-0000-0000-000000000001"
+        name:
+          type: string
+          example: "Khám chuyên khoa Tim Mạch VIP"
+        price:
+          type: number
+          example: 300000
+        category:
+          type: string
+          example: "EXAMINATION"
+
+    CreateAppointmentRequest:
+      type: object
+      required: [patientProfileId, doctorId, slotId, symptoms]
+      properties:
+        patientProfileId:
+          type: string
+          format: uuid
+          example: "p0000001-0000-0000-0000-000000000001"
+        doctorId:
+          type: string
+          format: uuid
+          example: "d0000001-0000-0000-0000-000000000001"
+        slotId:
+          type: string
+          format: uuid
+          example: "sl000002-0000-0000-0000-000000000001"
+        symptoms:
+          type: string
+          example: "Đau ngực nhẹ khi leo cầu thang, tim đập nhanh hồi hộp vào buổi tối."
+
+    CheckInRequest:
+      type: object
+      required: [method]
+      properties:
+        method:
+          type: string
+          enum: [QR_CODE, CCCD_QR]
+          example: "QR_CODE"
+        bookingCode:
+          type: string
+          example: "MED-2026-8899"
+        cccdNumber:
+          type: string
+          example: "079095012345"
+
+    AppointmentResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "ap000001-0000-0000-0000-000000000001"
+        bookingCode:
+          type: string
+          example: "MED-2026-8899"
+        queueNumber:
+          type: integer
+          example: 12
+        status:
+          type: string
+          enum: [PENDING, CONFIRMED, CHECKED_IN, COMPLETED, CANCELLED]
+          example: "CONFIRMED"
+        patientName:
+          type: string
+          example: "Châu Tuấn Kiệt"
+        doctorName:
+          type: string
+          example: "PGS.TS.BS Trần Văn Hùng"
+        roomNumber:
+          type: string
+          example: "P.201 - Lầu 2"
+        aiSummary:
+          type: string
+          example: "Bệnh nhân có triệu chứng đau ngực khi gắng sức, đề nghị đo điện tim và siêu âm Doppler tim."
+        checkInTime:
+          type: string
+          format: date-time
+          example: "2026-09-14T08:35:12Z"
+
+    AiTriageRequest:
+      type: object
+      required: [symptoms]
+      properties:
+        symptoms:
+          type: string
+          example: "Bị đau đầu kéo dài 3 ngày kèm sốt nhẹ và buồn nôn."
+        patientAge:
+          type: integer
+          example: 28
+        patientGender:
+          type: string
+          example: "MALE"
+
+    AiTriageResponse:
+      type: object
+      properties:
+        suggestedSpecialty:
+          type: string
+          example: "Nội Thần Kinh"
+        urgencyLevel:
+          type: string
+          enum: [EMERGENCY, URGENT, NORMAL, LOW]
+          example: "NORMAL"
+        twoLineSummary:
+          type: string
+          example: "Hội chứng đau đầu bán cấp nghi do căng thẳng thần kinh hoặc viêm mũi xoang. Cần khám chuyên khoa Nội Thần Kinh."
+        recommendedActions:
+          type: array
+          items:
+            type: string
+          example: ["Đặt lịch khám chuyên khoa Thần kinh", "Tránh làm việc máy tính liên tục", "Uống đủ nước"]

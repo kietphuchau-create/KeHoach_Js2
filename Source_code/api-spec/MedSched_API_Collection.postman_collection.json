@@ -1,0 +1,407 @@
+{
+  "info": {
+    "_postman_id": "medsched-api-collection-2026",
+    "name": "MedSched - Smart Healthcare API Collection",
+    "description": "Bộ sưu tập kiểm thử RESTful API đầy đủ của hệ thống MedSched Spring Boot 3.\nChuẩn thiết kế theo chỉ đạo của Thầy Trương Thanh Bình (14/09/2026).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Authentication",
+      "item": [
+        {
+          "name": "Đăng Nhập (Login)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var data = pm.response.json();",
+                  "    pm.collectionVariables.set('token', data.accessToken);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@medsched.vn\",\n  \"password\": \"Medsched@123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Đăng Ký Bệnh Nhân (Register)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Nguyễn Văn Bệnh Nhân\",\n  \"email\": \"patient_test@gmail.com\",\n  \"phone\": \"0988112233\",\n  \"password\": \"Medsched@123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. User Profile (/me)",
+      "item": [
+        {
+          "name": "Lấy thông tin cá nhân (Get Profile)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["me"]
+            }
+          }
+        },
+        {
+          "name": "Cập nhật thông tin cá nhân (Update Profile)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Nguyễn Văn A (Đã cập nhật)\",\n  \"phone\": \"0987654321\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["me"]
+            }
+          }
+        },
+        {
+          "name": "Đổi Mật Khẩu (Change Password)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"Medsched@123\",\n  \"newPassword\": \"NewPassword@2026\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/me/change-password",
+              "host": ["{{baseUrl}}"],
+              "path": ["me", "change-password"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Admin Management",
+      "item": [
+        {
+          "name": "Danh Sách Người Dùng (Phân trang, Lọc, Tìm kiếm, Sắp xếp)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users?page=0&size=10&role=CUSTOMER&q=nguyen&sort=createdAt,desc",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "users"],
+              "query": [
+                { "key": "page", "value": "0", "description": "Trang bắt đầu từ 0" },
+                { "key": "size", "value": "10", "description": "Số bản ghi mỗi trang" },
+                { "key": "role", "value": "CUSTOMER", "description": "Lọc: ALL, CUSTOMER, ROLE_DOCTOR, ROLE_STAFF, ROLE_ADMIN" },
+                { "key": "q", "value": "nguyen", "description": "Tìm kiếm tên, email, sđt" },
+                { "key": "sort", "value": "createdAt,desc", "description": "Sắp xếp theo trường" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Khóa / Mở Khóa Tài Khoản (Update Status)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"active\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/users/u0000001-0000-0000-0000-000000000001/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "users", "u0000001-0000-0000-0000-000000000001", "status"]
+            }
+          }
+        },
+        {
+          "name": "Tạo Tài Khoản Lễ Tân (Create Staff)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Lê Thị Lễ Tân Mới\",\n  \"email\": \"letan_test@medsched.vn\",\n  \"phone\": \"0911223344\",\n  \"temporaryPassword\": \"Medsched@123\",\n  \"medicalCenterId\": \"mc000001-0000-0000-0000-000000000001\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/users/staff",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "users", "staff"]
+            }
+          }
+        },
+        {
+          "name": "Tạo Tài Khoản Bác Sĩ (Create Doctor)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"BS.CKII Phạm Hoàng Quân\",\n  \"email\": \"doctor.quan@medsched.vn\",\n  \"phone\": \"0933445566\",\n  \"temporaryPassword\": \"Medsched@123\",\n  \"specialtyId\": \"sp000001-0000-0000-0000-000000000001\",\n  \"medicalCenterId\": \"mc000001-0000-0000-0000-000000000001\",\n  \"academicTitle\": \"BS.CKII\",\n  \"experienceYears\": 12,\n  \"consultationFee\": 350000,\n  \"roomNumber\": \"P.205\",\n  \"bio\": \"Chuyên gia đầu ngành về can thiệp tim mạch lâm sàng.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/users/doctors",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "users", "doctors"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Catalog & Reference Data",
+      "item": [
+        {
+          "name": "Danh Sách Cơ Sở Y Tế (Medical Centers)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/medical-centers",
+              "host": ["{{baseUrl}}"],
+              "path": ["medical-centers"]
+            }
+          }
+        },
+        {
+          "name": "Danh Sách Chuyên Khoa (Specialties)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/specialties",
+              "host": ["{{baseUrl}}"],
+              "path": ["specialties"]
+            }
+          }
+        },
+        {
+          "name": "Danh Sách Dịch Vụ Khám (Services)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/services",
+              "host": ["{{baseUrl}}"],
+              "path": ["services"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Appointments & Booking",
+      "item": [
+        {
+          "name": "Đặt Lịch Khám (Book Appointment)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patientProfileId\": \"p0000001-0000-0000-0000-000000000001\",\n  \"doctorId\": \"d0000001-0000-0000-0000-000000000001\",\n  \"slotId\": \"sl000002-0000-0000-0000-000000000001\",\n  \"symptoms\": \"Đau thắt ngực khi leo cầu thang, thỉnh thoảng hụt hơi khó thở vào ban đêm.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/appointments",
+              "host": ["{{baseUrl}}"],
+              "path": ["appointments"]
+            }
+          }
+        },
+        {
+          "name": "Tra Cứu Lịch Hẹn Theo Mã Vé (Booking Code)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/appointments/booking-code/MED-2026-8899",
+              "host": ["{{baseUrl}}"],
+              "path": ["appointments", "booking-code", "MED-2026-8899"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Reception & Check-in",
+      "item": [
+        {
+          "name": "Tiếp Đón 1 Giây Qua Mã QR Vé Hẹn",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"method\": \"QR_CODE\",\n  \"bookingCode\": \"MED-2026-8899\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/appointments/check-in",
+              "host": ["{{baseUrl}}"],
+              "path": ["appointments", "check-in"]
+            }
+          }
+        },
+        {
+          "name": "Tiếp Đón 1 Giây Qua Thẻ CCCD Gắn Chip",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"method\": \"CCCD_QR\",\n  \"cccdNumber\": \"079095012345\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/appointments/check-in",
+              "host": ["{{baseUrl}}"],
+              "path": ["appointments", "check-in"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Spring AI Clinical Triage",
+      "item": [
+        {
+          "name": "Phân Luồng Triệu Chứng Y Tế (AI Triage)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"symptoms\": \"Đau tức ngực trái lan ra cánh tay, vã mồ hôi và hoa mắt chóng mặt.\",\n  \"patientAge\": 52,\n  \"patientGender\": \"MALE\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ai/triage",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai", "triage"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
