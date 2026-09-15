@@ -49,11 +49,11 @@ export default function LoginForm() {
         } else if (roles.includes('ROLE_STAFF')) {
           router.push('/reception');
         } else if (roles.includes('ROLE_DOCTOR')) {
-          router.push('/profile');
+          router.push('/doctor');
         } else {
           router.push('/booking');
         }
-      }, 1000);
+      }, 800);
     } catch (err: any) {
       setErrorMessage(err.message || 'Đăng nhập thất bại. Vui lòng kiểm tra lại tài khoản.');
     } finally {
@@ -141,30 +141,34 @@ export default function LoginForm() {
           <button
             type="button"
             onClick={() => handleQuickFill('admin@medsched.vn')}
-            className="p-2 rounded-lg bg-purple-50 text-purple-700 border border-purple-100 hover:bg-purple-100 font-medium transition text-left"
+            className="p-2.5 rounded-xl bg-purple-50 text-purple-700 border border-purple-100 hover:bg-purple-100 font-semibold transition text-left cursor-pointer flex flex-col"
           >
-            🛡️ Admin
+            <span className="font-bold">🛡️ Quản Trị Viên</span>
+            <span className="text-[10px] text-purple-500 font-normal">admin@medsched.vn</span>
           </button>
           <button
             type="button"
-            onClick={() => handleQuickFill('doctor.hung@medsched.vn')}
-            className="p-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-100 hover:bg-blue-100 font-medium transition text-left"
+            onClick={() => handleQuickFill('dr.minhanh@medsched.vn')}
+            className="p-2.5 rounded-xl bg-blue-50 text-blue-700 border border-blue-100 hover:bg-blue-100 font-semibold transition text-left cursor-pointer flex flex-col"
           >
-            🩺 Bác sĩ
+            <span className="font-bold">🩺 Bác Sĩ</span>
+            <span className="text-[10px] text-blue-500 font-normal">dr.minhanh@medsched.vn</span>
           </button>
           <button
             type="button"
-            onClick={() => handleQuickFill('letan01@medsched.vn')}
-            className="p-2 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100 font-medium transition text-left"
+            onClick={() => handleQuickFill('letan.q1@medsched.vn')}
+            className="p-2.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100 font-semibold transition text-left cursor-pointer flex flex-col"
           >
-            📟 Lễ tân
+            <span className="font-bold">📟 Lễ Tân</span>
+            <span className="text-[10px] text-emerald-500 font-normal">letan.q1@medsched.vn</span>
           </button>
           <button
             type="button"
-            onClick={() => handleQuickFill('patient01@medsched.vn')}
-            className="p-2 rounded-lg bg-slate-50 text-slate-700 border border-slate-200 hover:bg-slate-100 font-medium transition text-left"
+            onClick={() => handleQuickFill('benhnhan.demo@gmail.com')}
+            className="p-2.5 rounded-xl bg-slate-100 text-slate-800 border border-slate-200 hover:bg-slate-200 font-semibold transition text-left cursor-pointer flex flex-col"
           >
-            👤 Bệnh nhân
+            <span className="font-bold">👤 Bệnh Nhân</span>
+            <span className="text-[10px] text-slate-500 font-normal">benhnhan.demo@gmail.com</span>
           </button>
         </div>
       </div>
