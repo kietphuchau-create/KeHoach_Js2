@@ -23,6 +23,7 @@ yarn-error.log*
 # --- Java & Gradle (Backend) ---
 .gradle/
 **/build/
+**/bin/
 !src/**/build/
 *.class
 *.jar
