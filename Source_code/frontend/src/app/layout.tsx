@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import React from "react";
 import "./globals.css";
-import HeaderNav from "@/components/HeaderNav";
+import HeaderNav from "@/shared/components/HeaderNav/HeaderNav";
 
 export const metadata: Metadata = {
   title: "MedSched - Smart Healthcare Appointment & Reception",
