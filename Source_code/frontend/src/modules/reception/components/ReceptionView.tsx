@@ -16,10 +16,20 @@ import {
   RefreshCw,
   Bell
 } from 'lucide-react';
-import { api, AppointmentResponse } from '@/shared/lib/api';
+import Link from 'next/link';
+import { api, AppointmentResponse, getAuthUser } from '@/shared/lib/api';
 import AlertMessage from '@/shared/components/Feedback/AlertMessage';
 
 export default function ReceptionView() {
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  useEffect(() => {
+    setCurrentUser(getAuthUser());
+  }, []);
+
+  const roles: string[] = currentUser?.roles || [];
+  const isStaff = roles.includes('ROLE_STAFF') || roles.includes('ROLE_ADMIN');
+
   const [method, setMethod] = useState<'QR_CODE' | 'CCCD_QR'>('QR_CODE');
   const [bookingCode, setBookingCode] = useState('MED-2026-8899');
   const [cccdNumber, setCccdNumber] = useState('079095012345');
@@ -119,6 +129,37 @@ export default function ReceptionView() {
           </div>
         </div>
       </div>
+
+      {/* Cảnh báo phân quyền nếu là Bệnh nhân hoặc Khách vãng lai */}
+      {!isStaff && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl leading-none">ℹ️</span>
+            <div>
+              <h4 className="font-bold text-amber-900 text-sm">
+                Bạn đang xem màn hình nội bộ dành cho Nhân Viên Lễ Tân (ROLE_STAFF)
+              </h4>
+              <p className="text-xs text-amber-700 mt-1 leading-relaxed">
+                Là Bệnh nhân, bạn chỉ cần thực hiện <strong>Đặt Lịch Khám</strong> để nhận <strong>Mã vé hẹn & QR Code</strong>. Khi đến bệnh viện, nhân viên tại quầy sẽ dùng màn hình này để quét tiếp đón cho bạn.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Link
+              href="/booking"
+              className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition shadow-xs"
+            >
+              Đi đến Đặt Khám
+            </Link>
+            <Link
+              href="/login"
+              className="px-4 py-2 rounded-xl bg-white border border-amber-300 hover:bg-amber-100 text-amber-900 text-xs font-semibold transition shadow-xs"
+            >
+              Đăng nhập Lễ tân Demo
+            </Link>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column: Scanner Panel (5 Cols) */}

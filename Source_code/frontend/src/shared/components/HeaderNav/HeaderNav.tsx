@@ -48,7 +48,7 @@ export default function HeaderNav() {
   const navLinks = [
     { href: '/', label: 'Trang Chủ', icon: Building2 },
     { href: '/booking', label: 'Đặt Lịch Khám', icon: Calendar },
-    { href: '/reception', label: 'Quầy Tiếp Đón', icon: QrCode },
+    ...(isStaff || isAdmin ? [{ href: '/reception', label: 'Quầy Tiếp Đón', icon: QrCode }] : []),
     ...(isDoctor || isAdmin ? [{ href: '/doctor', label: 'Buồng Khám Bác Sĩ', icon: Stethoscope }] : []),
     ...(isAdmin ? [{ href: '/admin', label: 'Quản Trị Admin', icon: ShieldCheck }] : []),
   ];
