@@ -13,9 +13,10 @@ import {
   LogIn, 
   UserPlus, 
   Menu, 
-  X 
+  X,
+  Stethoscope
 } from 'lucide-react';
-import { getAuthToken, getAuthUser, clearAuthSession } from '@/lib/api';
+import { getAuthToken, getAuthUser, clearAuthSession } from '@/shared/lib/api';
 
 export default function HeaderNav() {
   const pathname = usePathname();
@@ -41,11 +42,14 @@ export default function HeaderNav() {
 
   const roles: string[] = user?.roles || [];
   const isAdmin = roles.includes('ROLE_ADMIN');
+  const isDoctor = roles.includes('ROLE_DOCTOR');
+  const isStaff = roles.includes('ROLE_STAFF');
 
   const navLinks = [
     { href: '/', label: 'Trang Chủ', icon: Building2 },
     { href: '/booking', label: 'Đặt Lịch Khám', icon: Calendar },
-    { href: '/reception', label: 'Tiếp Đón QR', icon: QrCode },
+    { href: '/reception', label: 'Quầy Tiếp Đón', icon: QrCode },
+    ...(isDoctor || isAdmin ? [{ href: '/doctor', label: 'Buồng Khám Bác Sĩ', icon: Stethoscope }] : []),
     ...(isAdmin ? [{ href: '/admin', label: 'Quản Trị Admin', icon: ShieldCheck }] : []),
   ];
 
@@ -70,7 +74,7 @@ export default function HeaderNav() {
             </Link>
 
             {/* Desktop Navigation Links */}
-            <nav className="hidden md:flex items-center gap-1 ml-8">
+            <nav className="hidden md:flex items-center gap-1 ml-6">
               {navLinks.map((link) => {
                 const Icon = link.icon;
                 const isActive = pathname === link.href;
@@ -78,7 +82,7 @@ export default function HeaderNav() {
                   <Link
                     key={link.href}
                     href={link.href}
-                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium transition ${
+                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition ${
                       isActive
                         ? 'bg-slate-800 text-blue-400'
                         : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
@@ -106,14 +110,14 @@ export default function HeaderNav() {
                 >
                   <User size={15} className="text-blue-400" />
                   <span className="max-w-[140px] truncate">{user.fullName || user.email}</span>
-                  <span className="px-1.5 py-0.5 rounded text-[10px] bg-blue-500/20 text-blue-300 border border-blue-500/30">
-                    {roles[0]?.replace('ROLE_', '') || 'USER'}
+                  <span className="px-1.5 py-0.5 rounded text-[10px] bg-blue-500/20 text-blue-300 border border-blue-500/30 font-semibold">
+                    {roles[0]?.replace('ROLE_', '') || 'PATIENT'}
                   </span>
                 </Link>
 
                 <button
                   onClick={handleLogout}
-                  className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-red-400 px-3 py-1.5 rounded-xl hover:bg-slate-800 transition"
+                  className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-red-400 px-3 py-1.5 rounded-xl hover:bg-slate-800 transition cursor-pointer"
                   title="Đăng xuất"
                 >
                   <LogOut size={15} />
@@ -144,7 +148,7 @@ export default function HeaderNav() {
           <div className="flex md:hidden">
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="text-slate-400 hover:text-white p-2"
+              className="text-slate-400 hover:text-white p-2 cursor-pointer"
             >
               {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
@@ -152,9 +156,9 @@ export default function HeaderNav() {
         </div>
       </div>
 
-      {/* Mobile Dropdown Menu */}
+      {/* Mobile Drawer Menu */}
       {mobileMenuOpen && (
-        <div className="md:hidden bg-slate-900 border-b border-slate-800 px-4 pt-2 pb-4 space-y-2">
+        <div className="md:hidden bg-slate-900 border-b border-slate-800 px-4 pt-2 pb-4 space-y-1">
           {navLinks.map((link) => {
             const Icon = link.icon;
             const isActive = pathname === link.href;
@@ -163,8 +167,8 @@ export default function HeaderNav() {
                 key={link.href}
                 href={link.href}
                 onClick={() => setMobileMenuOpen(false)}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium ${
-                  isActive ? 'bg-slate-800 text-blue-400' : 'text-slate-300 hover:bg-slate-800'
+                className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium transition ${
+                  isActive ? 'bg-slate-800 text-blue-400' : 'text-slate-300 hover:bg-slate-800/60'
                 }`}
               >
                 <Icon size={18} />
@@ -172,44 +176,44 @@ export default function HeaderNav() {
               </Link>
             );
           })}
-
-          <hr className="border-slate-800 my-2" />
-
           {user ? (
-            <div className="space-y-2">
+            <div className="pt-2 border-t border-slate-800 mt-2 space-y-2">
               <Link
                 href="/profile"
                 onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-200 hover:bg-slate-800"
+                className="flex items-center justify-between px-3 py-2 rounded-xl text-sm text-slate-200 bg-slate-800"
               >
-                <User size={18} className="text-blue-400" />
-                <span>Hồ sơ cá nhân ({user.fullName || user.email})</span>
+                <span>Hồ sơ: {user.fullName || user.email}</span>
+                <span className="text-xs bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded">
+                  {roles[0]?.replace('ROLE_', '') || 'USER'}
+                </span>
               </Link>
               <button
-                onClick={() => { setMobileMenuOpen(false); handleLogout(); }}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-red-400 hover:bg-red-500/10"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  handleLogout();
+                }}
+                className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-sm font-medium text-red-400 hover:bg-slate-800 transition cursor-pointer"
               >
-                <LogOut size={18} />
-                <span>Đăng xuất</span>
+                <LogOut size={16} />
+                <span>Đăng Xuất</span>
               </button>
             </div>
           ) : (
-            <div className="flex flex-col gap-2 pt-1">
+            <div className="pt-2 border-t border-slate-800 mt-2 flex gap-2">
               <Link
                 href="/login"
                 onClick={() => setMobileMenuOpen(false)}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium bg-slate-800 text-white"
+                className="flex-1 text-center py-2 text-xs font-semibold text-slate-300 bg-slate-800 rounded-xl"
               >
-                <LogIn size={16} />
-                <span>Đăng Nhập</span>
+                Đăng Nhập
               </Link>
               <Link
                 href="/register"
                 onClick={() => setMobileMenuOpen(false)}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium bg-blue-600 text-white"
+                className="flex-1 text-center py-2 text-xs font-semibold text-white bg-blue-600 rounded-xl"
               >
-                <UserPlus size={16} />
-                <span>Đăng Ký Tài Khoản Mới</span>
+                Đăng Ký
               </Link>
             </div>
           )}

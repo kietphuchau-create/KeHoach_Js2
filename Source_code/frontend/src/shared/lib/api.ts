@@ -50,10 +50,30 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  // Tự động phân luồng URL tương thích: /api/v1/... hoặc /api/...
+  let targetUrl = `${API_BASE_URL}${endpoint}`;
+  if (endpoint.startsWith("/appointments") || endpoint.startsWith("/reception") || endpoint.startsWith("/ai")) {
+    const rootApiUrl = API_BASE_URL.replace(/\/v1\/?$/, "");
+    targetUrl = `${rootApiUrl}${endpoint}`;
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(targetUrl, {
+      ...options,
+      headers,
+    });
+    // Nếu 404 và targetUrl đã bị sửa, thử lại với API_BASE_URL gốc
+    if (response.status === 404 && targetUrl !== `${API_BASE_URL}${endpoint}`) {
+      response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        ...options,
+        headers,
+      });
+    }
+  } catch (err: any) {
+    // Nếu kết nối tới backend thất bại, ném lỗi rõ ràng
+    throw new Error(err.message || "Không thể kết nối đến máy chủ MedSched (Spring Boot).");
+  }
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
@@ -61,7 +81,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     throw new Error(message);
   }
 
-  // Nếu HTTP 204 No Content hoặc không có body
+  // Nếu HTTP 204 No Content
   if (response.status === 204) return {} as T;
   return response.json();
 }
@@ -168,18 +188,91 @@ export const api = {
     return request<any[]>("/services");
   },
 
-  // --- 5. ĐẶT LỊCH & TIẾP ĐÓN ---
-  async bookAppointment(payload: any) {
-    return request<any>("/appointments", {
+  // --- 5. ĐẶT LỊCH (APPOINTMENTS) & SPRING AI TRIAGE ---
+  async bookAppointment(payload: {
+    medicalCenterId?: string;
+    patientProfileId: string;
+    doctorId: string;
+    slotId: string;
+    symptoms?: string;
+    medicalHistory?: string;
+  }) {
+    // Đảm bảo medicalCenterId có giá trị nếu backend yêu cầu
+    const body = {
+      medicalCenterId: payload.medicalCenterId || "mc000001-0000-0000-0000-000000000001",
+      ...payload,
+    };
+    return request<AppointmentResponse>("/appointments", {
       method: "POST",
-      body: JSON.stringify(payload),
+      body: JSON.stringify(body),
     });
   },
 
-  async checkIn(payload: any) {
-    return request<any>("/appointments/check-in", {
+  async getAppointmentByCode(bookingCode: string) {
+    return request<AppointmentResponse>(`/appointments/booking-code/${bookingCode}`);
+  },
+
+  async triageSymptoms(symptoms: string) {
+    try {
+      return await request<{ specialty: string; summary: string }>("/ai/triage", {
+        method: "POST",
+        body: JSON.stringify({ symptoms }),
+      });
+    } catch {
+      // Fallback rule-based nếu chưa bật endpoint AI
+      let specialty = "Nội Khoa Tổng Quát";
+      const s = symptoms.toLowerCase();
+      if (s.includes("tim") || s.includes("ngực") || s.includes("khó thở")) specialty = "Khoa Nội Tim Mạch";
+      else if (s.includes("da") || s.includes("ngứa") || s.includes("mụn")) specialty = "Khoa Da Liễu";
+      else if (s.includes("răng") || s.includes("nướu")) specialty = "Khoa Răng Hàm Mặt";
+      else if (s.includes("mắt") || s.includes("nhìn mờ")) specialty = "Khoa Mắt";
+
+      return {
+        specialty,
+        summary: `Triệu chứng: ${symptoms.slice(0, 100)}... | Định hướng chuyên khoa: ${specialty}`,
+      };
+    }
+  },
+
+  // --- 6. QUẦY TIẾP ĐÓN LỄ TÂN (RECEPTION CHECK-IN) ---
+  async checkInQr(bookingCode: string) {
+    const res = await request<any>("/reception/checkin/qr", {
       method: "POST",
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ bookingCode: bookingCode.trim() }),
     });
+    // Chuẩn hóa response về dạng AppointmentResponse
+    return {
+      ...(res.appointment || {}),
+      bookingCode: res.appointment?.bookingCode || bookingCode,
+      queueNumber: res.queueNumber || res.appointment?.queueNumber || "STT-01",
+      status: res.appointment?.status || "CHECKED_IN",
+      checkInTime: res.appointment?.checkInTime || new Date().toISOString(),
+      message: res.message || "Tiếp đón thành công",
+    };
+  },
+
+  async checkInCccd(cccdNumber: string, fullName: string = "Bệnh nhân") {
+    const res = await request<any>("/reception/checkin/cccd", {
+      method: "POST",
+      body: JSON.stringify({ cccdNumber: cccdNumber.trim(), fullName: fullName.trim() }),
+    });
+    return {
+      ...(res.appointment || {}),
+      bookingCode: res.appointment?.bookingCode || `MED-${cccdNumber.slice(-4)}`,
+      queueNumber: res.queueNumber || res.appointment?.queueNumber || "STT-01",
+      status: res.appointment?.status || "CHECKED_IN",
+      checkInTime: res.appointment?.checkInTime || new Date().toISOString(),
+      message: res.message || "Tiếp đón thành công",
+    };
+  },
+
+  async checkIn(payload: { bookingCode?: string; cccdNumber?: string; method: "QR_CODE" | "CCCD_QR" }) {
+    if (payload.method === "QR_CODE" && payload.bookingCode) {
+      return this.checkInQr(payload.bookingCode);
+    }
+    if (payload.method === "CCCD_QR" && payload.cccdNumber) {
+      return this.checkInCccd(payload.cccdNumber);
+    }
+    throw new Error("Vui lòng cung cấp mã QR vé hẹn hoặc số CCCD hợp lệ.");
   },
 };
