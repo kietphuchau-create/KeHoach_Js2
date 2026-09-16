@@ -27,6 +27,9 @@ yarn-error.log*
 !src/**/build/
 *.class
 *.jar
+# Ngoai le: Gradle wrapper jar PHAI duoc commit, neu khong ai clone repo ve
+# cung khong chay duoc ./gradlew (loi "Unable to access jarfile").
+!**/gradle/wrapper/gradle-wrapper.jar
 *.war
 *.nar
 *.ear

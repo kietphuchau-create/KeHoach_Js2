@@ -35,16 +35,16 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * Lỗi nghiệp vụ của tầng core (đặt lịch, tiếp đón). Không map thì exception
-     * lọt ra ngoài, Spring chuyển sang trang /error và trả về 401 sai lệch thay
-     * vì mã lỗi thật.
+     * Business errors from the core layer (booking, reception). Without this
+     * mapping the exception escapes, Spring forwards to /error and returns a
+     * misleading 401 instead of the real status code.
      */
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiError> handleCoreNotFound(ResourceNotFoundException ex, HttpServletRequest req) {
         return build(HttpStatus.NOT_FOUND, ex.getMessage(), req);
     }
 
-    /** Slot vừa bị người khác giữ mất -> 409 Conflict để client hiển thị đúng. */
+    /** The slot was just taken by someone else -> 409 Conflict so the client can react. */
     @ExceptionHandler(SlotNotAvailableException.class)
     public ResponseEntity<ApiError> handleSlotNotAvailable(SlotNotAvailableException ex, HttpServletRequest req) {
         return build(HttpStatus.CONFLICT, ex.getMessage(), req);
@@ -52,7 +52,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ApiError> handleBadCredentials(BadCredentialsException ex, HttpServletRequest req) {
-        // Thông báo chung cho cả "email không tồn tại" và "sai mật khẩu".
+        // Same message for "unknown email" and "wrong password" so neither can be probed.
         return build(HttpStatus.UNAUTHORIZED, "Email hoặc mật khẩu không đúng", req);
     }
 

@@ -17,8 +17,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Task 1 - Admin: quản lý chung các user theo role, tạo tài khoản Staff/Doctor.
- * Toàn bộ endpoint trong lớp này yêu cầu quyền ROLE_ADMIN.
+ * Task 1 - Admin: manage users by role and create Staff/Doctor accounts.
+ * Every endpoint in this class requires ROLE_ADMIN.
  */
 @RestController
 @RequestMapping("/api/v1/admin/users")
@@ -64,7 +64,7 @@ public class AdminUserController {
                 .body(adminUserService.createDoctor(request, principal.getUserId()));
     }
 
-    /** Khóa / mở khóa tài khoản. */
+    /** Lock / unlock an account. */
     @PatchMapping("/{userId}/status")
     public AdminDtos.UserSummary updateStatus(@AuthenticationPrincipal AppUserDetails principal,
                                               @PathVariable String userId,
@@ -72,7 +72,7 @@ public class AdminUserController {
         return adminUserService.updateStatus(userId, request.active(), principal.getUserId());
     }
 
-    /** Cấp thêm quyền nhân sự tại một chi nhánh. */
+    /** Grant an additional staff role at a branch. */
     @PostMapping("/{userId}/roles")
     public AdminDtos.UserSummary grantRole(@AuthenticationPrincipal AppUserDetails principal,
                                            @PathVariable String userId,

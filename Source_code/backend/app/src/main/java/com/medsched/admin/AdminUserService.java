@@ -24,11 +24,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-/** Admin - quản lý người dùng theo vai trò, tạo tài khoản Lễ tân và Bác sĩ. */
+/** Admin - manage users by role and create receptionist and doctor accounts. */
 @Service
 public class AdminUserService {
 
-    /** Danh sách trắng các field được phép sort, tránh lộ cột nhạy cảm. */
+    /** Allow-list of sortable fields, so sensitive columns cannot be exposed. */
     private static final List<String> SORTABLE_FIELDS =
             List.of("createdAt", "updatedAt", "email", "fullName", "active");
 
@@ -54,10 +54,10 @@ public class AdminUserService {
     }
 
     /**
-     * Danh sách người dùng, lọc theo vai trò.
+     * Lists users, optionally filtered by role.
      *
-     * @param role     null = tất cả; CUSTOMER = tài khoản không có quyền nhân sự nào
-     * @param centerId chỉ áp dụng khi lọc theo vai trò nhân sự
+     * @param role     null = everyone; CUSTOMER = accounts with no staff role
+     * @param centerId only applies when filtering by a staff role
      */
     @Transactional(readOnly = true)
     public AdminDtos.PageResponse<AdminDtos.UserSummary> list(String role, String centerId, String keyword,
@@ -87,7 +87,7 @@ public class AdminUserService {
         return toSummary(requireUser(userId));
     }
 
-    /** Tạo tài khoản Lễ tân và cấp quyền ROLE_STAFF tại đúng chi nhánh. */
+    /** Creates a receptionist account and grants ROLE_STAFF at the right branch. */
     @Transactional
     public AdminDtos.UserSummary createStaff(AdminDtos.CreateStaffRequest request, String actorId) {
         MedicalCenterEntity center = medicalCenters.findById(request.medicalCenterId())
@@ -98,9 +98,9 @@ public class AdminUserService {
     }
 
     /**
-     * Tạo tài khoản Bác sĩ: 1 dòng users + 1 dòng quyền ROLE_DOCTOR + 1 hồ sơ
-     * doctors. Chi nhánh lấy từ chuyên khoa nên không thể gán nhầm bác sĩ vào
-     * chi nhánh không có chuyên khoa đó.
+     * Creates a doctor account: one users row + one ROLE_DOCTOR grant + one
+     * doctors profile. The branch comes from the specialty, so a doctor can never
+     * be attached to a branch that does not offer that specialty.
      */
     @Transactional
     public AdminDtos.UserSummary createDoctor(AdminDtos.CreateDoctorRequest request, String actorId) {
@@ -120,7 +120,7 @@ public class AdminUserService {
         return toSummary(user);
     }
 
-    /** Khóa / mở khóa tài khoản. Tài khoản bị khóa không đăng nhập được nữa. */
+    /** Locks / unlocks an account. A locked account can no longer sign in. */
     @Transactional
     public AdminDtos.UserSummary updateStatus(String userId, boolean active, String actorId) {
         UserEntity user = requireUser(userId);
@@ -134,7 +134,7 @@ public class AdminUserService {
         return toSummary(user);
     }
 
-    /** Cấp thêm quyền nhân sự cho tài khoản đã có tại một chi nhánh. */
+    /** Grants an additional staff role to an existing account at a branch. */
     @Transactional
     public AdminDtos.UserSummary grantRole(String userId, AdminDtos.GrantRoleRequest request, String actorId) {
         UserEntity user = requireUser(userId);
@@ -145,8 +145,8 @@ public class AdminUserService {
     }
 
     /**
-     * Thu hồi quyền: đặt cờ is_active = false thay vì xóa dòng, để vẫn tra được
-     * lịch sử "ai từng làm việc ở chi nhánh nào".
+     * Revoking a role sets is_active = false instead of deleting the row, so the
+     * history of who worked at which branch remains auditable.
      */
     @Transactional
     public AdminDtos.UserSummary revokeRole(String userId, String assignmentId, String actorId) {
@@ -206,9 +206,9 @@ public class AdminUserService {
     }
 
     /**
-     * Chuyển tham số sort dạng "field,direction" (ví dụ "fullName,asc") thành
-     * {@link Sort}. Chỉ chấp nhận các field trong danh sách trắng để người dùng
-     * không sắp xếp theo cột nhạy cảm (như passwordHash) hoặc gây lỗi truy vấn.
+     * Turns a "field,direction" sort parameter (e.g. "fullName,asc") into a
+     * {@link Sort}. Only allow-listed fields are accepted, so callers cannot sort
+     * by a sensitive column such as passwordHash or break the query.
      */
     private static Sort parseSort(String sort) {
         Sort defaultSort = Sort.by(Sort.Direction.DESC, "createdAt");
