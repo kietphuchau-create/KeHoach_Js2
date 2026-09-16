@@ -1,21 +1,17 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   Calendar,
   Sparkles,
   QrCode,
   Stethoscope,
-  ChevronLeft,
-  ChevronRight,
   ArrowRight,
   ShieldCheck,
   Zap,
   Clock,
   CheckCircle2,
-  Pause,
-  Play,
   Bot
 } from 'lucide-react';
 
@@ -144,66 +140,20 @@ const slides: Slide[] = [
 
 export default function HeroCarousel() {
   const [current, setCurrent] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
-  const touchStartX = useRef<number>(0);
-  const touchEndX = useRef<number>(0);
 
-  // Auto-slide transition
+  // Auto-slide transition continuously every 5 seconds without manual control buttons
   useEffect(() => {
-    if (isPaused) return;
-
     const timer = setInterval(() => {
       setCurrent((prev) => (prev + 1) % slides.length);
-    }, 6000);
+    }, 5000);
 
     return () => clearInterval(timer);
-  }, [isPaused]);
-
-  const handleNext = () => {
-    setCurrent((prev) => (prev + 1) % slides.length);
-  };
-
-  const handlePrev = () => {
-    setCurrent((prev) => (prev - 1 + slides.length) % slides.length);
-  };
-
-  // Touch Swipe logic for mobile responsiveness
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.targetTouches[0].clientX;
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    touchEndX.current = e.targetTouches[0].clientX;
-  };
-
-  const handleTouchEnd = () => {
-    if (!touchStartX.current || !touchEndX.current) return;
-    const distance = touchStartX.current - touchEndX.current;
-    const minSwipeDistance = 50;
-
-    if (distance > minSwipeDistance) {
-      // Swiped left -> next slide
-      handleNext();
-    } else if (distance < -minSwipeDistance) {
-      // Swiped right -> prev slide
-      handlePrev();
-    }
-
-    touchStartX.current = 0;
-    touchEndX.current = 0;
-  };
+  }, []);
 
   const slide = slides[current];
 
   return (
-    <div
-      className="relative rounded-3xl overflow-hidden shadow-2xl border border-teal-800/40 select-none transition-all duration-700"
-      onMouseEnter={() => setIsPaused(true)}
-      onMouseLeave={() => setIsPaused(false)}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-    >
+    <div className="relative rounded-3xl overflow-hidden shadow-2xl border border-teal-800/40 select-none transition-all duration-700">
       {/* Dynamic Slide Background with Gradient */}
       <div
         className={`bg-gradient-to-r ${slide.bgGradient} text-white transition-all duration-700 p-6 sm:p-10 lg:p-12 min-h-[380px] sm:min-h-[420px] flex flex-col justify-between relative overflow-hidden`}
@@ -212,7 +162,7 @@ export default function HeroCarousel() {
         <div className="absolute -right-16 -top-16 w-80 h-80 bg-teal-400/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -left-20 -bottom-20 w-80 h-80 bg-emerald-400/10 rounded-full blur-3xl pointer-events-none" />
 
-        {/* Top Header Badge & Play/Pause controls */}
+        {/* Top Header Badge & Continuous Live Status Indicator */}
         <div className="relative z-10 flex items-center justify-between gap-4 mb-4">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-white/15 backdrop-blur-md text-mint-light border border-white/20 shadow-xs">
             {slide.tagIcon}
@@ -220,16 +170,11 @@ export default function HeroCarousel() {
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setIsPaused(!isPaused)}
-              className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition cursor-pointer text-xs flex items-center gap-1 px-2.5 border border-white/10"
-              title={isPaused ? 'Tiếp tục tự động chuyển' : 'Tạm dừng carousel'}
-            >
-              {isPaused ? <Play size={12} /> : <Pause size={12} />}
-              <span className="text-[11px] hidden sm:inline">{isPaused ? 'Tự động' : 'Tạm dừng'}</span>
-            </button>
-            <span className="text-xs font-mono font-medium text-white/70 bg-black/20 px-2 py-0.5 rounded-full border border-white/10">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium bg-emerald-500/20 text-emerald-200 border border-emerald-400/30">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+              Tự động chuyển (5s)
+            </span>
+            <span className="text-xs font-mono font-medium text-white/80 bg-black/20 px-2.5 py-0.5 rounded-full border border-white/10">
               0{current + 1} / 0{slides.length}
             </span>
           </div>
@@ -237,7 +182,7 @@ export default function HeroCarousel() {
 
         {/* Main Content Grid (Responsive 2 Cols on lg) */}
         <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center my-auto py-2">
-          {/* Left Text Column (8 cols) */}
+          {/* Left Text Column (7 cols) */}
           <div className="lg:col-span-7 space-y-4 text-left">
             <h1 className="text-2xl sm:text-4xl lg:text-4xl font-black tracking-tight leading-tight sm:leading-snug text-white">
               {slide.title}{' '}
@@ -296,21 +241,18 @@ export default function HeroCarousel() {
           </div>
         </div>
 
-        {/* Bottom Bar: Indicators & Navigation Arrows */}
+        {/* Bottom Bar: Slide Indicator Bar & Mobile Pills */}
         <div className="relative z-10 pt-4 mt-2 border-t border-white/10 flex items-center justify-between">
-          {/* Slide Indicator Dots */}
+          {/* Slide Indicator Dots / Progress Bar */}
           <div className="flex items-center gap-2">
             {slides.map((_, idx) => (
-              <button
+              <div
                 key={idx}
-                type="button"
-                onClick={() => setCurrent(idx)}
-                className={`h-2.5 rounded-full transition-all duration-300 cursor-pointer ${
+                className={`h-2 rounded-full transition-all duration-500 ${
                   current === idx
-                    ? 'w-8 bg-mint-light shadow-md shadow-mint-light/50'
-                    : 'w-2.5 bg-white/30 hover:bg-white/60'
+                    ? 'w-10 bg-mint-light shadow-md shadow-mint-light/60'
+                    : 'w-2.5 bg-white/30'
                 }`}
-                aria-label={`Chuyển đến slide ${idx + 1}`}
               />
             ))}
           </div>
@@ -320,26 +262,6 @@ export default function HeroCarousel() {
             <span className="bg-white/15 px-2.5 py-1 rounded-full border border-white/20 flex items-center gap-1 font-semibold">
               {slide.stats[0].icon} {slide.stats[0].val}
             </span>
-          </div>
-
-          {/* Prev / Next Arrows */}
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handlePrev}
-              className="p-2.5 rounded-full bg-white/10 hover:bg-white/25 active:bg-white/35 text-white transition border border-white/20 cursor-pointer backdrop-blur-xs flex items-center justify-center"
-              aria-label="Slide trước đó"
-            >
-              <ChevronLeft size={18} />
-            </button>
-            <button
-              type="button"
-              onClick={handleNext}
-              className="p-2.5 rounded-full bg-white/10 hover:bg-white/25 active:bg-white/35 text-white transition border border-white/20 cursor-pointer backdrop-blur-xs flex items-center justify-center"
-              aria-label="Slide tiếp theo"
-            >
-              <ChevronRight size={18} />
-            </button>
           </div>
         </div>
       </div>
