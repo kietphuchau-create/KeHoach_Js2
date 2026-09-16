@@ -39,7 +39,7 @@ export default function LoginForm() {
         password: formData.password,
       });
 
-      const roles = res.user?.roles || [];
+      const roles: string[] = res.user?.roles || res.roles || [];
       const roleName = roles[0] || 'CUSTOMER';
       setSuccessMessage(`Đăng nhập thành công! Vai trò: ${roleName}. Đang chuyển hướng...`);
 

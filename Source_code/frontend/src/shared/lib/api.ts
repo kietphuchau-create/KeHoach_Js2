@@ -16,9 +16,10 @@ export function getAuthToken(): string | null {
 
 export function setAuthSession(token: string, user: any) {
   if (typeof window === "undefined") return;
+  const safeUser = user || {};
   localStorage.setItem("token", token);
-  localStorage.setItem("user", JSON.stringify(user));
-  localStorage.setItem("role", user.roles?.[0] || "CUSTOMER");
+  localStorage.setItem("user", JSON.stringify(safeUser));
+  localStorage.setItem("role", safeUser.roles?.[0] || "CUSTOMER");
 }
 
 export function clearAuthSession() {
@@ -93,8 +94,14 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     });
-    setAuthSession(res.accessToken, res.user);
-    return res;
+    const user = res.user || {
+      id: res.userId,
+      email: res.email,
+      fullName: res.fullName,
+      roles: res.roles || [],
+    };
+    setAuthSession(res.accessToken, user);
+    return { ...res, user };
   },
 
   async register(payload: { fullName: string; email: string; phone: string; password: string }) {
