@@ -1,1 +1,15 @@
 @import "tailwindcss";
+
+@theme {
+  --color-pine-teal: #0E5C55;
+  --color-pine-teal-hover: #0a4742;
+  --color-teal-primary: #2A7F85;
+  --color-teal-hover: #21676c;
+  --color-mint-light: #DFF5EF;
+  --color-mint-soft: #f0faf7;
+}
+
+body {
+  background-color: #f0faf7;
+  color: #1e293b;
+}
