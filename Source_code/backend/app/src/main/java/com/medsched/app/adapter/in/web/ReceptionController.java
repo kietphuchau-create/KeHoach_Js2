@@ -2,10 +2,12 @@ package com.medsched.app.adapter.in.web;
 
 import com.medsched.core.port.in.CheckinUseCase;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/reception")
+@PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
 public class ReceptionController {
 
     private final CheckinUseCase checkinUseCase;
@@ -18,12 +20,14 @@ public class ReceptionController {
     public record CccdCheckinRequest(String cccdNumber, String fullName) {}
 
     @PostMapping("/checkin/qr")
+    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
     public ResponseEntity<CheckinUseCase.CheckinResult> checkinByQr(@RequestBody QrCheckinRequest req) {
         CheckinUseCase.CheckinResult result = checkinUseCase.checkinByQrCode(req.bookingCode());
         return ResponseEntity.ok(result);
     }
 
     @PostMapping("/checkin/cccd")
+    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
     public ResponseEntity<CheckinUseCase.CheckinResult> checkinByCccd(@RequestBody CccdCheckinRequest req) {
         CheckinUseCase.CheckinResult result = checkinUseCase.checkinByCccd(req.cccdNumber(), req.fullName());
         return ResponseEntity.ok(result);
