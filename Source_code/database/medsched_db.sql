@@ -31,8 +31,10 @@ USE medsched_db;
 SET FOREIGN_KEY_CHECKS = 0;
 
 DROP TABLE IF EXISTS doctor_reviews;
+DROP TABLE IF EXISTS invoices;
 DROP TABLE IF EXISTS payments;
 DROP TABLE IF EXISTS prescription_items;
+DROP TABLE IF EXISTS prescriptions;
 DROP TABLE IF EXISTS medicines;
 DROP TABLE IF EXISTS medical_records;
 DROP TABLE IF EXISTS appointment_status_logs;
@@ -318,14 +320,24 @@ CREATE TABLE medicines (
     CONSTRAINT fk_medicines_center FOREIGN KEY (medical_center_id) REFERENCES medical_centers(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 15. TỪNG DÒNG THUỐC TRONG ĐƠN (THAY CHO medical_records.prescription TEXT)
--- medicine_name / unit là BẢN CHỤP (snapshot) tên thuốc lúc kê đơn - bắt buộc
--- về mặt y tế: đơn thuốc cũ phải in lại đúng như đã kê, dù sau này danh mục
--- thuốc bị đổi tên hoặc ngừng dùng. Cùng nguyên tắc với order_items lưu kèm
--- name/unit_price trong repo tham khảo spring-ai-demo (EvShop).
--- medicine_id cho phép NULL: bác sĩ kê thuốc ngoài danh mục chi nhánh.
+-- 15. ĐƠN THUỐC ĐIỆN TỬ (CLAB-107)
+CREATE TABLE prescriptions (
+    id VARCHAR(64) PRIMARY KEY,
+    appointment_id VARCHAR(36) NOT NULL,
+    medical_record_id VARCHAR(36),
+    doctor_id VARCHAR(36),
+    doctor_name VARCHAR(255),
+    total_medicine_amount DECIMAL(19, 2) NOT NULL DEFAULT 0.00,
+    status VARCHAR(30) NOT NULL DEFAULT 'ACTIVE',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_prescriptions_appointment FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 16. TỪNG DÒNG THUỐC TRONG ĐƠN (THAY CHO medical_records.prescription TEXT)
 CREATE TABLE prescription_items (
     id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    prescription_id VARCHAR(36),
     medical_record_id VARCHAR(36) NOT NULL,
     medicine_id VARCHAR(36),
     medicine_name VARCHAR(255) NOT NULL,
@@ -334,6 +346,7 @@ CREATE TABLE prescription_items (
     frequency VARCHAR(100) NOT NULL,
     duration_days INT,
     quantity DECIMAL(10, 2) NOT NULL,
+    unit_price DECIMAL(19, 2),
     instruction VARCHAR(500),
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -346,8 +359,29 @@ CREATE TABLE prescription_items (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE INDEX idx_prescription_items_record ON prescription_items(medical_record_id);
+CREATE INDEX idx_prescription_items_rx ON prescription_items(prescription_id);
 
--- 16. THANH TOÁN (THAY CHO 2 CỘT payment_status / payment_amount)
+-- 17. HÓA ĐƠN VIỆN PHÍ (CLAB-108)
+CREATE TABLE invoices (
+    id VARCHAR(64) PRIMARY KEY,
+    invoice_number VARCHAR(32) NOT NULL UNIQUE,
+    appointment_id VARCHAR(36) NOT NULL,
+    patient_profile_id VARCHAR(36),
+    doctor_id VARCHAR(36),
+    consultation_fee DECIMAL(19, 2) NOT NULL DEFAULT 0.00,
+    medicine_amount DECIMAL(19, 2) NOT NULL DEFAULT 0.00,
+    total_amount DECIMAL(19, 2) NOT NULL DEFAULT 0.00,
+    amount_paid DECIMAL(19, 2) NOT NULL DEFAULT 0.00,
+    status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
+    payment_method VARCHAR(30),
+    note VARCHAR(500),
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    paid_at DATETIME,
+    CONSTRAINT fk_invoices_appointment FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 18. THANH TOÁN (THAY CHO 2 CỘT payment_status / payment_amount)
 -- 1 ca hẹn có thể có NHIỀU dòng: đặt cọc online + thu thêm tại quầy, hoặc
 -- lần trả thất bại rồi trả lại. transaction_ref UNIQUE là chốt chống webhook
 -- cổng thanh toán gọi lặp làm ghi nhận/hoàn tiền 2 lần (kịch bản 7.8).
