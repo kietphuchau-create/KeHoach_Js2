@@ -13,7 +13,8 @@ import {
   UserPlus, 
   Menu, 
   X,
-  Stethoscope
+  Stethoscope,
+  Calendar
 } from 'lucide-react';
 import { getAuthToken, getAuthUser, clearAuthSession, api } from '@/shared/lib/api';
 
@@ -85,6 +86,7 @@ export default function HeaderNav() {
       ]
     : [
         { href: '/', label: 'Trang Chủ', icon: Building2 },
+        { href: '/my-appointments', label: 'Phiếu Khám Của Tôi', icon: Calendar },
         ...(isStaff ? [{ href: '/reception', label: 'Quầy Tiếp Đón', icon: QrCode }] : []),
         ...(isDoctor ? [{ href: '/doctor', label: 'Buồng Khám Bác Sĩ', icon: Stethoscope }] : []),
       ];

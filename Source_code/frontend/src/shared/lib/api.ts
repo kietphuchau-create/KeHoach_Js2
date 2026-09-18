@@ -247,6 +247,10 @@ export const api = {
     return request<AppointmentResponse>(`/appointments/booking-code/${bookingCode}`);
   },
 
+  async getAppointmentsByPatient(patientProfileId: string) {
+    return request<AppointmentResponse[]>(`/appointments/patient/${patientProfileId}`);
+  },
+
   async triageSymptoms(symptoms: string) {
     try {
       return await request<{ specialty: string; summary: string }>("/ai/triage", {
