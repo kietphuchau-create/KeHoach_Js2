@@ -1,3 +1,8 @@
+-- TECHNICAL NOTE (CLAB-102): key columns must be VARCHAR(36), never CHAR(36).
+-- The JPA entities declare @Column(length = 36), which Hibernate maps to
+-- varchar(36). If this script creates CHAR(36) columns, Hibernate tries to ALTER
+-- them and MySQL refuses because they are referenced by foreign keys, so the
+-- application FAILS TO START.
 -- ====================================================================
 -- CƠ SỞ DỮ LIỆU DỰ ÁN MEDSCHED - MYSQL / MARIADB (XAMPP)
 -- Hệ quản trị CHÍNH THỨC của đồ án: MySQL/MariaDB đi kèm XAMPP (phpMyAdmin).
@@ -26,8 +31,10 @@ USE medsched_db;
 SET FOREIGN_KEY_CHECKS = 0;
 
 DROP TABLE IF EXISTS doctor_reviews;
+DROP TABLE IF EXISTS invoices;
 DROP TABLE IF EXISTS payments;
 DROP TABLE IF EXISTS prescription_items;
+DROP TABLE IF EXISTS prescriptions;
 DROP TABLE IF EXISTS medicines;
 DROP TABLE IF EXISTS medical_records;
 DROP TABLE IF EXISTS appointment_status_logs;
@@ -47,7 +54,7 @@ SET FOREIGN_KEY_CHECKS = 1;
 
 -- 1. CƠ SỞ Y TẾ / CHI NHÁNH (HỖ TRỢ MỞ RỘNG SAAS / MULTI-TENANT)
 CREATE TABLE medical_centers (
-    id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
     code VARCHAR(50) NOT NULL UNIQUE,
     name VARCHAR(255) NOT NULL,
     address VARCHAR(500) NOT NULL,
@@ -55,21 +62,21 @@ CREATE TABLE medical_centers (
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    created_by CHAR(36),
-    updated_by CHAR(36)
+    created_by VARCHAR(36),
+    updated_by VARCHAR(36)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 2. CẤU HÌNH HỆ THỐNG (medical_center_id NULL = cấu hình mặc định toàn hệ thống)
 CREATE TABLE system_settings (
-    id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
-    medical_center_id CHAR(36),
+    id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    medical_center_id VARCHAR(36),
     setting_key VARCHAR(100) NOT NULL,
     setting_value VARCHAR(255) NOT NULL,
     description TEXT,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    created_by CHAR(36),
-    updated_by CHAR(36),
+    created_by VARCHAR(36),
+    updated_by VARCHAR(36),
     CONSTRAINT uq_center_setting UNIQUE (medical_center_id, setting_key),
     CONSTRAINT fk_settings_center FOREIGN KEY (medical_center_id) REFERENCES medical_centers(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -78,7 +85,7 @@ CREATE TABLE system_settings (
 -- Không có cột role: mọi tài khoản đều mặc định đặt lịch khám được ở mọi chi
 -- nhánh (vai trò bệnh nhân). Quyền nhân sự nằm ở user_medical_center_roles.
 CREATE TABLE users (
-    id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
     email VARCHAR(255) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     full_name VARCHAR(255) NOT NULL,
@@ -86,23 +93,23 @@ CREATE TABLE users (
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    created_by CHAR(36),
-    updated_by CHAR(36)
+    created_by VARCHAR(36),
+    updated_by VARCHAR(36)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 4. PHÂN QUYỀN NHÂN SỰ THEO TỪNG CHI NHÁNH (BẢNG NỐI N-N)
 -- 1 bác sĩ có thể trực ở nhiều chi nhánh -> nhiều dòng. ROLE_PATIENT cố ý
 -- KHÔNG có trong danh sách vì đó là quyền mặc định của mọi tài khoản.
 CREATE TABLE user_medical_center_roles (
-    id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
-    user_id CHAR(36) NOT NULL,
-    medical_center_id CHAR(36) NOT NULL,
+    id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    user_id VARCHAR(36) NOT NULL,
+    medical_center_id VARCHAR(36) NOT NULL,
     role VARCHAR(32) NOT NULL CHECK (role IN ('ROLE_DOCTOR', 'ROLE_STAFF', 'ROLE_ADMIN')),
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    created_by CHAR(36),
-    updated_by CHAR(36),
+    created_by VARCHAR(36),
+    updated_by VARCHAR(36),
     CONSTRAINT uq_user_center_role UNIQUE (user_id, medical_center_id, role),
     CONSTRAINT fk_ucr_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     CONSTRAINT fk_ucr_center FOREIGN KEY (medical_center_id) REFERENCES medical_centers(id) ON DELETE CASCADE
@@ -113,8 +120,8 @@ CREATE INDEX idx_ucr_center_role ON user_medical_center_roles(medical_center_id,
 
 -- 5. HỒ SƠ NGƯỜI KHÁM (TOÀN CỤC THEO TÀI KHOẢN, DÙNG Ở MỌI CHI NHÁNH)
 CREATE TABLE patient_profiles (
-    id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
-    user_id CHAR(36) NOT NULL,
+    id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    user_id VARCHAR(36) NOT NULL,
     relationship VARCHAR(30) NOT NULL DEFAULT 'SELF' CHECK (relationship IN ('SELF', 'PARENT', 'CHILD', 'SPOUSE', 'OTHER')),
     full_name VARCHAR(255) NOT NULL,
     cccd_number VARCHAR(20),
@@ -126,8 +133,8 @@ CREATE TABLE patient_profiles (
     medical_history TEXT,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    created_by CHAR(36),
-    updated_by CHAR(36),
+    created_by VARCHAR(36),
+    updated_by VARCHAR(36),
     CONSTRAINT fk_profiles_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -136,24 +143,24 @@ CREATE INDEX idx_patient_profiles_cccd ON patient_profiles(cccd_number);
 
 -- 6. CHUYÊN KHOA (LUÔN THUỘC 1 CHI NHÁNH)
 CREATE TABLE specialties (
-    id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
-    medical_center_id CHAR(36) NOT NULL,
+    id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    medical_center_id VARCHAR(36) NOT NULL,
     name VARCHAR(255) NOT NULL,
     code VARCHAR(50) NOT NULL,
     description TEXT,
     icon_url VARCHAR(500),
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    created_by CHAR(36),
-    updated_by CHAR(36),
+    created_by VARCHAR(36),
+    updated_by VARCHAR(36),
     CONSTRAINT uq_center_specialty UNIQUE (medical_center_id, code),
     CONSTRAINT fk_specialties_center FOREIGN KEY (medical_center_id) REFERENCES medical_centers(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 7. DANH MỤC DỊCH VỤ KHÁM CỦA TỪNG CHUYÊN KHOA (BẢNG GIÁ)
 CREATE TABLE services (
-    id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
-    specialty_id CHAR(36) NOT NULL,
+    id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    specialty_id VARCHAR(36) NOT NULL,
     name VARCHAR(255) NOT NULL,
     code VARCHAR(50) NOT NULL,
     description TEXT,
@@ -162,8 +169,8 @@ CREATE TABLE services (
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    created_by CHAR(36),
-    updated_by CHAR(36),
+    created_by VARCHAR(36),
+    updated_by VARCHAR(36),
     CONSTRAINT uq_specialty_service UNIQUE (specialty_id, code),
     CONSTRAINT chk_service_price CHECK (price >= 0),
     CONSTRAINT chk_service_duration CHECK (estimated_duration_minutes > 0),
@@ -174,19 +181,18 @@ CREATE TABLE services (
 -- UNIQUE(user_id, specialty_id) thay cho UNIQUE(user_id): 1 người có thể hành
 -- nghề ở nhiều chuyên khoa / nhiều chi nhánh (specialty đã gắn medical_center).
 CREATE TABLE doctors (
-    id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
-    user_id CHAR(36) NOT NULL,
-    specialty_id CHAR(36) NOT NULL,
+    id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    user_id VARCHAR(36) NOT NULL,
+    specialty_id VARCHAR(36) NOT NULL,
     academic_title VARCHAR(100),
-    experience_years INT NOT NULL DEFAULT 1,
     consultation_fee DECIMAL(19, 2) NOT NULL DEFAULT 200000.00,
     room_number VARCHAR(50),
     bio TEXT,
     avatar_url VARCHAR(500),
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    created_by CHAR(36),
-    updated_by CHAR(36),
+    created_by VARCHAR(36),
+    updated_by VARCHAR(36),
     CONSTRAINT uq_doctors_user_specialty UNIQUE (user_id, specialty_id),
     CONSTRAINT fk_doctors_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     CONSTRAINT fk_doctors_specialty FOREIGN KEY (specialty_id) REFERENCES specialties(id) ON DELETE RESTRICT
@@ -196,8 +202,8 @@ CREATE INDEX idx_doctors_user ON doctors(user_id);
 
 -- 9. LỊCH ĐĂNG KÝ LÀM VIỆC CỦA BÁC SĨ
 CREATE TABLE doctor_schedules (
-    id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
-    doctor_id CHAR(36) NOT NULL,
+    id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    doctor_id VARCHAR(36) NOT NULL,
     work_date DATE NOT NULL,
     start_time TIME NOT NULL,
     end_time TIME NOT NULL,
@@ -205,24 +211,24 @@ CREATE TABLE doctor_schedules (
     status VARCHAR(30) NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'CANCELLED_EMERGENCY', 'COMPLETED')),
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    created_by CHAR(36),
-    updated_by CHAR(36),
+    created_by VARCHAR(36),
+    updated_by VARCHAR(36),
     CONSTRAINT fk_schedules_doctor FOREIGN KEY (doctor_id) REFERENCES doctors(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 10. KHUNG GIỜ KHÁM - CHỐNG TRÙNG LỊCH BẰNG OPTIMISTIC LOCKING
 CREATE TABLE time_slots (
-    id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
-    schedule_id CHAR(36) NOT NULL,
-    doctor_id CHAR(36) NOT NULL,
+    id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    schedule_id VARCHAR(36) NOT NULL,
+    doctor_id VARCHAR(36) NOT NULL,
     start_time DATETIME NOT NULL,
     end_time DATETIME NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'AVAILABLE' CHECK (status IN ('AVAILABLE', 'BOOKED', 'LOCKED', 'BLOCKED')),
     version INT NOT NULL DEFAULT 0,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    created_by CHAR(36),
-    updated_by CHAR(36),
+    created_by VARCHAR(36),
+    updated_by VARCHAR(36),
     CONSTRAINT fk_slots_schedule FOREIGN KEY (schedule_id) REFERENCES doctor_schedules(id) ON DELETE CASCADE,
     CONSTRAINT fk_slots_doctor FOREIGN KEY (doctor_id) REFERENCES doctors(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -235,12 +241,12 @@ CREATE INDEX idx_time_slots_doctor_date ON time_slots(doctor_id, start_time);
 -- khoản có thể có ca khám ở nhiều chi nhánh khác nhau.
 -- Không còn payment_status / payment_amount: xem bảng payments (mục 15).
 CREATE TABLE appointments (
-    id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
     booking_code VARCHAR(16) NOT NULL UNIQUE,
-    medical_center_id CHAR(36) NOT NULL,
-    patient_profile_id CHAR(36) NOT NULL,
-    doctor_id CHAR(36) NOT NULL,
-    slot_id CHAR(36),
+    medical_center_id VARCHAR(36) NOT NULL,
+    patient_profile_id VARCHAR(36) NOT NULL,
+    doctor_id VARCHAR(36) NOT NULL,
+    slot_id VARCHAR(36),
     queue_number VARCHAR(20) NOT NULL,
     queue_type VARCHAR(20) NOT NULL DEFAULT 'ONLINE_BOOKED' CHECK (queue_type IN ('ONLINE_BOOKED', 'WALKIN', 'POST_LAB_RESULT')),
     patient_symptoms TEXT,
@@ -255,8 +261,8 @@ CREATE TABLE appointments (
     check_in_time DATETIME,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    created_by CHAR(36),
-    updated_by CHAR(36),
+    created_by VARCHAR(36),
+    updated_by VARCHAR(36),
     CONSTRAINT fk_appt_center FOREIGN KEY (medical_center_id) REFERENCES medical_centers(id) ON DELETE RESTRICT,
     CONSTRAINT fk_appt_profile FOREIGN KEY (patient_profile_id) REFERENCES patient_profiles(id) ON DELETE RESTRICT,
     CONSTRAINT fk_appt_doctor FOREIGN KEY (doctor_id) REFERENCES doctors(id) ON DELETE RESTRICT,
@@ -271,12 +277,12 @@ CREATE INDEX idx_appointments_center_date ON appointments(medical_center_id, cre
 
 -- 12. NHẬT KÝ THAY ĐỔI TRẠNG THÁI CA KHÁM
 CREATE TABLE appointment_status_logs (
-    id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
-    appointment_id CHAR(36) NOT NULL,
+    id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    appointment_id VARCHAR(36) NOT NULL,
     from_status VARCHAR(30),
     to_status VARCHAR(30) NOT NULL,
     reason TEXT,
-    changed_by CHAR(36),
+    changed_by VARCHAR(36),
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_logs_appointment FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE CASCADE,
     CONSTRAINT fk_logs_user FOREIGN KEY (changed_by) REFERENCES users(id)
@@ -286,21 +292,21 @@ CREATE INDEX idx_status_logs_appointment ON appointment_status_logs(appointment_
 
 -- 13. HỒ SƠ BỆNH ÁN (KẾT LUẬN KHÁM) - đơn thuốc xem prescription_items
 CREATE TABLE medical_records (
-    id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
-    appointment_id CHAR(36) NOT NULL UNIQUE,
+    id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    appointment_id VARCHAR(36) NOT NULL UNIQUE,
     diagnosis TEXT NOT NULL,
     doctor_notes TEXT,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    created_by CHAR(36),
-    updated_by CHAR(36),
+    created_by VARCHAR(36),
+    updated_by VARCHAR(36),
     CONSTRAINT fk_records_appointment FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 14. DANH MỤC THUỐC CỦA CHI NHÁNH
 CREATE TABLE medicines (
-    id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
-    medical_center_id CHAR(36) NOT NULL,
+    id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    medical_center_id VARCHAR(36) NOT NULL,
     code VARCHAR(50) NOT NULL,
     name VARCHAR(255) NOT NULL,
     active_ingredient VARCHAR(255),
@@ -308,33 +314,44 @@ CREATE TABLE medicines (
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    created_by CHAR(36),
-    updated_by CHAR(36),
+    created_by VARCHAR(36),
+    updated_by VARCHAR(36),
     CONSTRAINT uq_center_medicine UNIQUE (medical_center_id, code),
     CONSTRAINT fk_medicines_center FOREIGN KEY (medical_center_id) REFERENCES medical_centers(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 15. TỪNG DÒNG THUỐC TRONG ĐƠN (THAY CHO medical_records.prescription TEXT)
--- medicine_name / unit là BẢN CHỤP (snapshot) tên thuốc lúc kê đơn - bắt buộc
--- về mặt y tế: đơn thuốc cũ phải in lại đúng như đã kê, dù sau này danh mục
--- thuốc bị đổi tên hoặc ngừng dùng. Cùng nguyên tắc với order_items lưu kèm
--- name/unit_price trong repo tham khảo spring-ai-demo (EvShop).
--- medicine_id cho phép NULL: bác sĩ kê thuốc ngoài danh mục chi nhánh.
+-- 15. ĐƠN THUỐC ĐIỆN TỬ (CLAB-107)
+CREATE TABLE prescriptions (
+    id VARCHAR(64) PRIMARY KEY,
+    appointment_id VARCHAR(36) NOT NULL,
+    medical_record_id VARCHAR(36),
+    doctor_id VARCHAR(36),
+    doctor_name VARCHAR(255),
+    total_medicine_amount DECIMAL(19, 2) NOT NULL DEFAULT 0.00,
+    status VARCHAR(30) NOT NULL DEFAULT 'ACTIVE',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_prescriptions_appointment FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 16. TỪNG DÒNG THUỐC TRONG ĐƠN (THAY CHO medical_records.prescription TEXT)
 CREATE TABLE prescription_items (
-    id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
-    medical_record_id CHAR(36) NOT NULL,
-    medicine_id CHAR(36),
+    id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    prescription_id VARCHAR(36),
+    medical_record_id VARCHAR(36) NOT NULL,
+    medicine_id VARCHAR(36),
     medicine_name VARCHAR(255) NOT NULL,
     unit VARCHAR(30) NOT NULL,
     dosage VARCHAR(100) NOT NULL,
     frequency VARCHAR(100) NOT NULL,
     duration_days INT,
     quantity DECIMAL(10, 2) NOT NULL,
+    unit_price DECIMAL(19, 2),
     instruction VARCHAR(500),
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    created_by CHAR(36),
-    updated_by CHAR(36),
+    created_by VARCHAR(36),
+    updated_by VARCHAR(36),
     CONSTRAINT chk_item_quantity CHECK (quantity > 0),
     CONSTRAINT chk_item_duration CHECK (duration_days IS NULL OR duration_days > 0),
     CONSTRAINT fk_items_record FOREIGN KEY (medical_record_id) REFERENCES medical_records(id) ON DELETE CASCADE,
@@ -342,14 +359,35 @@ CREATE TABLE prescription_items (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE INDEX idx_prescription_items_record ON prescription_items(medical_record_id);
+CREATE INDEX idx_prescription_items_rx ON prescription_items(prescription_id);
 
--- 16. THANH TOÁN (THAY CHO 2 CỘT payment_status / payment_amount)
+-- 17. HÓA ĐƠN VIỆN PHÍ (CLAB-108)
+CREATE TABLE invoices (
+    id VARCHAR(64) PRIMARY KEY,
+    invoice_number VARCHAR(32) NOT NULL UNIQUE,
+    appointment_id VARCHAR(36) NOT NULL,
+    patient_profile_id VARCHAR(36),
+    doctor_id VARCHAR(36),
+    consultation_fee DECIMAL(19, 2) NOT NULL DEFAULT 0.00,
+    medicine_amount DECIMAL(19, 2) NOT NULL DEFAULT 0.00,
+    total_amount DECIMAL(19, 2) NOT NULL DEFAULT 0.00,
+    amount_paid DECIMAL(19, 2) NOT NULL DEFAULT 0.00,
+    status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
+    payment_method VARCHAR(30),
+    note VARCHAR(500),
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    paid_at DATETIME,
+    CONSTRAINT fk_invoices_appointment FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 18. THANH TOÁN (THAY CHO 2 CỘT payment_status / payment_amount)
 -- 1 ca hẹn có thể có NHIỀU dòng: đặt cọc online + thu thêm tại quầy, hoặc
 -- lần trả thất bại rồi trả lại. transaction_ref UNIQUE là chốt chống webhook
 -- cổng thanh toán gọi lặp làm ghi nhận/hoàn tiền 2 lần (kịch bản 7.8).
 CREATE TABLE payments (
-    id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
-    appointment_id CHAR(36) NOT NULL,
+    id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    appointment_id VARCHAR(36) NOT NULL,
     amount DECIMAL(19, 2) NOT NULL,
     method VARCHAR(30) NOT NULL CHECK (method IN ('CASH', 'CARD', 'VNPAY', 'MOMO', 'BANK_TRANSFER')),
     status VARCHAR(20) NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'SUCCEEDED', 'FAILED', 'REFUNDED')),
@@ -358,12 +396,12 @@ CREATE TABLE payments (
     refunded_amount DECIMAL(19, 2) NOT NULL DEFAULT 0.00,
     refunded_at DATETIME,
     refund_ref VARCHAR(100),
-    collected_by CHAR(36),
+    collected_by VARCHAR(36),
     note VARCHAR(500),
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    created_by CHAR(36),
-    updated_by CHAR(36),
+    created_by VARCHAR(36),
+    updated_by VARCHAR(36),
     CONSTRAINT uq_payment_txn UNIQUE (transaction_ref),
     CONSTRAINT chk_payment_amount CHECK (amount > 0),
     CONSTRAINT chk_payment_refund CHECK (refunded_amount >= 0 AND refunded_amount <= amount),
@@ -376,18 +414,18 @@ CREATE INDEX idx_payments_status ON payments(status);
 
 -- 17. ĐÁNH GIÁ BÁC SĨ (VERIFIED REVIEW & SPRING AI SENTIMENT)
 CREATE TABLE doctor_reviews (
-    id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
-    appointment_id CHAR(36) NOT NULL UNIQUE,
-    patient_profile_id CHAR(36) NOT NULL,
-    doctor_id CHAR(36) NOT NULL,
+    id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    appointment_id VARCHAR(36) NOT NULL UNIQUE,
+    patient_profile_id VARCHAR(36) NOT NULL,
+    doctor_id VARCHAR(36) NOT NULL,
     rating INT NOT NULL CHECK (rating BETWEEN 1 AND 5),
     comment TEXT,
     ai_sentiment VARCHAR(20) CHECK (ai_sentiment IN ('POSITIVE', 'NEUTRAL', 'NEGATIVE')),
     is_anonymous BOOLEAN NOT NULL DEFAULT FALSE,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    created_by CHAR(36),
-    updated_by CHAR(36),
+    created_by VARCHAR(36),
+    updated_by VARCHAR(36),
     CONSTRAINT fk_reviews_appointment FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE CASCADE,
     CONSTRAINT fk_reviews_profile FOREIGN KEY (patient_profile_id) REFERENCES patient_profiles(id) ON DELETE CASCADE,
     CONSTRAINT fk_reviews_doctor FOREIGN KEY (doctor_id) REFERENCES doctors(id) ON DELETE CASCADE
@@ -446,15 +484,15 @@ INSERT INTO user_medical_center_roles (id, user_id, medical_center_id, role) VAL
 
 -- Cùng 1 user_id nhưng 2 hồ sơ bác sĩ ở 2 chuyên khoa/chi nhánh khác nhau
 -- (hợp lệ nhờ UNIQUE(user_id, specialty_id) thay cho UNIQUE(user_id))
-INSERT INTO doctors (id, user_id, specialty_id, academic_title, experience_years, consultation_fee, room_number, bio) VALUES
+INSERT INTO doctors (id, user_id, specialty_id, academic_title, consultation_fee, room_number, bio) VALUES
 ('44444444-4444-4444-4444-444444444441',
  '11111111-1111-1111-1111-111111111111',
  '55555555-5555-5555-5555-555555555551',
- 'BS.CKII', 15, 300000.00, 'P.205', 'Chuyên gia đầu ngành Da liễu với hơn 15 năm kinh nghiệm điều trị.'),
+ 'BS.CKII', 300000.00, 'P.205', 'Chuyên gia đầu ngành Da liễu với hơn 15 năm kinh nghiệm điều trị.'),
 ('44444444-4444-4444-4444-444444444442',
  '11111111-1111-1111-1111-111111111111',
  '55555555-5555-5555-5555-555555555557',
- 'BS.CKII', 15, 250000.00, 'P.101', 'Cùng bác sĩ trên, lịch trực chiều tại chi nhánh Quận 7.');
+ 'BS.CKII', 250000.00, 'P.101', 'Cùng bác sĩ trên, lịch trực chiều tại chi nhánh Quận 7.');
 
 -- Hồ sơ người khám: toàn cục theo tài khoản, dùng được ở mọi chi nhánh
 INSERT INTO patient_profiles (id, user_id, relationship, full_name, cccd_number, health_insurance_no, date_of_birth, gender, phone, address, medical_history) VALUES

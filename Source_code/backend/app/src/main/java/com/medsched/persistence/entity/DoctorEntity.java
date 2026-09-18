@@ -27,9 +27,6 @@ public class DoctorEntity {
     @Column(name = "academic_title", length = 100)
     private String academicTitle;
 
-    @Column(name = "experience_years", nullable = false)
-    private int experienceYears;
-
     @Column(name = "consultation_fee", nullable = false, precision = 19, scale = 2)
     private BigDecimal consultationFee;
 
@@ -57,14 +54,13 @@ public class DoctorEntity {
     protected DoctorEntity() {
     }
 
-    public DoctorEntity(String id, String userId, String specialtyId, String academicTitle, int experienceYears,
+    public DoctorEntity(String id, String userId, String specialtyId, String academicTitle,
                         BigDecimal consultationFee, String roomNumber, String bio, String avatarUrl,
                         Instant createdAt, Instant updatedAt) {
         this.id = id;
         this.userId = userId;
         this.specialtyId = specialtyId;
         this.academicTitle = academicTitle;
-        this.experienceYears = experienceYears;
         this.consultationFee = consultationFee;
         this.roomNumber = roomNumber;
         this.bio = bio;
@@ -87,10 +83,6 @@ public class DoctorEntity {
 
     public String getAcademicTitle() {
         return academicTitle;
-    }
-
-    public int getExperienceYears() {
-        return experienceYears;
     }
 
     public BigDecimal getConsultationFee() {
@@ -142,10 +134,6 @@ public class DoctorEntity {
 
     public void setAcademicTitle(String academicTitle) {
         this.academicTitle = academicTitle;
-    }
-
-    public void setExperienceYears(int experienceYears) {
-        this.experienceYears = experienceYears;
     }
 
     public void setConsultationFee(BigDecimal consultationFee) {

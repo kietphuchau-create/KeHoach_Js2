@@ -15,11 +15,12 @@ import java.util.Date;
 import java.util.List;
 
 /**
- * Sinh và xác minh JWT (HS256) cho Task 1.
+ * Issues and verifies HS256 JWTs for Task 1.
  * <p>
- * Có 2 loại token phân biệt bằng claim {@code typ}: {@code access} (ngắn hạn,
- * dùng gọi API) và {@code refresh} (dài hạn, chỉ dùng để xin access token mới).
- * Nhờ vậy một refresh token không thể bị đem gọi API trực tiếp.
+ * Two token kinds are told apart by the {@code typ} claim: {@code access}
+ * (short-lived, used to call the API) and {@code refresh} (long-lived, only
+ * good for obtaining a new access token). That way a refresh token can never
+ * be replayed against the API directly.
  */
 @Service
 public class JwtService {
@@ -35,9 +36,17 @@ public class JwtService {
     private final Duration accessTtl;
     private final Duration refreshTtl;
 
+    /**
+     * The property names below match application.yml exactly
+     * ({@code access-token-duration} / {@code refresh-token-duration}).
+     * This class previously read {@code access-ttl} / {@code refresh-ttl}; those
+     * keys do not exist in the configuration file, so the configured lifetimes
+     * (1 hour / 7 days) were silently ignored and every token fell back to the
+     * hard-coded 30-minute default.
+     */
     public JwtService(@Value("${medsched.jwt.secret}") String secret,
-                      @Value("${medsched.jwt.access-ttl:PT30M}") Duration accessTtl,
-                      @Value("${medsched.jwt.refresh-ttl:P7D}") Duration refreshTtl) {
+                      @Value("${medsched.jwt.access-token-duration:PT1H}") Duration accessTtl,
+                      @Value("${medsched.jwt.refresh-token-duration:P7D}") Duration refreshTtl) {
         byte[] raw = secret.getBytes(StandardCharsets.UTF_8);
         if (raw.length < 32) {
             throw new IllegalStateException(
@@ -72,7 +81,7 @@ public class JwtService {
                 .compact();
     }
 
-    /** Ném {@link io.jsonwebtoken.JwtException} nếu token sai chữ ký, hết hạn hoặc hỏng. */
+    /** Throws {@link io.jsonwebtoken.JwtException} if the token is badly signed, expired or malformed. */
     public Claims parse(String token) {
         Jws<Claims> jws = Jwts.parser().verifyWith(key).build().parseSignedClaims(token);
         return jws.getPayload();

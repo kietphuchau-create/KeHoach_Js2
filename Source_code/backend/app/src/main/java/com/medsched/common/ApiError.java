@@ -6,10 +6,10 @@ import java.time.Instant;
 import java.util.Map;
 
 /**
- * Khuôn lỗi thống nhất cho mọi API, để frontend luôn đọc được cùng một cấu trúc.
+ * One error shape for every API, so the frontend always parses the same structure.
  *
- * @param fieldErrors chi tiết lỗi từng trường khi dữ liệu gửi lên không hợp lệ
- *                    (null nếu không phải lỗi validate)
+ * @param fieldErrors per-field details when the submitted payload is invalid
+ *                    (null when the failure is not a validation error)
  */
 public record ApiError(Instant timestamp,
                        int status,

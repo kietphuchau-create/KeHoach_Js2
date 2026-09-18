@@ -21,7 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-/** Nghiệp vụ tài khoản cá nhân: xem hồ sơ, cập nhật hồ sơ, đổi mật khẩu. */
+/** Personal account operations: view profile, update profile, change password. */
 @Service
 public class AccountService {
 
@@ -79,9 +79,9 @@ public class AccountService {
     }
 
     /**
-     * Doctor - Update Profile. Học vị/kinh nghiệm/tiểu sử là thông tin của con
-     * người nên áp dụng cho TẤT CẢ hồ sơ hành nghề của tài khoản này (bác sĩ
-     * trực 2 chi nhánh thì cả 2 hồ sơ cùng được cập nhật).
+     * Doctor - Update Profile. Academic title, years of experience and bio
+     * describe the person, so they apply to ALL practising profiles of this
+     * account (a doctor at two branches sees both profiles updated).
      */
     @Transactional
     public List<AccountDtos.DoctorProfileView> updateDoctorProfile(AppUserDetails principal,
@@ -92,7 +92,6 @@ public class AccountService {
         }
         for (DoctorEntity doctor : profiles) {
             doctor.setAcademicTitle(blankToNull(request.academicTitle()));
-            doctor.setExperienceYears(request.experienceYears());
             doctor.setBio(blankToNull(request.bio()));
             doctor.setAvatarUrl(blankToNull(request.avatarUrl()));
             doctor.setUpdatedAt(Instant.now());
@@ -102,7 +101,7 @@ public class AccountService {
         return doctorProfilesOf(principal.getUserId());
     }
 
-    /** Customer - Update Profile (hồ sơ y tế của chính chủ, tạo mới nếu chưa có). */
+    /** Customer - Update Profile (own medical profile, created if missing). */
     @Transactional
     public AccountDtos.PatientProfileView updatePatientProfile(AppUserDetails principal,
                                                                AccountDtos.UpdatePatientProfileRequest request) {
@@ -138,7 +137,7 @@ public class AccountService {
                     doctor.getId(), doctor.getSpecialtyId(),
                     specialty == null ? null : specialty.getName(),
                     centerId, centerName,
-                    doctor.getAcademicTitle(), doctor.getExperienceYears(), doctor.getConsultationFee(),
+                    doctor.getAcademicTitle(), doctor.getConsultationFee(),
                     doctor.getRoomNumber(), doctor.getBio(), doctor.getAvatarUrl()));
         }
         return views;
