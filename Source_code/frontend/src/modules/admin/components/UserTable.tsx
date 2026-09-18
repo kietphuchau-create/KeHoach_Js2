@@ -69,14 +69,14 @@ export default function UserTable() {
     setMessage(null);
     try {
       const res = await api.getAdminUsers({
-        role: selectedRole === 'ALL' ? undefined : selectedRole,
+        role: (selectedRole === 'ALL' || selectedRole === 'LOCKED') ? undefined : selectedRole,
         q: searchQuery.trim() || undefined,
         page: currentPage,
         size: pageSize,
       });
 
       const rawList = res?.items || res?.content || (Array.isArray(res) ? res : []);
-      const normalizedUsers: UserItem[] = rawList
+      let normalizedUsers: UserItem[] = rawList
         .map((u: any) => {
           const roleStrings: string[] = Array.isArray(u.roles)
             ? u.roles.map((r: any) => (typeof r === 'string' ? r : r.role))
@@ -93,6 +93,10 @@ export default function UserTable() {
           };
         })
         .filter((u: UserItem) => !u.roles.includes('ROLE_ADMIN'));
+
+      if (selectedRole === 'LOCKED') {
+        normalizedUsers = normalizedUsers.filter((u) => !u.active);
+      }
 
       setUsers(normalizedUsers);
       setTotalElements(normalizedUsers.length);
@@ -127,7 +131,12 @@ export default function UserTable() {
         type: 'success', 
         text: `Đã ${newStatus ? 'kích hoạt' : 'vô hiệu hóa'} thành công tài khoản ${user.email}!` 
       });
-      setUsers(prev => prev.map(u => u.id === user.id ? { ...u, active: newStatus } : u));
+      setUsers(prev => {
+        if (selectedRole === 'LOCKED' && newStatus === true) {
+          return prev.filter(u => u.id !== user.id);
+        }
+        return prev.map(u => u.id === user.id ? { ...u, active: newStatus } : u);
+      });
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || 'Thao tác thay đổi trạng thái thất bại.' });
     } finally {
@@ -210,17 +219,23 @@ export default function UserTable() {
             { id: 'ROLE_DOCTOR', label: 'Bác sĩ' },
             { id: 'ROLE_STAFF', label: 'Lễ tân' },
             { id: 'CUSTOMER', label: 'Bệnh nhân' },
+            { id: 'LOCKED', label: 'Tài khoản bị khóa' },
           ].map(tab => (
             <button
               key={tab.id}
               onClick={() => { setSelectedRole(tab.id); setCurrentPage(0); }}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
                 selectedRole === tab.id
-                  ? 'bg-white text-pine-teal shadow-xs font-bold'
-                  : 'text-slate-600 hover:text-pine-teal'
+                  ? tab.id === 'LOCKED'
+                    ? 'bg-red-50 text-red-600 shadow-xs font-bold border border-red-200'
+                    : 'bg-white text-pine-teal shadow-xs font-bold'
+                  : tab.id === 'LOCKED'
+                    ? 'text-red-500 hover:text-red-700 hover:bg-red-50/50'
+                    : 'text-slate-600 hover:text-pine-teal'
               }`}
             >
-              {tab.label}
+              {tab.id === 'LOCKED' && <XCircle size={13} />}
+              <span>{tab.label}</span>
             </button>
           ))}
         </div>
@@ -252,8 +267,12 @@ export default function UserTable() {
           <LoadingSpinner message="Đang nạp danh sách tài khoản từ máy chủ Spring Boot 3..." />
         ) : users.length === 0 ? (
           <EmptyState
-            title="Không tìm thấy người dùng"
-            description={`Không có tài khoản nào phù hợp với bộ lọc "${selectedRole}" hoặc từ khóa tìm kiếm.`}
+            title={selectedRole === 'LOCKED' ? 'Không có tài khoản nào bị khóa' : 'Không tìm thấy người dùng'}
+            description={
+              selectedRole === 'LOCKED'
+                ? 'Tất cả tài khoản Bác sĩ, Lễ tân và Bệnh nhân hiện đều đang hoạt động bình thường.'
+                : `Không có tài khoản nào phù hợp với bộ lọc "${selectedRole}" hoặc từ khóa tìm kiếm.`
+            }
             onRetry={() => { setSelectedRole('ALL'); setSearchQuery(''); loadUsers(); }}
           />
         ) : (
