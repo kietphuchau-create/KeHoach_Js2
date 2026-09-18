@@ -14,7 +14,8 @@ import {
   Printer,
   Sparkles,
   RefreshCw,
-  Bell
+  Bell,
+  AlertCircle
 } from 'lucide-react';
 import Link from 'next/link';
 import { api, AppointmentResponse, getAuthUser } from '@/shared/lib/api';
@@ -87,9 +88,9 @@ export default function ReceptionView() {
       const newEntry = {
         queueNumber: res.queueNumber || `0${history.length + 1}`,
         bookingCode: res.bookingCode || (method === 'QR_CODE' ? bookingCode : `MED-${cccdNumber.slice(-4)}`),
-        patientName: method === 'CCCD_QR' ? (patientName || 'Bệnh nhân CCCD') : 'Châu Tuấn Kiệt',
-        doctor: 'PGS.TS.BS Trần Văn Hùng',
-        room: 'P.201 - Lầu 2',
+        patientName: (res as any).patientName || (method === 'CCCD_QR' ? (patientName || 'Bệnh nhân CCCD') : 'Bệnh nhân tiếp đón'),
+        doctor: (res as any).doctorName || 'BS. Chuyên khoa tiếp nhận',
+        room: (res as any).roomNumber || 'Phòng khám chuyên khoa',
         checkInTime: timeStr,
         status: 'ĐÃ TIẾP ĐÓN',
       };
@@ -134,7 +135,7 @@ export default function ReceptionView() {
       {!isStaff && (
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-start gap-3">
-            <span className="text-2xl leading-none">ℹ️</span>
+            <AlertCircle size={22} className="text-amber-600 shrink-0 mt-0.5" />
             <div>
               <h4 className="font-bold text-amber-900 text-sm">
                 Bạn đang xem màn hình nội bộ dành cho Nhân Viên Lễ Tân (ROLE_STAFF)

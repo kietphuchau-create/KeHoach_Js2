@@ -311,8 +311,9 @@ export default function DoctorClinicView() {
                 <p className="font-semibold text-purple-950 mb-1">
                   Triệu chứng bệnh nhân khai báo: &ldquo;{currentPatient.symptoms}&rdquo;
                 </p>
-                <p className="text-slate-600 italic">
-                  🤖 <strong>AI Đánh Giá:</strong> {currentPatient.aiSummary}
+                <p className="text-slate-600 italic flex items-start gap-1.5">
+                  <Sparkles size={14} className="text-purple-600 shrink-0 mt-0.5" />
+                  <span><strong>AI Đánh Giá:</strong> {currentPatient.aiSummary}</span>
                 </p>
               </div>
             </div>
