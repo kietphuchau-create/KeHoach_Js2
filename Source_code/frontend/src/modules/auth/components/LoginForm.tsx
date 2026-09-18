@@ -62,32 +62,32 @@ export default function LoginForm() {
   };
 
   return (
-    <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border border-mint-light">
+    <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-xl w-full max-w-sm sm:max-w-md border border-mint-light my-auto">
       {/* Header */}
-      <div className="text-center mb-6">
-        <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-white shadow-sm border border-mint-light p-1 mb-3">
+      <div className="text-center mb-3">
+        <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-white shadow-xs border border-mint-light p-1 mb-1.5">
           <img src="/logo.png" alt="MedSched Logo" className="w-full h-full object-contain" />
         </div>
-        <h1 className="text-3xl font-extrabold text-pine-teal">Đăng Nhập</h1>
-        <p className="text-slate-500 text-sm mt-1">
+        <h1 className="text-xl font-extrabold text-pine-teal">Đăng Nhập</h1>
+        <p className="text-slate-500 text-[11px] mt-0.5">
           Hệ thống MedSched dành cho Bệnh nhân, Bác sĩ, Lễ tân & Admin
         </p>
       </div>
 
       {/* Thông báo lỗi / thành công */}
       {errorMessage && (
-        <AlertMessage type="error" message={errorMessage} className="mb-4" onClose={() => setErrorMessage('')} />
+        <AlertMessage type="error" message={errorMessage} className="mb-2.5 py-1.5 text-xs" onClose={() => setErrorMessage('')} />
       )}
       {successMessage && (
-        <AlertMessage type="success" message={successMessage} className="mb-4" />
+        <AlertMessage type="success" message={successMessage} className="mb-2.5 py-1.5 text-xs" />
       )}
 
       {/* Form Đăng nhập */}
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-2.5">
         <div>
-          <label className="block text-sm font-semibold text-slate-700 mb-1">Email tài khoản</label>
+          <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Email tài khoản</label>
           <div className="relative">
-            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
             <input
               type="email"
               name="email"
@@ -95,15 +95,15 @@ export default function LoginForm() {
               value={formData.email}
               onChange={handleChange}
               placeholder="nhap.email@medsched.vn"
-              className="w-full pl-10 pr-4 py-2.5 bg-mint-soft border border-mint-light rounded-xl focus:bg-white focus:ring-2 focus:ring-pine-teal/30 focus:border-teal-primary outline-none text-sm transition"
+              className="w-full pl-8 pr-3 py-1.5 bg-mint-soft border border-mint-light rounded-xl focus:bg-white focus:ring-2 focus:ring-pine-teal/30 focus:border-teal-primary outline-none text-xs transition"
             />
           </div>
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-slate-700 mb-1">Mật khẩu</label>
+          <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Mật khẩu</label>
           <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
             <input
               type={showPassword ? 'text' : 'password'}
               name="password"
@@ -111,14 +111,14 @@ export default function LoginForm() {
               value={formData.password}
               onChange={handleChange}
               placeholder="••••••••"
-              className="w-full pl-10 pr-10 py-2.5 bg-mint-soft border border-mint-light rounded-xl focus:bg-white focus:ring-2 focus:ring-pine-teal/30 focus:border-teal-primary outline-none text-sm transition"
+              className="w-full pl-8 pr-8 py-1.5 bg-mint-soft border border-mint-light rounded-xl focus:bg-white focus:ring-2 focus:ring-pine-teal/30 focus:border-teal-primary outline-none text-xs transition"
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
             >
-              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
             </button>
           </div>
         </div>
@@ -126,55 +126,59 @@ export default function LoginForm() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-pine-teal hover:bg-pine-teal-hover text-white font-bold py-3 rounded-xl transition shadow-xs disabled:opacity-50 flex items-center justify-center gap-2 text-base mt-2 cursor-pointer"
+          className="w-full bg-pine-teal hover:bg-pine-teal-hover text-white font-bold py-2 rounded-xl transition shadow-xs disabled:opacity-50 flex items-center justify-center gap-2 text-xs mt-1 cursor-pointer"
         >
           {loading ? 'Đang xác thực...' : 'Đăng Nhập Ngay'}
         </button>
       </form>
 
       {/* Nút chọn nhanh tài khoản test */}
-      <div className="mt-6 pt-5 border-t border-mint-light">
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider text-center mb-3">
-          ⚡ Tài khoản Demo có sẵn (Mật khẩu: Medsched@123)
+      <div className="mt-3 pt-2.5 border-t border-mint-light">
+        <p className="text-[10.5px] font-semibold text-slate-500 uppercase tracking-wider text-center mb-1.5">
+          ⚡ Chọn nhanh tài khoản demo (Mật khẩu: Medsched@123)
         </p>
-        <div className="grid grid-cols-2 gap-2 text-xs">
+        <div className="grid grid-cols-2 gap-1.5 text-xs">
           <button
             type="button"
             onClick={() => handleQuickFill('admin@medsched.vn')}
-            className="p-2.5 rounded-xl bg-mint-light text-pine-teal border border-teal-primary/30 hover:bg-mint-light/80 font-semibold transition text-left cursor-pointer flex flex-col"
+            className="px-2.5 py-1.5 rounded-lg bg-mint-light text-pine-teal border border-teal-primary/20 hover:bg-mint-light/80 font-semibold transition text-left cursor-pointer flex items-center justify-between"
+            title="admin@medsched.vn"
           >
-            <span className="font-bold">👑 Quản Trị Viên</span>
-            <span className="text-[10px] text-teal-primary font-normal">admin@medsched.vn</span>
+            <span className="font-bold text-[11px]">👑 Admin</span>
+            <span className="text-[9px] text-teal-primary font-mono opacity-80">admin</span>
           </button>
           <button
             type="button"
             onClick={() => handleQuickFill('dr.minhanh@medsched.vn')}
-            className="p-2.5 rounded-xl bg-mint-light text-pine-teal border border-teal-primary/30 hover:bg-mint-light/80 font-semibold transition text-left cursor-pointer flex flex-col"
+            className="px-2.5 py-1.5 rounded-lg bg-mint-light text-pine-teal border border-teal-primary/20 hover:bg-mint-light/80 font-semibold transition text-left cursor-pointer flex items-center justify-between"
+            title="dr.minhanh@medsched.vn"
           >
-            <span className="font-bold">🩺 Bác Sĩ</span>
-            <span className="text-[10px] text-teal-primary font-normal">dr.minhanh@medsched.vn</span>
+            <span className="font-bold text-[11px]">🩺 Bác Sĩ</span>
+            <span className="text-[9px] text-teal-primary font-mono opacity-80">dr.minh</span>
           </button>
           <button
             type="button"
             onClick={() => handleQuickFill('letan.q1@medsched.vn')}
-            className="p-2.5 rounded-xl bg-mint-light text-pine-teal border border-teal-primary/30 hover:bg-mint-light/80 font-semibold transition text-left cursor-pointer flex flex-col"
+            className="px-2.5 py-1.5 rounded-lg bg-mint-light text-pine-teal border border-teal-primary/20 hover:bg-mint-light/80 font-semibold transition text-left cursor-pointer flex items-center justify-between"
+            title="letan.q1@medsched.vn"
           >
-            <span className="font-bold">📋 Lễ Tân</span>
-            <span className="text-[10px] text-teal-primary font-normal">letan.q1@medsched.vn</span>
+            <span className="font-bold text-[11px]">📋 Lễ Tân</span>
+            <span className="text-[9px] text-teal-primary font-mono opacity-80">letan</span>
           </button>
           <button
             type="button"
             onClick={() => handleQuickFill('benhnhan.demo@gmail.com')}
-            className="p-2.5 rounded-xl bg-mint-light text-pine-teal border border-teal-primary/30 hover:bg-mint-light/80 font-semibold transition text-left cursor-pointer flex flex-col"
+            className="px-2.5 py-1.5 rounded-lg bg-mint-light text-pine-teal border border-teal-primary/20 hover:bg-mint-light/80 font-semibold transition text-left cursor-pointer flex items-center justify-between"
+            title="benhnhan.demo@gmail.com"
           >
-            <span className="font-bold">🧑 Bệnh Nhân</span>
-            <span className="text-[10px] text-teal-primary font-normal">benhnhan.demo@gmail.com</span>
+            <span className="font-bold text-[11px]">🧑 Bệnh Nhân</span>
+            <span className="text-[9px] text-teal-primary font-mono opacity-80">benhnhan</span>
           </button>
         </div>
       </div>
 
       {/* Footer link */}
-      <div className="text-center mt-6 text-sm text-slate-600">
+      <div className="text-center mt-2.5 text-xs text-slate-600">
         Chưa có tài khoản?{' '}
         <Link href="/register" className="text-pine-teal font-bold hover:underline">
           Đăng ký khám mới
