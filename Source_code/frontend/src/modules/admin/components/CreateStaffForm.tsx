@@ -1,15 +1,17 @@
 'use client';
 
 import React, { useState } from 'react';
-import { 
-  UserCheck, 
-  Building2, 
-  Mail, 
-  Lock, 
-  Phone, 
-  User, 
-  UserPlus 
-} from 'lucide-react';
+import Box from '@mui/material/Box';
+import Grid from '@mui/material/Grid';
+import Typography from '@mui/material/Typography';
+import TextField from '@mui/material/TextField';
+import MenuItem from '@mui/material/MenuItem';
+import Button from '@mui/material/Button';
+import CircularProgress from '@mui/material/CircularProgress';
+import Stack from '@mui/material/Stack';
+
+import PersonAddIcon from '@mui/icons-material/PersonAddRounded';
+
 import { api } from '@/shared/lib/api';
 import AlertMessage from '@/shared/components/Feedback/AlertMessage';
 
@@ -65,115 +67,104 @@ export default function CreateStaffForm({ medicalCenters, onSuccess }: CreateSta
   };
 
   return (
-    <form onSubmit={handleCreateStaff} className="space-y-4">
-      {message && (
-        <AlertMessage type={message.type} message={message.text} onClose={() => setMessage(null)} />
-      )}
+    <Box component="form" onSubmit={handleCreateStaff}>
+      <Stack spacing={2.5}>
+        {message && (
+          <AlertMessage type={message.type} message={message.text} onClose={() => setMessage(null)} />
+        )}
 
-      <div>
-        <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-          Họ và Tên Nhân Viên <span className="text-red-500">*</span>
-        </label>
-        <div className="relative">
-          <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-          <input
-            type="text"
+        <Box>
+          <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.primary', textTransform: 'uppercase', mb: 0.5, display: 'block' }}>
+            Họ và Tên Nhân Viên <span style={{ color: 'red' }}>*</span>
+          </Typography>
+          <TextField
+            fullWidth
             required
             value={staffForm.fullName}
             onChange={(e) => setStaffForm({ ...staffForm, fullName: e.target.value })}
             placeholder="Ví dụ: Lê Thị Hạnh"
-            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm"
           />
-        </div>
-      </div>
+        </Box>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-            Email Đăng Nhập <span className="text-red-500">*</span>
-          </label>
-          <div className="relative">
-            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.primary', textTransform: 'uppercase', mb: 0.5, display: 'block' }}>
+              Email Đăng Nhập <span style={{ color: 'red' }}>*</span>
+            </Typography>
+            <TextField
+              fullWidth
               type="email"
               required
               value={staffForm.email}
               onChange={(e) => setStaffForm({ ...staffForm, email: e.target.value })}
               placeholder="letan01@medsched.vn"
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm"
             />
-          </div>
-        </div>
+          </Grid>
 
-        <div>
-          <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-            Số Điện Thoại <span className="text-red-500">*</span>
-          </label>
-          <div className="relative">
-            <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.primary', textTransform: 'uppercase', mb: 0.5, display: 'block' }}>
+              Số Điện Thoại <span style={{ color: 'red' }}>*</span>
+            </Typography>
+            <TextField
+              fullWidth
               type="tel"
               required
               value={staffForm.phone}
               onChange={(e) => setStaffForm({ ...staffForm, phone: e.target.value })}
               placeholder="0912345678"
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm"
             />
-          </div>
-        </div>
-      </div>
+          </Grid>
+        </Grid>
 
-      <div>
-        <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-          Mật Khẩu Tạm Thời (Tùy chọn, mặc định: Medsched@123)
-        </label>
-        <div className="relative">
-          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-          <input
-            type="text"
+        <Box>
+          <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.primary', textTransform: 'uppercase', mb: 0.5, display: 'block' }}>
+            Mật Khẩu Tạm Thời (Tùy chọn, mặc định: Medsched@123)
+          </Typography>
+          <TextField
+            fullWidth
             value={staffForm.temporaryPassword}
             onChange={(e) => setStaffForm({ ...staffForm, temporaryPassword: e.target.value })}
             placeholder="Để trống sẽ tự tạo Medsched@123"
-            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm font-mono"
           />
-        </div>
-      </div>
+        </Box>
 
-      <div>
-        <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-          Cơ Sở Y Tế Tiếp Đón Làm Việc <span className="text-red-500">*</span>
-        </label>
-        <div className="relative">
-          <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-          <select
+        <Box>
+          <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.primary', textTransform: 'uppercase', mb: 0.5, display: 'block' }}>
+            Cơ Sở Y Tế Tiếp Đón Làm Việc <span style={{ color: 'red' }}>*</span>
+          </Typography>
+          <TextField
+            select
+            fullWidth
             required
             value={staffForm.medicalCenterId}
             onChange={(e) => setStaffForm({ ...staffForm, medicalCenterId: e.target.value })}
-            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm"
           >
             {medicalCenters.length === 0 ? (
-              <option value="">Không có cơ sở y tế nào</option>
+              <MenuItem value="">Không có cơ sở y tế nào</MenuItem>
             ) : (
-              medicalCenters.map(center => (
-                <option key={center.id} value={center.id}>
+              medicalCenters.map((center) => (
+                <MenuItem key={center.id} value={center.id}>
                   {center.name} {center.address ? `- ${center.address}` : ''}
-                </option>
+                </MenuItem>
               ))
             )}
-          </select>
-        </div>
-      </div>
+          </TextField>
+        </Box>
 
-      <div className="pt-4">
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl transition shadow-sm disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
-        >
-          <UserPlus size={18} />
-          <span>{loading ? 'Đang tạo tài khoản...' : 'Xác Nhận Tạo Tài Khoản Lễ Tân'}</span>
-        </button>
-      </div>
-    </form>
+        <Box sx={{ pt: 1 }}>
+          <Button
+            type="submit"
+            fullWidth
+            variant="contained"
+            color="primary"
+            disabled={loading}
+            startIcon={loading ? <CircularProgress size={18} color="inherit" /> : <PersonAddIcon />}
+            sx={{ py: 1.4, borderRadius: 3, fontWeight: 800 }}
+          >
+            {loading ? 'Đang tạo tài khoản...' : 'Xác Nhận Tạo Tài Khoản Lễ Tân'}
+          </Button>
+        </Box>
+      </Stack>
+    </Box>
   );
 }

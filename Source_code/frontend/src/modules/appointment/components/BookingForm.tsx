@@ -1,28 +1,41 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { 
-  Calendar, 
-  Clock, 
-  Stethoscope, 
-  Sparkles, 
-  CheckCircle2, 
-  Building2, 
-  User, 
-  ArrowRight, 
-  ArrowLeft, 
-  QrCode, 
-  MapPin, 
-  ShieldCheck,
-  Printer,
-  ChevronRight
-} from 'lucide-react';
+import Box from '@mui/material/Box';
+import Paper from '@mui/material/Paper';
+import Grid from '@mui/material/Grid';
+import Typography from '@mui/material/Typography';
+import Button from '@mui/material/Button';
+import Chip from '@mui/material/Chip';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Stepper from '@mui/material/Stepper';
+import Step from '@mui/material/Step';
+import StepLabel from '@mui/material/StepLabel';
+import TextField from '@mui/material/TextField';
+import CircularProgress from '@mui/material/CircularProgress';
+import Stack from '@mui/material/Stack';
+import Divider from '@mui/material/Divider';
+import Avatar from '@mui/material/Avatar';
+
+import CalendarMonthIcon from '@mui/icons-material/CalendarMonthRounded';
+import MedicalServicesIcon from '@mui/icons-material/MedicalServicesRounded';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesomeRounded';
+import CheckCircleIcon from '@mui/icons-material/CheckCircleRounded';
+import LocationOnIcon from '@mui/icons-material/LocationOnRounded';
+import ArrowForwardIcon from '@mui/icons-material/ArrowForwardRounded';
+import ArrowBackIcon from '@mui/icons-material/ArrowBackRounded';
+import QrCodeIcon from '@mui/icons-material/QrCode2Rounded';
+import PrintIcon from '@mui/icons-material/PrintRounded';
+import SecurityIcon from '@mui/icons-material/SecurityRounded';
+
 import { api, AppointmentResponse } from '@/shared/lib/api';
 import AlertMessage from '@/shared/components/Feedback/AlertMessage';
 import LoadingSpinner from '@/shared/components/Feedback/LoadingSpinner';
+import { medoraColors } from '@/shared/theme/theme';
 
 export default function BookingForm() {
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const [step, setStep] = useState<0 | 1 | 2 | 3>(0);
   const [centers, setCenters] = useState<any[]>([]);
   const [specialties, setSpecialties] = useState<any[]>([]);
   const [loadingData, setLoadingData] = useState(true);
@@ -56,8 +69,8 @@ export default function BookingForm() {
       try {
         const [c, s] = await Promise.all([
           api.getMedicalCenters().catch(() => [
-            { id: 'mc000001-0000-0000-0000-000000000001', name: 'MedSched Quận 1', address: '120 Nguyễn Du, P. Bến Thành, Q.1' },
-            { id: 'mc000002-0000-0000-0000-000000000002', name: 'MedSched Quận 7', address: '45 Nguyễn Thị Thập, P. Tân Hưng, Q.7' },
+            { id: 'mc000001-0000-0000-0000-000000000001', name: 'Bệnh Viện Đa Khoa Medora - Chi Nhánh Quận 1', address: 'Số 123 Nguyễn Thị Minh Khai, P. Bến Thành, Q.1, TP.HCM' },
+            { id: 'mc000002-0000-0000-0000-000000000002', name: 'Bệnh Viện Đa Khoa Medora - Chi Nhánh Quận 7', address: 'Số 45 Nguyễn Thị Thập, P. Tân Phú, Q.7, TP.HCM' },
           ]),
           api.getSpecialties().catch(() => [
             { id: 'sp000001-0000-0000-0000-000000000001', name: 'Khoa Nội Tim Mạch', code: 'INTERNAL_MEDICINE' },
@@ -103,7 +116,7 @@ export default function BookingForm() {
         medicalHistory: 'Huyết áp bình thường, không dị ứng thuốc kháng sinh',
       });
       setResult(res);
-      setStep(4);
+      setStep(3);
     } catch (err: any) {
       setError(err.message || 'Đặt lịch thất bại. Vui lòng thử lại.');
     } finally {
@@ -147,417 +160,468 @@ export default function BookingForm() {
     { id: 'sl000006-0000-0000-0000-000000000001', time: '14:30 - 15:00', status: 'available', label: 'Khả dụng' },
   ];
 
+  const wizardSteps = ['Cơ Sở & Khoa', 'Bác Sĩ & Giờ', 'Triệu Chứng & AI'];
+
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      {/* Header Banner */}
-      <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-          <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 mb-2">
-              <Calendar size={14} />
-              <span>Cổng Dịch Vụ Khách Hàng MedSched</span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-slate-800">Đặt Lịch Khám Trực Tuyến</h1>
-            <p className="text-slate-500 text-sm mt-1">
-              Quy trình 4 bước đặt trước ca khám theo thời gian thực kết hợp phân loại triệu chứng tự động bằng <strong>Spring AI</strong>.
-            </p>
-          </div>
-          {step < 4 && (
-            <div className="bg-slate-100 px-4 py-2 rounded-xl text-xs font-semibold text-slate-700 shrink-0">
-              Bước {step} / 3
-            </div>
+    <Stack spacing={3} sx={{ maxWidth: 840, mx: 'auto' }}>
+      <Paper elevation={2} sx={{ p: { xs: 3, sm: 4 }, borderRadius: 4, border: `1px solid ${medoraColors.border}` }}>
+        {/* Header Banner */}
+        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { sm: 'center' }, justifyContent: 'space-between', gap: 2, mb: 3 }}>
+          <Box>
+            <Chip
+              icon={<CalendarMonthIcon sx={{ fontSize: '16px !important' }} />}
+              label="Cổng Dịch Vụ Khách Hàng Medora"
+              color="primary"
+              variant="outlined"
+              size="small"
+              sx={{ fontWeight: 700, mb: 1, borderRadius: 3 }}
+            />
+            <Typography variant="h4" sx={{ fontWeight: 800, color: medoraColors.main }}>
+              Đặt Lịch Khám Trực Tuyến
+            </Typography>
+            <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
+              Quy trình đặt trước ca khám thời gian thực kết hợp phân loại triệu chứng tự động bằng <strong>Spring AI</strong>.
+            </Typography>
+          </Box>
+          {step < 3 && (
+            <Chip
+              label={`Bước ${step + 1} / 3`}
+              sx={{ fontWeight: 800, backgroundColor: medoraColors.soft, color: medoraColors.main, alignSelf: 'flex-start' }}
+            />
           )}
-        </div>
+        </Box>
 
-        {/* Stepper Wizard Progress */}
-        {step < 4 && (
-          <div className="grid grid-cols-3 gap-2 pb-6 border-b border-slate-100">
-            <button
-              onClick={() => setStep(1)}
-              className={`p-2.5 rounded-xl text-left transition flex items-center gap-2 cursor-pointer ${
-                step === 1 ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
-              }`}
+        {/* Stepper Header */}
+        {step < 3 && (
+          <Box sx={{ width: '100%', mb: 4, pt: 1 }}>
+            <Stepper
+              activeStep={step}
+              alternativeLabel
+              sx={{
+                '& .MuiStepIcon-root.Mui-active': { color: medoraColors.main },
+                '& .MuiStepIcon-root.Mui-completed': { color: medoraColors.accent },
+              }}
             >
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                step === 1 ? 'bg-white text-blue-600' : 'bg-slate-200 text-slate-700'
-              }`}>1</div>
-              <span className="text-xs font-semibold hidden sm:inline">Cơ Sở & Khoa</span>
-            </button>
-
-            <button
-              onClick={() => setStep(2)}
-              className={`p-2.5 rounded-xl text-left transition flex items-center gap-2 cursor-pointer ${
-                step === 2 ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
-              }`}
-            >
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                step === 2 ? 'bg-white text-blue-600' : 'bg-slate-200 text-slate-700'
-              }`}>2</div>
-              <span className="text-xs font-semibold hidden sm:inline">Bác Sĩ & Giờ</span>
-            </button>
-
-            <button
-              onClick={() => setStep(3)}
-              className={`p-2.5 rounded-xl text-left transition flex items-center gap-2 cursor-pointer ${
-                step === 3 ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
-              }`}
-            >
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                step === 3 ? 'bg-white text-blue-600' : 'bg-slate-200 text-slate-700'
-              }`}>3</div>
-              <span className="text-xs font-semibold hidden sm:inline">Triệu Chứng & AI</span>
-            </button>
-          </div>
+              {wizardSteps.map((label, idx) => (
+                <Step key={label} onClick={() => setStep(idx as 0 | 1 | 2)} sx={{ cursor: 'pointer' }}>
+                  <StepLabel>
+                    <Typography variant="caption" sx={{ fontWeight: step === idx ? 800 : 600 }}>
+                      {label}
+                    </Typography>
+                  </StepLabel>
+                </Step>
+              ))}
+            </Stepper>
+          </Box>
         )}
 
         {/* Error Alert */}
         {error && (
-          <div className="mt-4">
+          <Box sx={{ mb: 3 }}>
             <AlertMessage type="error" message={error} onClose={() => setError(null)} />
-          </div>
+          </Box>
         )}
 
         {/* Step 1: Cơ Sở & Chuyên Khoa */}
-        {step === 1 && (
-          <div className="mt-6 space-y-6">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-2">
+        {step === 0 && (
+          <Stack spacing={3}>
+            <Box>
+              <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.primary', textTransform: 'uppercase', mb: 1.5, display: 'block', letterSpacing: '0.05em' }}>
                 1. Chọn Cơ Sở Y Tế Tiếp Nhận:
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {centers.map((center) => (
-                  <div
-                    key={center.id}
-                    onClick={() => setSelectedCenter(center.id)}
-                    className={`p-4 rounded-xl border-2 transition cursor-pointer flex flex-col justify-between ${
-                      selectedCenter === center.id
-                        ? 'border-blue-600 bg-blue-50/50'
-                        : 'border-slate-200 hover:border-slate-300 bg-white'
-                    }`}
-                  >
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="font-bold text-slate-800 text-sm">{center.name}</span>
-                        {selectedCenter === center.id && <CheckCircle2 size={18} className="text-blue-600" />}
-                      </div>
-                      <p className="text-xs text-slate-500 flex items-start gap-1">
-                        <MapPin size={14} className="shrink-0 mt-0.5" />
-                        <span>{center.address}</span>
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+              </Typography>
+              <Grid container spacing={2}>
+                {centers.map((center) => {
+                  const isSelected = selectedCenter === center.id;
+                  return (
+                    <Grid size={{ xs: 12, sm: 6 }} key={center.id}>
+                      <Paper
+                        elevation={0}
+                        onClick={() => setSelectedCenter(center.id)}
+                        sx={{
+                          p: 2.5,
+                          borderRadius: 3,
+                          border: `2px solid ${isSelected ? medoraColors.main : medoraColors.border}`,
+                          backgroundColor: isSelected ? medoraColors.soft : '#ffffff',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                          '&:hover': { borderColor: medoraColors.accent },
+                        }}
+                      >
+                        <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 800, color: medoraColors.main }}>
+                            {center.name?.replace(/MedSched/gi, 'Medora')}
+                          </Typography>
+                          {isSelected && <CheckCircleIcon sx={{ color: medoraColors.main, fontSize: 20 }} />}
+                        </Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1, color: 'text.secondary' }}>
+                          <LocationOnIcon sx={{ fontSize: 16 }} />
+                          <Typography variant="caption" sx={{ fontSize: '0.75rem' }}>{center.address}</Typography>
+                        </Box>
+                      </Paper>
+                    </Grid>
+                  );
+                })}
+              </Grid>
+            </Box>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-2">
+            <Box>
+              <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.primary', textTransform: 'uppercase', mb: 1.5, display: 'block', letterSpacing: '0.05em' }}>
                 2. Chọn Chuyên Khoa Thăm Khám:
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {specialties.map((spec) => (
-                  <div
-                    key={spec.id}
-                    onClick={() => setSelectedSpecialty(spec.id)}
-                    className={`p-3.5 rounded-xl border-2 transition cursor-pointer flex items-center justify-between ${
-                      selectedSpecialty === spec.id
-                        ? 'border-blue-600 bg-blue-50/50 text-blue-900 font-semibold'
-                        : 'border-slate-200 hover:border-slate-300 text-slate-700 bg-white'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 text-sm">
-                      <Stethoscope size={16} className="text-blue-600" />
-                      <span>{spec.name}</span>
-                    </div>
-                    {selectedSpecialty === spec.id && <CheckCircle2 size={16} className="text-blue-600" />}
-                  </div>
-                ))}
-              </div>
-            </div>
+              </Typography>
+              <Grid container spacing={1.5}>
+                {specialties.map((spec) => {
+                  const isSelected = selectedSpecialty === spec.id;
+                  return (
+                    <Grid size={{ xs: 12, sm: 6 }} key={spec.id}>
+                      <Paper
+                        elevation={0}
+                        onClick={() => setSelectedSpecialty(spec.id)}
+                        sx={{
+                          p: 2,
+                          borderRadius: 3,
+                          border: `2px solid ${isSelected ? medoraColors.main : medoraColors.border}`,
+                          backgroundColor: isSelected ? medoraColors.soft : '#ffffff',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          transition: 'all 0.2s',
+                          '&:hover': { borderColor: medoraColors.accent },
+                        }}
+                      >
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                          <MedicalServicesIcon sx={{ color: medoraColors.main }} />
+                          <Typography variant="body2" sx={{ fontWeight: isSelected ? 800 : 600, color: 'text.primary' }}>
+                            {spec.name}
+                          </Typography>
+                        </Box>
+                        {isSelected && <CheckCircleIcon sx={{ color: medoraColors.main, fontSize: 18 }} />}
+                      </Paper>
+                    </Grid>
+                  );
+                })}
+              </Grid>
+            </Box>
 
-            <div className="pt-4 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setStep(2)}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-xl transition shadow-sm flex items-center gap-2 cursor-pointer"
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', pt: 2 }}>
+              <Button
+                variant="contained"
+                color="primary"
+                endIcon={<ArrowForwardIcon />}
+                onClick={() => setStep(1)}
+                sx={{ px: 4, py: 1.2, borderRadius: 3, fontWeight: 700 }}
               >
-                <span>Tiếp tục chọn Bác sĩ</span>
-                <ArrowRight size={16} />
-              </button>
-            </div>
-          </div>
+                Tiếp tục chọn Bác sĩ
+              </Button>
+            </Box>
+          </Stack>
         )}
 
         {/* Step 2: Bác Sĩ & Khung Giờ */}
-        {step === 2 && (
-          <div className="mt-6 space-y-6">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-2">
+        {step === 1 && (
+          <Stack spacing={3}>
+            <Box>
+              <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.primary', textTransform: 'uppercase', mb: 1.5, display: 'block', letterSpacing: '0.05em' }}>
                 1. Chọn Bác Sĩ Phụ Trách:
-              </label>
-              <div className="space-y-3">
-                {doctorList.map((doc) => (
-                  <div
-                    key={doc.id}
-                    onClick={() => setSelectedDoctor(doc)}
-                    className={`p-4 rounded-xl border-2 transition cursor-pointer flex items-start justify-between ${
-                      selectedDoctor.id === doc.id
-                        ? 'border-blue-600 bg-blue-50/50'
-                        : 'border-slate-200 hover:border-slate-300 bg-white'
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-sm shrink-0">
-                        {doc.name.charAt(0)}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-bold text-slate-800 text-sm">{doc.name}</h4>
-                          <span className="text-[11px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
-                            {doc.room}
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-500 mt-0.5">{doc.title}</p>
-                        <div className="text-xs font-semibold text-emerald-600 mt-1">
-                          Phí tư vấn: {doc.fee.toLocaleString('vi-VN')} đ
-                        </div>
-                      </div>
-                    </div>
-                    {selectedDoctor.id === doc.id && <CheckCircle2 size={18} className="text-blue-600" />}
-                  </div>
-                ))}
-              </div>
-            </div>
+              </Typography>
+              <Stack spacing={1.5}>
+                {doctorList.map((doc) => {
+                  const isSelected = selectedDoctor.id === doc.id;
+                  return (
+                    <Paper
+                      key={doc.id}
+                      elevation={0}
+                      onClick={() => setSelectedDoctor(doc)}
+                      sx={{
+                        p: 2.5,
+                        borderRadius: 3,
+                        border: `2px solid ${isSelected ? medoraColors.main : medoraColors.border}`,
+                        backgroundColor: isSelected ? medoraColors.soft : '#ffffff',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        transition: 'all 0.2s',
+                        '&:hover': { borderColor: medoraColors.accent },
+                      }}
+                    >
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <Avatar sx={{ bgcolor: medoraColors.light, color: medoraColors.main, fontWeight: 800 }}>
+                          {doc.name.charAt(0)}
+                        </Avatar>
+                        <Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'text.primary' }}>{doc.name}</Typography>
+                            <Chip label={doc.room} size="small" sx={{ height: 20, fontSize: '10px', fontWeight: 700, backgroundColor: 'rgba(20, 184, 166, 0.15)', color: medoraColors.main }} />
+                          </Box>
+                          <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 0.2 }}>{doc.title}</Typography>
+                          <Typography variant="caption" sx={{ fontWeight: 800, color: 'success.main', display: 'block', mt: 0.5 }}>
+                            Phí tư vấn: {doc.fee.toLocaleString('vi-VN')} đ
+                          </Typography>
+                        </Box>
+                      </Box>
+                      {isSelected && <CheckCircleIcon sx={{ color: medoraColors.main }} />}
+                    </Paper>
+                  );
+                })}
+              </Stack>
+            </Box>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-2">
+            <Box>
+              <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.primary', textTransform: 'uppercase', mb: 1.5, display: 'block', letterSpacing: '0.05em' }}>
                 2. Chọn Khung Giờ Khám (Time-slot):
-              </label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+              </Typography>
+              <Grid container spacing={1.5}>
                 {timeSlots.map((slot) => {
                   const isFull = slot.status === 'full';
                   const isSelected = selectedSlot.id === slot.id;
                   return (
-                    <button
-                      key={slot.id}
-                      type="button"
-                      disabled={isFull}
-                      onClick={() => setSelectedSlot({ id: slot.id, time: slot.time, date: 'Hôm nay' })}
-                      className={`p-3 rounded-xl border text-center transition flex flex-col items-center justify-center ${
-                        isFull
-                          ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
-                          : isSelected
-                          ? 'border-blue-600 bg-blue-600 text-white shadow-sm cursor-pointer'
-                          : 'border-slate-200 bg-white hover:border-blue-400 text-slate-700 cursor-pointer'
-                      }`}
-                    >
-                      <span className="text-xs font-bold">{slot.time}</span>
-                      <span className={`text-[10px] mt-0.5 ${isSelected ? 'text-blue-100' : isFull ? 'text-slate-400' : 'text-emerald-600'}`}>
-                        {slot.label}
-                      </span>
-                    </button>
+                    <Grid size={{ xs: 6, sm: 4 }} key={slot.id}>
+                      <Button
+                        fullWidth
+                        disabled={isFull}
+                        variant={isSelected ? 'contained' : 'outlined'}
+                        color="primary"
+                        onClick={() => setSelectedSlot({ id: slot.id, time: slot.time, date: 'Hôm nay' })}
+                        sx={{
+                          py: 1.5,
+                          borderRadius: 3,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          borderColor: isSelected ? medoraColors.main : medoraColors.border,
+                        }}
+                      >
+                        <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>{slot.time}</Typography>
+                        <Typography variant="caption" sx={{ fontSize: '10px', opacity: 0.9 }}>
+                          {slot.label}
+                        </Typography>
+                      </Button>
+                    </Grid>
                   );
                 })}
-              </div>
-            </div>
+              </Grid>
+            </Box>
 
-            <div className="pt-4 flex justify-between">
-              <button
-                type="button"
-                onClick={() => setStep(1)}
-                className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 font-medium text-sm transition cursor-pointer flex items-center gap-1.5"
-              >
-                <ArrowLeft size={16} /> Quay lại
-              </button>
-              <button
-                type="button"
-                onClick={() => setStep(3)}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2.5 rounded-xl transition shadow-sm flex items-center gap-2 cursor-pointer text-sm"
-              >
-                <span>Tiếp tục nhập Triệu chứng</span>
-                <ArrowRight size={16} />
-              </button>
-            </div>
-          </div>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', pt: 2 }}>
+              <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => setStep(0)} sx={{ borderRadius: 3 }}>
+                Quay lại
+              </Button>
+              <Button variant="contained" color="primary" endIcon={<ArrowForwardIcon />} onClick={() => setStep(2)} sx={{ borderRadius: 3, px: 3 }}>
+                Tiếp tục nhập Triệu chứng
+              </Button>
+            </Box>
+          </Stack>
         )}
 
         {/* Step 3: Triệu Chứng & Spring AI Triage */}
-        {step === 3 && (
-          <form onSubmit={handleBook} className="mt-6 space-y-6">
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-bold text-slate-700 uppercase">
-                  Mô Tả Triệu Chứng & Cảm Giác Khó Chịu:
-                </label>
-                <button
-                  type="button"
-                  onClick={handleAnalyzeSymptoms}
-                  disabled={analyzingAi || !symptoms.trim()}
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-purple-700 hover:text-purple-800 bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-200 transition cursor-pointer"
+        {step === 2 && (
+          <Box component="form" onSubmit={handleBook}>
+            <Stack spacing={3}>
+              <Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                  <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.primary', textTransform: 'uppercase' }}>
+                    Mô Tả Triệu Chứng & Cảm Giác Khó Chịu:
+                  </Typography>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    color="secondary"
+                    startIcon={analyzingAi ? <CircularProgress size={14} /> : <AutoAwesomeIcon />}
+                    disabled={analyzingAi || !symptoms.trim()}
+                    onClick={handleAnalyzeSymptoms}
+                    sx={{ borderRadius: 2, fontSize: '0.75rem' }}
+                  >
+                    {analyzingAi ? 'Đang phân tích...' : 'Thử phân tích AI'}
+                  </Button>
+                </Box>
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={4}
+                  required
+                  value={symptoms}
+                  onChange={(e) => setSymptoms(e.target.value)}
+                  placeholder="Ví dụ: Đau tức vùng ngực trái, hồi hộp đánh trống ngực vào ban đêm, thỉnh thoảng choáng nhẹ..."
+                />
+                <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 0.8, fontSize: '0.75rem' }}>
+                  * Dữ liệu triệu chứng sẽ được Spring AI xử lý và tóm tắt gửi tới Bác sĩ trước khi bạn bước vào phòng khám.
+                </Typography>
+              </Box>
+
+              {/* AI Summary Preview Card */}
+              {aiPreview && (
+                <Paper elevation={0} sx={{ p: 2.5, borderRadius: 3, backgroundColor: 'rgba(238, 242, 255, 0.7)', border: '1px solid #C7D2FE' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, color: '#4338CA' }}>
+                    <AutoAwesomeIcon fontSize="small" />
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800, fontSize: '0.8rem' }}>
+                      KẾT QUẢ ĐÁNH GIÁ TỰ ĐỘNG TỪ SPRING AI:
+                    </Typography>
+                  </Box>
+                  <Box sx={{ p: 1.5, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.9)' }}>
+                    <Typography variant="caption" sx={{ fontWeight: 800, color: '#3730A3', display: 'block' }}>
+                      Gợi ý chuyên khoa: {aiPreview.specialty}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic', display: 'block', mt: 0.5 }}>
+                      {aiPreview.summary}
+                    </Typography>
+                  </Box>
+                </Paper>
+              )}
+
+              {/* Confirmation Details */}
+              <Paper elevation={0} sx={{ p: 2.5, borderRadius: 3, backgroundColor: medoraColors.soft, border: `1px solid ${medoraColors.border}` }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 800, color: medoraColors.main, mb: 1 }}>
+                  Xác nhận thông tin đặt khám:
+                </Typography>
+                <Grid container spacing={1}>
+                  <Grid size={6}>
+                    <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>Bác sĩ: <strong>{selectedDoctor.name}</strong></Typography>
+                  </Grid>
+                  <Grid size={6}>
+                    <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>Phòng khám: <strong>{selectedDoctor.room}</strong></Typography>
+                  </Grid>
+                  <Grid size={6}>
+                    <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>Khung giờ: <strong style={{ color: medoraColors.main }}>{selectedSlot.time} ({selectedSlot.date})</strong></Typography>
+                  </Grid>
+                  <Grid size={6}>
+                    <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>Giá khám: <strong style={{ color: '#059669' }}>{selectedDoctor.fee.toLocaleString('vi-VN')} đ</strong></Typography>
+                  </Grid>
+                </Grid>
+              </Paper>
+
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', pt: 2 }}>
+                <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => setStep(1)} sx={{ borderRadius: 3 }}>
+                  Quay lại
+                </Button>
+                <Button
+                  type="submit"
+                  variant="contained"
+                  color="primary"
+                  disabled={submitting}
+                  startIcon={submitting ? <CircularProgress size={18} color="inherit" /> : <CheckCircleIcon />}
+                  sx={{ borderRadius: 3, px: 3, py: 1.2, fontWeight: 800 }}
                 >
-                  <Sparkles size={13} className="text-purple-600" />
-                  <span>{analyzingAi ? 'Đang phân tích...' : 'Thử phân tích AI'}</span>
-                </button>
-              </div>
-              <textarea
-                rows={4}
-                required
-                value={symptoms}
-                onChange={(e) => setSymptoms(e.target.value)}
-                placeholder="Ví dụ: Đau tức vùng ngực trái, hồi hộp đánh trống ngực vào ban đêm, thỉnh thoảng choáng nhẹ..."
-                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm text-slate-800"
-              />
-              <p className="text-xs text-slate-400 mt-1">
-                * Dữ liệu triệu chứng sẽ được Spring AI xử lý và tóm tắt gửi tới Bác sĩ trước khi bạn bước vào phòng khám.
-              </p>
-            </div>
-
-            {/* AI Summary Preview Card */}
-            {aiPreview && (
-              <div className="bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-200 rounded-2xl p-4 space-y-2">
-                <div className="flex items-center gap-2 text-purple-800 font-bold text-xs">
-                  <Sparkles size={16} className="text-purple-600" />
-                  <span>KẾT QUẢ ĐÁNH GIÁ TỰ ĐỘNG TỪ SPRING AI:</span>
-                </div>
-                <div className="bg-white/80 backdrop-blur-xs p-3 rounded-xl text-xs text-slate-700 border border-purple-100">
-                  <div className="font-semibold text-purple-900 mb-0.5">Gợi ý chuyên khoa: {aiPreview.specialty}</div>
-                  <p className="italic text-slate-600">{aiPreview.summary}</p>
-                </div>
-              </div>
-            )}
-
-            {/* Appointment Booking Summary Summary */}
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs space-y-2 text-slate-600">
-              <div className="font-bold text-slate-800 text-sm mb-1">Xác nhận thông tin đặt khám:</div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>Bác sĩ: <strong className="text-slate-800">{selectedDoctor.name}</strong></div>
-                <div>Phòng khám: <strong className="text-slate-800">{selectedDoctor.room}</strong></div>
-                <div>Khung giờ: <strong className="text-blue-600">{selectedSlot.time} ({selectedSlot.date})</strong></div>
-                <div>Giá khám tư vấn: <strong className="text-emerald-600">{selectedDoctor.fee.toLocaleString('vi-VN')} đ</strong></div>
-              </div>
-            </div>
-
-            <div className="pt-4 flex justify-between">
-              <button
-                type="button"
-                onClick={() => setStep(2)}
-                className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 font-medium text-sm transition cursor-pointer flex items-center gap-1.5"
-              >
-                <ArrowLeft size={16} /> Quay lại
-              </button>
-              <button
-                type="submit"
-                disabled={submitting}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-xl transition shadow-sm flex items-center gap-2 cursor-pointer text-sm disabled:opacity-50"
-              >
-                {submitting ? (
-                  <>
-                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>Đang khóa slot & tạo vé khám...</span>
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 size={16} />
-                    <span>Xác Nhận & Xuất Vé Khám</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </form>
+                  {submitting ? 'Đang tạo vé khám...' : 'Xác Nhận & Xuất Vé Khám'}
+                </Button>
+              </Box>
+            </Stack>
+          </Box>
         )}
 
         {/* Step 4: Vé Hẹn Khám Điện Tử (E-Ticket) */}
-        {step === 4 && result && (
-          <div className="mt-4 space-y-6">
-            <div className="bg-gradient-to-b from-blue-600 to-indigo-700 text-white p-6 rounded-t-3xl relative overflow-hidden">
-              <div className="flex items-center justify-between relative z-10">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck size={24} className="text-cyan-300" />
-                  <span className="font-bold tracking-wider text-sm uppercase">Bệnh Viện Đa Khoa MedSched</span>
-                </div>
-                <span className="text-xs bg-white/20 px-2.5 py-1 rounded-full font-mono font-bold">VÉ KHÁM ĐIỆN TỬ</span>
-              </div>
-              <div className="mt-4 text-center relative z-10">
-                <span className="text-xs text-blue-200 uppercase tracking-wider">Số Thứ Tự Vào Khám</span>
-                <div className="text-4xl font-extrabold text-white mt-0.5 tracking-tight">
+        {step === 3 && result && (
+          <Box sx={{ mt: 2 }}>
+            <Paper
+              elevation={4}
+              sx={{
+                borderRadius: 4,
+                overflow: 'hidden',
+                border: `1px solid ${medoraColors.border}`,
+              }}
+            >
+              {/* Header Badge */}
+              <Box sx={{ background: 'linear-gradient(135deg, #0F665F 0%, #14B8A6 100%)', color: '#fff', p: 4, textAlign: 'center', position: 'relative' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <SecurityIcon sx={{ color: '#5EEAD4' }} />
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                      Bệnh Viện Đa Khoa Medora
+                    </Typography>
+                  </Box>
+                  <Chip label="VÉ KHÁM ĐIỆN TỬ" size="small" sx={{ fontWeight: 800, backgroundColor: 'rgba(255,255,255,0.2)', color: '#fff', fontFamily: 'monospace' }} />
+                </Box>
+
+                <Typography variant="caption" sx={{ color: '#CCFBF1', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 700 }}>
+                  Số Thứ Tự Vào Khám
+                </Typography>
+                <Typography variant="h2" sx={{ fontWeight: 900, color: '#ffffff', my: 0.5 }}>
                   STT #{result.queueNumber || '02'}
-                </div>
-                <div className="text-xs text-cyan-200 mt-1">Mã đặt chỗ: <strong className="font-mono text-white text-sm">{result.bookingCode}</strong></div>
-              </div>
-            </div>
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#5EEAD4', fontFamily: 'monospace', fontWeight: 700 }}>
+                  Mã đặt chỗ: {result.bookingCode}
+                </Typography>
+              </Box>
 
-            {/* Ticket body */}
-            <div className="bg-white border-2 border-dashed border-slate-200 p-6 rounded-b-3xl -mt-6 pt-8 space-y-4 shadow-sm">
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-6 pb-4 border-b border-slate-100">
-                <div className="space-y-2 text-sm">
-                  <div>
-                    <span className="text-xs text-slate-400 block">Bác sĩ chuyên khoa:</span>
-                    <strong className="text-slate-800 font-semibold">{selectedDoctor.name}</strong>
-                  </div>
-                  <div>
-                    <span className="text-xs text-slate-400 block">Địa điểm & Phòng khám:</span>
-                    <span className="text-slate-700 font-medium">{selectedDoctor.room}</span>
-                  </div>
-                  <div>
-                    <span className="text-xs text-slate-400 block">Khung giờ hẹn:</span>
-                    <span className="text-blue-600 font-bold">{selectedSlot.time} (Hôm nay)</span>
-                  </div>
-                </div>
+              {/* Body Ticket details */}
+              <Box sx={{ p: 4, backgroundColor: '#ffffff' }}>
+                <Grid container spacing={3} sx={{ pb: 3, borderBottom: '1px dashed #E2E8F0', alignItems: 'center' }}>
+                  <Grid size={{ xs: 12, sm: 8 }}>
+                    <Stack spacing={1.5}>
+                      <Box>
+                        <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>Bác sĩ chuyên khoa:</Typography>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 800, color: medoraColors.main }}>{selectedDoctor.name}</Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>Địa điểm & Phòng khám:</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.primary' }}>{selectedDoctor.room}</Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>Khung giờ hẹn:</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 800, color: medoraColors.main }}>{selectedSlot.time} (Hôm nay)</Typography>
+                      </Box>
+                    </Stack>
+                  </Grid>
 
-                {/* Simulated QR Code Badge */}
-                <div className="flex flex-col items-center bg-slate-50 p-4 rounded-2xl border border-slate-200">
-                  <div className="w-28 h-28 bg-white border border-slate-300 rounded-xl p-2 flex items-center justify-center shadow-inner">
-                    <QrCode size={92} className="text-slate-800" />
-                  </div>
-                  <span className="text-[10px] font-mono font-semibold text-slate-500 mt-2">
-                    {result.bookingCode}
-                  </span>
-                </div>
-              </div>
+                  <Grid size={{ xs: 12, sm: 4 }} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <Paper elevation={0} sx={{ p: 2, border: '1px solid #E2E8F0', borderRadius: 3, backgroundColor: '#F8FAFC', textAlign: 'center' }}>
+                      <QrCodeIcon sx={{ fontSize: 96, color: '#1E293B' }} />
+                      <Typography variant="caption" sx={{ fontFamily: 'monospace', fontWeight: 700, color: 'text.secondary', display: 'block', mt: 0.5 }}>
+                        {result.bookingCode}
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                </Grid>
 
-              {/* AI Clinical Summary on ticket */}
-              {result.aiSummary && (
-                <div className="bg-purple-50 border border-purple-200 p-3 rounded-xl text-xs text-purple-900">
-                  <div className="flex items-center gap-1 font-bold mb-0.5 text-purple-800">
-                    <Sparkles size={13} />
-                    <span>Tóm Tắt Bệnh Án Điện Tử Từ Spring AI:</span>
-                  </div>
-                  <p className="italic text-slate-700">🤖 {result.aiSummary}</p>
-                </div>
-              )}
+                {/* AI Summary on Ticket */}
+                {result.aiSummary && (
+                  <Paper elevation={0} sx={{ p: 2, borderRadius: 3, backgroundColor: '#F3E8FF', border: '1px solid #E9D5FF', my: 2 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#6B21A8', mb: 0.5 }}>
+                      <AutoAwesomeIcon fontSize="small" />
+                      <Typography variant="caption" sx={{ fontWeight: 800 }}>Tóm Tắt Bệnh Án Điện Tử Từ Spring AI:</Typography>
+                    </Box>
+                    <Typography variant="caption" sx={{ fontStyle: 'italic', color: 'text.primary', display: 'block' }}>
+                      🤖 {result.aiSummary}
+                    </Typography>
+                  </Paper>
+                )}
 
-              <div className="text-xs text-slate-500 bg-amber-50 p-3 rounded-xl border border-amber-200 flex items-start gap-2">
-                <span className="text-base leading-none">💡</span>
-                <span>
-                  <strong>Hướng dẫn tiếp đón:</strong> Quý khách vui lòng có mặt trước 10 phút và quét mã QR vé này hoặc đưa thẻ CCCD gắn chip tại Quầy Tiếp Đón để vào thẳng buồng khám.
-                </span>
-              </div>
+                <Paper elevation={0} sx={{ p: 2, borderRadius: 3, backgroundColor: '#FEF3C7', border: '1px solid #FDE68A', my: 2 }}>
+                  <Typography variant="caption" sx={{ color: '#92400E', fontWeight: 600, display: 'block' }}>
+                    💡 <strong>Hướng dẫn tiếp đón:</strong> Quý khách vui lòng có mặt trước 10 phút và quét mã QR vé này hoặc đưa thẻ CCCD gắn chip tại Quầy Tiếp Đón để vào thẳng buồng khám.
+                  </Typography>
+                </Paper>
 
-              <div className="pt-2 flex flex-col sm:flex-row gap-3">
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="flex-1 bg-slate-800 hover:bg-slate-900 text-white font-semibold py-2.5 rounded-xl transition text-sm flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <Printer size={16} />
-                  <span>In Phiếu / Lưu PDF</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setResult(null);
-                    setStep(1);
-                  }}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-xl transition text-sm flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <Calendar size={16} />
-                  <span>Đặt ca khám mới</span>
-                </button>
-              </div>
-            </div>
-          </div>
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ pt: 1 }}>
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    color="inherit"
+                    startIcon={<PrintIcon />}
+                    onClick={() => window.print()}
+                    sx={{ py: 1.2, borderRadius: 3, fontWeight: 700, backgroundColor: '#1E293B', color: '#fff', '&:hover': { backgroundColor: '#0F172A' } }}
+                  >
+                    In Phiếu / Lưu PDF
+                  </Button>
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    color="primary"
+                    startIcon={<CalendarMonthIcon />}
+                    onClick={() => {
+                      setResult(null);
+                      setStep(0);
+                    }}
+                    sx={{ py: 1.2, borderRadius: 3, fontWeight: 800 }}
+                  >
+                    Đặt ca khám mới
+                  </Button>
+                </Stack>
+              </Box>
+            </Paper>
+          </Box>
         )}
-      </div>
-    </div>
+      </Paper>
+    </Stack>
   );
 }

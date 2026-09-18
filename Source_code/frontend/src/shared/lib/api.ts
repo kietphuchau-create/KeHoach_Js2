@@ -1,5 +1,5 @@
 /**
- * MedSched API Client - Giao tiếp với Spring Boot 3 Backend
+ * Medora API Client - Giao tiếp với Spring Boot 3 Backend
  * Base URL: http://localhost:8080/api/v1
  * Chuẩn kiến trúc: Shared API Client (Mục 10 TongHopQuyTacFN.md)
  */
@@ -73,7 +73,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     }
   } catch (err: any) {
     // Nếu kết nối tới backend thất bại, ném lỗi rõ ràng
-    throw new Error(err.message || "Không thể kết nối đến máy chủ MedSched (Spring Boot).");
+    throw new Error(err.message || "Không thể kết nối đến máy chủ Medora (Spring Boot).");
   }
 
   if (!response.ok) {

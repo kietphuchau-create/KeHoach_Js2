@@ -3,11 +3,23 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Stethoscope, UserCheck } from 'lucide-react';
+import Box from '@mui/material/Box';
+import Paper from '@mui/material/Paper';
+import Typography from '@mui/material/Typography';
+import Button from '@mui/material/Button';
+import Tabs from '@mui/material/Tabs';
+import Tab from '@mui/material/Tab';
+import Stack from '@mui/material/Stack';
+
+import ArrowBackIcon from '@mui/icons-material/ArrowBackRounded';
+import PersonAddIcon from '@mui/icons-material/PersonAddRounded';
+import MedicalServicesIcon from '@mui/icons-material/MedicalServicesRounded';
+
 import { api, getAuthToken } from '@/shared/lib/api';
 import LoadingSpinner from '@/shared/components/Feedback/LoadingSpinner';
 import CreateStaffForm from '@/modules/admin/components/CreateStaffForm';
 import CreateDoctorForm from '@/modules/admin/components/CreateDoctorForm';
+import { medoraColors } from '@/shared/theme/theme';
 
 export default function CreateUserPage() {
   const router = useRouter();
@@ -41,54 +53,47 @@ export default function CreateUserPage() {
   }, [router]);
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <Stack spacing={3} sx={{ maxWidth: 800, mx: 'auto' }}>
       {/* Top Header */}
-      <div className="flex items-center justify-between">
-        <Link
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+        <Button
+          component={Link}
           href="/admin"
-          className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900 bg-white px-3.5 py-2 rounded-xl border border-slate-200 shadow-sm transition"
+          startIcon={<ArrowBackIcon />}
+          color="inherit"
+          sx={{ fontWeight: 600 }}
         >
-          <ArrowLeft size={16} />
-          <span>Quay lại Quản trị</span>
-        </Link>
-        <span className="text-xs text-slate-400 font-mono">Quyền: Quản Trị Viên (Admin)</span>
-      </div>
+          Quay lại Quản trị
+        </Button>
+        <Typography variant="caption" sx={{ color: 'text.secondary', fontFamily: 'monospace' }}>
+          Quyền: Quản Trị Viên (Admin)
+        </Typography>
+      </Box>
 
-      <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-slate-800">Thêm Thành Viên Nội Bộ</h1>
-          <p className="text-slate-500 text-sm mt-1">
+      <Paper elevation={0} sx={{ p: { xs: 3, sm: 4 }, borderRadius: 4, border: `1px solid ${medoraColors.border}`, backgroundColor: '#ffffff' }}>
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="h5" sx={{ fontWeight: 800, color: 'text.primary' }}>
+            Thêm Thành Viên Nội Bộ
+          </Typography>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
             Cấp tài khoản đăng nhập hệ thống cho Đội ngũ Bác sĩ chuyên khoa và Nhân viên Lễ tân.
-          </p>
-        </div>
+          </Typography>
+        </Box>
 
         {/* Tab selection */}
-        <div className="flex bg-slate-100 p-1 rounded-xl mb-6">
-          <button
-            type="button"
-            onClick={() => setActiveTab('staff')}
-            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition cursor-pointer ${
-              activeTab === 'staff'
-                ? 'bg-white text-emerald-700 shadow-sm'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
+        <Paper elevation={0} sx={{ backgroundColor: '#F1F5F9', p: 0.5, borderRadius: 3, mb: 4 }}>
+          <Tabs
+            value={activeTab}
+            onChange={(_, val) => setActiveTab(val)}
+            variant="fullWidth"
+            sx={{
+              '& .MuiTab-root': { textTransform: 'none', fontWeight: 700, fontSize: '0.875rem', borderRadius: 2, minHeight: 44 },
+            }}
           >
-            <UserCheck size={18} />
-            <span>Thêm Nhân Viên Lễ Tân</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('doctor')}
-            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition cursor-pointer ${
-              activeTab === 'doctor'
-                ? 'bg-white text-blue-700 shadow-sm'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Stethoscope size={18} />
-            <span>Thêm Bác Sĩ Chuyên Khoa</span>
-          </button>
-        </div>
+            <Tab label="Thêm Nhân Viên Lễ Tân" value="staff" icon={<PersonAddIcon fontSize="small" />} iconPosition="start" />
+            <Tab label="Thêm Bác Sĩ Chuyên Khoa" value="doctor" icon={<MedicalServicesIcon fontSize="small" />} iconPosition="start" />
+          </Tabs>
+        </Paper>
 
         {fetchingData ? (
           <LoadingSpinner message="Đang tải danh mục cơ sở y tế và chuyên khoa..." />
@@ -102,7 +107,7 @@ export default function CreateUserPage() {
             )}
           </>
         )}
-      </div>
-    </div>
+      </Paper>
+    </Stack>
   );
 }

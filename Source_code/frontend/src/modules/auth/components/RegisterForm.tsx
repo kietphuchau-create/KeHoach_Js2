@@ -1,11 +1,30 @@
 'use client';
 
 import React, { useState } from 'react';
-import { User, Mail, Lock, Phone, Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import Paper from '@mui/material/Paper';
+import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
+import TextField from '@mui/material/TextField';
+import InputAdornment from '@mui/material/InputAdornment';
+import IconButton from '@mui/material/IconButton';
+import Button from '@mui/material/Button';
+import Checkbox from '@mui/material/Checkbox';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import CircularProgress from '@mui/material/CircularProgress';
+import Stack from '@mui/material/Stack';
+
+import PersonIcon from '@mui/icons-material/PersonRounded';
+import MailOutlineIcon from '@mui/icons-material/MailOutlineRounded';
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
+import PhoneIcon from '@mui/icons-material/PhoneRounded';
+import VisibilityIcon from '@mui/icons-material/VisibilityRounded';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOffRounded';
+
 import { api } from '@/shared/lib/api';
 import AlertMessage from '@/shared/components/Feedback/AlertMessage';
+import { medoraColors } from '@/shared/theme/theme';
 
 export default function RegisterForm() {
   const router = useRouter();
@@ -73,137 +92,224 @@ export default function RegisterForm() {
   };
 
   return (
-    <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border border-slate-200">
-      <div className="text-center mb-6">
-        <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-emerald-50 text-emerald-600 mb-3">
-          <User size={28} />
-        </div>
-        <h1 className="text-3xl font-bold text-slate-800">Tạo Tài Khoản</h1>
-        <p className="text-slate-500 text-sm mt-1">
-          Đăng ký tài khoản Bệnh nhân để đặt lịch và theo dõi bệnh án MedSched
-        </p>
-      </div>
+    <Paper
+      elevation={4}
+      sx={{
+        p: { xs: 3, sm: 4 },
+        borderRadius: 5,
+        width: '100%',
+        maxWidth: 440,
+        mx: 'auto',
+        border: `1px solid ${medoraColors.border}`,
+        backgroundColor: '#ffffff',
+      }}
+    >
+      <Box sx={{ textAlign: 'center', mb: 3 }}>
+        <Box
+          sx={{
+            width: 56,
+            height: 56,
+            borderRadius: '50%',
+            backgroundColor: medoraColors.soft,
+            color: medoraColors.main,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            mx: 'auto',
+            mb: 1.5,
+            border: `1px solid ${medoraColors.border}`,
+          }}
+        >
+          <PersonIcon sx={{ fontSize: 32 }} />
+        </Box>
+        <Typography variant="h4" sx={{ fontWeight: 800, color: medoraColors.main }}>
+          Tạo Tài Khoản
+        </Typography>
+        <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.8rem', mt: 0.5 }}>
+          Đăng ký tài khoản Bệnh nhân để đặt lịch và theo dõi bệnh án Medora
+        </Typography>
+      </Box>
 
       {error && <AlertMessage type="error" message={error} className="mb-4" onClose={() => setError('')} />}
       {successMessage && <AlertMessage type="success" message={successMessage} className="mb-4" />}
 
-      <form onSubmit={handleSubmit} className="space-y-3.5">
-        <div>
-          <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Họ và Tên</label>
-          <div className="relative">
-            <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input
-              type="text"
+      <Box component="form" onSubmit={handleSubmit}>
+        <Stack spacing={2}>
+          <Box>
+            <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.primary', mb: 0.5, display: 'block' }}>
+              Họ và Tên
+            </Typography>
+            <TextField
+              fullWidth
               name="fullName"
               required
               value={formData.fullName}
               onChange={handleChange}
               placeholder="Nguyễn Văn A"
-              className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm transition"
+              size="small"
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <PersonIcon sx={{ color: 'text.secondary', fontSize: 20 }} />
+                    </InputAdornment>
+                  ),
+                },
+              }}
             />
-          </div>
-        </div>
+          </Box>
 
-        <div>
-          <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Email</label>
-          <div className="relative">
-            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input
-              type="email"
+          <Box>
+            <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.primary', mb: 0.5, display: 'block' }}>
+              Email
+            </Typography>
+            <TextField
+              fullWidth
               name="email"
+              type="email"
               required
               value={formData.email}
               onChange={handleChange}
               placeholder="example@medsched.vn"
-              className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm transition"
+              size="small"
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <MailOutlineIcon sx={{ color: 'text.secondary', fontSize: 20 }} />
+                    </InputAdornment>
+                  ),
+                },
+              }}
             />
-          </div>
-        </div>
+          </Box>
 
-        <div>
-          <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Số Điện Thoại</label>
-          <div className="relative">
-            <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input
-              type="tel"
+          <Box>
+            <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.primary', mb: 0.5, display: 'block' }}>
+              Số Điện Thoại
+            </Typography>
+            <TextField
+              fullWidth
               name="phone"
+              type="tel"
               required
               value={formData.phone}
               onChange={handleChange}
               placeholder="0912345678"
-              className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm transition"
+              size="small"
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <PhoneIcon sx={{ color: 'text.secondary', fontSize: 20 }} />
+                    </InputAdornment>
+                  ),
+                },
+              }}
             />
-          </div>
-        </div>
+          </Box>
 
-        <div>
-          <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Mật khẩu</label>
-          <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input
-              type={showPassword ? 'text' : 'password'}
+          <Box>
+            <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.primary', mb: 0.5, display: 'block' }}>
+              Mật khẩu
+            </Typography>
+            <TextField
+              fullWidth
               name="password"
+              type={showPassword ? 'text' : 'password'}
               required
               value={formData.password}
               onChange={handleChange}
               placeholder="Tối thiểu 6 ký tự"
-              className="w-full pl-10 pr-10 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm transition"
+              size="small"
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <LockOutlinedIcon sx={{ color: 'text.secondary', fontSize: 20 }} />
+                    </InputAdornment>
+                  ),
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton size="small" onClick={() => setShowPassword(!showPassword)} edge="end">
+                        {showPassword ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                },
+              }}
             />
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-            >
-              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-            </button>
-          </div>
-        </div>
+          </Box>
 
-        <div>
-          <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Xác nhận mật khẩu</label>
-          <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input
-              type={showPassword ? 'text' : 'password'}
+          <Box>
+            <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.primary', mb: 0.5, display: 'block' }}>
+              Xác nhận mật khẩu
+            </Typography>
+            <TextField
+              fullWidth
               name="confirmPassword"
+              type={showPassword ? 'text' : 'password'}
               required
               value={formData.confirmPassword}
               onChange={handleChange}
               placeholder="Nhập lại mật khẩu"
-              className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm transition"
+              size="small"
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <LockOutlinedIcon sx={{ color: 'text.secondary', fontSize: 20 }} />
+                    </InputAdornment>
+                  ),
+                },
+              }}
             />
-          </div>
-        </div>
+          </Box>
 
-        <div className="flex items-center pt-1">
-          <input
-            type="checkbox"
-            id="agreeTerms"
-            name="agreeTerms"
-            checked={formData.agreeTerms}
-            onChange={handleChange}
-            className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer"
+          <FormControlLabel
+            control={
+              <Checkbox
+                name="agreeTerms"
+                checked={formData.agreeTerms}
+                onChange={handleChange}
+                color="primary"
+                size="small"
+              />
+            }
+            label={
+              <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                Tôi đồng ý với các <Box component="span" sx={{ color: medoraColors.main, fontWeight: 700 }}>Điều khoản sử dụng</Box> và chính sách y tế Medora
+              </Typography>
+            }
           />
-          <label htmlFor="agreeTerms" className="ml-2 text-xs text-slate-600 cursor-pointer">
-            Tôi đồng ý với các <span className="text-emerald-600 font-medium">Điều khoản sử dụng</span> và chính sách y tế MedSched
-          </label>
-        </div>
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-xl transition duration-200 shadow-md shadow-emerald-500/20 disabled:opacity-50 flex items-center justify-center gap-2 text-sm mt-4"
-        >
-          {loading ? 'Đang tạo tài khoản...' : 'Đăng Ký Khám Ngay'}
-        </button>
-      </form>
+          <Button
+            type="submit"
+            fullWidth
+            variant="contained"
+            color="primary"
+            disabled={loading}
+            sx={{
+              py: 1.4,
+              fontSize: '0.95rem',
+              fontWeight: 800,
+              borderRadius: 3,
+              mt: 1,
+            }}
+          >
+            {loading ? <CircularProgress size={24} color="inherit" /> : 'Đăng Ký Khám Ngay'}
+          </Button>
+        </Stack>
+      </Box>
 
-      <div className="text-center mt-6 text-sm text-slate-500">
-        Đã có tài khoản?{' '}
-        <Link href="/login" className="text-emerald-600 font-semibold hover:underline">
-          Đăng nhập tại đây
-        </Link>
-      </div>
-    </div>
+      <Box sx={{ textAlign: 'center', mt: 3 }}>
+        <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.85rem' }}>
+          Đã có tài khoản?{' '}
+          <Link href="/login" style={{ color: medoraColors.main, fontWeight: 700, textDecoration: 'none' }}>
+            Đăng nhập tại đây
+          </Link>
+        </Typography>
+      </Box>
+    </Paper>
   );
 }

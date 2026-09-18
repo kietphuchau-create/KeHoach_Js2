@@ -2,7 +2,7 @@ import React from 'react';
 import ProfileView from '@/modules/profile/components/ProfileView';
 
 export const metadata = {
-  title: 'Hồ Sơ Cá Nhân | MedSched',
+  title: 'Hồ Sơ Cá Nhân | Medora',
   description: 'Quản lý thông tin tài khoản, đổi mật khẩu và cập nhật hồ sơ chuyên môn',
 };
 

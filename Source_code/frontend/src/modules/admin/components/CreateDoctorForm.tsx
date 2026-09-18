@@ -1,13 +1,17 @@
 'use client';
 
 import React, { useState } from 'react';
-import { 
-  Stethoscope, 
-  Building2, 
-  Mail, 
-  Phone, 
-  User 
-} from 'lucide-react';
+import Box from '@mui/material/Box';
+import Grid from '@mui/material/Grid';
+import Typography from '@mui/material/Typography';
+import TextField from '@mui/material/TextField';
+import MenuItem from '@mui/material/MenuItem';
+import Button from '@mui/material/Button';
+import CircularProgress from '@mui/material/CircularProgress';
+import Stack from '@mui/material/Stack';
+
+import MedicalServicesIcon from '@mui/icons-material/MedicalServicesRounded';
+
 import { api } from '@/shared/lib/api';
 import AlertMessage from '@/shared/components/Feedback/AlertMessage';
 
@@ -82,190 +86,195 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
   };
 
   return (
-    <form onSubmit={handleCreateDoctor} className="space-y-4">
-      {message && (
-        <AlertMessage type={message.type} message={message.text} onClose={() => setMessage(null)} />
-      )}
+    <Box component="form" onSubmit={handleCreateDoctor}>
+      <Stack spacing={2.5}>
+        {message && (
+          <AlertMessage type={message.type} message={message.text} onClose={() => setMessage(null)} />
+        )}
 
-      <div>
-        <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-          Họ và Tên Bác Sĩ <span className="text-red-500">*</span>
-        </label>
-        <div className="relative">
-          <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-          <input
-            type="text"
+        <Box>
+          <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.primary', textTransform: 'uppercase', mb: 0.5, display: 'block' }}>
+            Họ và Tên Bác Sĩ <span style={{ color: 'red' }}>*</span>
+          </Typography>
+          <TextField
+            fullWidth
             required
             value={doctorForm.fullName}
             onChange={(e) => setDoctorForm({ ...doctorForm, fullName: e.target.value })}
             placeholder="Ví dụ: PGS.TS Nguyễn Văn Bình"
-            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
           />
-        </div>
-      </div>
+        </Box>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-            Email Đăng Nhập <span className="text-red-500">*</span>
-          </label>
-          <div className="relative">
-            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.primary', textTransform: 'uppercase', mb: 0.5, display: 'block' }}>
+              Email Đăng Nhập <span style={{ color: 'red' }}>*</span>
+            </Typography>
+            <TextField
+              fullWidth
               type="email"
               required
               value={doctorForm.email}
               onChange={(e) => setDoctorForm({ ...doctorForm, email: e.target.value })}
               placeholder="doctor.binh@medsched.vn"
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
             />
-          </div>
-        </div>
+          </Grid>
 
-        <div>
-          <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-            Số Điện Thoại <span className="text-red-500">*</span>
-          </label>
-          <div className="relative">
-            <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.primary', textTransform: 'uppercase', mb: 0.5, display: 'block' }}>
+              Số Điện Thoại <span style={{ color: 'red' }}>*</span>
+            </Typography>
+            <TextField
+              fullWidth
               type="tel"
               required
               value={doctorForm.phone}
               onChange={(e) => setDoctorForm({ ...doctorForm, phone: e.target.value })}
               placeholder="0987654321"
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
             />
-          </div>
-        </div>
-      </div>
+          </Grid>
+        </Grid>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-            Chuyên Khoa Khám <span className="text-red-500">*</span>
-          </label>
-          <select
-            required
-            value={doctorForm.specialtyId}
-            onChange={(e) => setDoctorForm({ ...doctorForm, specialtyId: e.target.value })}
-            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.primary', textTransform: 'uppercase', mb: 0.5, display: 'block' }}>
+              Chuyên Khoa Khám <span style={{ color: 'red' }}>*</span>
+            </Typography>
+            <TextField
+              select
+              fullWidth
+              required
+              value={doctorForm.specialtyId}
+              onChange={(e) => setDoctorForm({ ...doctorForm, specialtyId: e.target.value })}
+            >
+              {specialties.length === 0 ? (
+                <MenuItem value="">Không có chuyên khoa nào</MenuItem>
+              ) : (
+                specialties.map((spec) => (
+                  <MenuItem key={spec.id} value={spec.id}>
+                    {spec.name}
+                  </MenuItem>
+                ))
+              )}
+            </TextField>
+          </Grid>
+
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.primary', textTransform: 'uppercase', mb: 0.5, display: 'block' }}>
+              Cơ Sở Y Tế Công Tác <span style={{ color: 'red' }}>*</span>
+            </Typography>
+            <TextField
+              select
+              fullWidth
+              required
+              value={doctorForm.medicalCenterId}
+              onChange={(e) => setDoctorForm({ ...doctorForm, medicalCenterId: e.target.value })}
+            >
+              {medicalCenters.length === 0 ? (
+                <MenuItem value="">Không có cơ sở y tế nào</MenuItem>
+              ) : (
+                medicalCenters.map((center) => (
+                  <MenuItem key={center.id} value={center.id}>
+                    {center.name}
+                  </MenuItem>
+                ))
+              )}
+            </TextField>
+          </Grid>
+        </Grid>
+
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, sm: 4 }}>
+            <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.primary', textTransform: 'uppercase', mb: 0.5, display: 'block' }}>
+              Học Hàm / Học Vị
+            </Typography>
+            <TextField
+              fullWidth
+              value={doctorForm.academicTitle}
+              onChange={(e) => setDoctorForm({ ...doctorForm, academicTitle: e.target.value })}
+              placeholder="GS, PGS, ThS, BS.CKII..."
+            />
+          </Grid>
+
+          <Grid size={{ xs: 12, sm: 4 }}>
+            <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.primary', textTransform: 'uppercase', mb: 0.5, display: 'block' }}>
+              Số Năm Kinh Nghiệm
+            </Typography>
+            <TextField
+              fullWidth
+              type="number"
+              value={doctorForm.experienceYears}
+              onChange={(e) => setDoctorForm({ ...doctorForm, experienceYears: Number(e.target.value) })}
+            />
+          </Grid>
+
+          <Grid size={{ xs: 12, sm: 4 }}>
+            <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.primary', textTransform: 'uppercase', mb: 0.5, display: 'block' }}>
+              Phòng Khám Số
+            </Typography>
+            <TextField
+              fullWidth
+              value={doctorForm.roomNumber}
+              onChange={(e) => setDoctorForm({ ...doctorForm, roomNumber: e.target.value })}
+              placeholder="P.102, Khu A..."
+            />
+          </Grid>
+        </Grid>
+
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.primary', textTransform: 'uppercase', mb: 0.5, display: 'block' }}>
+              Giá Khám Tư Vấn (VND)
+            </Typography>
+            <TextField
+              fullWidth
+              type="number"
+              value={doctorForm.consultationFee}
+              onChange={(e) => setDoctorForm({ ...doctorForm, consultationFee: Number(e.target.value) })}
+            />
+          </Grid>
+
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.primary', textTransform: 'uppercase', mb: 0.5, display: 'block' }}>
+              Mật Khẩu Tạm Thời (Tùy chọn)
+            </Typography>
+            <TextField
+              fullWidth
+              value={doctorForm.temporaryPassword}
+              onChange={(e) => setDoctorForm({ ...doctorForm, temporaryPassword: e.target.value })}
+              placeholder="Để trống: Medsched@123"
+            />
+          </Grid>
+        </Grid>
+
+        <Box>
+          <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.primary', textTransform: 'uppercase', mb: 0.5, display: 'block' }}>
+            Tiểu Sử / Giới Thiệu Ngắn
+          </Typography>
+          <TextField
+            fullWidth
+            multiline
+            rows={3}
+            value={doctorForm.bio}
+            onChange={(e) => setDoctorForm({ ...doctorForm, bio: e.target.value })}
+            placeholder="Giới thiệu về quá trình đào tạo, chuyên môn điều trị mũi nhọn..."
+          />
+        </Box>
+
+        <Box sx={{ pt: 1 }}>
+          <Button
+            type="submit"
+            fullWidth
+            variant="contained"
+            color="primary"
+            disabled={loading}
+            startIcon={loading ? <CircularProgress size={18} color="inherit" /> : <MedicalServicesIcon />}
+            sx={{ py: 1.4, borderRadius: 3, fontWeight: 800 }}
           >
-            {specialties.length === 0 ? (
-              <option value="">Không có chuyên khoa nào</option>
-            ) : (
-              specialties.map(spec => (
-                <option key={spec.id} value={spec.id}>
-                  {spec.name}
-                </option>
-              ))
-            )}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-            Cơ Sở Y Tế Công Tác <span className="text-red-500">*</span>
-          </label>
-          <select
-            required
-            value={doctorForm.medicalCenterId}
-            onChange={(e) => setDoctorForm({ ...doctorForm, medicalCenterId: e.target.value })}
-            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
-          >
-            {medicalCenters.length === 0 ? (
-              <option value="">Không có cơ sở y tế nào</option>
-            ) : (
-              medicalCenters.map(center => (
-                <option key={center.id} value={center.id}>
-                  {center.name}
-                </option>
-              ))
-            )}
-          </select>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div>
-          <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Học Hàm / Học Vị</label>
-          <input
-            type="text"
-            value={doctorForm.academicTitle}
-            onChange={(e) => setDoctorForm({ ...doctorForm, academicTitle: e.target.value })}
-            placeholder="GS, PGS, ThS, BS.CKII..."
-            className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 text-sm"
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Số Năm Kinh Nghiệm</label>
-          <input
-            type="number"
-            min="0"
-            value={doctorForm.experienceYears}
-            onChange={(e) => setDoctorForm({ ...doctorForm, experienceYears: Number(e.target.value) })}
-            className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 text-sm"
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Phòng Khám Số</label>
-          <input
-            type="text"
-            value={doctorForm.roomNumber}
-            onChange={(e) => setDoctorForm({ ...doctorForm, roomNumber: e.target.value })}
-            placeholder="P.102, Khu A..."
-            className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 text-sm"
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Giá Khám Tư Vấn (VND)</label>
-          <input
-            type="number"
-            step="10000"
-            value={doctorForm.consultationFee}
-            onChange={(e) => setDoctorForm({ ...doctorForm, consultationFee: Number(e.target.value) })}
-            className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 text-sm font-mono"
-          />
-        </div>
-
-        <div>
-          <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-            Mật Khẩu Tạm Thời (Tùy chọn)
-          </label>
-          <input
-            type="text"
-            value={doctorForm.temporaryPassword}
-            onChange={(e) => setDoctorForm({ ...doctorForm, temporaryPassword: e.target.value })}
-            placeholder="Để trống: Medsched@123"
-            className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 text-sm font-mono"
-          />
-        </div>
-      </div>
-
-      <div>
-        <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Tiểu Sử / Giới Thiệu Ngắn</label>
-        <textarea
-          rows={3}
-          value={doctorForm.bio}
-          onChange={(e) => setDoctorForm({ ...doctorForm, bio: e.target.value })}
-          placeholder="Giới thiệu về quá trình đào tạo, chuyên môn điều trị mũi nhọn..."
-          className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 text-sm"
-        />
-      </div>
-
-      <div className="pt-4">
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition shadow-sm disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
-        >
-          <Stethoscope size={18} />
-          <span>{loading ? 'Đang tạo tài khoản...' : 'Xác Nhận Tạo Tài Khoản Bác Sĩ'}</span>
-        </button>
-      </div>
-    </form>
+            {loading ? 'Đang tạo tài khoản...' : 'Xác Nhận Tạo Tài Khoản Bác Sĩ'}
+          </Button>
+        </Box>
+      </Stack>
+    </Box>
   );
 }

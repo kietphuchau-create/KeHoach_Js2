@@ -1,12 +1,35 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { User, Mail, Phone, Save, KeyRound, Stethoscope, LogOut, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import Box from '@mui/material/Box';
+import Paper from '@mui/material/Paper';
+import Grid from '@mui/material/Grid';
+import Typography from '@mui/material/Typography';
+import Button from '@mui/material/Button';
+import Chip from '@mui/material/Chip';
+import Tabs from '@mui/material/Tabs';
+import Tab from '@mui/material/Tab';
+import TextField from '@mui/material/TextField';
+import InputAdornment from '@mui/material/InputAdornment';
+import Avatar from '@mui/material/Avatar';
+import CircularProgress from '@mui/material/CircularProgress';
+import Stack from '@mui/material/Stack';
+
+import PersonIcon from '@mui/icons-material/PersonRounded';
+import MailOutlineIcon from '@mui/icons-material/MailOutlineRounded';
+import PhoneIcon from '@mui/icons-material/PhoneRounded';
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
+import MedicalServicesIcon from '@mui/icons-material/MedicalServicesRounded';
+import LogoutIcon from '@mui/icons-material/LogoutRounded';
+import ArrowBackIcon from '@mui/icons-material/ArrowBackRounded';
+import SaveIcon from '@mui/icons-material/SaveRounded';
+
 import { api, clearAuthSession, getAuthToken } from '@/shared/lib/api';
 import LoadingSpinner from '@/shared/components/Feedback/LoadingSpinner';
 import AlertMessage from '@/shared/components/Feedback/AlertMessage';
+import { medoraColors } from '@/shared/theme/theme';
 
 export default function ProfileView() {
   const router = useRouter();
@@ -164,301 +187,230 @@ export default function ProfileView() {
 
   if (fetching) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center">
+      <Box sx={{ minHeight: '50vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <LoadingSpinner message="Đang nạp dữ liệu hồ sơ cá nhân..." />
-      </div>
+      </Box>
     );
   }
 
   const isDoctor = profile.roles.includes('ROLE_DOCTOR');
 
   return (
-    <div className="max-w-3xl mx-auto py-4 space-y-4">
+    <Stack spacing={3} sx={{ maxWidth: 760, mx: 'auto' }}>
       {/* Return button & Logout */}
-      <div className="flex items-center justify-between">
-        <Link href="/" className="inline-flex items-center gap-2 text-sm text-slate-600 hover:text-blue-600 font-medium transition">
-          <ArrowLeft size={16} /> Quay về Trang chủ
-        </Link>
-        <button
-          onClick={handleLogout}
-          className="inline-flex items-center gap-1.5 text-sm text-red-600 hover:text-red-700 font-semibold px-3 py-1.5 rounded-lg border border-red-200 hover:bg-red-50 transition cursor-pointer"
-        >
-          <LogOut size={16} /> Đăng xuất
-        </button>
-      </div>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+        <Button component={Link} href="/" startIcon={<ArrowBackIcon />} color="inherit" sx={{ fontWeight: 600 }}>
+          Quay về Trang chủ
+        </Button>
+        <Button variant="outlined" color="error" startIcon={<LogoutIcon />} onClick={handleLogout} sx={{ borderRadius: 3 }}>
+          Đăng xuất
+        </Button>
+      </Box>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        {/* Header Profile */}
-        <div className="bg-slate-900 p-6 text-white flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center text-2xl font-bold border-2 border-white shadow">
+      <Paper elevation={3} sx={{ borderRadius: 4, overflow: 'hidden', border: `1px solid ${medoraColors.border}` }}>
+        {/* Header Profile Banner */}
+        <Box sx={{ background: 'linear-gradient(135deg, #0B3D36 0%, #0F665F 100%)', color: '#fff', p: 4 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+            <Avatar sx={{ width: 64, height: 64, fontSize: '1.8rem', fontWeight: 900, bgcolor: medoraColors.accent, color: '#fff', border: '3px solid #fff' }}>
               {(profile.fullName || 'U').charAt(0).toUpperCase()}
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold">{profile.fullName || 'Người dùng'}</h2>
-              <div className="text-slate-300 text-sm mt-0.5 flex items-center gap-2">
-                <span>{profile.email}</span>
-                <span className="bg-blue-500/30 text-blue-300 border border-blue-400/30 px-2 py-0.5 rounded-full text-xs font-semibold uppercase">
-                  {profile.roles.join(', ') || 'CUSTOMER'}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
+            </Avatar>
+            <Box>
+              <Typography variant="h5" sx={{ fontWeight: 900, color: '#fff' }}>
+                {profile.fullName || 'Người dùng'}
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                <Typography variant="body2" sx={{ color: '#CCFBF1' }}>{profile.email}</Typography>
+                <Chip
+                  label={profile.roles.join(', ') || 'CUSTOMER'}
+                  size="small"
+                  sx={{ height: 20, fontSize: '9px', fontWeight: 800, backgroundColor: 'rgba(255,255,255,0.2)', color: '#fff' }}
+                />
+              </Box>
+            </Box>
+          </Box>
+        </Box>
 
         {/* Tab Switching */}
-        <div className="flex border-b border-slate-200 bg-slate-50 text-sm font-semibold">
-          <button
-            type="button"
-            onClick={() => { setActiveTab('info'); setMessage(null); setError(null); }}
-            className={`flex-1 py-3.5 text-center transition flex items-center justify-center gap-2 cursor-pointer ${
-              activeTab === 'info'
-                ? 'border-b-2 border-blue-600 text-blue-600 bg-white'
-                : 'text-slate-500 hover:text-slate-800'
-            }`}
+        <Paper elevation={0} sx={{ borderBottom: '1px solid #E2E8F0', backgroundColor: '#F8FAFC' }}>
+          <Tabs
+            value={activeTab}
+            onChange={(_, val) => { setActiveTab(val); setMessage(null); setError(null); }}
+            variant="fullWidth"
+            sx={{
+              '& .MuiTab-root': { textTransform: 'none', fontWeight: 700, fontSize: '0.875rem', py: 2 },
+            }}
           >
-            <User size={18} />
-            Thông Tin Cá Nhân
-          </button>
-          <button
-            type="button"
-            onClick={() => { setActiveTab('password'); setMessage(null); setError(null); }}
-            className={`flex-1 py-3.5 text-center transition flex items-center justify-center gap-2 cursor-pointer ${
-              activeTab === 'password'
-                ? 'border-b-2 border-blue-600 text-blue-600 bg-white'
-                : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <KeyRound size={18} />
-            Đổi Mật Khẩu
-          </button>
-          {isDoctor && (
-            <button
-              type="button"
-              onClick={() => { setActiveTab('doctor'); setMessage(null); setError(null); }}
-              className={`flex-1 py-3.5 text-center transition flex items-center justify-center gap-2 cursor-pointer ${
-                activeTab === 'doctor'
-                  ? 'border-b-2 border-emerald-600 text-emerald-600 bg-white'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              <Stethoscope size={18} />
-              Hồ Sơ Bác Sĩ
-            </button>
-          )}
-        </div>
+            <Tab label="Thông Tin Cá Nhân" value="info" icon={<PersonIcon fontSize="small" />} iconPosition="start" />
+            <Tab label="Đổi Mật Khẩu" value="password" icon={<LockOutlinedIcon fontSize="small" />} iconPosition="start" />
+            {isDoctor && (
+              <Tab label="Hồ Sơ Bác Sĩ" value="doctor" icon={<MedicalServicesIcon fontSize="small" />} iconPosition="start" />
+            )}
+          </Tabs>
+        </Paper>
 
-        <div className="p-6">
-          {/* Notifications */}
-          {message && (
-            <div className="mb-5">
-              <AlertMessage type="success" message={message} onClose={() => setMessage(null)} />
-            </div>
-          )}
-
-          {error && (
-            <div className="mb-5">
-              <AlertMessage type="error" message={error} onClose={() => setError(null)} />
-            </div>
-          )}
+        <Box sx={{ p: 4 }}>
+          {message && <Box sx={{ mb: 3 }}><AlertMessage type="success" message={message} onClose={() => setMessage(null)} /></Box>}
+          {error && <Box sx={{ mb: 3 }}><AlertMessage type="error" message={error} onClose={() => setError(null)} /></Box>}
 
           {/* TAB 1: Sửa thông tin cá nhân */}
           {activeTab === 'info' && (
-            <form onSubmit={handleProfileSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Họ và tên</label>
-                <div className="relative">
-                  <User className="absolute left-3 top-3 text-slate-400" size={18} />
-                  <input
-                    type="text"
+            <Box component="form" onSubmit={handleProfileSubmit}>
+              <Stack spacing={2.5}>
+                <Box>
+                  <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.primary', mb: 0.5, display: 'block' }}>Họ và tên</Typography>
+                  <TextField
+                    fullWidth
                     required
                     value={profile.fullName}
                     onChange={(e) => setProfile({ ...profile, fullName: e.target.value })}
-                    className="w-full pl-10 pr-4 py-2.5 border border-slate-200 bg-slate-50 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 transition text-sm"
+                    slotProps={{
+                      input: {
+                        startAdornment: <InputAdornment position="start"><PersonIcon sx={{ color: 'text.secondary' }} /></InputAdornment>,
+                      },
+                    }}
                   />
-                </div>
-              </div>
+                </Box>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Email tài khoản (Chỉ xem)</label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-3 text-slate-400" size={18} />
-                  <input
-                    type="email"
+                <Box>
+                  <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.primary', mb: 0.5, display: 'block' }}>Email tài khoản (Chỉ xem)</Typography>
+                  <TextField
+                    fullWidth
                     disabled
                     value={profile.email}
-                    className="w-full pl-10 pr-4 py-2.5 border border-slate-200 bg-slate-100 text-slate-500 rounded-xl cursor-not-allowed text-sm"
+                    slotProps={{
+                      input: {
+                        startAdornment: <InputAdornment position="start"><MailOutlineIcon sx={{ color: 'text.secondary' }} /></InputAdornment>,
+                      },
+                    }}
                   />
-                </div>
-              </div>
+                </Box>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Số điện thoại</label>
-                <div className="relative">
-                  <Phone className="absolute left-3 top-3 text-slate-400" size={18} />
-                  <input
-                    type="tel"
+                <Box>
+                  <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.primary', mb: 0.5, display: 'block' }}>Số điện thoại</Typography>
+                  <TextField
+                    fullWidth
                     required
                     value={profile.phone}
                     onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
-                    className="w-full pl-10 pr-4 py-2.5 border border-slate-200 bg-slate-50 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 transition text-sm"
+                    slotProps={{
+                      input: {
+                        startAdornment: <InputAdornment position="start"><PhoneIcon sx={{ color: 'text.secondary' }} /></InputAdornment>,
+                      },
+                    }}
                   />
-                </div>
-              </div>
+                </Box>
 
-              {profile.patientProfile && (
-                <div className="pt-2 border-t border-slate-100 text-sm">
-                  <p className="font-semibold text-slate-700 mb-2">Hồ sơ y tế bệnh nhân:</p>
-                  <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200 text-slate-600">
-                    <div>CCCD: <span className="font-medium text-slate-800">{profile.patientProfile.cccdNumber || 'Chưa cập nhật'}</span></div>
-                    <div>BHYT: <span className="font-medium text-slate-800">{profile.patientProfile.healthInsuranceNo || 'Chưa cập nhật'}</span></div>
-                    <div>Giới tính: <span className="font-medium text-slate-800">{profile.patientProfile.gender || 'Chưa cập nhật'}</span></div>
-                    <div>Tiền sử: <span className="font-medium text-slate-800">{profile.patientProfile.medicalHistory || 'Bình thường'}</span></div>
-                  </div>
-                </div>
-              )}
+                {profile.patientProfile && (
+                  <Paper elevation={0} sx={{ p: 2, borderRadius: 3, backgroundColor: medoraColors.soft, border: `1px solid ${medoraColors.border}` }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800, color: medoraColors.main, mb: 1 }}>Hồ sơ y tế bệnh nhân:</Typography>
+                    <Grid container spacing={1} sx={{ fontSize: '0.8rem' }}>
+                      <Grid size={6}><Typography variant="caption">CCCD: <strong>{profile.patientProfile.cccdNumber || 'Chưa cập nhật'}</strong></Typography></Grid>
+                      <Grid size={6}><Typography variant="caption">BHYT: <strong>{profile.patientProfile.healthInsuranceNo || 'Chưa cập nhật'}</strong></Typography></Grid>
+                      <Grid size={6}><Typography variant="caption">Giới tính: <strong>{profile.patientProfile.gender || 'Chưa cập nhật'}</strong></Typography></Grid>
+                      <Grid size={6}><Typography variant="caption">Tiền sử: <strong>{profile.patientProfile.medicalHistory || 'Bình thường'}</strong></Typography></Grid>
+                    </Grid>
+                  </Paper>
+                )}
 
-              <div className="pt-3">
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2.5 rounded-xl shadow-sm transition disabled:bg-blue-300 flex items-center gap-2 cursor-pointer"
-                >
-                  <Save size={18} />
-                  {loading ? 'Đang lưu...' : 'Lưu thông tin'}
-                </button>
-              </div>
-            </form>
+                <Box sx={{ pt: 1 }}>
+                  <Button type="submit" variant="contained" color="primary" disabled={loading} startIcon={loading ? <CircularProgress size={18} color="inherit" /> : <SaveIcon />} sx={{ borderRadius: 3, px: 3, py: 1.2, fontWeight: 800 }}>
+                    {loading ? 'Đang lưu...' : 'Lưu thông tin'}
+                  </Button>
+                </Box>
+              </Stack>
+            </Box>
           )}
 
           {/* TAB 2: Đổi mật khẩu */}
           {activeTab === 'password' && (
-            <form onSubmit={handlePasswordSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Mật khẩu hiện tại</label>
-                <div className="relative">
-                  <KeyRound className="absolute left-3 top-3 text-slate-400" size={18} />
-                  <input
+            <Box component="form" onSubmit={handlePasswordSubmit}>
+              <Stack spacing={2.5}>
+                <Box>
+                  <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.primary', mb: 0.5, display: 'block' }}>Mật khẩu hiện tại</Typography>
+                  <TextField
+                    fullWidth
                     type="password"
                     required
                     value={passwords.currentPassword}
                     onChange={(e) => setPasswords({ ...passwords, currentPassword: e.target.value })}
                     placeholder="Nhập mật khẩu đang dùng"
-                    className="w-full pl-10 pr-4 py-2.5 border border-slate-200 bg-slate-50 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 transition text-sm"
+                    slotProps={{ input: { startAdornment: <InputAdornment position="start"><LockOutlinedIcon sx={{ color: 'text.secondary' }} /></InputAdornment> } }}
                   />
-                </div>
-              </div>
+                </Box>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Mật khẩu mới</label>
-                <div className="relative">
-                  <KeyRound className="absolute left-3 top-3 text-slate-400" size={18} />
-                  <input
+                <Box>
+                  <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.primary', mb: 0.5, display: 'block' }}>Mật khẩu mới</Typography>
+                  <TextField
+                    fullWidth
                     type="password"
                     required
-                    minLength={6}
                     value={passwords.newPassword}
                     onChange={(e) => setPasswords({ ...passwords, newPassword: e.target.value })}
                     placeholder="Tối thiểu 6 ký tự"
-                    className="w-full pl-10 pr-4 py-2.5 border border-slate-200 bg-slate-50 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 transition text-sm"
+                    slotProps={{
+                      htmlInput: { minLength: 6 },
+                      input: { startAdornment: <InputAdornment position="start"><LockOutlinedIcon sx={{ color: 'text.secondary' }} /></InputAdornment> },
+                    }}
                   />
-                </div>
-              </div>
+                </Box>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Xác nhận mật khẩu mới</label>
-                <div className="relative">
-                  <KeyRound className="absolute left-3 top-3 text-slate-400" size={18} />
-                  <input
+                <Box>
+                  <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.primary', mb: 0.5, display: 'block' }}>Xác nhận mật khẩu mới</Typography>
+                  <TextField
+                    fullWidth
                     type="password"
                     required
                     value={passwords.confirmPassword}
                     onChange={(e) => setPasswords({ ...passwords, confirmPassword: e.target.value })}
                     placeholder="Nhập lại mật khẩu mới"
-                    className="w-full pl-10 pr-4 py-2.5 border border-slate-200 bg-slate-50 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 transition text-sm"
+                    slotProps={{ input: { startAdornment: <InputAdornment position="start"><LockOutlinedIcon sx={{ color: 'text.secondary' }} /></InputAdornment> } }}
                   />
-                </div>
-              </div>
+                </Box>
 
-              <div className="pt-3">
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2.5 rounded-xl shadow-sm transition disabled:bg-blue-300 flex items-center gap-2 cursor-pointer"
-                >
-                  <KeyRound size={18} />
-                  {loading ? 'Đang xử lý...' : 'Xác nhận Đổi mật khẩu'}
-                </button>
-              </div>
-            </form>
+                <Box sx={{ pt: 1 }}>
+                  <Button type="submit" variant="contained" color="primary" disabled={loading} startIcon={loading ? <CircularProgress size={18} color="inherit" /> : <LockOutlinedIcon />} sx={{ borderRadius: 3, px: 3, py: 1.2, fontWeight: 800 }}>
+                    {loading ? 'Đang xử lý...' : 'Xác nhận Đổi mật khẩu'}
+                  </Button>
+                </Box>
+              </Stack>
+            </Box>
           )}
 
           {/* TAB 3: Bác sĩ cập nhật hồ sơ chuyên môn */}
           {activeTab === 'doctor' && isDoctor && (
-            <form onSubmit={handleDoctorSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Học vị / Chức danh</label>
-                  <input
-                    type="text"
-                    required
-                    value={doctorForm.academicTitle}
-                    onChange={(e) => setDoctorForm({ ...doctorForm, academicTitle: e.target.value })}
-                    placeholder="BS.CKI, BS.CKII, ThS, PGS.TS..."
-                    className="w-full px-3.5 py-2.5 border border-slate-200 bg-slate-50 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Số năm kinh nghiệm</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="60"
-                    required
-                    value={doctorForm.experienceYears}
-                    onChange={(e) => setDoctorForm({ ...doctorForm, experienceYears: Number(e.target.value) })}
-                    className="w-full px-3.5 py-2.5 border border-slate-200 bg-slate-50 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500 text-sm"
-                  />
-                </div>
-              </div>
+            <Box component="form" onSubmit={handleDoctorSubmit}>
+              <Stack spacing={2.5}>
+                <Grid container spacing={2}>
+                  <Grid size={6}>
+                    <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.primary', mb: 0.5, display: 'block' }}>Học vị / Chức danh</Typography>
+                    <TextField fullWidth required value={doctorForm.academicTitle} onChange={(e) => setDoctorForm({ ...doctorForm, academicTitle: e.target.value })} placeholder="BS.CKI, PGS.TS..." />
+                  </Grid>
+                  <Grid size={6}>
+                    <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.primary', mb: 0.5, display: 'block' }}>Số năm kinh nghiệm</Typography>
+                    <TextField fullWidth type="number" required value={doctorForm.experienceYears} onChange={(e) => setDoctorForm({ ...doctorForm, experienceYears: Number(e.target.value) })} />
+                  </Grid>
+                </Grid>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Phòng khám trực</label>
-                <input
-                  type="text"
-                  required
-                  value={doctorForm.roomNumber}
-                  onChange={(e) => setDoctorForm({ ...doctorForm, roomNumber: e.target.value })}
-                  placeholder="P.205, Khu B..."
-                  className="w-full px-3.5 py-2.5 border border-slate-200 bg-slate-50 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500 text-sm"
-                />
-              </div>
+                <Box>
+                  <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.primary', mb: 0.5, display: 'block' }}>Phòng khám trực</Typography>
+                  <TextField fullWidth required value={doctorForm.roomNumber} onChange={(e) => setDoctorForm({ ...doctorForm, roomNumber: e.target.value })} placeholder="P.205, Khu B..." />
+                </Box>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Tiểu sử & Chuyên môn giới thiệu</label>
-                <textarea
-                  rows={3}
-                  value={doctorForm.bio}
-                  onChange={(e) => setDoctorForm({ ...doctorForm, bio: e.target.value })}
-                  placeholder="Giới thiệu kinh nghiệm khám chữa bệnh, chứng chỉ hành nghề..."
-                  className="w-full px-3.5 py-2.5 border border-slate-200 bg-slate-50 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500 text-sm"
-                />
-              </div>
+                <Box>
+                  <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.primary', mb: 0.5, display: 'block' }}>Tiểu sử & Chuyên môn giới thiệu</Typography>
+                  <TextField fullWidth multiline rows={3} value={doctorForm.bio} onChange={(e) => setDoctorForm({ ...doctorForm, bio: e.target.value })} placeholder="Giới thiệu kinh nghiệm khám..." />
+                </Box>
 
-              <div className="pt-3">
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl shadow-sm transition disabled:bg-emerald-300 flex items-center gap-2 cursor-pointer"
-                >
-                  <Save size={18} />
-                  {loading ? 'Đang lưu...' : 'Lưu hồ sơ Bác sĩ'}
-                </button>
-              </div>
-            </form>
+                <Box sx={{ pt: 1 }}>
+                  <Button type="submit" variant="contained" color="primary" disabled={loading} startIcon={loading ? <CircularProgress size={18} color="inherit" /> : <SaveIcon />} sx={{ borderRadius: 3, px: 3, py: 1.2, fontWeight: 800 }}>
+                    {loading ? 'Đang lưu...' : 'Lưu hồ sơ Bác sĩ'}
+                  </Button>
+                </Box>
+              </Stack>
+            </Box>
           )}
-        </div>
-      </div>
-    </div>
+        </Box>
+      </Paper>
+    </Stack>
   );
 }

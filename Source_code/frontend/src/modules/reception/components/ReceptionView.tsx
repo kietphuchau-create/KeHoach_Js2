@@ -1,24 +1,39 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { 
-  QrCode, 
-  CreditCard, 
-  CheckCircle2, 
-  ShieldCheck, 
-  Clock, 
-  Search, 
-  UserCheck, 
-  Users, 
-  Building2, 
-  Printer,
-  Sparkles,
-  RefreshCw,
-  Bell
-} from 'lucide-react';
 import Link from 'next/link';
+import Box from '@mui/material/Box';
+import Paper from '@mui/material/Paper';
+import Grid from '@mui/material/Grid';
+import Typography from '@mui/material/Typography';
+import Button from '@mui/material/Button';
+import Chip from '@mui/material/Chip';
+import Tabs from '@mui/material/Tabs';
+import Tab from '@mui/material/Tab';
+import TextField from '@mui/material/TextField';
+import InputAdornment from '@mui/material/InputAdornment';
+import Table from '@mui/material/Table';
+import TableContainer from '@mui/material/TableContainer';
+import TableHead from '@mui/material/TableHead';
+import TableBody from '@mui/material/TableBody';
+import TableRow from '@mui/material/TableRow';
+import TableCell from '@mui/material/TableCell';
+import CircularProgress from '@mui/material/CircularProgress';
+import Stack from '@mui/material/Stack';
+import Divider from '@mui/material/Divider';
+import Avatar from '@mui/material/Avatar';
+
+import QrCodeScannerIcon from '@mui/icons-material/QrCodeScannerRounded';
+import CreditCardIcon from '@mui/icons-material/CreditCardRounded';
+import CheckCircleIcon from '@mui/icons-material/CheckCircleRounded';
+import SecurityIcon from '@mui/icons-material/SecurityRounded';
+import AccessTimeIcon from '@mui/icons-material/AccessTimeRounded';
+import PrintIcon from '@mui/icons-material/PrintRounded';
+import QrCodeIcon from '@mui/icons-material/QrCode2Rounded';
+
 import { api, AppointmentResponse, getAuthUser } from '@/shared/lib/api';
 import AlertMessage from '@/shared/components/Feedback/AlertMessage';
+import { medoraColors } from '@/shared/theme/theme';
 
 export default function ReceptionView() {
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -60,13 +75,6 @@ export default function ReceptionView() {
     },
   ]);
 
-  const qrInputRef = useRef<HTMLInputElement>(null);
-
-  // Auto focus input on mount and tab switch
-  useEffect(() => {
-    qrInputRef.current?.focus();
-  }, [method]);
-
   const handleCheckin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -81,7 +89,6 @@ export default function ReceptionView() {
 
       setResult(res);
 
-      // Thêm vào bảng lịch sử tiếp đón trực tiếp (Live Feed)
       const now = new Date();
       const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
       const newEntry = {
@@ -103,300 +110,266 @@ export default function ReceptionView() {
   };
 
   return (
-    <div className="space-y-6">
+    <Stack spacing={3}>
       {/* Top Banner */}
-      <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 text-emerald-600 mb-1 text-xs font-bold uppercase tracking-wider">
-            <ShieldCheck size={18} />
-            <span>Phân Hệ Tiếp Đón Y Tế Siêu Tốc (Fast Check-In 1s)</span>
-          </div>
-          <h1 className="text-2xl font-bold text-slate-800">Quầy Tiếp Nhận Bệnh Nhân Ngoại Trú</h1>
-          <p className="text-slate-500 text-sm mt-1">
+      <Paper
+        elevation={0}
+        sx={{
+          p: 3,
+          borderRadius: 4,
+          border: `1px solid ${medoraColors.border}`,
+          backgroundColor: '#ffffff',
+          display: 'flex',
+          flexDirection: { xs: 'column', md: 'row' },
+          alignItems: { md: 'center' },
+          justifyContent: 'space-between',
+          gap: 2,
+        }}
+      >
+        <Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: medoraColors.main, mb: 0.5 }}>
+            <SecurityIcon fontSize="small" />
+            <Typography variant="caption" sx={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Phân Hệ Tiếp Đón Y Tế Siêu Tốc (Fast Check-In 1s)
+            </Typography>
+          </Box>
+          <Typography variant="h5" sx={{ fontWeight: 800, color: 'text.primary' }}>
+            Quầy Tiếp Nhận Bệnh Nhân Ngoại Trú
+          </Typography>
+          <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.85rem', mt: 0.5 }}>
             Hỗ trợ đầu đọc quét mã QR vé hẹn điện tử và quét chip thẻ CCCD 12 số không cần nhập liệu thủ công.
-          </p>
-        </div>
+          </Typography>
+        </Box>
 
         {/* Quick Stats Widget */}
-        <div className="flex items-center gap-3 bg-slate-50 p-2.5 rounded-2xl border border-slate-200">
-          <div className="px-4 py-1.5 border-r border-slate-200 text-center">
-            <span className="text-[10px] text-slate-400 font-semibold block uppercase">Đã tiếp đón</span>
-            <span className="text-lg font-bold text-emerald-600">{history.length} ca</span>
-          </div>
-          <div className="px-4 py-1.5 text-center">
-            <span className="text-[10px] text-slate-400 font-semibold block uppercase">Tốc độ xử lý</span>
-            <span className="text-lg font-bold text-blue-600">~1.2 giây</span>
-          </div>
-        </div>
-      </div>
+        <Paper elevation={0} sx={{ p: 1.5, px: 2.5, borderRadius: 3, backgroundColor: medoraColors.soft, border: `1px solid ${medoraColors.border}`, display: 'flex', gap: 3, textAlign: 'center' }}>
+          <Box>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, display: 'block', fontSize: '10px' }}>ĐÃ TIẾP ĐÓN</Typography>
+            <Typography variant="subtitle1" sx={{ fontWeight: 900, color: 'success.main', lineHeight: 1 }}>{history.length} ca</Typography>
+          </Box>
+          <Divider orientation="vertical" flexItem />
+          <Box>
+            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, display: 'block', fontSize: '10px' }}>TỐC ĐỘ XỬ LÝ</Typography>
+            <Typography variant="subtitle1" sx={{ fontWeight: 900, color: 'primary.main', lineHeight: 1 }}>~1.2 giây</Typography>
+          </Box>
+        </Paper>
+      </Paper>
 
-      {/* Cảnh báo phân quyền nếu là Bệnh nhân hoặc Khách vãng lai */}
+      {/* Non-Staff Alert */}
       {!isStaff && (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <span className="text-2xl leading-none">ℹ️</span>
-            <div>
-              <h4 className="font-bold text-amber-900 text-sm">
-                Bạn đang xem màn hình nội bộ dành cho Nhân Viên Lễ Tân (ROLE_STAFF)
-              </h4>
-              <p className="text-xs text-amber-700 mt-1 leading-relaxed">
-                Là Bệnh nhân, bạn chỉ cần thực hiện <strong>Đặt Lịch Khám</strong> để nhận <strong>Mã vé hẹn & QR Code</strong>. Khi đến bệnh viện, nhân viên tại quầy sẽ dùng màn hình này để quét tiếp đón cho bạn.
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <Link
-              href="/booking"
-              className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition shadow-xs"
-            >
-              Đi đến Đặt Khám
-            </Link>
-            <Link
-              href="/login"
-              className="px-4 py-2 rounded-xl bg-white border border-amber-300 hover:bg-amber-100 text-amber-900 text-xs font-semibold transition shadow-xs"
-            >
-              Đăng nhập Lễ tân Demo
-            </Link>
-          </div>
-        </div>
+        <AlertMessage
+          type="info"
+          title="Bạn đang xem màn hình nội bộ dành cho Nhân Viên Lễ Tân (ROLE_STAFF)"
+          message="Là Bệnh nhân, bạn chỉ cần Đặt Lịch Khám để nhận Mã vé hẹn & QR Code. Nhân viên tại quầy sẽ dùng màn hình này để quét tiếp đón cho bạn."
+        />
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column: Scanner Panel (5 Cols) */}
-        <div className="lg:col-span-5 space-y-6">
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+      <Grid container spacing={3}>
+        {/* Left Column: Scanner Panel */}
+        <Grid size={{ xs: 12, lg: 5 }}>
+          <Paper elevation={0} sx={{ p: 3, borderRadius: 4, border: `1px solid ${medoraColors.border}`, backgroundColor: '#ffffff' }}>
             {/* Method Tabs */}
-            <div className="flex bg-slate-100 p-1 rounded-xl mb-6">
-              <button
-                type="button"
-                onClick={() => { setMethod('QR_CODE'); setError(null); }}
-                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                  method === 'QR_CODE'
-                    ? 'bg-white text-emerald-700 shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
+            <Paper elevation={0} sx={{ backgroundColor: '#F1F5F9', p: 0.5, borderRadius: 3, mb: 3 }}>
+              <Tabs
+                value={method}
+                onChange={(_, val) => { setMethod(val); setError(null); }}
+                variant="fullWidth"
+                sx={{
+                  minHeight: 40,
+                  '& .MuiTabs-indicator': { backgroundColor: medoraColors.main, borderRadius: 2, height: '100%', opacity: 0.15 },
+                  '& .MuiTab-root': { textTransform: 'none', fontWeight: 700, fontSize: '0.8rem', borderRadius: 2, minHeight: 40 },
+                }}
               >
-                <QrCode size={16} />
-                <span>1. QR Vé Hẹn</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => { setMethod('CCCD_QR'); setError(null); }}
-                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                  method === 'CCCD_QR'
-                    ? 'bg-white text-emerald-700 shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <CreditCard size={16} />
-                <span>2. QR Thẻ CCCD</span>
-              </button>
-            </div>
+                <Tab label="1. QR Vé Hẹn" value="QR_CODE" icon={<QrCodeScannerIcon fontSize="small" />} iconPosition="start" />
+                <Tab label="2. QR Thẻ CCCD" value="CCCD_QR" icon={<CreditCardIcon fontSize="small" />} iconPosition="start" />
+              </Tabs>
+            </Paper>
 
-            {error && (
-              <div className="mb-4">
-                <AlertMessage type="error" message={error} onClose={() => setError(null)} />
-              </div>
-            )}
+            {error && <Box sx={{ mb: 2 }}><AlertMessage type="error" message={error} onClose={() => setError(null)} /></Box>}
 
-            {/* Check-in Form */}
-            <form onSubmit={handleCheckin} className="space-y-4">
-              {method === 'QR_CODE' ? (
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                    Mã Vé Hẹn Khám (Booking Code):
-                  </label>
-                  <div className="relative">
-                    <QrCode className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                    <input
-                      ref={qrInputRef}
-                      type="text"
+            {/* Checkin Form */}
+            <Box component="form" onSubmit={handleCheckin}>
+              <Stack spacing={2.5}>
+                {method === 'QR_CODE' ? (
+                  <Box>
+                    <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.primary', textTransform: 'uppercase', mb: 0.8, display: 'block' }}>
+                      Mã Vé Hẹn Khám (Booking Code):
+                    </Typography>
+                    <TextField
+                      fullWidth
                       required
                       value={bookingCode}
                       onChange={(e) => setBookingCode(e.target.value)}
                       placeholder="Quét mã QR hoặc nhập: MED-2026-8899"
-                      className="w-full pl-10 pr-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-emerald-500 focus:bg-white focus:outline-none text-sm font-mono font-semibold text-slate-800"
+                      slotProps={{
+                        input: {
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <QrCodeIcon sx={{ color: medoraColors.main }} />
+                            </InputAdornment>
+                          ),
+                        },
+                      }}
                     />
-                  </div>
-                  <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1.5">
-                    <span>* Tương thích máy quét USB barcode 2D</span>
-                    <button
-                      type="button"
-                      onClick={() => setBookingCode(`MED-2026-${Math.floor(1000 + Math.random() * 9000)}`)}
-                      className="text-emerald-600 hover:underline font-medium cursor-pointer"
-                    >
-                      Tạo mã test
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                      Số Định Danh CCCD Gắn Chip (12 số):
-                    </label>
-                    <div className="relative">
-                      <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                      <input
-                        ref={qrInputRef}
-                        type="text"
+                  </Box>
+                ) : (
+                  <Stack spacing={2}>
+                    <Box>
+                      <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.primary', textTransform: 'uppercase', mb: 0.8, display: 'block' }}>
+                        Số Định Danh CCCD Gắn Chip (12 số):
+                      </Typography>
+                      <TextField
+                        fullWidth
                         required
                         value={cccdNumber}
                         onChange={(e) => setCccdNumber(e.target.value)}
                         placeholder="Ví dụ: 079095012345"
-                        className="w-full pl-10 pr-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-emerald-500 focus:bg-white focus:outline-none text-sm font-mono font-semibold text-slate-800"
+                        slotProps={{
+                          input: {
+                            startAdornment: (
+                              <InputAdornment position="start">
+                                <CreditCardIcon sx={{ color: medoraColors.main }} />
+                              </InputAdornment>
+                            ),
+                          },
+                        }}
                       />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                      Họ và Tên Bệnh Nhân (Khớp thẻ):
-                    </label>
-                    <input
-                      type="text"
-                      value={patientName}
-                      onChange={(e) => setPatientName(e.target.value)}
-                      placeholder="Châu Tuấn Kiệt"
-                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none text-sm"
-                    />
-                  </div>
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl transition shadow-md shadow-emerald-600/20 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer text-sm"
-              >
-                {loading ? (
-                  <>
-                    <RefreshCw size={18} className="animate-spin" />
-                    <span>Đang nạp dữ liệu & cấp STT...</span>
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 size={18} />
-                    <span>Xác Nhận Tiếp Đón (Check-in 1 Giây)</span>
-                  </>
+                    </Box>
+                    <Box>
+                      <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.primary', textTransform: 'uppercase', mb: 0.8, display: 'block' }}>
+                        Họ và Tên Bệnh Nhân (Khớp thẻ):
+                      </Typography>
+                      <TextField
+                        fullWidth
+                        value={patientName}
+                        onChange={(e) => setPatientName(e.target.value)}
+                        placeholder="Châu Tuấn Kiệt"
+                      />
+                    </Box>
+                  </Stack>
                 )}
-              </button>
-            </form>
-          </div>
 
-          {/* Instant Result Card */}
-          {result && (
-            <div className="bg-emerald-600 text-white rounded-2xl p-6 shadow-lg shadow-emerald-600/30 space-y-4 animate-in fade-in duration-300">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 size={22} className="text-emerald-200" />
-                  <span className="font-bold text-sm tracking-wide uppercase">TIẾP ĐÓN THÀNH CÔNG</span>
-                </div>
-                <span className="text-xs bg-white/20 px-2.5 py-0.5 rounded-full font-semibold">1-CLICK PRINT</span>
-              </div>
-
-              <div className="text-center bg-white/10 backdrop-blur-xs py-4 px-3 rounded-xl border border-white/20">
-                <span className="text-xs text-emerald-100 uppercase tracking-widest font-semibold block">Số Thứ Tự Vào Khám</span>
-                <div className="text-5xl font-black text-white tracking-tight mt-1">
-                  STT #{result.queueNumber || '03'}
-                </div>
-                <div className="text-xs text-emerald-200 mt-1 font-mono">
-                  Mã hẹn: {result.bookingCode}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 text-xs text-emerald-50">
-                <div>Phòng khám: <strong className="text-white block text-sm">P.201 - Lầu 2</strong></div>
-                <div>Bác sĩ phụ trách: <strong className="text-white block text-sm">PGS.TS Trần Văn Hùng</strong></div>
-              </div>
-
-              <div className="pt-2 flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="flex-1 bg-white text-emerald-800 hover:bg-emerald-50 font-bold py-2 rounded-xl transition text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                <Button
+                  type="submit"
+                  fullWidth
+                  variant="contained"
+                  color="primary"
+                  disabled={loading}
+                  startIcon={loading ? <CircularProgress size={18} color="inherit" /> : <CheckCircleIcon />}
+                  sx={{ py: 1.4, borderRadius: 3, fontWeight: 800, fontSize: '0.875rem' }}
                 >
-                  <Printer size={14} /> In Phiếu STT
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setResult(null)}
-                  className="px-4 bg-white/20 hover:bg-white/30 text-white font-semibold py-2 rounded-xl transition text-xs cursor-pointer"
-                >
-                  Đóng
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+                  {loading ? 'Đang nạp dữ liệu & cấp STT...' : 'Xác Nhận Tiếp Đón (Check-in 1 Giây)'}
+                </Button>
+              </Stack>
+            </Box>
 
-        {/* Right Column: Real-time Check-in Live Feed (7 Cols) */}
-        <div className="lg:col-span-7 bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
-                  <Clock size={18} className="text-blue-600" />
-                  <span>Danh Sách Đã Tiếp Đón Hôm Nay (Live Feed)</span>
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
+            {/* Instant Result Card */}
+            {result && (
+              <Paper
+                elevation={3}
+                sx={{
+                  mt: 3,
+                  p: 3,
+                  borderRadius: 4,
+                  background: 'linear-gradient(135deg, #059669 0%, #10B981 100%)',
+                  color: '#ffffff',
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <CheckCircleIcon />
+                    <Typography variant="subtitle2" sx={{ fontWeight: 900, letterSpacing: '0.05em' }}>TIẾP ĐÓN THÀNH CÔNG</Typography>
+                  </Box>
+                  <Chip label="1-CLICK PRINT" size="small" sx={{ fontWeight: 800, backgroundColor: 'rgba(255,255,255,0.2)', color: '#fff', fontSize: '9px' }} />
+                </Box>
+
+                <Paper elevation={0} sx={{ p: 2, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.15)', textAlign: 'center', my: 2 }}>
+                  <Typography variant="caption" sx={{ color: '#D1FAE5', textTransform: 'uppercase', fontWeight: 700 }}>Số Thứ Tự Vào Khám</Typography>
+                  <Typography variant="h2" sx={{ fontWeight: 900, color: '#fff', my: 0.2 }}>STT #{result.queueNumber || '03'}</Typography>
+                  <Typography variant="caption" sx={{ color: '#A7F3D0', fontFamily: 'monospace' }}>Mã hẹn: {result.bookingCode}</Typography>
+                </Paper>
+
+                <Grid container spacing={1} sx={{ mb: 2, fontSize: '0.8rem' }}>
+                  <Grid size={6}>
+                    <Typography variant="caption" sx={{ opacity: 0.8, display: 'block' }}>Phòng khám:</Typography>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#fff' }}>P.201 - Lầu 2</Typography>
+                  </Grid>
+                  <Grid size={6}>
+                    <Typography variant="caption" sx={{ opacity: 0.8, display: 'block' }}>Bác sĩ phụ trách:</Typography>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#fff' }}>PGS.TS Trần Văn Hùng</Typography>
+                  </Grid>
+                </Grid>
+
+                <Stack direction="row" spacing={1}>
+                  <Button fullWidth variant="contained" color="inherit" startIcon={<PrintIcon />} onClick={() => window.print()} sx={{ borderRadius: 2, color: '#065F46', fontWeight: 800, backgroundColor: '#fff' }}>
+                    In Phiếu STT
+                  </Button>
+                  <Button variant="text" color="inherit" onClick={() => setResult(null)} sx={{ borderRadius: 2, color: '#fff' }}>
+                    Đóng
+                  </Button>
+                </Stack>
+              </Paper>
+            )}
+          </Paper>
+        </Grid>
+
+        {/* Right Column: Live Feed Table */}
+        <Grid size={{ xs: 12, lg: 7 }}>
+          <Paper elevation={0} sx={{ p: 3, borderRadius: 4, border: `1px solid ${medoraColors.border}`, backgroundColor: '#ffffff', minHeight: 480 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+              <Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <AccessTimeIcon sx={{ color: medoraColors.main }} />
+                  <Typography variant="subtitle1" sx={{ fontWeight: 800, color: 'text.primary' }}>
+                    Danh Sách Đã Tiếp Đón Hôm Nay (Live Feed)
+                  </Typography>
+                </Box>
+                <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                   Tự động chuyển tiếp vào hàng đợi phòng khám của Bác sĩ sau khi check-in.
-                </p>
-              </div>
-              <span className="text-xs font-semibold px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span>Trực tiếp</span>
-              </span>
-            </div>
+                </Typography>
+              </Box>
+              <Chip label="● Trực tiếp" size="small" color="success" sx={{ fontWeight: 800, fontSize: '10px' }} />
+            </Box>
 
-            {/* Table Feed */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                    <th className="py-2.5 px-3">STT</th>
-                    <th className="py-2.5 px-3">Bệnh Nhân</th>
-                    <th className="py-2.5 px-3">Bác Sĩ & Phòng</th>
-                    <th className="py-2.5 px-3">Giờ Check-in</th>
-                    <th className="py-2.5 px-3 text-right">Trạng Thái</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-xs">
-                  {history.map((item, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50/80 transition">
-                      <td className="py-3 px-3">
-                        <span className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-800 font-extrabold flex items-center justify-center text-xs">
-                          {item.queueNumber}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3">
-                        <div className="font-semibold text-slate-800">{item.patientName}</div>
-                        <div className="text-[11px] font-mono text-slate-400">{item.bookingCode}</div>
-                      </td>
-                      <td className="py-3 px-3">
-                        <div className="text-slate-700 font-medium">{item.doctor}</div>
-                        <div className="text-[11px] text-blue-600 font-semibold">{item.room}</div>
-                      </td>
-                      <td className="py-3 px-3 font-mono text-slate-600">
-                        {item.checkInTime}
-                      </td>
-                      <td className="py-3 px-3 text-right">
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          <CheckCircle2 size={11} /> {item.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div className="pt-4 border-t border-slate-100 mt-4 flex items-center justify-between text-xs text-slate-400">
-            <span>Tổng số: <strong className="text-slate-700">{history.length}</strong> ca tiếp nhận</span>
-            <span>Hệ thống Lễ tân MedSched kết nối buồng khám 1s</span>
-          </div>
-        </div>
-      </div>
-    </div>
+            <TableContainer sx={{ mt: 1 }}>
+              <Table>
+              <TableHead>
+                <TableRow sx={{ backgroundColor: '#F8FAFC' }}>
+                  <TableCell sx={{ fontWeight: 800, fontSize: '0.75rem' }}>STT</TableCell>
+                  <TableCell sx={{ fontWeight: 800, fontSize: '0.75rem' }}>Bệnh Nhân</TableCell>
+                  <TableCell sx={{ fontWeight: 800, fontSize: '0.75rem' }}>Bác Sĩ & Phòng</TableCell>
+                  <TableCell sx={{ fontWeight: 800, fontSize: '0.75rem' }}>Giờ Check-in</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 800, fontSize: '0.75rem' }}>Trạng Thái</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {history.map((item, idx) => (
+                  <TableRow key={idx} hover>
+                    <TableCell>
+                      <Avatar sx={{ width: 28, height: 28, fontSize: '0.75rem', fontWeight: 900, bgcolor: medoraColors.soft, color: medoraColors.main }}>
+                        {item.queueNumber}
+                      </Avatar>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>{item.patientName}</Typography>
+                      <Typography variant="caption" sx={{ fontFamily: 'monospace', color: 'text.secondary', fontSize: '10px' }}>{item.bookingCode}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" sx={{ fontSize: '0.8rem' }}>{item.doctor}</Typography>
+                      <Typography variant="caption" sx={{ fontWeight: 700, color: medoraColors.main, fontSize: '10px' }}>{item.room}</Typography>
+                    </TableCell>
+                    <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{item.checkInTime}</TableCell>
+                    <TableCell align="right">
+                      <Chip label={item.status} size="small" color="success" sx={{ height: 20, fontSize: '9px', fontWeight: 800 }} />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          </Paper>
+        </Grid>
+      </Grid>
+    </Stack>
   );
 }

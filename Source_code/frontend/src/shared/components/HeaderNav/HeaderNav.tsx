@@ -2,21 +2,39 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
-import { 
-  Building2, 
-  Calendar, 
-  QrCode, 
-  ShieldCheck, 
-  User, 
-  LogOut, 
-  LogIn, 
-  UserPlus, 
-  Menu, 
-  X,
-  Stethoscope
-} from 'lucide-react';
+import AppBar from '@mui/material/AppBar';
+import Toolbar from '@mui/material/Toolbar';
+import Container from '@mui/material/Container';
+import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
+import Button from '@mui/material/Button';
+import IconButton from '@mui/material/IconButton';
+import Chip from '@mui/material/Chip';
+import Drawer from '@mui/material/Drawer';
+import List from '@mui/material/List';
+import ListItem from '@mui/material/ListItem';
+import ListItemButton from '@mui/material/ListItemButton';
+import ListItemIcon from '@mui/material/ListItemIcon';
+import ListItemText from '@mui/material/ListItemText';
+import Divider from '@mui/material/Divider';
+import Stack from '@mui/material/Stack';
+
+import HomeIcon from '@mui/icons-material/HomeRounded';
+import CalendarMonthIcon from '@mui/icons-material/CalendarMonthRounded';
+import QrCodeScannerIcon from '@mui/icons-material/QrCodeScannerRounded';
+import MedicalServicesIcon from '@mui/icons-material/MedicalServicesRounded';
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettingsRounded';
+import AccountCircleIcon from '@mui/icons-material/AccountCircleRounded';
+import LogoutIcon from '@mui/icons-material/LogoutRounded';
+import LoginIcon from '@mui/icons-material/LoginRounded';
+import PersonAddIcon from '@mui/icons-material/PersonAddRounded';
+import MenuIcon from '@mui/icons-material/MenuRounded';
+import CloseIcon from '@mui/icons-material/CloseRounded';
+
 import { getAuthToken, getAuthUser, clearAuthSession } from '@/shared/lib/api';
+import { medoraColors } from '@/shared/theme/theme';
 
 export default function HeaderNav() {
   const pathname = usePathname();
@@ -46,198 +64,361 @@ export default function HeaderNav() {
   const isStaff = roles.includes('ROLE_STAFF');
 
   const navLinks = [
-    { href: '/', label: 'Trang Chủ', icon: Building2 },
-    { href: '/booking', label: 'Đặt Lịch Khám', icon: Calendar },
-    ...(isStaff || isAdmin ? [{ href: '/reception', label: 'Quầy Tiếp Đón', icon: QrCode }] : []),
-    ...(isDoctor || isAdmin ? [{ href: '/doctor', label: 'Buồng Khám Bác Sĩ', icon: Stethoscope }] : []),
-    ...(isAdmin ? [{ href: '/admin', label: 'Quản Trị Admin', icon: ShieldCheck }] : []),
+    { href: '/', label: 'Trang Chủ', icon: HomeIcon },
+    { href: '/booking', label: 'Đặt Lịch Khám', icon: CalendarMonthIcon, isFeatured: true },
+    ...(isStaff || isAdmin ? [{ href: '/reception', label: 'Quầy Tiếp Đón', icon: QrCodeScannerIcon }] : []),
+    ...(isDoctor || isAdmin ? [{ href: '/doctor', label: 'Buồng Khám Bác Sĩ', icon: MedicalServicesIcon }] : []),
+    ...(isAdmin ? [{ href: '/admin', label: 'Quản Trị Admin', icon: AdminPanelSettingsIcon }] : []),
   ];
 
   return (
-    <header className="bg-white border-b border-mint-light text-slate-800 sticky top-0 z-50 shadow-xs">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          {/* Brand Logo */}
-          <div className="flex items-center gap-3">
-            <Link href="/" className="flex items-center gap-2.5 group">
-              <div className="w-10 h-10 rounded-xl bg-pine-teal flex items-center justify-center text-white font-bold text-xl shadow-md group-hover:scale-105 transition">
-                +
-              </div>
-              <div className="flex flex-col">
-                <span className="text-xl font-extrabold tracking-tight text-pine-teal">
-                  MedSched
-                </span>
-                <span className="text-[10px] text-teal-primary font-bold tracking-wider uppercase">
-                  Smart Healthcare
-                </span>
-              </div>
+    <AppBar
+      position="sticky"
+      color="inherit"
+      elevation={0}
+      sx={{
+        backgroundColor: '#ffffff',
+        borderBottom: `1px solid ${medoraColors.border}`,
+        top: 0,
+        zIndex: (theme) => theme.zIndex.drawer + 1,
+      }}
+    >
+      <Container maxWidth="lg" disableGutters sx={{ px: { xs: 2, sm: 3 } }}>
+        <Toolbar disableGutters sx={{ minHeight: 70, justifyContent: 'space-between' }}>
+          
+          {/* Brand Logo & Desktop Links */}
+          <Box sx={{ display: 'flex', items: 'center', gap: 3 }}>
+            <Link href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <Box
+                sx={{
+                  position: 'relative',
+                  display: 'flex',
+                  alignItems: 'center',
+                  transition: 'transform 0.2s',
+                  '&:hover': { transform: 'scale(1.04)' },
+                }}
+              >
+                <Image
+                  src="/images/logos/logo.png"
+                  alt="Medora Logo"
+                  width={48}
+                  height={48}
+                  style={{ height: '44px', width: 'auto', objectFit: 'contain' }}
+                  priority
+                />
+              </Box>
+              <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                <Typography
+                  variant="h5"
+                  sx={{
+                    fontWeight: 900,
+                    color: medoraColors.main,
+                    letterSpacing: '-0.02em',
+                    lineHeight: 1,
+                  }}
+                >
+                  Medora
+                </Typography>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    fontSize: '9px',
+                    fontWeight: 800,
+                    color: medoraColors.accent,
+                    letterSpacing: '0.2em',
+                    textTransform: 'uppercase',
+                    mt: '3px',
+                    lineHeight: 1,
+                  }}
+                >
+                  MODERN CARE, BETTER HEALTH
+                </Typography>
+              </Box>
             </Link>
 
-            {/* Desktop Navigation Links */}
-            <nav className="hidden md:flex items-center gap-1.5 ml-6">
+            {/* Desktop Navigation */}
+            <Stack direction="row" spacing={1} sx={{ display: { xs: 'none', md: 'flex' }, items: 'center', ml: 2 }}>
               {navLinks.map((link) => {
                 const Icon = link.icon;
                 const isActive = pathname === link.href;
-                const isBooking = link.href === '/booking';
 
-                if (isBooking) {
+                if (link.isFeatured) {
                   return (
-                    <Link
+                    <Button
                       key={link.href}
+                      component={Link}
                       href={link.href}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition shadow-xs ${
-                        isActive
-                          ? 'bg-pine-teal text-white ring-2 ring-teal-primary/50'
-                          : 'bg-pine-teal text-white hover:bg-pine-teal-hover'
-                      }`}
+                      variant="contained"
+                      color="primary"
+                      startIcon={<Icon />}
+                      sx={{
+                        borderRadius: 30,
+                        px: 2.5,
+                        py: 0.8,
+                        fontSize: '0.8rem',
+                        fontWeight: 700,
+                        backgroundColor: medoraColors.main,
+                        boxShadow: isActive ? `0 0 0 2px ${medoraColors.accent}` : 'none',
+                        '&:hover': {
+                          backgroundColor: medoraColors.dark,
+                        },
+                      }}
                     >
-                      <Icon size={16} />
-                      <span>{link.label}</span>
-                    </Link>
+                      {link.label}
+                    </Button>
                   );
                 }
 
                 return (
-                  <Link
+                  <Button
                     key={link.href}
+                    component={Link}
                     href={link.href}
-                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition ${
-                      isActive
-                        ? 'bg-mint-light text-pine-teal font-bold'
-                        : 'text-slate-700 hover:text-pine-teal hover:bg-mint-light/60'
-                    }`}
+                    startIcon={<Icon sx={{ color: isActive ? medoraColors.main : 'text.secondary' }} />}
+                    sx={{
+                      borderRadius: 30,
+                      px: 2,
+                      py: 0.8,
+                      fontSize: '0.8rem',
+                      fontWeight: isActive ? 700 : 600,
+                      color: isActive ? medoraColors.main : 'text.primary',
+                      backgroundColor: isActive ? 'rgba(94, 234, 212, 0.3)' : 'transparent',
+                      '&:hover': {
+                        backgroundColor: 'rgba(94, 234, 212, 0.15)',
+                        color: medoraColors.main,
+                      },
+                    }}
                   >
-                    <Icon size={16} />
-                    <span>{link.label}</span>
-                  </Link>
+                    {link.label}
+                  </Button>
                 );
               })}
-            </nav>
-          </div>
+            </Stack>
+          </Box>
 
-          {/* Right Section: Auth State / Buttons */}
-          <div className="hidden md:flex items-center gap-3">
+          {/* User Auth Section (Desktop) */}
+          <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 1.5 }}>
             {user ? (
-              <div className="flex items-center gap-3">
-                <Link
+              <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+                <Button
+                  component={Link}
                   href="/profile"
-                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-xs font-semibold transition ${
-                    pathname === '/profile'
-                      ? 'bg-mint-light border-teal-primary text-pine-teal'
-                      : 'bg-mint-soft border-mint-light text-slate-700 hover:border-teal-primary/40'
-                  }`}
+                  variant="outlined"
+                  startIcon={<AccountCircleIcon sx={{ color: medoraColors.accent }} />}
+                  endIcon={
+                    <Chip
+                      label={roles[0]?.replace('ROLE_', '') || 'PATIENT'}
+                      size="small"
+                      sx={{
+                        height: 20,
+                        fontSize: '9px',
+                        fontWeight: 800,
+                        backgroundColor: medoraColors.light,
+                        color: medoraColors.main,
+                      }}
+                    />
+                  }
+                  sx={{
+                    borderRadius: 30,
+                    px: 2,
+                    py: 0.7,
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    borderColor: pathname === '/profile' ? medoraColors.accent : medoraColors.border,
+                    backgroundColor: medoraColors.soft,
+                    color: medoraColors.main,
+                    '&:hover': {
+                      borderColor: medoraColors.accent,
+                      backgroundColor: medoraColors.soft,
+                    },
+                  }}
                 >
-                  <User size={15} className="text-teal-primary" />
-                  <span className="max-w-[140px] truncate">{user.fullName || user.email}</span>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] bg-mint-light text-pine-teal border border-teal-primary/30 font-bold">
-                    {roles[0]?.replace('ROLE_', '') || 'PATIENT'}
-                  </span>
-                </Link>
+                  <Box component="span" sx={{ maxWidth: 120, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                    {user.fullName || user.email}
+                  </Box>
+                </Button>
 
-                <button
+                <IconButton
                   onClick={handleLogout}
-                  className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-red-600 px-3 py-1.5 rounded-xl hover:bg-red-50 transition font-medium cursor-pointer"
+                  size="small"
                   title="Đăng xuất"
+                  sx={{
+                    color: 'text.secondary',
+                    '&:hover': { color: 'error.main', backgroundColor: 'error.light' },
+                  }}
                 >
-                  <LogOut size={15} />
-                  <span>Thoát</span>
-                </button>
-              </div>
+                  <LogoutIcon fontSize="small" />
+                </IconButton>
+              </Stack>
             ) : (
-              <div className="flex items-center gap-2">
-                <Link
+              <Stack direction="row" spacing={1}>
+                <Button
+                  component={Link}
                   href="/login"
-                  className="flex items-center gap-1.5 text-xs font-semibold text-pine-teal hover:bg-mint-light border border-teal-primary/30 px-3.5 py-2 rounded-xl transition"
+                  variant="outlined"
+                  startIcon={<LoginIcon />}
+                  sx={{
+                    borderRadius: 3,
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    borderColor: 'rgba(20, 184, 166, 0.4)',
+                    color: medoraColors.main,
+                    '&:hover': {
+                      backgroundColor: medoraColors.soft,
+                      borderColor: medoraColors.accent,
+                    },
+                  }}
                 >
-                  <LogIn size={15} />
-                  <span>Đăng Nhập</span>
-                </Link>
-                <Link
+                  Đăng Nhập
+                </Button>
+                <Button
+                  component={Link}
                   href="/register"
-                  className="flex items-center gap-1.5 text-xs font-semibold bg-pine-teal hover:bg-pine-teal-hover text-white px-3.5 py-2 rounded-xl transition shadow-xs"
+                  variant="contained"
+                  color="primary"
+                  startIcon={<PersonAddIcon />}
+                  sx={{
+                    borderRadius: 3,
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                  }}
                 >
-                  <UserPlus size={15} />
-                  <span>Đăng Ký</span>
-                </Link>
-              </div>
+                  Đăng Ký
+                </Button>
+              </Stack>
             )}
-          </div>
+          </Box>
 
-          {/* Mobile Menu Button */}
-          <div className="flex md:hidden">
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="text-slate-700 hover:text-pine-teal p-2 cursor-pointer"
-            >
-              {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-            </button>
-          </div>
-        </div>
-      </div>
+          {/* Mobile Hamburger Button */}
+          <Box sx={{ display: { xs: 'flex', md: 'none' } }}>
+            <IconButton onClick={() => setMobileMenuOpen(!mobileMenuOpen)} color="inherit">
+              {mobileMenuOpen ? <CloseIcon /> : <MenuIcon />}
+            </IconButton>
+          </Box>
+        </Toolbar>
+      </Container>
 
-      {/* Mobile Drawer Menu */}
-      {mobileMenuOpen && (
-        <div className="md:hidden bg-white border-b border-mint-light px-4 pt-2 pb-4 space-y-1">
+      {/* Mobile Drawer Navigation */}
+      <Drawer
+        anchor="top"
+        open={mobileMenuOpen}
+        onClose={() => setMobileMenuOpen(false)}
+        slotProps={{
+          paper: {
+            sx: {
+              mt: '70px',
+              borderRadius: '0 0 20px 20px',
+              px: 2,
+              pb: 3,
+              pt: 1,
+              boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)',
+            },
+          },
+        }}
+      >
+        <List disablePadding>
           {navLinks.map((link) => {
             const Icon = link.icon;
             const isActive = pathname === link.href;
             return (
-              <Link
-                key={link.href}
-                href={link.href}
-                onClick={() => setMobileMenuOpen(false)}
-                className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold transition ${
-                  isActive ? 'bg-mint-light text-pine-teal' : 'text-slate-700 hover:bg-mint-soft'
-                }`}
-              >
-                <Icon size={18} />
-                <span>{link.label}</span>
-              </Link>
+              <ListItem key={link.href} disablePadding sx={{ my: 0.5 }}>
+                <ListItemButton
+                  component={Link}
+                  href={link.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  selected={isActive}
+                  sx={{
+                    borderRadius: 3,
+                    py: 1.2,
+                    '&.Mui-selected': {
+                      backgroundColor: medoraColors.soft,
+                      color: medoraColors.main,
+                      fontWeight: 700,
+                    },
+                  }}
+                >
+                  <ListItemIcon sx={{ minWidth: 40, color: isActive ? medoraColors.main : 'text.secondary' }}>
+                    <Icon />
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={
+                      <Typography variant="body2" sx={{ fontSize: '0.9rem', fontWeight: isActive ? 700 : 600 }}>
+                        {link.label}
+                      </Typography>
+                    }
+                  />
+                </ListItemButton>
+              </ListItem>
             );
           })}
-          {user ? (
-            <div className="pt-2 border-t border-mint-light mt-2 space-y-2">
-              <Link
-                href="/profile"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center justify-between px-3 py-2 rounded-xl text-sm text-slate-800 bg-mint-soft"
-              >
-                <span>Hồ sơ: {user.fullName || user.email}</span>
-                <span className="text-xs bg-mint-light text-pine-teal px-2 py-0.5 rounded font-bold">
-                  {roles[0]?.replace('ROLE_', '') || 'USER'}
-                </span>
-              </Link>
-              <button
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  handleLogout();
-                }}
-                className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold text-red-600 hover:bg-red-50 transition cursor-pointer"
-              >
-                <LogOut size={16} />
-                <span>Đăng Xuất</span>
-              </button>
-            </div>
-          ) : (
-            <div className="pt-2 border-t border-mint-light mt-2 flex gap-2">
-              <Link
-                href="/login"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex-1 text-center py-2 text-xs font-semibold text-pine-teal bg-mint-light border border-teal-primary/30 rounded-xl"
-              >
-                Đăng Nhập
-              </Link>
-              <Link
-                href="/register"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex-1 text-center py-2 text-xs font-semibold text-white bg-pine-teal rounded-xl"
-              >
-                Đăng Ký
-              </Link>
-            </div>
-          )}
-        </div>
-      )}
-    </header>
+        </List>
+
+        <Divider sx={{ my: 1.5 }} />
+
+        {user ? (
+          <Box sx={{ px: 1, pt: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <Button
+              component={Link}
+              href="/profile"
+              onClick={() => setMobileMenuOpen(false)}
+              variant="outlined"
+              fullWidth
+              startIcon={<AccountCircleIcon />}
+              sx={{
+                justifyContent: 'space-between',
+                borderRadius: 3,
+                borderColor: medoraColors.border,
+                backgroundColor: medoraColors.soft,
+                color: medoraColors.main,
+              }}
+            >
+              <span>{user.fullName || user.email}</span>
+              <Chip
+                label={roles[0]?.replace('ROLE_', '') || 'USER'}
+                size="small"
+                sx={{ height: 20, fontSize: '9px', fontWeight: 800, backgroundColor: medoraColors.light, color: medoraColors.main }}
+              />
+            </Button>
+
+            <Button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                handleLogout();
+              }}
+              color="error"
+              variant="text"
+              fullWidth
+              startIcon={<LogoutIcon />}
+              sx={{ borderRadius: 3, mt: 0.5 }}
+            >
+              Đăng Xuất
+            </Button>
+          </Box>
+        ) : (
+          <Stack direction="row" spacing={1.5} sx={{ pt: 1, px: 1 }}>
+            <Button
+              component={Link}
+              href="/login"
+              onClick={() => setMobileMenuOpen(false)}
+              variant="outlined"
+              fullWidth
+              sx={{ borderRadius: 3 }}
+            >
+              Đăng Nhập
+            </Button>
+            <Button
+              component={Link}
+              href="/register"
+              onClick={() => setMobileMenuOpen(false)}
+              variant="contained"
+              fullWidth
+              sx={{ borderRadius: 3 }}
+            >
+              Đăng Ký
+            </Button>
+          </Stack>
+        )}
+      </Drawer>
+    </AppBar>
   );
 }

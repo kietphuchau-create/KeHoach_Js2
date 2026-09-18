@@ -1,15 +1,23 @@
 @import "tailwindcss";
 
 @theme {
-  --color-pine-teal: #0E5C55;
-  --color-pine-teal-hover: #0a4742;
-  --color-teal-primary: #2A7F85;
-  --color-teal-hover: #21676c;
-  --color-mint-light: #DFF5EF;
-  --color-mint-soft: #f0faf7;
+  /* Medora Brand Guidelines Palette */
+  --color-medora-main: #0F665F;
+  --color-medora-accent: #14B8A6;
+  --color-medora-light: #5EEAD4;
+  --color-medora-soft: #E6FFFA;
+  --color-medora-dark: #0B3D36;
+
+  /* Aliases for legacy component compatibility */
+  --color-pine-teal: #0F665F;
+  --color-pine-teal-hover: #0B3D36;
+  --color-teal-primary: #14B8A6;
+  --color-teal-hover: #0F665F;
+  --color-mint-light: #5EEAD4;
+  --color-mint-soft: #E6FFFA;
 }
 
 body {
-  background-color: #f0faf7;
+  background-color: #E6FFFA;
   color: #1e293b;
 }

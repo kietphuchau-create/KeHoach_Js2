@@ -407,8 +407,8 @@ CREATE INDEX idx_doctor_reviews_doctor ON doctor_reviews(doctor_id);
 
 -- [1] Hai chi nhánh
 INSERT INTO medical_centers (id, code, name, address, phone) VALUES
-('00000000-0000-0000-0000-000000000001', 'MED_Q1', 'Bệnh Viện Đa Khoa MedSched - Chi Nhánh Quận 1', 'Số 123 Nguyễn Thị Minh Khai, P. Bến Thành, Q.1, TP.HCM', '02839123456'),
-('00000000-0000-0000-0000-000000000002', 'MED_Q7', 'Bệnh Viện Đa Khoa MedSched - Chi Nhánh Quận 7', 'Số 45 Nguyễn Thị Thập, P. Tân Phú, Q.7, TP.HCM', '02839998877');
+('00000000-0000-0000-0000-000000000001', 'MED_Q1', 'Bệnh Viện Đa Khoa Medora - Chi Nhánh Quận 1', 'Số 123 Nguyễn Thị Minh Khai, P. Bến Thành, Q.1, TP.HCM', '02839123456'),
+('00000000-0000-0000-0000-000000000002', 'MED_Q7', 'Bệnh Viện Đa Khoa Medora - Chi Nhánh Quận 7', 'Số 45 Nguyễn Thị Thập, P. Tân Phú, Q.7, TP.HCM', '02839998877');
 
 INSERT INTO system_settings (id, medical_center_id, setting_key, setting_value, description) VALUES
 ('10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'DEFAULT_SLOT_DURATION_MINUTES', '30', 'Thời lượng khám mặc định cho mỗi ca'),

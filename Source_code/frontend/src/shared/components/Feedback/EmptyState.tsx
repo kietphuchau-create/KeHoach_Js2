@@ -1,5 +1,12 @@
+'use client';
+
 import React from 'react';
-import { Inbox, RefreshCw } from 'lucide-react';
+import Box from '@mui/material/Box';
+import Paper from '@mui/material/Paper';
+import Typography from '@mui/material/Typography';
+import Button from '@mui/material/Button';
+import InboxIcon from '@mui/icons-material/MoveToInbox';
+import RefreshIcon from '@mui/icons-material/Refresh';
 
 interface EmptyStateProps {
   title?: string;
@@ -15,21 +22,58 @@ export default function EmptyState({
   icon,
 }: EmptyStateProps) {
   return (
-    <div className="flex flex-col items-center justify-center p-12 text-center bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 my-4 space-y-3">
-      <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center">
-        {icon || <Inbox size={24} />}
-      </div>
-      <h3 className="font-semibold text-slate-700 text-base">{title}</h3>
-      <p className="text-xs text-slate-400 max-w-sm">{description}</p>
+    <Paper
+      variant="outlined"
+      sx={{
+        p: 6,
+        textAlign: 'center',
+        backgroundColor: 'rgba(248, 250, 252, 0.6)',
+        borderStyle: 'dashed',
+        borderColor: 'divider',
+        borderRadius: 4,
+        my: 2,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 1.5,
+      }}
+    >
+      <Box
+        sx={{
+          width: 56,
+          height: 56,
+          borderRadius: 3,
+          backgroundColor: '#F1F5F9',
+          color: '#94A3B8',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        {icon || <InboxIcon sx={{ fontSize: 32 }} />}
+      </Box>
+
+      <Typography variant="h6" sx={{ fontSize: '1rem', fontWeight: 700, color: 'text.primary' }}>
+        {title}
+      </Typography>
+
+      <Typography variant="body2" sx={{ color: 'text.secondary', maxWidth: 400, fontSize: '0.85rem' }}>
+        {description}
+      </Typography>
+
       {onRetry && (
-        <button
+        <Button
+          variant="outlined"
+          color="primary"
+          size="small"
+          startIcon={<RefreshIcon />}
           onClick={onRetry}
-          className="inline-flex items-center gap-2 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-xl transition"
+          sx={{ mt: 1, borderRadius: 3 }}
         >
-          <RefreshCw size={14} />
-          <span>Thử lại</span>
-        </button>
+          Thử lại
+        </Button>
       )}
-    </div>
+    </Paper>
   );
 }

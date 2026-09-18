@@ -1,24 +1,26 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { 
-  Stethoscope, 
-  Users, 
-  Clock, 
-  Sparkles, 
-  CheckCircle2, 
-  ArrowRight, 
-  User, 
-  FileText, 
-  Activity, 
-  AlertCircle,
-  Building2,
-  Phone,
-  ShieldCheck,
-  Volume2
-} from 'lucide-react';
+import Box from '@mui/material/Box';
+import Paper from '@mui/material/Paper';
+import Grid from '@mui/material/Grid';
+import Typography from '@mui/material/Typography';
+import Button from '@mui/material/Button';
+import Chip from '@mui/material/Chip';
+import Avatar from '@mui/material/Avatar';
+import TextField from '@mui/material/TextField';
+import Stack from '@mui/material/Stack';
+import Divider from '@mui/material/Divider';
+
+import MedicalServicesIcon from '@mui/icons-material/MedicalServicesRounded';
+import GroupsIcon from '@mui/icons-material/GroupsRounded';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesomeRounded';
+import CheckCircleIcon from '@mui/icons-material/CheckCircleRounded';
+import VolumeUpIcon from '@mui/icons-material/VolumeUpRounded';
+
 import { getAuthUser } from '@/shared/lib/api';
 import AlertMessage from '@/shared/components/Feedback/AlertMessage';
+import { medoraColors } from '@/shared/theme/theme';
 
 interface PatientQueueItem {
   id: string;
@@ -111,10 +113,8 @@ export default function DoctorClinicView() {
   const currentPatient = queue[activePatientIndex] || queue[0];
 
   const handleCallNext = () => {
-    // Find next waiting patient
     const nextIdx = queue.findIndex((p, idx) => idx > activePatientIndex && p.status === 'WAITING');
     if (nextIdx !== -1) {
-      // Mark current as completed
       setQueue((prev) =>
         prev.map((p, idx) => {
           if (idx === activePatientIndex) return { ...p, status: 'COMPLETED' };
@@ -139,212 +139,233 @@ export default function DoctorClinicView() {
   const completedCount = queue.filter((p) => p.status === 'COMPLETED').length;
 
   return (
-    <div className="space-y-6">
+    <Stack spacing={3}>
       {/* Top Banner */}
-      <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 text-blue-600 mb-1 text-xs font-bold uppercase tracking-wider">
-            <Stethoscope size={18} />
-            <span>Phân Hệ Buồng Khám Chuyên Khoa (Doctor Console)</span>
-          </div>
-          <h1 className="text-2xl font-bold text-slate-800">
+      <Paper
+        elevation={0}
+        sx={{
+          p: 3,
+          borderRadius: 4,
+          border: `1px solid ${medoraColors.border}`,
+          backgroundColor: '#ffffff',
+          display: 'flex',
+          flexDirection: { xs: 'column', md: 'row' },
+          alignItems: { md: 'center' },
+          justifyContent: 'space-between',
+          gap: 2,
+        }}
+      >
+        <Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: medoraColors.main, mb: 0.5 }}>
+            <MedicalServicesIcon fontSize="small" />
+            <Typography variant="caption" sx={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Phân Hệ Buồng Khám Chuyên Khoa (Doctor Console)
+            </Typography>
+          </Box>
+          <Typography variant="h5" sx={{ fontWeight: 800, color: 'text.primary' }}>
             {currentUser?.fullName ? `Bàn Khám: ${currentUser.fullName}` : 'Bàn Khám: PGS.TS.BS Trần Văn Hùng'}
-          </h1>
-          <p className="text-slate-500 text-sm mt-0.5 flex items-center gap-2">
-            <span>Phòng 201 - Lầu 2 (Khoa Nội Tim Mạch)</span>
-            <span>•</span>
-            <span className="text-blue-600 font-semibold">Cơ sở MedSched Quận 1</span>
-          </p>
-        </div>
+          </Typography>
+          <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.85rem', mt: 0.5 }}>
+            Phòng 201 - Lầu 2 (Khoa Nội Tim Mạch) • <strong style={{ color: medoraColors.main }}>Cơ sở Medora Quận 1</strong>
+          </Typography>
+        </Box>
 
-        {/* Status & Stats */}
-        <div className="flex items-center gap-3">
-          <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-200 flex items-center gap-3 text-center text-xs">
-            <div className="px-3 border-r border-slate-200">
-              <span className="text-slate-400 block text-[10px] uppercase font-bold">Đang chờ</span>
-              <span className="text-lg font-bold text-amber-600">{waitingCount} ca</span>
-            </div>
-            <div className="px-3">
-              <span className="text-slate-400 block text-[10px] uppercase font-bold">Đã xong</span>
-              <span className="text-lg font-bold text-emerald-600">{completedCount} ca</span>
-            </div>
-          </div>
+        {/* Stats & Clinic Active Status Toggle */}
+        <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
+          <Paper elevation={0} sx={{ p: 1.5, px: 2, borderRadius: 3, backgroundColor: medoraColors.soft, border: `1px solid ${medoraColors.border}`, display: 'flex', gap: 2, textAlign: 'center' }}>
+            <Box>
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, display: 'block', fontSize: '10px' }}>ĐANG CHỜ</Typography>
+              <Typography variant="subtitle1" sx={{ fontWeight: 900, color: 'warning.main', lineHeight: 1 }}>{waitingCount} ca</Typography>
+            </Box>
+            <Divider orientation="vertical" flexItem />
+            <Box>
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700, display: 'block', fontSize: '10px' }}>ĐÃ XONG</Typography>
+              <Typography variant="subtitle1" sx={{ fontWeight: 900, color: 'success.main', lineHeight: 1 }}>{completedCount} ca</Typography>
+            </Box>
+          </Paper>
 
-          <button
+          <Button
+            variant="outlined"
+            color={clinicActive ? 'success' : 'error'}
             onClick={() => setClinicActive(!clinicActive)}
-            className={`px-4 py-2.5 rounded-xl font-semibold text-xs transition cursor-pointer flex items-center gap-2 ${
-              clinicActive
-                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
-                : 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100'
-            }`}
+            sx={{ borderRadius: 3, px: 2.5, py: 1, fontWeight: 700, fontSize: '0.8rem' }}
           >
-            <span className={`w-2.5 h-2.5 rounded-full ${clinicActive ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
-            <span>{clinicActive ? 'Đang Mở Khám' : 'Tạm Dừng Khám'}</span>
-          </button>
-        </div>
-      </div>
+            {clinicActive ? '● Đang Mở Khám' : '● Tạm Dừng Khám'}
+          </Button>
+        </Stack>
+      </Paper>
 
       {notification && (
         <AlertMessage type="info" message={notification} onClose={() => setNotification(null)} />
       )}
 
       {/* Main 2-Column Clinical Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column: Waiting Queue (5 Cols) */}
-        <div className="lg:col-span-5 space-y-4">
-          <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-slate-800 text-base flex items-center gap-2">
-                <Users size={18} className="text-blue-600" />
-                <span>Hàng Đợi Khám Trước Cửa Phòng</span>
-              </h3>
-              <span className="text-xs font-mono font-bold bg-blue-50 text-blue-700 px-2 py-0.5 rounded-md">
-                Tổng: {queue.length}
-              </span>
-            </div>
+      <Grid container spacing={3}>
+        {/* Left Column: Waiting Queue */}
+        <Grid size={{ xs: 12, lg: 5 }}>
+          <Paper elevation={0} sx={{ p: 3, borderRadius: 4, border: `1px solid ${medoraColors.border}`, backgroundColor: '#ffffff' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <GroupsIcon sx={{ color: medoraColors.main }} />
+                <Typography variant="subtitle1" sx={{ fontWeight: 800, color: 'text.primary' }}>
+                  Hàng Đợi Khám Trước Cửa Phòng
+                </Typography>
+              </Box>
+              <Chip label={`Tổng: ${queue.length}`} size="small" sx={{ fontWeight: 800, fontFamily: 'monospace', backgroundColor: medoraColors.soft, color: medoraColors.main }} />
+            </Box>
 
             {/* Quick Call Next Button */}
-            <button
-              type="button"
+            <Button
+              fullWidth
+              variant="contained"
+              color="primary"
+              startIcon={<VolumeUpIcon />}
               onClick={handleCallNext}
-              className="w-full mb-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold py-3.5 rounded-xl transition shadow-md shadow-blue-600/20 flex items-center justify-center gap-2 cursor-pointer text-sm"
+              sx={{ py: 1.4, mb: 2.5, borderRadius: 3, fontWeight: 800, fontSize: '0.875rem' }}
             >
-              <Volume2 size={18} />
-              <span>GỌI BỆNH NHÂN TIẾP THEO (CALL NEXT)</span>
-            </button>
+              GỌI BỆNH NHÂN TIẾP THEO (CALL NEXT)
+            </Button>
 
             {/* Queue List */}
-            <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+            <Stack spacing={1.5} sx={{ maxHeight: 480, overflowY: 'auto', pr: 0.5 }}>
               {queue.map((patient, index) => {
                 const isActive = index === activePatientIndex;
                 return (
-                  <div
+                  <Paper
                     key={patient.id}
+                    elevation={0}
                     onClick={() => handleSelectPatient(index)}
-                    className={`p-3.5 rounded-xl border-2 transition cursor-pointer flex items-center justify-between ${
-                      isActive
-                        ? 'border-blue-600 bg-blue-50/60 shadow-xs'
-                        : patient.status === 'COMPLETED'
-                        ? 'border-slate-100 bg-slate-50 opacity-70 hover:opacity-100'
-                        : 'border-slate-200 bg-white hover:border-slate-300'
-                    }`}
+                    sx={{
+                      p: 2,
+                      borderRadius: 3,
+                      border: `2px solid ${isActive ? medoraColors.main : medoraColors.border}`,
+                      backgroundColor: isActive ? medoraColors.soft : patient.status === 'COMPLETED' ? '#F8FAFC' : '#ffffff',
+                      opacity: patient.status === 'COMPLETED' ? 0.75 : 1,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      transition: 'all 0.2s',
+                      '&:hover': { borderColor: medoraColors.accent, opacity: 1 },
+                    }}
                   >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-9 h-9 rounded-xl font-extrabold flex items-center justify-center text-sm ${
-                        isActive
-                          ? 'bg-blue-600 text-white'
-                          : patient.status === 'COMPLETED'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : 'bg-amber-100 text-amber-800'
-                      }`}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                      <Avatar
+                        sx={{
+                          width: 36,
+                          height: 36,
+                          fontWeight: 900,
+                          fontSize: '0.875rem',
+                          bgcolor: isActive ? medoraColors.main : patient.status === 'COMPLETED' ? 'success.light' : 'warning.light',
+                          color: isActive ? '#fff' : patient.status === 'COMPLETED' ? 'success.main' : 'warning.main',
+                        }}
+                      >
                         {patient.queueNumber}
-                      </div>
-                      <div>
-                        <div className="font-bold text-slate-800 text-sm">{patient.patientName}</div>
-                        <div className="text-[11px] text-slate-400 font-mono">
+                      </Avatar>
+                      <Box>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'text.primary', fontSize: '0.875rem' }}>
+                          {patient.patientName}
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: 'text.secondary', fontFamily: 'monospace', fontSize: '0.7rem' }}>
                           {patient.gender} • {new Date().getFullYear() - patient.birthYear} tuổi • Mã: {patient.bookingCode}
-                        </div>
-                      </div>
-                    </div>
+                        </Typography>
+                      </Box>
+                    </Box>
 
-                    <div className="text-right">
+                    <Box sx={{ textAlign: 'right' }}>
                       {patient.status === 'IN_CONSULTATION' && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">
-                          ĐANG KHÁM
-                        </span>
+                        <Chip label="ĐANG KHÁM" size="small" color="primary" sx={{ height: 20, fontSize: '9px', fontWeight: 800 }} />
                       )}
                       {patient.status === 'WAITING' && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
-                          ĐANG CHỜ
-                        </span>
+                        <Chip label="ĐANG CHỜ" size="small" color="warning" sx={{ height: 20, fontSize: '9px', fontWeight: 800 }} />
                       )}
                       {patient.status === 'COMPLETED' && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-                          ĐÃ KHÁM
-                        </span>
+                        <Chip label="ĐÃ KHÁM" size="small" color="success" sx={{ height: 20, fontSize: '9px', fontWeight: 800 }} />
                       )}
-                      <span className="block text-[10px] text-slate-400 font-mono mt-0.5">
+                      <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', fontFamily: 'monospace', fontSize: '10px', mt: 0.3 }}>
                         {patient.checkInTime}
-                      </span>
-                    </div>
-                  </div>
+                      </Typography>
+                    </Box>
+                  </Paper>
                 );
               })}
-            </div>
-          </div>
-        </div>
+            </Stack>
+          </Paper>
+        </Grid>
 
-        {/* Right Column: Active Patient Consultation Console (7 Cols) */}
-        <div className="lg:col-span-7 space-y-6">
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-5">
-            {/* Header of Active Patient */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-blue-100 text-blue-700 flex items-center justify-center font-black text-lg">
-                  {currentPatient.queueNumber}
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-xl font-bold text-slate-800">{currentPatient.patientName}</h2>
-                    <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-mono">
-                      {currentPatient.gender} • {currentPatient.birthYear}
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-400 font-mono mt-0.5">
-                    CCCD: {currentPatient.cccd} • SĐT: {currentPatient.phone}
-                  </p>
-                </div>
-              </div>
+        {/* Right Column: Active Patient Consultation Console */}
+        <Grid size={{ xs: 12, lg: 7 }}>
+          <Paper elevation={0} sx={{ p: 3, borderRadius: 4, border: `1px solid ${medoraColors.border}`, backgroundColor: '#ffffff' }}>
+            <Stack spacing={3}>
+              {/* Patient Banner */}
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 2, borderBottom: '1px solid #F1F5F9' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Avatar sx={{ width: 48, height: 48, bgcolor: medoraColors.soft, color: medoraColors.main, fontWeight: 900, border: `2px solid ${medoraColors.border}` }}>
+                    {currentPatient.queueNumber}
+                  </Avatar>
+                  <Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="h6" sx={{ fontWeight: 800, color: 'text.primary' }}>{currentPatient.patientName}</Typography>
+                      <Chip label={`${currentPatient.gender} • ${currentPatient.birthYear}`} size="small" sx={{ fontSize: '10px', fontWeight: 700 }} />
+                    </Box>
+                    <Typography variant="caption" sx={{ color: 'text.secondary', fontFamily: 'monospace' }}>
+                      CCCD: {currentPatient.cccd} • SĐT: {currentPatient.phone}
+                    </Typography>
+                  </Box>
+                </Box>
+                <Chip label={`Mã: ${currentPatient.bookingCode}`} variant="outlined" sx={{ fontFamily: 'monospace', fontWeight: 700 }} />
+              </Box>
 
-              <div className="text-xs text-slate-500 font-mono bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
-                Mã Hẹn: <strong>{currentPatient.bookingCode}</strong>
-              </div>
-            </div>
+              {/* Spring AI Clinical Summary */}
+              <Paper elevation={0} sx={{ p: 2.5, borderRadius: 3, background: 'linear-gradient(135deg, #F3E8FF 0%, #E0E7FF 100%)', border: '1px solid #DDD6FE' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#5B21B6', mb: 1 }}>
+                  <AutoAwesomeIcon fontSize="small" />
+                  <Typography variant="subtitle2" sx={{ fontWeight: 800, fontSize: '0.8rem' }}>
+                    TÓM TẮT LÂM SÀNG BỆNH ÁN TỪ SPRING AI:
+                  </Typography>
+                </Box>
+                <Paper elevation={0} sx={{ p: 2, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.9)' }}>
+                  <Typography variant="body2" sx={{ fontWeight: 700, color: '#4C1D95', mb: 0.5, fontSize: '0.825rem' }}>
+                    Triệu chứng bệnh nhân khai báo: &ldquo;{currentPatient.symptoms}&rdquo;
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic', display: 'block', fontSize: '0.8rem' }}>
+                    🤖 <strong>AI Đánh Giá:</strong> {currentPatient.aiSummary}
+                  </Typography>
+                </Paper>
+              </Paper>
 
-            {/* Spring AI Clinical Summary - Highlight of MedSched */}
-            <div className="bg-gradient-to-br from-purple-50 via-indigo-50 to-blue-50 border border-purple-200 rounded-2xl p-4.5 space-y-2.5">
-              <div className="flex items-center gap-2 text-purple-900 font-bold text-xs">
-                <Sparkles size={16} className="text-purple-600" />
-                <span>TÓM TẮT LÂM SÀNG BỆNH ÁN TỪ SPRING AI:</span>
-              </div>
-              <div className="bg-white/80 backdrop-blur-xs p-3.5 rounded-xl text-xs text-slate-800 leading-relaxed border border-purple-100/80 shadow-xs">
-                <p className="font-semibold text-purple-950 mb-1">
-                  Triệu chứng bệnh nhân khai báo: &ldquo;{currentPatient.symptoms}&rdquo;
-                </p>
-                <p className="text-slate-600 italic">
-                  🤖 <strong>AI Đánh Giá:</strong> {currentPatient.aiSummary}
-                </p>
-              </div>
-            </div>
+              {/* Clinical Notes */}
+              <Box>
+                <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.primary', textTransform: 'uppercase', mb: 1, display: 'block' }}>
+                  Ghi Chú Chẩn Đoán & Chỉ Định Điều Trị Của Bác Sĩ:
+                </Typography>
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={4}
+                  value={clinicalNotes}
+                  onChange={(e) => setClinicalNotes(e.target.value)}
+                  placeholder="Nhập kết quả nghe tim phổi, chỉ định đo điện tim ECG, kê đơn thuốc hoặc hẹn tái khám..."
+                />
+              </Box>
 
-            {/* Clinical Diagnosis & Treatment Notes */}
-            <div className="space-y-2">
-              <label className="block text-xs font-bold text-slate-700 uppercase">
-                Ghi Chú Chẩn Đoán & Chỉ Định Điều Trị Của Bác Sĩ:
-              </label>
-              <textarea
-                rows={4}
-                value={clinicalNotes}
-                onChange={(e) => setClinicalNotes(e.target.value)}
-                placeholder="Nhập kết quả nghe tim phổi, chỉ định đo điện tim ECG, kê đơn thuốc hoặc hẹn tái khám..."
-                className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none text-xs text-slate-800 font-mono leading-relaxed"
-              />
-            </div>
-
-            {/* Action Bar */}
-            <div className="pt-2 flex flex-col sm:flex-row gap-3">
-              <button
-                type="button"
-                onClick={handleCallNext}
-                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition shadow-md shadow-emerald-600/20 text-xs flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <CheckCircle2 size={16} />
-                <span>Hoàn Tất Ca Này & Chuyển Ca Tiếp Theo</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+              {/* Action Bar */}
+              <Box sx={{ pt: 1 }}>
+                <Button
+                  fullWidth
+                  variant="contained"
+                  color="success"
+                  startIcon={<CheckCircleIcon />}
+                  onClick={handleCallNext}
+                  sx={{ py: 1.4, borderRadius: 3, fontWeight: 800, fontSize: '0.9rem' }}
+                >
+                  Hoàn Tất Ca Này & Chuyển Ca Tiếp Theo
+                </Button>
+              </Box>
+            </Stack>
+          </Paper>
+        </Grid>
+      </Grid>
+    </Stack>
   );
 }

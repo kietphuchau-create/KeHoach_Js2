@@ -2,7 +2,7 @@ import React from 'react';
 import BookingForm from '@/modules/appointment/components/BookingForm';
 
 export const metadata = {
-  title: 'Đặt Lịch Khám Trực Tuyến | MedSched',
+  title: 'Đặt Lịch Khám Trực Tuyến | Medora',
   description: 'Đặt lịch khám trực tuyến với bác sĩ chuyên khoa và hỗ trợ Spring AI tóm tắt bệnh án',
 };
 
