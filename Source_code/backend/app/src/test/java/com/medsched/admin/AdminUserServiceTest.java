@@ -54,6 +54,13 @@ class AdminUserServiceTest {
     private AdminUserService adminUserService;
 
     @Test
+    void printHash() {
+        var enc = new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder();
+        System.out.println("NEW_HASH_IS: " + enc.encode("Medsched@123"));
+        System.out.println("OLD_HASH_MATCHES: " + enc.matches("Medsched@123", "$2a$10$ahoI91g3N9UKv5TBC8/KnugbB5LeGWqti0P/cwgrxYh..X9Jxxwti"));
+    }
+
+    @Test
     @DisplayName("Admin tạo nhân viên lễ tân thành công")
     void testCreateStaff_Success() {
         String centerId = "center-001";
