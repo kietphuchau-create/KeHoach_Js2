@@ -11,19 +11,32 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/a
 
 export function getAuthToken(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem("token");
+  // Xóa sạch localStorage cũ còn sót lại từ các lần đăng nhập trước
+  if (localStorage.getItem("token")) {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    localStorage.removeItem("role");
+  }
+  return sessionStorage.getItem("token");
 }
 
 export function setAuthSession(token: string, user: any) {
   if (typeof window === "undefined") return;
   const safeUser = user || {};
-  localStorage.setItem("token", token);
-  localStorage.setItem("user", JSON.stringify(safeUser));
-  localStorage.setItem("role", safeUser.roles?.[0] || "CUSTOMER");
+  // Chỉ lưu vào sessionStorage (tắt tab hoặc trình duyệt là tự mất hoàn toàn)
+  sessionStorage.setItem("token", token);
+  sessionStorage.setItem("user", JSON.stringify(safeUser));
+  sessionStorage.setItem("role", safeUser.roles?.[0] || "CUSTOMER");
+
+  // Dọn sạch localStorage
+  localStorage.removeItem("token");
+  localStorage.removeItem("user");
+  localStorage.removeItem("role");
 }
 
 export function clearAuthSession() {
   if (typeof window === "undefined") return;
+  sessionStorage.clear();
   localStorage.removeItem("token");
   localStorage.removeItem("user");
   localStorage.removeItem("role");
@@ -31,7 +44,7 @@ export function clearAuthSession() {
 
 export function getAuthUser(): any | null {
   if (typeof window === "undefined") return null;
-  const userStr = localStorage.getItem("user");
+  const userStr = sessionStorage.getItem("user");
   if (!userStr) return null;
   try {
     return JSON.parse(userStr);

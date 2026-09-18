@@ -65,8 +65,8 @@ export default function LoginForm() {
     <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border border-mint-light">
       {/* Header */}
       <div className="text-center mb-6">
-        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-mint-light text-pine-teal mb-3 font-bold">
-          <Lock size={28} />
+        <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-white shadow-sm border border-mint-light p-1 mb-3">
+          <img src="/logo.png" alt="MedSched Logo" className="w-full h-full object-contain" />
         </div>
         <h1 className="text-3xl font-extrabold text-pine-teal">Đăng Nhập</h1>
         <p className="text-slate-500 text-sm mt-1">

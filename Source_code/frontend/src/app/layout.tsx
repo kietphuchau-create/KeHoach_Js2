@@ -6,6 +6,11 @@ import HeaderNav from "@/shared/components/HeaderNav/HeaderNav";
 export const metadata: Metadata = {
   title: "MedSched - Smart Healthcare Appointment & Reception",
   description: "Hệ thống Đặt lịch & Tiếp đón Y tế Thông minh Tích hợp Spring Boot 3, Spring AI và Quét thẻ CCCD",
+  icons: {
+    icon: "/logo.png",
+    shortcut: "/logo.png",
+    apple: "/logo.png",
+  },
 };
 
 export default function RootLayout({

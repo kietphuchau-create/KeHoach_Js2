@@ -25,6 +25,12 @@ export default function HeaderNav() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
+    // Xóa triệt để các dấu vết localStorage cũ trên trình duyệt
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      localStorage.removeItem("role");
+    }
     const token = getAuthToken();
     const authUser = getAuthUser();
     if (token && authUser) {
@@ -60,8 +66,8 @@ export default function HeaderNav() {
           {/* Brand Logo */}
           <div className="flex items-center gap-3">
             <Link href="/" className="flex items-center gap-2.5 group">
-              <div className="w-10 h-10 rounded-xl bg-pine-teal flex items-center justify-center text-white font-bold text-xl shadow-md group-hover:scale-105 transition">
-                +
+              <div className="w-11 h-11 rounded-xl bg-white p-0.5 flex items-center justify-center shadow-xs border border-mint-light group-hover:scale-105 transition overflow-hidden">
+                <img src="/logo.png" alt="MedSched Online Medical Services Logo" className="w-full h-full object-contain" />
               </div>
               <div className="flex flex-col">
                 <span className="text-xl font-extrabold tracking-tight text-pine-teal">
