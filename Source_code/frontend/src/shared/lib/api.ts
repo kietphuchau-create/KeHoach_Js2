@@ -169,16 +169,21 @@ export const api = {
     });
   },
 
-  async createStaff(payload: { email: string; temporaryPassword?: string; fullName: string; phone: string; medicalCenterId: string }) {
+  async createStaff(payload: { email: string; temporaryPassword?: string; password?: string; fullName: string; phone: string; medicalCenterId: string }) {
+    const body = {
+      ...payload,
+      password: payload.password || payload.temporaryPassword || "Medsched@123",
+    };
     return request<any>("/admin/users/staff", {
       method: "POST",
-      body: JSON.stringify(payload),
+      body: JSON.stringify(body),
     });
   },
 
   async createDoctor(payload: {
     email: string;
     temporaryPassword?: string;
+    password?: string;
     fullName: string;
     phone: string;
     specialtyId: string;
@@ -189,9 +194,13 @@ export const api = {
     roomNumber: string;
     bio: string;
   }) {
+    const body = {
+      ...payload,
+      password: payload.password || payload.temporaryPassword || "Medsched@123",
+    };
     return request<any>("/admin/users/doctors", {
       method: "POST",
-      body: JSON.stringify(payload),
+      body: JSON.stringify(body),
     });
   },
 
