@@ -99,7 +99,14 @@ export default function HeaderNav() {
           <div className="flex items-center gap-3">
             <Link href={isAdmin ? "/admin" : "/"} className="flex items-center gap-2.5 group">
               <div className="w-11 h-11 rounded-xl bg-white p-0.5 flex items-center justify-center shadow-xs border border-mint-light group-hover:scale-105 transition overflow-hidden">
-                <img src="/logo.png" alt="MedSched Online Medical Services Logo" className="w-full h-full object-contain" />
+                <img
+                  src="/logo.png"
+                  alt="MedSched Online Medical Services Logo"
+                  width={44}
+                  height={44}
+                  className="w-full h-full object-contain"
+                  style={{ maxWidth: '44px', maxHeight: '44px' }}
+                />
               </div>
               <div className="flex flex-col">
                 <span className="text-xl font-extrabold tracking-tight text-pine-teal">
