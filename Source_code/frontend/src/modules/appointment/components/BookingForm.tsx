@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { 
   Calendar, 
   Clock, 
@@ -17,15 +18,28 @@ import {
   Printer,
   ChevronRight
 } from 'lucide-react';
-import { api, AppointmentResponse } from '@/shared/lib/api';
+import { api, AppointmentResponse, getAuthUser } from '@/shared/lib/api';
 import AlertMessage from '@/shared/components/Feedback/AlertMessage';
 import LoadingSpinner from '@/shared/components/Feedback/LoadingSpinner';
 
 export default function BookingForm() {
+  const router = useRouter();
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [centers, setCenters] = useState<any[]>([]);
   const [specialties, setSpecialties] = useState<any[]>([]);
   const [loadingData, setLoadingData] = useState(true);
+
+  useEffect(() => {
+    const user = getAuthUser();
+    const roles: string[] = user?.roles || [];
+    if (roles.includes('ROLE_ADMIN')) {
+      router.push('/admin');
+    } else if (roles.includes('ROLE_DOCTOR')) {
+      router.push('/doctor');
+    } else if (roles.includes('ROLE_STAFF')) {
+      router.push('/reception');
+    }
+  }, [router]);
 
   // Form selections
   const [selectedCenter, setSelectedCenter] = useState<string>('mc000001-0000-0000-0000-000000000001');

@@ -37,8 +37,16 @@ export default function HeaderNav() {
       setUser(authUser);
       const userRoles: string[] = authUser.roles || [];
       if (userRoles.includes('ROLE_ADMIN')) {
-        if (pathname === '/' || pathname === '/booking' || pathname === '/reception' || pathname === '/doctor') {
+        if (pathname === '/' || pathname === '/booking' || pathname === '/reception' || pathname === '/doctor' || pathname === '/my-appointments') {
           router.push('/admin');
+        }
+      } else if (userRoles.includes('ROLE_DOCTOR')) {
+        if (pathname === '/' || pathname === '/booking' || pathname === '/reception' || pathname === '/admin' || pathname === '/my-appointments') {
+          router.push('/doctor');
+        }
+      } else if (userRoles.includes('ROLE_STAFF')) {
+        if (pathname === '/' || pathname === '/booking' || pathname === '/doctor' || pathname === '/admin' || pathname === '/my-appointments') {
+          router.push('/reception');
         }
       }
       // Tự động đồng bộ thông tin mới nhất từ API backend để cập nhật tiếng Việt và quyền
@@ -55,8 +63,16 @@ export default function HeaderNav() {
             sessionStorage.setItem("user", JSON.stringify(updatedUser));
           }
           if (updatedUser.roles?.includes('ROLE_ADMIN')) {
-            if (pathname === '/' || pathname === '/booking' || pathname === '/reception' || pathname === '/doctor') {
+            if (pathname === '/' || pathname === '/booking' || pathname === '/reception' || pathname === '/doctor' || pathname === '/my-appointments') {
               router.push('/admin');
+            }
+          } else if (updatedUser.roles?.includes('ROLE_DOCTOR')) {
+            if (pathname === '/' || pathname === '/booking' || pathname === '/reception' || pathname === '/admin' || pathname === '/my-appointments') {
+              router.push('/doctor');
+            }
+          } else if (updatedUser.roles?.includes('ROLE_STAFF')) {
+            if (pathname === '/' || pathname === '/booking' || pathname === '/doctor' || pathname === '/admin' || pathname === '/my-appointments') {
+              router.push('/reception');
             }
           }
         }
@@ -77,19 +93,42 @@ export default function HeaderNav() {
   const isDoctor = roles.includes('ROLE_DOCTOR');
   const isStaff = roles.includes('ROLE_STAFF');
 
-  // Khi là Quản trị viên (Admin): chỉ thấy chức năng Quản trị hệ thống,
-  // KHÔNG hiển thị Trang chủ, Đặt lịch khám, Quầy tiếp đón và Buồng khám bác sĩ.
-  const navLinks = isAdmin
-    ? [
-        { href: '/admin', label: 'Quản Trị Người Dùng', icon: ShieldCheck },
-        { href: '/admin/create-user', label: 'Cấp Tài Khoản Mới', icon: UserPlus },
-      ]
-    : [
-        { href: '/', label: 'Trang Chủ', icon: Building2 },
-        { href: '/my-appointments', label: 'Phiếu Khám Của Tôi', icon: Calendar },
-        ...(isStaff ? [{ href: '/reception', label: 'Quầy Tiếp Đón', icon: QrCode }] : []),
-        ...(isDoctor ? [{ href: '/doctor', label: 'Buồng Khám Bác Sĩ', icon: Stethoscope }] : []),
-      ];
+  // Phân quyền thanh điều hướng tách bạch theo từng vai trò nghiệp vụ:
+  // - Admin: Quản trị người dùng & Cấp tài khoản
+  // - Bác sĩ: Buồng khám ca trực & Hồ sơ chuyên môn (KHÔNG thấy Đặt lịch hay Phiếu khám cá nhân)
+  // - Lễ tân: Quầy tiếp đón & Hồ sơ cá nhân (KHÔNG thấy Đặt lịch hay Phiếu khám cá nhân)
+  // - Bệnh nhân / Vãng lai: Trang chủ, Đặt lịch khám, Phiếu khám của tôi
+  let navLinks = [
+    { href: '/', label: 'Trang Chủ', icon: Building2 },
+    { href: '/booking', label: 'Đặt Lịch Khám', icon: Calendar },
+    { href: '/my-appointments', label: 'Phiếu Khám Của Tôi', icon: Calendar },
+  ];
+
+  if (isAdmin) {
+    navLinks = [
+      { href: '/admin', label: 'Quản Trị Người Dùng', icon: ShieldCheck },
+      { href: '/admin/create-user', label: 'Cấp Tài Khoản Mới', icon: UserPlus },
+    ];
+  } else if (isDoctor) {
+    navLinks = [
+      { href: '/doctor', label: 'Buồng Khám Bác Sĩ', icon: Stethoscope },
+      { href: '/profile', label: 'Hồ Sơ Chuyên Môn', icon: User },
+    ];
+  } else if (isStaff) {
+    navLinks = [
+      { href: '/reception', label: 'Quầy Tiếp Đón', icon: QrCode },
+      { href: '/profile', label: 'Hồ Sơ Cá Nhân', icon: User },
+    ];
+  }
+
+  const logoHref = isAdmin ? "/admin" : isDoctor ? "/doctor" : isStaff ? "/reception" : "/";
+  const portalSubtitle = isAdmin 
+    ? 'Admin Portal' 
+    : isDoctor 
+    ? 'Doctor Console' 
+    : isStaff 
+    ? 'Reception Desk' 
+    : 'Smart Healthcare';
 
   return (
     <header className="bg-white border-b border-mint-light text-slate-800 sticky top-0 z-50 shadow-xs">
@@ -97,7 +136,7 @@ export default function HeaderNav() {
         <div className="flex items-center justify-between h-16">
           {/* Brand Logo */}
           <div className="flex items-center gap-3">
-            <Link href={isAdmin ? "/admin" : "/"} className="flex items-center gap-2.5 group">
+            <Link href={logoHref} className="flex items-center gap-2.5 group">
               <div className="w-11 h-11 rounded-xl bg-white p-0.5 flex items-center justify-center shadow-xs border border-mint-light group-hover:scale-105 transition overflow-hidden">
                 <img
                   src="/logo.png"
@@ -113,7 +152,7 @@ export default function HeaderNav() {
                   MedSched
                 </span>
                 <span className="text-[10px] text-teal-primary font-bold tracking-wider uppercase">
-                  {isAdmin ? 'Admin Portal' : 'Smart Healthcare'}
+                  {portalSubtitle}
                 </span>
               </div>
             </Link>
