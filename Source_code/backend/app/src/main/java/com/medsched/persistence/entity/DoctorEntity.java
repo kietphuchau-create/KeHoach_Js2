@@ -8,6 +8,8 @@ import jakarta.persistence.UniqueConstraint;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 
 @Entity
 @Table(name = "doctors", uniqueConstraints = @UniqueConstraint(
@@ -89,8 +91,19 @@ public class DoctorEntity {
         return academicTitle;
     }
 
+    /**
+     * Số năm kinh nghiệm được tính lũy tiến tự động theo thời gian:
+     * Kinh nghiệm thực tế = Kinh nghiệm ban đầu + (Năm hiện tại - Năm tạo hồ sơ).
+     * Cứ qua ngày 1/1 mỗi năm mới, hệ thống tự động tăng thêm 1 năm kinh nghiệm.
+     */
     public int getExperienceYears() {
-        return experienceYears;
+        if (createdAt == null) {
+            return experienceYears;
+        }
+        int createdYear = createdAt.atZone(ZoneId.systemDefault()).getYear();
+        int currentYear = LocalDate.now().getYear();
+        int elapsed = Math.max(0, currentYear - createdYear);
+        return experienceYears + elapsed;
     }
 
     public BigDecimal getConsultationFee() {
@@ -144,8 +157,15 @@ public class DoctorEntity {
         this.academicTitle = academicTitle;
     }
 
-    public void setExperienceYears(int experienceYears) {
-        this.experienceYears = experienceYears;
+    public void setExperienceYears(int newExperienceYears) {
+        if (createdAt != null) {
+            int createdYear = createdAt.atZone(ZoneId.systemDefault()).getYear();
+            int currentYear = LocalDate.now().getYear();
+            int elapsed = Math.max(0, currentYear - createdYear);
+            this.experienceYears = Math.max(0, newExperienceYears - elapsed);
+        } else {
+            this.experienceYears = newExperienceYears;
+        }
     }
 
     public void setConsultationFee(BigDecimal consultationFee) {
