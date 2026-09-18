@@ -22,11 +22,6 @@ export default function LoginForm() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleQuickFill = (email: string) => {
-    setFormData({ email, password: 'Medsched@123' });
-    setErrorMessage('');
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -132,53 +127,8 @@ export default function LoginForm() {
         </button>
       </form>
 
-      {/* Nút chọn nhanh tài khoản test */}
-      <div className="mt-3 pt-2.5 border-t border-mint-light">
-        <p className="text-[10.5px] font-semibold text-slate-500 uppercase tracking-wider text-center mb-1.5">
-          ⚡ Chọn nhanh tài khoản demo (Mật khẩu: Medsched@123)
-        </p>
-        <div className="grid grid-cols-2 gap-1.5 text-xs">
-          <button
-            type="button"
-            onClick={() => handleQuickFill('admin@medsched.vn')}
-            className="px-2.5 py-1.5 rounded-lg bg-mint-light text-pine-teal border border-teal-primary/20 hover:bg-mint-light/80 font-semibold transition text-left cursor-pointer flex items-center justify-between"
-            title="admin@medsched.vn"
-          >
-            <span className="font-bold text-[11px]">👑 Admin</span>
-            <span className="text-[9px] text-teal-primary font-mono opacity-80">admin</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleQuickFill('dr.minhanh@medsched.vn')}
-            className="px-2.5 py-1.5 rounded-lg bg-mint-light text-pine-teal border border-teal-primary/20 hover:bg-mint-light/80 font-semibold transition text-left cursor-pointer flex items-center justify-between"
-            title="dr.minhanh@medsched.vn"
-          >
-            <span className="font-bold text-[11px]">🩺 Bác Sĩ</span>
-            <span className="text-[9px] text-teal-primary font-mono opacity-80">dr.minh</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleQuickFill('letan.q1@medsched.vn')}
-            className="px-2.5 py-1.5 rounded-lg bg-mint-light text-pine-teal border border-teal-primary/20 hover:bg-mint-light/80 font-semibold transition text-left cursor-pointer flex items-center justify-between"
-            title="letan.q1@medsched.vn"
-          >
-            <span className="font-bold text-[11px]">📋 Lễ Tân</span>
-            <span className="text-[9px] text-teal-primary font-mono opacity-80">letan</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleQuickFill('benhnhan.demo@gmail.com')}
-            className="px-2.5 py-1.5 rounded-lg bg-mint-light text-pine-teal border border-teal-primary/20 hover:bg-mint-light/80 font-semibold transition text-left cursor-pointer flex items-center justify-between"
-            title="benhnhan.demo@gmail.com"
-          >
-            <span className="font-bold text-[11px]">🧑 Bệnh Nhân</span>
-            <span className="text-[9px] text-teal-primary font-mono opacity-80">benhnhan</span>
-          </button>
-        </div>
-      </div>
-
       {/* Footer link */}
-      <div className="text-center mt-2.5 text-xs text-slate-600">
+      <div className="text-center mt-4 pt-3 border-t border-mint-light text-xs text-slate-600">
         Chưa có tài khoản?{' '}
         <Link href="/register" className="text-pine-teal font-bold hover:underline">
           Đăng ký khám mới
