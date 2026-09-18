@@ -55,6 +55,12 @@ public class PrescriptionItemEntity {
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal quantity;
 
+    @Column(name = "prescription_id", length = 36)
+    private String prescriptionId;
+
+    @Column(name = "unit_price", precision = 19, scale = 2)
+    private BigDecimal unitPrice;
+
     @Column(length = 500)
     private String instruction;
 
@@ -144,6 +150,22 @@ public class PrescriptionItemEntity {
 
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getPrescriptionId() {
+        return prescriptionId;
+    }
+
+    public void setPrescriptionId(String prescriptionId) {
+        this.prescriptionId = prescriptionId;
+    }
+
+    public BigDecimal getUnitPrice() {
+        return unitPrice;
+    }
+
+    public void setUnitPrice(BigDecimal unitPrice) {
+        this.unitPrice = unitPrice;
     }
 
     public String getCreatedBy() {
