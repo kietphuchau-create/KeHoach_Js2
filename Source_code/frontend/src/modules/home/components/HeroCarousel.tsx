@@ -192,6 +192,22 @@ export default function HeroCarousel() {
         </div>
       </div>
 
+      {/* Tiêu đề phía trên 3 Cards */}
+      <div className="pt-4 flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b border-mint-light pb-4">
+        <div>
+          <div className="inline-flex items-center gap-2 text-teal-primary text-xs font-bold tracking-wider uppercase mb-1">
+            <span className="w-2 h-2 rounded-full bg-teal-primary animate-pulse" />
+            <span>Dịch Vụ Y Tế Thông Minh</span>
+          </div>
+          <h2 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">
+            Giải Pháp Chăm Sóc Sức Khỏe Toàn Diện
+          </h2>
+        </div>
+        <p className="text-xs sm:text-sm text-slate-500 max-w-md">
+          Trải nghiệm khám chữa bệnh hiện đại: Đặt lịch nhanh chóng, khám chuyên khoa tận tâm và tiếp đón tự động 1 giây.
+        </p>
+      </div>
+
       {/* 3 Cards bên dưới Carousel */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {featureCards.map((card) => (
