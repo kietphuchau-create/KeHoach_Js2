@@ -38,7 +38,6 @@ export default function ProfileView() {
   // Doctor Form
   const [doctorForm, setDoctorForm] = useState({
     academicTitle: '',
-    roomNumber: '',
     bio: '',
   });
 
@@ -66,7 +65,6 @@ export default function ProfileView() {
         if (data.doctorProfile) {
           setDoctorForm({
             academicTitle: data.doctorProfile.academicTitle || 'BS.CKI',
-            roomNumber: data.doctorProfile.roomNumber || 'P.101',
             bio: data.doctorProfile.bio || '',
           });
         }
@@ -143,7 +141,6 @@ export default function ProfileView() {
     try {
       await api.updateDoctorProfile({
         academicTitle: doctorForm.academicTitle,
-        roomNumber: doctorForm.roomNumber,
         bio: doctorForm.bio,
       });
       setMessage('Cập nhật hồ sơ chuyên môn Bác sĩ thành công!');
@@ -417,29 +414,16 @@ export default function ProfileView() {
           {/* TAB 3: Bác sĩ cập nhật hồ sơ chuyên môn */}
           {activeTab === 'doctor' && isDoctor && (
             <form onSubmit={handleDoctorSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Học vị / Chức danh</label>
-                  <input
-                    type="text"
-                    required
-                    value={doctorForm.academicTitle}
-                    onChange={(e) => setDoctorForm({ ...doctorForm, academicTitle: e.target.value })}
-                    placeholder="BS.CKI, BS.CKII, ThS, PGS.TS..."
-                    className="w-full px-3.5 py-2.5 border border-slate-200 bg-slate-50 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Phòng khám trực</label>
-                  <input
-                    type="text"
-                    required
-                    value={doctorForm.roomNumber}
-                    onChange={(e) => setDoctorForm({ ...doctorForm, roomNumber: e.target.value })}
-                    placeholder="P.205, Khu B..."
-                    className="w-full px-3.5 py-2.5 border border-slate-200 bg-slate-50 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500 text-sm"
-                  />
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Học vị / Chức danh</label>
+                <input
+                  type="text"
+                  required
+                  value={doctorForm.academicTitle}
+                  onChange={(e) => setDoctorForm({ ...doctorForm, academicTitle: e.target.value })}
+                  placeholder="BS.CKI, BS.CKII, ThS, PGS.TS..."
+                  className="w-full px-3.5 py-2.5 border border-slate-200 bg-slate-50 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500 text-sm"
+                />
               </div>
 
               <div>

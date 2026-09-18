@@ -30,7 +30,6 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
     specialtyId: specialties[0]?.id || '',
     academicTitle: 'ThS.BS',
     consultationFee: 300000,
-    roomNumber: 'P.101',
     bio: '',
   });
 
@@ -49,7 +48,6 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
         specialtyId: doctorForm.specialtyId,
         academicTitle: doctorForm.academicTitle,
         consultationFee: Number(doctorForm.consultationFee) || 200000,
-        roomNumber: doctorForm.roomNumber.trim(),
         bio: doctorForm.bio.trim(),
       });
 
@@ -67,7 +65,6 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
         specialtyId: specialties[0]?.id || '',
         academicTitle: 'ThS.BS',
         consultationFee: 300000,
-        roomNumber: 'P.101',
         bio: '',
       });
       if (onSuccess) onSuccess();
@@ -89,14 +86,14 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
           Họ và Tên Bác Sĩ <span className="text-red-500">*</span>
         </label>
         <div className="relative">
-          <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+          <User className="absolute left-3.5 top-3 text-slate-400" size={18} />
           <input
             type="text"
             required
             value={doctorForm.fullName}
             onChange={(e) => setDoctorForm({ ...doctorForm, fullName: e.target.value })}
             placeholder="Ví dụ: PGS.TS Nguyễn Văn Bình"
-            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
+            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm transition"
           />
         </div>
       </div>
@@ -107,14 +104,14 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
             Email Đăng Nhập <span className="text-red-500">*</span>
           </label>
           <div className="relative">
-            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <Mail className="absolute left-3.5 top-3 text-slate-400" size={18} />
             <input
               type="email"
               required
               value={doctorForm.email}
               onChange={(e) => setDoctorForm({ ...doctorForm, email: e.target.value })}
               placeholder="doctor.binh@medsched.vn"
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
+              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm transition"
             />
           </div>
         </div>
@@ -124,14 +121,14 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
             Số Điện Thoại <span className="text-red-500">*</span>
           </label>
           <div className="relative">
-            <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <Phone className="absolute left-3.5 top-3 text-slate-400" size={18} />
             <input
               type="tel"
               required
               value={doctorForm.phone}
               onChange={(e) => setDoctorForm({ ...doctorForm, phone: e.target.value })}
               placeholder="0987654321"
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
+              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm transition"
             />
           </div>
         </div>
@@ -143,7 +140,6 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
             Chuyên Khoa Khám <span className="text-red-500">*</span>
           </label>
           <select
-            required
             value={doctorForm.specialtyId}
             onChange={(e) => setDoctorForm({ ...doctorForm, specialtyId: e.target.value })}
             className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
@@ -165,7 +161,6 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
             Cơ Sở Y Tế Công Tác <span className="text-red-500">*</span>
           </label>
           <select
-            required
             value={doctorForm.medicalCenterId}
             onChange={(e) => setDoctorForm({ ...doctorForm, medicalCenterId: e.target.value })}
             className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
@@ -195,19 +190,6 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
           />
         </div>
         <div>
-          <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Phòng Khám Số</label>
-          <input
-            type="text"
-            value={doctorForm.roomNumber}
-            onChange={(e) => setDoctorForm({ ...doctorForm, roomNumber: e.target.value })}
-            placeholder="P.102, Khu A..."
-            className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 text-sm"
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
           <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Giá Khám Tư Vấn (VND)</label>
           <input
             type="number"
@@ -217,19 +199,19 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
             className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 text-sm font-mono"
           />
         </div>
+      </div>
 
-        <div>
-          <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-            Mật Khẩu Tạm Thời (Tùy chọn)
-          </label>
-          <input
-            type="text"
-            value={doctorForm.temporaryPassword}
-            onChange={(e) => setDoctorForm({ ...doctorForm, temporaryPassword: e.target.value })}
-            placeholder="Để trống: Medsched@123"
-            className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 text-sm font-mono"
-          />
-        </div>
+      <div>
+        <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+          Mật Khẩu Tạm Thời (Tùy chọn)
+        </label>
+        <input
+          type="text"
+          value={doctorForm.temporaryPassword}
+          onChange={(e) => setDoctorForm({ ...doctorForm, temporaryPassword: e.target.value })}
+          placeholder="Để trống: Medsched@123"
+          className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 text-sm font-mono"
+        />
       </div>
 
       <div>
