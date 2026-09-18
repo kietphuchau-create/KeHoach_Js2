@@ -4,249 +4,194 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   Calendar,
-  Sparkles,
+  ChevronLeft,
+  ChevronRight,
   QrCode,
   Stethoscope,
-  ArrowRight,
-  ShieldCheck,
-  Zap,
-  Clock,
-  CheckCircle2,
-  Bot
+  Bot,
 } from 'lucide-react';
 
-interface Slide {
+interface BannerSlide {
   id: number;
-  tag: string;
-  tagIcon: React.ReactNode;
+  image: string;
   title: string;
-  titleHighlight: string;
-  description: string;
-  primaryCta: {
-    text: string;
-    href: string;
-    icon: React.ReactNode;
-  };
-  secondaryCta: {
-    text: string;
-    href: string;
-    icon: React.ReactNode;
-  };
-  stats: {
-    icon: React.ReactNode;
-    val: string;
-    label: string;
-  }[];
-  accentBadge: {
-    title: string;
-    subtitle: string;
-    icon: React.ReactNode;
-  };
-  bgGradient: string;
+  href: string;
 }
 
-const slides: Slide[] = [
+const bannerSlides: BannerSlide[] = [
   {
     id: 1,
-    tag: 'Tích hợp Spring AI 2026',
-    tagIcon: <Sparkles size={14} className="text-amber-300 animate-pulse" />,
-    title: 'Đặt Lịch Khám Thông Minh &',
-    titleHighlight: 'Phân Loại Triệu Chứng AI',
-    description:
-      'Trợ lý Spring AI tự động phân loại chuyên khoa phù hợp và tóm tắt bệnh sử lâm sàng 2 dòng giúp Bác sĩ chuẩn bị trước ca khám, tiết kiệm 80% thời gian chờ đợi.',
-    primaryCta: {
-      text: 'Đặt Lịch Khám Ngay',
-      href: '/booking',
-      icon: <Calendar size={18} />,
-    },
-    secondaryCta: {
-      text: 'Đăng Nhập Phân Quyền',
-      href: '/login',
-      icon: <ArrowRight size={16} />,
-    },
-    stats: [
-      { icon: <Clock size={16} className="text-emerald-400" />, val: '15 phút', label: 'Khung giờ chính xác' },
-      { icon: <Bot size={16} className="text-cyan-300" />, val: 'Spring AI', label: 'Trợ lý sàng lọc' },
-      { icon: <CheckCircle2 size={16} className="text-amber-300" />, val: '100%', label: 'Xác thực tự động' },
-    ],
-    accentBadge: {
-      title: 'Phân Luồng Tự Động AI',
-      subtitle: 'Tóm tắt tiền sử bệnh án & gợi ý chuyên khoa',
-      icon: <Bot size={28} className="text-cyan-300" />,
-    },
-    bgGradient: 'from-[#0A3C37] via-[#0E5C55] to-[#1D6066]',
+    image: '/banners/banner1.png',
+    title: 'Dịch Vụ Y Tế Chất Lượng Cao - Chăm Sóc Toàn Diện Cho Gia Đình Bạn',
+    href: '/booking',
   },
   {
     id: 2,
-    tag: 'Tiếp Đón Siêu Tốc 1s',
-    tagIcon: <Zap size={14} className="text-yellow-300" />,
-    title: 'Check-in Tức Thì Với Mã',
-    titleHighlight: 'QR & Thẻ CCCD Gắn Chip',
-    description:
-      'Lễ tân quét mã vé hẹn điện tử trên Smartphone hoặc thẻ căn cước 12 số để xác thực thông tin và cấp ngay số thứ tự phòng khám chỉ trong đúng 1 giây.',
-    primaryCta: {
-      text: 'Mở Quầy Tiếp Đón',
-      href: '/reception',
-      icon: <QrCode size={18} />,
-    },
-    secondaryCta: {
-      text: 'Xem Quy Trình Quét',
-      href: '/reception',
-      icon: <ArrowRight size={16} />,
-    },
-    stats: [
-      { icon: <Zap size={16} className="text-yellow-300" />, val: '< 1 Giây', label: 'Tốc độ quét check-in' },
-      { icon: <ShieldCheck size={16} className="text-emerald-300" />, val: '12 Số', label: 'Chuẩn CCCD Gắn Chip' },
-      { icon: <CheckCircle2 size={16} className="text-cyan-300" />, val: 'Zero Wait', label: 'Giảm 95% hàng chờ' },
-    ],
-    accentBadge: {
-      title: 'Tiếp Đón 1-Click QR',
-      subtitle: 'Xác nhận vé hẹn & cấp STT tự động',
-      icon: <QrCode size={28} className="text-emerald-300" />,
-    },
-    bgGradient: 'from-[#0D4B46] via-[#1A6B6B] to-[#2A7F85]',
+    image: '/banners/banner2.png',
+    title: 'Kiểm Soát Huyết Áp Cao: 5 Bước Quan Trọng Để Bảo Vệ Sức Khỏe Của Bạn',
+    href: '/booking',
   },
   {
     id: 3,
-    tag: 'Dành Cho Bác Sĩ & Quản Trị',
-    tagIcon: <Stethoscope size={14} className="text-teal-200" />,
-    title: 'Buồng Khám Điện Tử &',
-    titleHighlight: 'Phân Quyền RBAC Bảo Mật',
-    description:
-      'Hàng đợi gọi tên thời gian thực tại buồng khám, tích hợp bệnh án điện tử và quản lý người dùng 4 vai trò (Bệnh nhân, Lễ tân, Bác sĩ, Quản trị viên).',
-    primaryCta: {
-      text: 'Vào Buồng Khám Bệnh',
-      href: '/doctor',
-      icon: <Stethoscope size={18} />,
-    },
-    secondaryCta: {
-      text: 'Trung Tâm Quản Trị',
-      href: '/admin',
-      icon: <ShieldCheck size={16} />,
-    },
-    stats: [
-      { icon: <Stethoscope size={16} className="text-cyan-300" />, val: 'Realtime', label: 'Gọi STT tự động' },
-      { icon: <ShieldCheck size={16} className="text-emerald-300" />, val: 'RBAC', label: 'Phân quyền 4 cấp' },
-      { icon: <CheckCircle2 size={16} className="text-amber-300" />, val: 'Hexagonal', label: 'Kiến trúc Spring 3' },
-    ],
-    accentBadge: {
-      title: 'Bàn Khám Bác Sĩ EMR',
-      subtitle: 'Gọi ca tiếp theo & xem tóm tắt triệu chứng',
-      icon: <Stethoscope size={28} className="text-teal-200" />,
-    },
-    bgGradient: 'from-[#093531] via-[#0E5C55] to-[#184E56]',
+    image: '/banners/banner3.png',
+    title: 'Bí Quyết Tăng Cường Sức Khỏe Tim Mạch - Sống Khỏe Mỗi Ngày',
+    href: '/booking',
   },
 ];
 
 export default function HeroCarousel() {
   const [current, setCurrent] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
 
-  // Auto-slide transition continuously every 5 seconds without manual control buttons
+  // Auto-slide transition continuously every 5 seconds, pauses when mouse hovers
   useEffect(() => {
+    if (isPaused) return;
     const timer = setInterval(() => {
-      setCurrent((prev) => (prev + 1) % slides.length);
+      setCurrent((prev) => (prev + 1) % bannerSlides.length);
     }, 5000);
 
     return () => clearInterval(timer);
-  }, []);
+  }, [isPaused]);
 
-  const slide = slides[current];
+  const handlePrev = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCurrent((prev) => (prev - 1 + bannerSlides.length) % bannerSlides.length);
+  };
+
+  const handleNext = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCurrent((prev) => (prev + 1) % bannerSlides.length);
+  };
 
   return (
-    <div className="relative rounded-3xl overflow-hidden shadow-2xl border border-teal-800/40 select-none transition-all duration-700">
-      {/* Dynamic Slide Background with Gradient */}
+    <div className="space-y-6">
+      {/* Banner Carousel Container */}
       <div
-        className={`bg-gradient-to-r ${slide.bgGradient} text-white transition-all duration-700 p-6 sm:p-10 lg:p-12 min-h-[380px] sm:min-h-[420px] flex flex-col justify-between relative overflow-hidden`}
+        className="relative group rounded-3xl overflow-hidden shadow-xl border border-mint-light select-none bg-slate-900"
+        onMouseEnter={() => setIsPaused(true)}
+        onMouseLeave={() => setIsPaused(false)}
       >
-        {/* Abstract Background Decorative Glow Circles */}
-        <div className="absolute -right-16 -top-16 w-80 h-80 bg-teal-400/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -left-20 -bottom-20 w-80 h-80 bg-emerald-400/10 rounded-full blur-3xl pointer-events-none" />
-
-        {/* Top Header Badge */}
-        <div className="relative z-10 flex items-center justify-between gap-4 mb-4">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-white/15 backdrop-blur-md text-mint-light border border-white/20 shadow-xs">
-            {slide.tagIcon}
-            <span>{slide.tag}</span>
-          </div>
-        </div>
-
-        {/* Main Content Grid (Responsive 2 Cols on lg) */}
-        <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center my-auto py-2">
-          {/* Left Text Column (7 cols) */}
-          <div className="lg:col-span-7 space-y-4 text-left">
-            <h1 className="text-2xl sm:text-4xl lg:text-4xl font-black tracking-tight leading-tight sm:leading-snug text-white">
-              {slide.title}{' '}
-              <span className="block sm:inline text-transparent bg-clip-text bg-gradient-to-r from-mint-light via-emerald-200 to-cyan-300">
-                {slide.titleHighlight}
-              </span>
-            </h1>
-
-            <p className="text-slate-200 text-xs sm:text-sm lg:text-base leading-relaxed max-w-2xl font-normal opacity-95">
-              {slide.description}
-            </p>
-
-            {/* Fixed Action Button: Đặt Lịch Khám Ngay */}
-            <div className="pt-2 flex flex-wrap gap-3 items-center">
-              <Link
-                href="/booking"
-                className="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-bold px-6 py-3 rounded-2xl transition-all duration-200 shadow-lg shadow-emerald-950/40 hover:scale-[1.02] text-sm active:scale-[0.98]"
-              >
-                <Calendar size={18} />
-                <span>Đặt Lịch Khám Ngay</span>
-              </Link>
-            </div>
-          </div>
-
-          {/* Right Floating Card / Visual Badge (5 cols, visible on md/lg) */}
-          <div className="lg:col-span-5 hidden md:block">
-            <div className="p-5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 shadow-xl space-y-4 hover:border-white/40 transition">
-              <div className="flex items-center gap-3">
-                <div className="p-3 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center">
-                  {slide.accentBadge.icon}
-                </div>
-                <div>
-                  <h3 className="font-bold text-base text-white">{slide.accentBadge.title}</h3>
-                  <p className="text-xs text-mint-light/90">{slide.accentBadge.subtitle}</p>
-                </div>
-              </div>
-
-              {/* Stats Bar inside Card */}
-              <div className="grid grid-cols-3 gap-2 pt-3 border-t border-white/15 text-center">
-                {slide.stats.map((st, i) => (
-                  <div key={i} className="p-2 rounded-xl bg-black/20 border border-white/10 flex flex-col items-center">
-                    <div className="mb-1">{st.icon}</div>
-                    <span className="font-extrabold text-xs text-white">{st.val}</span>
-                    <span className="text-[10px] text-slate-300 font-medium truncate w-full">{st.label}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Bottom Bar: Slide Indicator Bar & Mobile Pills */}
-        <div className="relative z-10 pt-4 mt-2 border-t border-white/10 flex items-center justify-between">
-          {/* Slide Indicator Dots / Progress Bar */}
-          <div className="flex items-center gap-2">
-            {slides.map((_, idx) => (
+        {/* Slides Track */}
+        <div className="relative w-full aspect-[16/8.5] sm:aspect-[2/1] lg:aspect-[21/9] max-h-[480px] overflow-hidden">
+          {bannerSlides.map((slide, idx) => {
+            const isActive = current === idx;
+            return (
               <div
+                key={slide.id}
+                className={`absolute inset-0 w-full h-full transition-opacity duration-700 ease-in-out ${
+                  isActive ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
+                }`}
+              >
+                <Link href={slide.href} className="block w-full h-full relative cursor-pointer group/link">
+                  <img
+                    src={slide.image}
+                    alt={slide.title}
+                    className="w-full h-full object-cover object-center transition-transform duration-700 group-hover/link:scale-[1.01]"
+                  />
+                  {/* Subtle gradient overlay at bottom for controls readability */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-60 pointer-events-none" />
+                </Link>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Previous / Next Arrow Controls */}
+        <button
+          onClick={handlePrev}
+          aria-label="Slide trước"
+          className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-black/40 hover:bg-pine-teal text-white backdrop-blur-md flex items-center justify-center transition-all duration-200 opacity-0 group-hover:opacity-100 shadow-lg cursor-pointer hover:scale-110 active:scale-95"
+        >
+          <ChevronLeft size={24} />
+        </button>
+        <button
+          onClick={handleNext}
+          aria-label="Slide kế tiếp"
+          className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-black/40 hover:bg-pine-teal text-white backdrop-blur-md flex items-center justify-center transition-all duration-200 opacity-0 group-hover:opacity-100 shadow-lg cursor-pointer hover:scale-110 active:scale-95"
+        >
+          <ChevronRight size={24} />
+        </button>
+
+        {/* Bottom Bar: Indicators & Current Slide Number */}
+        <div className="absolute bottom-4 left-0 right-0 z-20 px-6 flex items-center justify-between pointer-events-none">
+          {/* Indicator Dots */}
+          <div className="flex items-center gap-2 pointer-events-auto bg-black/30 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10">
+            {bannerSlides.map((_, idx) => (
+              <button
                 key={idx}
-                className={`h-2 rounded-full transition-all duration-500 ${
+                onClick={() => setCurrent(idx)}
+                aria-label={`Chuyển tới slide ${idx + 1}`}
+                className={`h-2 rounded-full transition-all duration-300 cursor-pointer ${
                   current === idx
-                    ? 'w-10 bg-mint-light shadow-md shadow-mint-light/60'
-                    : 'w-2.5 bg-white/30'
+                    ? 'w-8 bg-mint-light shadow-sm'
+                    : 'w-2 bg-white/50 hover:bg-white'
                 }`}
               />
             ))}
           </div>
 
-          {/* Mobile Stats Pills (only on mobile screens) */}
-          <div className="flex md:hidden items-center gap-2 text-[11px] text-white/90">
-            <span className="bg-white/15 px-2.5 py-1 rounded-full border border-white/20 flex items-center gap-1 font-semibold">
-              {slide.stats[0].icon} {slide.stats[0].val}
-            </span>
+          {/* Slide counter */}
+          <div className="text-white text-xs font-semibold bg-black/40 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/10">
+            {current + 1} / {bannerSlides.length}
           </div>
         </div>
+      </div>
+
+      {/* Quick Services Strip underneath Carousel */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <Link
+          href="/booking"
+          className="bg-white hover:bg-mint-soft/60 p-4 rounded-2xl border border-mint-light shadow-xs transition group flex items-center gap-3.5"
+        >
+          <div className="w-11 h-11 rounded-xl bg-teal-50 text-pine-teal flex items-center justify-center border border-teal-100 group-hover:scale-110 transition">
+            <Calendar size={22} />
+          </div>
+          <div>
+            <h4 className="font-bold text-slate-800 text-sm group-hover:text-pine-teal transition">Đặt Lịch Khám Online</h4>
+            <p className="text-xs text-slate-500">Chọn bác sĩ, chuyên khoa & giờ khám</p>
+          </div>
+        </Link>
+
+        <Link
+          href="/reception"
+          className="bg-white hover:bg-mint-soft/60 p-4 rounded-2xl border border-mint-light shadow-xs transition group flex items-center gap-3.5"
+        >
+          <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center border border-emerald-100 group-hover:scale-110 transition">
+            <QrCode size={22} />
+          </div>
+          <div>
+            <h4 className="font-bold text-slate-800 text-sm group-hover:text-emerald-700 transition">Tiếp Đón Nhanh 1 Giây</h4>
+            <p className="text-xs text-slate-500">Quét mã vé hẹn QR & thẻ CCCD gắn chip</p>
+          </div>
+        </Link>
+
+        <Link
+          href="/doctor"
+          className="bg-white hover:bg-mint-soft/60 p-4 rounded-2xl border border-mint-light shadow-xs transition group flex items-center gap-3.5"
+        >
+          <div className="w-11 h-11 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center border border-blue-100 group-hover:scale-110 transition">
+            <Stethoscope size={22} />
+          </div>
+          <div>
+            <h4 className="font-bold text-slate-800 text-sm group-hover:text-blue-700 transition">Buồng Khám Bác Sĩ</h4>
+            <p className="text-xs text-slate-500">Gọi số thứ tự & quản lý bệnh án điện tử</p>
+          </div>
+        </Link>
+
+        <Link
+          href="/booking"
+          className="bg-white hover:bg-mint-soft/60 p-4 rounded-2xl border border-mint-light shadow-xs transition group flex items-center gap-3.5"
+        >
+          <div className="w-11 h-11 rounded-xl bg-cyan-50 text-cyan-700 flex items-center justify-center border border-cyan-100 group-hover:scale-110 transition">
+            <Bot size={22} />
+          </div>
+          <div>
+            <h4 className="font-bold text-slate-800 text-sm group-hover:text-cyan-700 transition">Trợ Lý Spring AI</h4>
+            <p className="text-xs text-slate-500">Phân loại triệu chứng & gợi ý chuyên khoa</p>
+          </div>
+        </Link>
       </div>
     </div>
   );
