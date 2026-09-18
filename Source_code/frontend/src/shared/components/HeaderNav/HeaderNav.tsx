@@ -16,7 +16,7 @@ import {
   X,
   Stethoscope
 } from 'lucide-react';
-import { getAuthToken, getAuthUser, clearAuthSession } from '@/shared/lib/api';
+import { getAuthToken, getAuthUser, clearAuthSession, api } from '@/shared/lib/api';
 
 export default function HeaderNav() {
   const pathname = usePathname();
@@ -35,6 +35,21 @@ export default function HeaderNav() {
     const authUser = getAuthUser();
     if (token && authUser) {
       setUser(authUser);
+      // Tự động đồng bộ thông tin mới nhất từ API backend để cập nhật tiếng Việt và quyền
+      api.getProfile().then((freshProfile: any) => {
+        if (freshProfile && freshProfile.fullName) {
+          const updatedUser = {
+            ...authUser,
+            fullName: freshProfile.fullName,
+            phone: freshProfile.phone || authUser.phone,
+            roles: freshProfile.roles || authUser.roles,
+          };
+          setUser(updatedUser);
+          if (typeof window !== "undefined") {
+            sessionStorage.setItem("user", JSON.stringify(updatedUser));
+          }
+        }
+      }).catch(() => {});
     } else {
       setUser(null);
     }
