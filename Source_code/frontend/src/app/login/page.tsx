@@ -115,9 +115,14 @@ export default function LoginPage() {
 
           {/* Mật khẩu */}
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Mật khẩu
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-sm font-medium text-slate-700">
+                Mật khẩu
+              </label>
+              <Link href="/forgot-password" className="text-xs text-blue-600 hover:text-blue-700 hover:underline">
+                Quên mật khẩu?
+              </Link>
+            </div>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                 <Lock size={18} />

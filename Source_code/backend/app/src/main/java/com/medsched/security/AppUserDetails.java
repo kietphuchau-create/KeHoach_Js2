@@ -6,6 +6,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -29,6 +30,7 @@ public class AppUserDetails implements UserDetails {
     private final String email;
     private final String passwordHash;
     private final boolean active;
+    private final Instant tokenInvalidBefore;
     private final List<GrantedAuthority> authorities;
     private final List<String> roleNames;
 
@@ -37,6 +39,7 @@ public class AppUserDetails implements UserDetails {
         this.email = user.getEmail();
         this.passwordHash = user.getPasswordHash();
         this.active = user.isActive();
+        this.tokenInvalidBefore = user.getTokenInvalidBefore();
 
         List<GrantedAuthority> granted = new ArrayList<>();
         List<String> names = new ArrayList<>();
@@ -62,6 +65,10 @@ public class AppUserDetails implements UserDetails {
 
     public String getEmail() {
         return email;
+    }
+
+    public Instant getTokenInvalidBefore() {
+        return tokenInvalidBefore;
     }
 
     /** Danh sách quyền dạng chuỗi để nhúng vào JWT và trả về cho client. */

@@ -31,10 +31,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final AppUserDetailsService userDetailsService;
+    private final com.medsched.persistence.repository.RevokedTokenJpaRepository revokedTokens;
 
-    public JwtAuthenticationFilter(JwtService jwtService, AppUserDetailsService userDetailsService) {
+    public JwtAuthenticationFilter(JwtService jwtService,
+                                   AppUserDetailsService userDetailsService,
+                                   com.medsched.persistence.repository.RevokedTokenJpaRepository revokedTokens) {
         this.jwtService = jwtService;
         this.userDetailsService = userDetailsService;
+        this.revokedTokens = revokedTokens;
     }
 
     /**
@@ -58,11 +62,31 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         try {
-            Claims claims = jwtService.parse(header.substring(PREFIX.length()));
+            String rawToken = header.substring(PREFIX.length());
+            String tokenHash = JwtService.sha256Hex(rawToken);
+
+            // 1. Kiểm tra nếu token đã bị thu hồi khi đăng xuất (Server-side Invalidation)
+            if (revokedTokens.existsByTokenHash(tokenHash)) {
+                SecurityContextHolder.clearContext();
+                chain.doFilter(request, response);
+                return;
+            }
+
+            Claims claims = jwtService.parse(rawToken);
             // Refresh token KHÔNG được dùng để gọi API nghiệp vụ.
             if (jwtService.isType(claims, JwtService.TYPE_ACCESS)) {
                 AppUserDetails user = userDetailsService.loadUserById(claims.getSubject());
                 if (user.isEnabled()) {
+                    // 2. Kiểm tra nếu token được phát hành trước thời điểm đặt lại mật khẩu / huỷ toàn bộ session
+                    if (user.getTokenInvalidBefore() != null && claims.getIssuedAt() != null) {
+                        java.time.Instant issuedAt = claims.getIssuedAt().toInstant();
+                        if (issuedAt.isBefore(user.getTokenInvalidBefore())) {
+                            SecurityContextHolder.clearContext();
+                            chain.doFilter(request, response);
+                            return;
+                        }
+                    }
+
                     UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
                             user, null, user.getAuthorities());
                     auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));

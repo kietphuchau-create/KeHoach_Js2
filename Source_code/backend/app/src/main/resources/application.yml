@@ -8,10 +8,13 @@ spring:
     active: mysql-xampp
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: none
     open-in-view: false
   flyway:
     enabled: false
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY:demo-dummy-key-medsched}
 
 medsched:
   jwt:

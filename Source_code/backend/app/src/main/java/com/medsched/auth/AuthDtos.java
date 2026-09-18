@@ -67,4 +67,28 @@ public final class AuthDtos {
                                List<String> roles) {
     }
 
+    public record ForgotPasswordRequest(
+            @NotBlank(message = "Email không được để trống")
+            @Email(message = "Email không đúng định dạng")
+            @Size(max = 255, message = "Email tối đa 255 ký tự")
+            String email) {
+    }
+
+    public record ResetPasswordRequest(
+            @NotBlank(message = "Mã xác nhận không được để trống")
+            String token,
+
+            @NotBlank(message = "Mật khẩu mới không được để trống")
+            @Size(min = 8, max = 72, message = "Mật khẩu phải từ 8 đến 72 ký tự")
+            String newPassword) {
+    }
+
+    public record LogoutRequest(
+            String refreshToken) {
+    }
+
+    public record SimpleMessageResponse(
+            String message) {
+    }
+
 }

@@ -11,12 +11,18 @@ import com.medsched.security.AppUserDetailsService;
 import com.medsched.security.JwtService;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
+import com.medsched.common.EmailService;
+import com.medsched.persistence.entity.PasswordResetTokenEntity;
+import com.medsched.persistence.entity.RevokedTokenEntity;
+import com.medsched.persistence.repository.PasswordResetTokenJpaRepository;
+import com.medsched.persistence.repository.RevokedTokenJpaRepository;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -29,19 +35,28 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final AppUserDetailsService userDetailsService;
     private final JwtService jwtService;
+    private final PasswordResetTokenJpaRepository passwordResetTokens;
+    private final RevokedTokenJpaRepository revokedTokens;
+    private final EmailService emailService;
 
     public AuthService(UserJpaRepository users,
                        PatientProfileJpaRepository patientProfiles,
                        PasswordEncoder passwordEncoder,
                        AuthenticationManager authenticationManager,
                        AppUserDetailsService userDetailsService,
-                       JwtService jwtService) {
+                       JwtService jwtService,
+                       PasswordResetTokenJpaRepository passwordResetTokens,
+                       RevokedTokenJpaRepository revokedTokens,
+                       EmailService emailService) {
         this.users = users;
         this.patientProfiles = patientProfiles;
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
         this.userDetailsService = userDetailsService;
         this.jwtService = jwtService;
+        this.passwordResetTokens = passwordResetTokens;
+        this.revokedTokens = revokedTokens;
+        this.emailService = emailService;
     }
 
     /**
@@ -112,6 +127,119 @@ public class AuthService {
         UserEntity user = users.findById(principal.getUserId())
                 .orElseThrow(() -> new AppExceptions.NotFoundException("Không tìm thấy tài khoản"));
         return issueTokens(principal, user.getFullName());
+    }
+
+    /**
+     * Quên mật khẩu: Người dùng nhập email.
+     * Trả về thông báo thành công đồng nhất dù email có tồn tại hay không (chống dò quét email).
+     * Nếu email tồn tại, sinh token bảo mật thời hạn 15 phút và gửi liên kết đặt lại mật khẩu.
+     */
+    @Transactional
+    public AuthDtos.SimpleMessageResponse forgotPassword(AuthDtos.ForgotPasswordRequest request) {
+        String email = normalizeEmail(request.email());
+        var userOpt = users.findByEmail(email);
+        if (userOpt.isPresent()) {
+            UserEntity user = userOpt.get();
+            if (user.isActive()) {
+                String rawToken = UUID.randomUUID().toString().replace("-", "") + UUID.randomUUID().toString().replace("-", "");
+                String tokenHash = JwtService.sha256Hex(rawToken);
+                Instant now = Instant.now();
+                Instant expiresAt = now.plus(Duration.ofMinutes(15));
+                PasswordResetTokenEntity tokenEntity = new PasswordResetTokenEntity(
+                        UUID.randomUUID().toString(),
+                        user.getId(),
+                        tokenHash,
+                        expiresAt,
+                        null,
+                        now
+                );
+                passwordResetTokens.save(tokenEntity);
+                emailService.sendPasswordResetEmail(user.getEmail(), rawToken);
+            }
+        }
+        return new AuthDtos.SimpleMessageResponse(
+                "Nếu email tồn tại trong hệ thống, hướng dẫn đặt lại mật khẩu đã được gửi đến hộp thư của bạn.");
+    }
+
+    /**
+     * Đặt lại mật khẩu bằng token một lần.
+     * Cập nhật mật khẩu mới và vô hiệu hoá toàn bộ phiên làm việc / token trước đó.
+     */
+    @Transactional
+    public AuthDtos.SimpleMessageResponse resetPassword(AuthDtos.ResetPasswordRequest request) {
+        String tokenHash = JwtService.sha256Hex(request.token().trim());
+        PasswordResetTokenEntity tokenEntity = passwordResetTokens.findByTokenHash(tokenHash)
+                .orElseThrow(() -> new AppExceptions.BadRequestException("Mã đặt lại mật khẩu không hợp lệ hoặc đã hết hạn"));
+
+        if (!tokenEntity.isValid()) {
+            throw new AppExceptions.BadRequestException("Mã đặt lại mật khẩu không hợp lệ hoặc đã hết hạn");
+        }
+
+        UserEntity user = users.findById(tokenEntity.getUserId())
+                .orElseThrow(() -> new AppExceptions.NotFoundException("Không tìm thấy tài khoản"));
+
+        Instant now = Instant.now();
+        user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+        // Vô hiệu hoá tất cả các phiên / token đã phát hành trước thời điểm này
+        user.setTokenInvalidBefore(now);
+        user.setUpdatedAt(now);
+        user.setUpdatedBy(user.getId());
+        users.save(user);
+
+        // Đánh dấu token đã dùng
+        tokenEntity.setUsedAt(now);
+        passwordResetTokens.save(tokenEntity);
+
+        return new AuthDtos.SimpleMessageResponse("Đặt lại mật khẩu thành công. Vui lòng đăng nhập bằng mật khẩu mới.");
+    }
+
+    /**
+     * Đăng xuất & thu hồi token phía Server (Server-side Invalidation).
+     * Lưu hash của access token (và refresh token nếu có) vào danh sách thu hồi.
+     */
+    @Transactional
+    public AuthDtos.SimpleMessageResponse logout(String bearerToken, AuthDtos.LogoutRequest request, AppUserDetails principal) {
+        Instant now = Instant.now();
+        if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
+            String accessToken = bearerToken.substring(7);
+            try {
+                Claims claims = jwtService.parse(accessToken);
+                Instant expiry = claims.getExpiration() != null ? claims.getExpiration().toInstant() : now.plus(Duration.ofHours(1));
+                String hash = JwtService.sha256Hex(accessToken);
+                if (!revokedTokens.existsByTokenHash(hash)) {
+                    revokedTokens.save(new RevokedTokenEntity(
+                            UUID.randomUUID().toString(),
+                            hash,
+                            JwtService.TYPE_ACCESS,
+                            principal != null ? principal.getUserId() : claims.getSubject(),
+                            expiry,
+                            now
+                    ));
+                }
+            } catch (Exception ignored) {
+            }
+        }
+
+        if (request != null && request.refreshToken() != null && !request.refreshToken().isBlank()) {
+            try {
+                Claims claims = jwtService.parse(request.refreshToken());
+                Instant expiry = claims.getExpiration() != null ? claims.getExpiration().toInstant() : now.plus(Duration.ofDays(7));
+                String hash = JwtService.sha256Hex(request.refreshToken());
+                if (!revokedTokens.existsByTokenHash(hash)) {
+                    revokedTokens.save(new RevokedTokenEntity(
+                            UUID.randomUUID().toString(),
+                            hash,
+                            JwtService.TYPE_REFRESH,
+                            principal != null ? principal.getUserId() : claims.getSubject(),
+                            expiry,
+                            now
+                    ));
+                }
+            } catch (Exception ignored) {
+            }
+        }
+
+        return new AuthDtos.SimpleMessageResponse("Đăng xuất thành công");
     }
 
     private AuthDtos.AuthResponse issueTokens(AppUserDetails principal, String fullName) {
