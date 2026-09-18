@@ -34,6 +34,11 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.BAD_REQUEST, ex.getMessage(), req);
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ApiError> handleIllegalArgument(IllegalArgumentException ex, HttpServletRequest req) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), req);
+    }
+
     /**
      * Lỗi nghiệp vụ của tầng core (đặt lịch, tiếp đón). Không map thì exception
      * lọt ra ngoài, Spring chuyển sang trang /error và trả về 401 sai lệch thay

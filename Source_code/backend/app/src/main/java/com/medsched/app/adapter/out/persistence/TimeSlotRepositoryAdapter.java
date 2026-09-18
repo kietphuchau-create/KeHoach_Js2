@@ -40,6 +40,17 @@ public class TimeSlotRepositoryAdapter implements TimeSlotRepositoryPort {
         return timeSlots.compareAndSetStatus(slotId, SlotStatus.AVAILABLE, SlotStatus.BOOKED) == 1;
     }
 
+    @Override
+    @Transactional
+    public boolean releaseSlot(String slotId) {
+        return timeSlots.compareAndSetStatus(slotId, SlotStatus.BOOKED, SlotStatus.AVAILABLE) == 1
+                || timeSlots.findById(slotId).map(slot -> {
+                    slot.setStatus(SlotStatus.AVAILABLE);
+                    timeSlots.save(slot);
+                    return true;
+                }).orElse(false);
+    }
+
     private static TimeSlot toDomain(TimeSlotEntity e) {
         return new TimeSlot(
                 e.getId(),
