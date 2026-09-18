@@ -75,4 +75,26 @@ public record Appointment(
                 Instant.now()
         );
     }
+
+    public Appointment cancel() {
+        return new Appointment(
+                id,
+                bookingCode,
+                medicalCenterId,
+                patientProfileId,
+                doctorId,
+                slotId,
+                queueNumber,
+                queueType,
+                patientSymptoms,
+                aiSummary,
+                checkinMethod,
+                "CANCELLED",
+                isDelayed,
+                delayMinutes,
+                checkInTime,
+                createdAt,
+                Instant.now()
+        );
+    }
 }
