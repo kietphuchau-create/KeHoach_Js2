@@ -107,4 +107,10 @@ public final class AdminDtos {
             String medicalCenterId) {
     }
 
+    public record ResetPasswordRequest(
+            @NotBlank(message = "Mật khẩu mới không được để trống")
+            @Size(min = 6, max = 72, message = "Mật khẩu phải từ 6 đến 72 ký tự")
+            String newPassword) {
+    }
+
 }

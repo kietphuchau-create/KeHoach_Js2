@@ -169,6 +169,13 @@ export const api = {
     });
   },
 
+  async resetUserPassword(userId: string, newPassword: string) {
+    return request<any>(`/admin/users/${userId}/reset-password`, {
+      method: "POST",
+      body: JSON.stringify({ newPassword }),
+    });
+  },
+
   async createStaff(payload: { email: string; temporaryPassword?: string; password?: string; fullName: string; phone: string; medicalCenterId: string }) {
     const body = {
       ...payload,

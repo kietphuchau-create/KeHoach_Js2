@@ -72,6 +72,14 @@ public class AdminUserController {
         return adminUserService.updateStatus(userId, request.active(), principal.getUserId());
     }
 
+    /** Reset password for a user. */
+    @PostMapping("/{userId}/reset-password")
+    public AdminDtos.UserSummary resetPassword(@AuthenticationPrincipal AppUserDetails principal,
+                                               @PathVariable String userId,
+                                               @Valid @RequestBody AdminDtos.ResetPasswordRequest request) {
+        return adminUserService.resetPassword(userId, request.newPassword(), principal.getUserId());
+    }
+
     /** Grant an additional staff role at a branch. */
     @PostMapping("/{userId}/roles")
     public AdminDtos.UserSummary grantRole(@AuthenticationPrincipal AppUserDetails principal,

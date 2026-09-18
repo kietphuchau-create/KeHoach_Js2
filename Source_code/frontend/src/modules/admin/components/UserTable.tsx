@@ -10,7 +10,12 @@ import {
   Shield, 
   CheckCircle2, 
   XCircle, 
-  RefreshCw 
+  RefreshCw,
+  KeyRound,
+  Eye,
+  EyeOff,
+  Lock,
+  X
 } from 'lucide-react';
 import { api, getAuthToken, getAuthUser } from '@/shared/lib/api';
 import LoadingSpinner from '@/shared/components/Feedback/LoadingSpinner';
@@ -41,6 +46,12 @@ export default function UserTable() {
   const [loading, setLoading] = useState(true);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // State cho Modal Đặt lại mật khẩu
+  const [resetModalUser, setResetModalUser] = useState<UserItem | null>(null);
+  const [newPassword, setNewPassword] = useState('Medsched@123');
+  const [showPassword, setShowPassword] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
 
   useEffect(() => {
     const token = getAuthToken();
@@ -119,6 +130,25 @@ export default function UserTable() {
       setMessage({ type: 'error', text: err.message || 'Thao tác thay đổi trạng thái thất bại.' });
     } finally {
       setActionLoadingId(null);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetModalUser) return;
+    setResetLoading(true);
+    try {
+      await api.resetUserPassword(resetModalUser.id, newPassword);
+      setMessage({
+        type: 'success',
+        text: `Đã đặt lại mật khẩu thành công cho tài khoản "${resetModalUser.email}"! Mật khẩu mới: ${newPassword}`,
+      });
+      setResetModalUser(null);
+      setNewPassword('Medsched@123');
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'Đặt lại mật khẩu thất bại.' });
+    } finally {
+      setResetLoading(false);
     }
   };
 
@@ -273,17 +303,30 @@ export default function UserTable() {
                         </span>
                       )}
                     </td>
-                    <td className="py-3.5 px-4 text-right">
+                    <td className="py-3.5 px-4 text-right space-x-2 whitespace-nowrap">
+                      <button
+                        onClick={() => {
+                          setResetModalUser(user);
+                          setNewPassword('Medsched@123');
+                          setShowPassword(false);
+                        }}
+                        className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg font-medium transition bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 cursor-pointer"
+                        title="Đặt lại mật khẩu cho tài khoản này"
+                      >
+                        <KeyRound size={13} />
+                        <span>Đặt lại MK</span>
+                      </button>
+
                       <button
                         onClick={() => handleToggleStatus(user)}
                         disabled={actionLoadingId === user.id}
-                        className={`text-xs px-3 py-1.5 rounded-lg font-medium transition ${
+                        className={`inline-flex items-center text-xs px-3 py-1.5 rounded-lg font-medium transition cursor-pointer ${
                           user.active
                             ? 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200'
                             : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
                         }`}
                       >
-                        {actionLoadingId === user.id ? '...' : user.active ? 'Khóa tài khoản' : 'Mở khóa'}
+                        {actionLoadingId === user.id ? '...' : user.active ? 'Khóa' : 'Mở khóa'}
                       </button>
                     </td>
                   </tr>
@@ -317,6 +360,104 @@ export default function UserTable() {
           </div>
         )}
       </div>
+
+      {/* Modal Đặt lại mật khẩu */}
+      {resetModalUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-xl border border-mint-light w-full max-w-md overflow-hidden transform transition-all">
+            {/* Modal Header */}
+            <div className="bg-mint-soft px-6 py-4 border-b border-mint-light flex items-center justify-between">
+              <div className="flex items-center gap-2 text-pine-teal font-bold text-base">
+                <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center">
+                  <KeyRound size={18} />
+                </div>
+                <span>Đặt Lại Mật Khẩu</span>
+              </div>
+              <button
+                onClick={() => setResetModalUser(null)}
+                className="text-slate-400 hover:text-slate-600 transition cursor-pointer"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <form onSubmit={handleResetPassword} className="p-6 space-y-4">
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs space-y-1">
+                <div className="text-slate-500">Tài khoản được đặt lại:</div>
+                <div className="font-bold text-slate-800 text-sm">{resetModalUser.fullName || 'Chưa đặt tên'}</div>
+                <div className="text-pine-teal font-mono">{resetModalUser.email}</div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Mật khẩu mới <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <Lock size={16} />
+                  </div>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    required
+                    minLength={6}
+                    placeholder="Nhập mật khẩu mới..."
+                    className="w-full pl-9 pr-10 py-2.5 text-sm bg-mint-soft/30 border border-mint-light rounded-xl focus:outline-none focus:ring-2 focus:ring-pine-teal/40 focus:bg-white transition"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">Tối thiểu 6 ký tự. Người dùng có thể đổi lại sau.</p>
+              </div>
+
+              {/* Quick shortcut to fill default */}
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-500">Mật khẩu mẫu gợi ý:</span>
+                <button
+                  type="button"
+                  onClick={() => setNewPassword('Medsched@123')}
+                  className="text-pine-teal font-semibold hover:underline cursor-pointer flex items-center gap-1"
+                >
+                  ⚡ Đặt là: <span className="font-mono bg-mint-soft px-1.5 py-0.5 rounded border border-mint-light">Medsched@123</span>
+                </button>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setResetModalUser(null)}
+                  disabled={resetLoading}
+                  className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={resetLoading || !newPassword || newPassword.length < 6}
+                  className="px-5 py-2 text-sm font-bold bg-pine-teal hover:bg-pine-teal-hover text-white rounded-xl shadow-xs transition cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                >
+                  {resetLoading ? (
+                    <>
+                      <RefreshCw size={14} className="animate-spin" />
+                      <span>Đang lưu...</span>
+                    </>
+                  ) : (
+                    <span>Xác nhận Đặt lại</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -134,6 +134,17 @@ public class AdminUserService {
         return toSummary(user);
     }
 
+    /** Admin resets password for a user. */
+    @Transactional
+    public AdminDtos.UserSummary resetPassword(String userId, String newPassword, String actorId) {
+        UserEntity user = requireUser(userId);
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.setUpdatedAt(Instant.now());
+        user.setUpdatedBy(actorId);
+        users.save(user);
+        return toSummary(user);
+    }
+
     /** Grants an additional staff role to an existing account at a branch. */
     @Transactional
     public AdminDtos.UserSummary grantRole(String userId, AdminDtos.GrantRoleRequest request, String actorId) {
