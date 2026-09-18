@@ -136,7 +136,7 @@ export default function HeaderNav() {
                   <User size={15} className="text-teal-primary" />
                   <span className="max-w-[140px] truncate">{user.fullName || user.email}</span>
                   <span className="px-2 py-0.5 rounded-full text-[10px] bg-mint-light text-pine-teal border border-teal-primary/30 font-bold">
-                    {roles[0]?.replace('ROLE_', '') || 'PATIENT'}
+                    {isAdmin ? 'ADMIN' : isDoctor ? 'BÁC SĨ' : isStaff ? 'LỄ TÂN' : 'BỆNH NHÂN'}
                   </span>
                 </Link>
 
