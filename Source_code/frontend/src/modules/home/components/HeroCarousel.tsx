@@ -114,10 +114,21 @@ export default function HeroCarousel() {
           <ChevronRight size={24} />
         </button>
 
-        {/* Bottom Bar: Indicators & Current Slide Number */}
-        <div className="absolute bottom-4 left-0 right-0 z-20 px-6 flex items-center justify-between pointer-events-none">
+        {/* Nút Đặt Lịch Khám xanh lá đè lên góc dưới bên trái Carousel */}
+        <div className="absolute left-4 sm:left-6 bottom-4 sm:bottom-6 z-20">
+          <Link
+            href="/booking"
+            className="inline-flex items-center gap-2.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-pine-teal hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold px-5 sm:px-6 py-2.5 sm:py-3.5 rounded-2xl transition-all duration-300 shadow-xl shadow-black/50 hover:shadow-emerald-900/60 hover:scale-105 active:scale-95 border border-white/40 text-xs sm:text-sm backdrop-blur-xs group/btn"
+          >
+            <Calendar size={18} className="group-hover/btn:rotate-12 transition-transform duration-300 text-mint-light" />
+            <span>Đặt Lịch Khám Ngay</span>
+          </Link>
+        </div>
+
+        {/* Góc dưới bên phải: Bộ đốm chuyển slide & Bộ đếm */}
+        <div className="absolute right-4 sm:right-6 bottom-4 sm:bottom-6 z-20 flex items-center gap-2 pointer-events-auto">
           {/* Indicator Dots */}
-          <div className="flex items-center gap-2 pointer-events-auto bg-black/30 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10">
+          <div className="flex items-center gap-1.5 bg-black/40 backdrop-blur-md px-3 py-2 rounded-full border border-white/20 shadow-lg">
             {bannerSlides.map((_, idx) => (
               <button
                 key={idx}
@@ -125,16 +136,16 @@ export default function HeroCarousel() {
                 aria-label={`Chuyển tới slide ${idx + 1}`}
                 className={`h-2 rounded-full transition-all duration-300 cursor-pointer ${
                   current === idx
-                    ? 'w-8 bg-mint-light shadow-sm'
-                    : 'w-2 bg-white/50 hover:bg-white'
+                    ? 'w-7 bg-mint-light shadow-xs'
+                    : 'w-2 bg-white/40 hover:bg-white'
                 }`}
               />
             ))}
           </div>
 
           {/* Slide counter */}
-          <div className="text-white text-xs font-semibold bg-black/40 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/10">
-            {current + 1} / {bannerSlides.length}
+          <div className="text-white text-xs font-bold bg-black/40 backdrop-blur-md px-2.5 py-1.5 rounded-full border border-white/20 shadow-lg hidden sm:block">
+            {current + 1}/{bannerSlides.length}
           </div>
         </div>
       </div>
