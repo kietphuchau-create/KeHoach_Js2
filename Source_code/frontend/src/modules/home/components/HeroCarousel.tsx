@@ -111,12 +111,12 @@ export default function HeroCarousel() {
     <div className="w-full space-y-8">
       {/* Banner Carousel Container */}
       <div
-        className="relative group rounded-3xl overflow-hidden shadow-xl border border-mint-light select-none bg-slate-900"
+        className="relative group rounded-3xl overflow-hidden shadow-lg border border-mint-light select-none bg-slate-900 max-w-6xl mx-auto"
         onMouseEnter={() => setIsPaused(true)}
         onMouseLeave={() => setIsPaused(false)}
       >
         {/* Slides Track */}
-        <div className="relative w-full aspect-[16/8.5] sm:aspect-[2/1] lg:aspect-[21/9] max-h-[480px] overflow-hidden">
+        <div className="relative w-full aspect-[16/7] sm:aspect-[21/8] lg:aspect-[25/8] max-h-[280px] sm:max-h-[320px] md:max-h-[350px] overflow-hidden">
           {bannerSlides.map((slide, idx) => {
             const isActive = current === idx;
             return (
@@ -144,49 +144,49 @@ export default function HeroCarousel() {
         <button
           onClick={handlePrev}
           aria-label="Slide trước"
-          className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-black/40 hover:bg-pine-teal text-white backdrop-blur-md flex items-center justify-center transition-all duration-200 opacity-0 group-hover:opacity-100 shadow-lg cursor-pointer hover:scale-110 active:scale-95"
+          className="absolute left-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-black/40 hover:bg-pine-teal text-white backdrop-blur-md flex items-center justify-center transition-all duration-200 opacity-0 group-hover:opacity-100 shadow-lg cursor-pointer hover:scale-110 active:scale-95"
         >
-          <ChevronLeft size={24} />
+          <ChevronLeft size={20} />
         </button>
         <button
           onClick={handleNext}
           aria-label="Slide kế tiếp"
-          className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-black/40 hover:bg-pine-teal text-white backdrop-blur-md flex items-center justify-center transition-all duration-200 opacity-0 group-hover:opacity-100 shadow-lg cursor-pointer hover:scale-110 active:scale-95"
+          className="absolute right-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-black/40 hover:bg-pine-teal text-white backdrop-blur-md flex items-center justify-center transition-all duration-200 opacity-0 group-hover:opacity-100 shadow-lg cursor-pointer hover:scale-110 active:scale-95"
         >
-          <ChevronRight size={24} />
+          <ChevronRight size={20} />
         </button>
 
         {/* Nút Đặt Lịch Khám xanh lá đè lên góc dưới bên trái Carousel */}
-        <div className="absolute left-4 sm:left-6 bottom-4 sm:bottom-6 z-20">
+        <div className="absolute left-3 sm:left-5 bottom-3 sm:bottom-4 z-20">
           <Link
             href="/booking"
-            className="inline-flex items-center gap-2.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-pine-teal hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold px-5 sm:px-6 py-2.5 sm:py-3.5 rounded-2xl transition-all duration-300 shadow-xl shadow-black/50 hover:shadow-emerald-900/60 hover:scale-105 active:scale-95 border border-white/40 text-xs sm:text-sm backdrop-blur-xs group/btn"
+            className="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-600 via-teal-600 to-pine-teal hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl transition-all duration-300 shadow-lg shadow-black/50 hover:shadow-emerald-900/60 hover:scale-105 active:scale-95 border border-white/40 text-xs sm:text-sm backdrop-blur-xs group/btn"
           >
-            <Calendar size={18} className="group-hover/btn:rotate-12 transition-transform duration-300 text-mint-light" />
+            <Calendar size={16} className="group-hover/btn:rotate-12 transition-transform duration-300 text-mint-light" />
             <span>Đặt Lịch Khám Ngay</span>
           </Link>
         </div>
 
         {/* Góc dưới bên phải: Bộ đốm chuyển slide & Bộ đếm */}
-        <div className="absolute right-4 sm:right-6 bottom-4 sm:bottom-6 z-20 flex items-center gap-2 pointer-events-auto">
+        <div className="absolute right-3 sm:right-5 bottom-3 sm:bottom-4 z-20 flex items-center gap-1.5 pointer-events-auto">
           {/* Indicator Dots */}
-          <div className="flex items-center gap-1.5 bg-black/40 backdrop-blur-md px-3 py-2 rounded-full border border-white/20 shadow-lg">
+          <div className="flex items-center gap-1.5 bg-black/40 backdrop-blur-md px-2.5 py-1.5 rounded-full border border-white/20 shadow-lg">
             {bannerSlides.map((_, idx) => (
               <button
                 key={idx}
                 onClick={() => setCurrent(idx)}
                 aria-label={`Chuyển tới slide ${idx + 1}`}
-                className={`h-2 rounded-full transition-all duration-300 cursor-pointer ${
+                className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
                   current === idx
-                    ? 'w-7 bg-mint-light shadow-xs'
-                    : 'w-2 bg-white/40 hover:bg-white'
+                    ? 'w-6 bg-mint-light shadow-xs'
+                    : 'w-1.5 bg-white/40 hover:bg-white'
                 }`}
               />
             ))}
           </div>
 
           {/* Slide counter */}
-          <div className="text-white text-xs font-bold bg-black/40 backdrop-blur-md px-2.5 py-1.5 rounded-full border border-white/20 shadow-lg hidden sm:block">
+          <div className="text-white text-[11px] font-bold bg-black/40 backdrop-blur-md px-2 py-1 rounded-full border border-white/20 shadow-lg hidden sm:block">
             {current + 1}/{bannerSlides.length}
           </div>
         </div>
