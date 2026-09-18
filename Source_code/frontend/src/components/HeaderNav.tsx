@@ -16,7 +16,7 @@ import {
   X,
   Stethoscope
 } from 'lucide-react';
-import { getAuthToken, getAuthUser, clearAuthSession } from '@/lib/api';
+import { getAuthToken, getAuthUser, clearAuthSession, api } from '@/lib/api';
 
 export default function HeaderNav() {
   const pathname = usePathname();
@@ -34,8 +34,12 @@ export default function HeaderNav() {
     }
   }, [pathname]);
 
-  const handleLogout = () => {
-    clearAuthSession();
+  const handleLogout = async () => {
+    try {
+      await api.logout();
+    } catch {
+      clearAuthSession();
+    }
     setUser(null);
     router.push('/login');
   };
