@@ -76,24 +76,26 @@ export default function UserTable() {
       });
 
       const rawList = res?.items || res?.content || (Array.isArray(res) ? res : []);
-      const normalizedUsers: UserItem[] = rawList.map((u: any) => {
-        const roleStrings: string[] = Array.isArray(u.roles)
-          ? u.roles.map((r: any) => (typeof r === 'string' ? r : r.role))
-          : [];
-        return {
-          id: u.userId || u.id,
-          email: u.email,
-          fullName: u.fullName,
-          phone: u.phone,
-          roles: roleStrings,
-          active: u.active ?? true,
-          createdAt: u.createdAt,
-          medicalCenterName: u.roles?.[0]?.medicalCenterName || u.medicalCenterName,
-        };
-      });
+      const normalizedUsers: UserItem[] = rawList
+        .map((u: any) => {
+          const roleStrings: string[] = Array.isArray(u.roles)
+            ? u.roles.map((r: any) => (typeof r === 'string' ? r : r.role))
+            : [];
+          return {
+            id: u.userId || u.id,
+            email: u.email,
+            fullName: u.fullName,
+            phone: u.phone,
+            roles: roleStrings,
+            active: u.active ?? true,
+            createdAt: u.createdAt,
+            medicalCenterName: u.roles?.[0]?.medicalCenterName || u.medicalCenterName,
+          };
+        })
+        .filter((u: UserItem) => !u.roles.includes('ROLE_ADMIN'));
 
       setUsers(normalizedUsers);
-      setTotalElements(res?.totalItems || res?.totalElements || normalizedUsers.length);
+      setTotalElements(normalizedUsers.length);
       setTotalPages(res?.totalPages || 1);
     } catch (err: any) {
       console.error(err);
@@ -171,7 +173,7 @@ export default function UserTable() {
           </div>
           <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">Quản Lý Người Dùng & Nhân Sự</h1>
           <p className="text-slate-500 text-sm mt-1">
-            Theo dõi, phân quyền và kích hoạt tài khoản Quản trị, Bác sĩ, Lễ tân và Bệnh nhân.
+            Theo dõi, phân quyền và kích hoạt tài khoản Bác sĩ, Lễ tân và Bệnh nhân.
           </p>
         </div>
 
@@ -205,7 +207,6 @@ export default function UserTable() {
         <div className="flex flex-wrap gap-1 bg-mint-soft p-1 rounded-xl">
           {[
             { id: 'ALL', label: 'Tất cả' },
-            { id: 'ROLE_ADMIN', label: 'Quản trị' },
             { id: 'ROLE_DOCTOR', label: 'Bác sĩ' },
             { id: 'ROLE_STAFF', label: 'Lễ tân' },
             { id: 'CUSTOMER', label: 'Bệnh nhân' },
