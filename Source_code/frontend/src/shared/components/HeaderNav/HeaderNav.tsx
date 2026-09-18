@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { 
   Building2, 
-  Calendar, 
   QrCode, 
   ShieldCheck, 
   User, 
@@ -86,7 +85,6 @@ export default function HeaderNav() {
       ]
     : [
         { href: '/', label: 'Trang Chủ', icon: Building2 },
-        { href: '/booking', label: 'Đặt Lịch Khám', icon: Calendar },
         ...(isStaff ? [{ href: '/reception', label: 'Quầy Tiếp Đón', icon: QrCode }] : []),
         ...(isDoctor ? [{ href: '/doctor', label: 'Buồng Khám Bác Sĩ', icon: Stethoscope }] : []),
       ];
@@ -123,24 +121,6 @@ export default function HeaderNav() {
               {navLinks.map((link) => {
                 const Icon = link.icon;
                 const isActive = pathname === link.href;
-                const isBooking = link.href === '/booking';
-
-                if (isBooking) {
-                  return (
-                    <Link
-                      key={link.href}
-                      href={link.href}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition shadow-xs ${
-                        isActive
-                          ? 'bg-pine-teal text-white ring-2 ring-teal-primary/50'
-                          : 'bg-pine-teal text-white hover:bg-pine-teal-hover'
-                      }`}
-                    >
-                      <Icon size={16} />
-                      <span>{link.label}</span>
-                    </Link>
-                  );
-                }
 
                 return (
                   <Link
