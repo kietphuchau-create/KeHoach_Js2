@@ -99,7 +99,6 @@ class BillingServiceTest {
                 "user-doc-1",
                 "spec-1",
                 "PGS.TS.BS",
-                15,
                 new BigDecimal("300000"),
                 "101",
                 "Chuyên gia đầu ngành",
