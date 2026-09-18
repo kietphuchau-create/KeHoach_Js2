@@ -6,9 +6,6 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
-  QrCode,
-  Stethoscope,
-  Bot,
 } from 'lucide-react';
 
 interface BannerSlide {
@@ -66,7 +63,7 @@ export default function HeroCarousel() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="w-full">
       {/* Banner Carousel Container */}
       <div
         className="relative group rounded-3xl overflow-hidden shadow-xl border border-mint-light select-none bg-slate-900"
@@ -148,61 +145,6 @@ export default function HeroCarousel() {
             {current + 1}/{bannerSlides.length}
           </div>
         </div>
-      </div>
-
-      {/* Quick Services Strip underneath Carousel */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-        <Link
-          href="/booking"
-          className="bg-white hover:bg-mint-soft/60 p-4 rounded-2xl border border-mint-light shadow-xs transition group flex items-center gap-3.5"
-        >
-          <div className="w-11 h-11 rounded-xl bg-teal-50 text-pine-teal flex items-center justify-center border border-teal-100 group-hover:scale-110 transition">
-            <Calendar size={22} />
-          </div>
-          <div>
-            <h4 className="font-bold text-slate-800 text-sm group-hover:text-pine-teal transition">Đặt Lịch Khám Online</h4>
-            <p className="text-xs text-slate-500">Chọn bác sĩ, chuyên khoa & giờ khám</p>
-          </div>
-        </Link>
-
-        <Link
-          href="/reception"
-          className="bg-white hover:bg-mint-soft/60 p-4 rounded-2xl border border-mint-light shadow-xs transition group flex items-center gap-3.5"
-        >
-          <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center border border-emerald-100 group-hover:scale-110 transition">
-            <QrCode size={22} />
-          </div>
-          <div>
-            <h4 className="font-bold text-slate-800 text-sm group-hover:text-emerald-700 transition">Tiếp Đón Nhanh 1 Giây</h4>
-            <p className="text-xs text-slate-500">Quét mã vé hẹn QR & thẻ CCCD gắn chip</p>
-          </div>
-        </Link>
-
-        <Link
-          href="/doctor"
-          className="bg-white hover:bg-mint-soft/60 p-4 rounded-2xl border border-mint-light shadow-xs transition group flex items-center gap-3.5"
-        >
-          <div className="w-11 h-11 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center border border-blue-100 group-hover:scale-110 transition">
-            <Stethoscope size={22} />
-          </div>
-          <div>
-            <h4 className="font-bold text-slate-800 text-sm group-hover:text-blue-700 transition">Buồng Khám Bác Sĩ</h4>
-            <p className="text-xs text-slate-500">Gọi số thứ tự & quản lý bệnh án điện tử</p>
-          </div>
-        </Link>
-
-        <Link
-          href="/booking"
-          className="bg-white hover:bg-mint-soft/60 p-4 rounded-2xl border border-mint-light shadow-xs transition group flex items-center gap-3.5"
-        >
-          <div className="w-11 h-11 rounded-xl bg-cyan-50 text-cyan-700 flex items-center justify-center border border-cyan-100 group-hover:scale-110 transition">
-            <Bot size={22} />
-          </div>
-          <div>
-            <h4 className="font-bold text-slate-800 text-sm group-hover:text-cyan-700 transition">Trợ Lý Spring AI</h4>
-            <p className="text-xs text-slate-500">Phân loại triệu chứng & gợi ý chuyên khoa</p>
-          </div>
-        </Link>
       </div>
     </div>
   );
