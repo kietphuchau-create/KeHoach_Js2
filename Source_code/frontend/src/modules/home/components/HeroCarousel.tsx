@@ -162,21 +162,11 @@ export default function HeroCarousel() {
         <div className="absolute -right-16 -top-16 w-80 h-80 bg-teal-400/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -left-20 -bottom-20 w-80 h-80 bg-emerald-400/10 rounded-full blur-3xl pointer-events-none" />
 
-        {/* Top Header Badge & Continuous Live Status Indicator */}
+        {/* Top Header Badge */}
         <div className="relative z-10 flex items-center justify-between gap-4 mb-4">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-white/15 backdrop-blur-md text-mint-light border border-white/20 shadow-xs">
             {slide.tagIcon}
             <span>{slide.tag}</span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium bg-emerald-500/20 text-emerald-200 border border-emerald-400/30">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-              Tự động chuyển (5s)
-            </span>
-            <span className="text-xs font-mono font-medium text-white/80 bg-black/20 px-2.5 py-0.5 rounded-full border border-white/10">
-              0{current + 1} / 0{slides.length}
-            </span>
           </div>
         </div>
 
@@ -195,21 +185,14 @@ export default function HeroCarousel() {
               {slide.description}
             </p>
 
-            {/* Action Buttons */}
+            {/* Fixed Action Button: Đặt Lịch Khám Ngay */}
             <div className="pt-2 flex flex-wrap gap-3 items-center">
               <Link
-                href={slide.primaryCta.href}
+                href="/booking"
                 className="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-bold px-6 py-3 rounded-2xl transition-all duration-200 shadow-lg shadow-emerald-950/40 hover:scale-[1.02] text-sm active:scale-[0.98]"
               >
-                {slide.primaryCta.icon}
-                <span>{slide.primaryCta.text}</span>
-              </Link>
-              <Link
-                href={slide.secondaryCta.href}
-                className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white border border-white/25 font-semibold px-5 py-3 rounded-2xl transition-all duration-200 backdrop-blur-md text-sm hover:scale-[1.02] active:scale-[0.98]"
-              >
-                <span>{slide.secondaryCta.text}</span>
-                {slide.secondaryCta.icon}
+                <Calendar size={18} />
+                <span>Đặt Lịch Khám Ngay</span>
               </Link>
             </div>
           </div>
