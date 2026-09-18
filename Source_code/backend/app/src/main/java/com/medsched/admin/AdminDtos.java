@@ -85,9 +85,6 @@ public final class AdminDtos {
             @Size(max = 100, message = "Học hàm/học vị tối đa 100 ký tự")
             String academicTitle,
 
-            @Min(value = 0, message = "Số năm kinh nghiệm không được âm")
-            int experienceYears,
-
             @NotNull(message = "Phải nhập giá khám")
             @DecimalMin(value = "0.0", message = "Giá khám không được âm")
             BigDecimal consultationFee,

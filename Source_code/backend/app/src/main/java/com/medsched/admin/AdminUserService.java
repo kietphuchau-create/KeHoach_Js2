@@ -112,7 +112,7 @@ public class AdminUserService {
 
         Instant now = Instant.now();
         DoctorEntity doctor = new DoctorEntity(UUID.randomUUID().toString(), user.getId(), specialty.getId(),
-                blankToNull(request.academicTitle()), request.experienceYears(), request.consultationFee(),
+                blankToNull(request.academicTitle()), request.consultationFee(),
                 blankToNull(request.roomNumber()), null, null, now, now);
         doctor.setCreatedBy(actorId);
         doctor.setUpdatedBy(actorId);

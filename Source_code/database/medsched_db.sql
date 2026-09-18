@@ -183,7 +183,6 @@ CREATE TABLE doctors (
     user_id VARCHAR(36) NOT NULL,
     specialty_id VARCHAR(36) NOT NULL,
     academic_title VARCHAR(100),
-    experience_years INT NOT NULL DEFAULT 1,
     consultation_fee DECIMAL(19, 2) NOT NULL DEFAULT 200000.00,
     room_number VARCHAR(50),
     bio TEXT,
@@ -451,15 +450,15 @@ INSERT INTO user_medical_center_roles (id, user_id, medical_center_id, role) VAL
 
 -- Cùng 1 user_id nhưng 2 hồ sơ bác sĩ ở 2 chuyên khoa/chi nhánh khác nhau
 -- (hợp lệ nhờ UNIQUE(user_id, specialty_id) thay cho UNIQUE(user_id))
-INSERT INTO doctors (id, user_id, specialty_id, academic_title, experience_years, consultation_fee, room_number, bio) VALUES
+INSERT INTO doctors (id, user_id, specialty_id, academic_title, consultation_fee, room_number, bio) VALUES
 ('44444444-4444-4444-4444-444444444441',
  '11111111-1111-1111-1111-111111111111',
  '55555555-5555-5555-5555-555555555551',
- 'BS.CKII', 15, 300000.00, 'P.205', 'Chuyên gia đầu ngành Da liễu với hơn 15 năm kinh nghiệm điều trị.'),
+ 'BS.CKII', 300000.00, 'P.205', 'Chuyên gia đầu ngành Da liễu với hơn 15 năm kinh nghiệm điều trị.'),
 ('44444444-4444-4444-4444-444444444442',
  '11111111-1111-1111-1111-111111111111',
  '55555555-5555-5555-5555-555555555557',
- 'BS.CKII', 15, 250000.00, 'P.101', 'Cùng bác sĩ trên, lịch trực chiều tại chi nhánh Quận 7.');
+ 'BS.CKII', 250000.00, 'P.101', 'Cùng bác sĩ trên, lịch trực chiều tại chi nhánh Quận 7.');
 
 -- Hồ sơ người khám: toàn cục theo tài khoản, dùng được ở mọi chi nhánh
 INSERT INTO patient_profiles (id, user_id, relationship, full_name, cccd_number, health_insurance_no, date_of_birth, gender, phone, address, medical_history) VALUES

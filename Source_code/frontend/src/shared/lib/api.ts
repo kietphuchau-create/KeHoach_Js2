@@ -143,7 +143,7 @@ export const api = {
     });
   },
 
-  async updateDoctorProfile(payload: { academicTitle: string; experienceYears: number; roomNumber: string; bio: string }) {
+  async updateDoctorProfile(payload: { academicTitle: string; roomNumber: string; bio: string }) {
     return request<any>("/me/doctor-profile", {
       method: "PUT",
       body: JSON.stringify(payload),
@@ -196,7 +196,6 @@ export const api = {
     specialtyId: string;
     medicalCenterId: string;
     academicTitle: string;
-    experienceYears: number;
     consultationFee: number;
     roomNumber: string;
     bio: string;

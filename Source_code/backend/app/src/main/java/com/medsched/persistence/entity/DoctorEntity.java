@@ -8,8 +8,6 @@ import jakarta.persistence.UniqueConstraint;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneId;
 
 @Entity
 @Table(name = "doctors", uniqueConstraints = @UniqueConstraint(
@@ -28,9 +26,6 @@ public class DoctorEntity {
 
     @Column(name = "academic_title", length = 100)
     private String academicTitle;
-
-    @Column(name = "experience_years", nullable = false)
-    private int experienceYears;
 
     @Column(name = "consultation_fee", nullable = false, precision = 19, scale = 2)
     private BigDecimal consultationFee;
@@ -59,14 +54,13 @@ public class DoctorEntity {
     protected DoctorEntity() {
     }
 
-    public DoctorEntity(String id, String userId, String specialtyId, String academicTitle, int experienceYears,
+    public DoctorEntity(String id, String userId, String specialtyId, String academicTitle,
                         BigDecimal consultationFee, String roomNumber, String bio, String avatarUrl,
                         Instant createdAt, Instant updatedAt) {
         this.id = id;
         this.userId = userId;
         this.specialtyId = specialtyId;
         this.academicTitle = academicTitle;
-        this.experienceYears = experienceYears;
         this.consultationFee = consultationFee;
         this.roomNumber = roomNumber;
         this.bio = bio;
@@ -89,21 +83,6 @@ public class DoctorEntity {
 
     public String getAcademicTitle() {
         return academicTitle;
-    }
-
-    /**
-     * Số năm kinh nghiệm được tính lũy tiến tự động theo thời gian:
-     * Kinh nghiệm thực tế = Kinh nghiệm ban đầu + (Năm hiện tại - Năm tạo hồ sơ).
-     * Cứ qua ngày 1/1 mỗi năm mới, hệ thống tự động tăng thêm 1 năm kinh nghiệm.
-     */
-    public int getExperienceYears() {
-        if (createdAt == null) {
-            return experienceYears;
-        }
-        int createdYear = createdAt.atZone(ZoneId.systemDefault()).getYear();
-        int currentYear = LocalDate.now().getYear();
-        int elapsed = Math.max(0, currentYear - createdYear);
-        return experienceYears + elapsed;
     }
 
     public BigDecimal getConsultationFee() {
@@ -155,17 +134,6 @@ public class DoctorEntity {
 
     public void setAcademicTitle(String academicTitle) {
         this.academicTitle = academicTitle;
-    }
-
-    public void setExperienceYears(int newExperienceYears) {
-        if (createdAt != null) {
-            int createdYear = createdAt.atZone(ZoneId.systemDefault()).getYear();
-            int currentYear = LocalDate.now().getYear();
-            int elapsed = Math.max(0, currentYear - createdYear);
-            this.experienceYears = Math.max(0, newExperienceYears - elapsed);
-        } else {
-            this.experienceYears = newExperienceYears;
-        }
     }
 
     public void setConsultationFee(BigDecimal consultationFee) {

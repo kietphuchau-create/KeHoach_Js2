@@ -38,7 +38,6 @@ public final class AccountDtos {
                                     String medicalCenterId,
                                     String medicalCenterName,
                                     String academicTitle,
-                                    int experienceYears,
                                     BigDecimal consultationFee,
                                     String roomNumber,
                                     String bio,
@@ -85,10 +84,6 @@ public final class AccountDtos {
     public record UpdateDoctorProfileRequest(
             @Size(max = 100, message = "Học hàm/học vị tối đa 100 ký tự")
             String academicTitle,
-
-            @Min(value = 0, message = "Số năm kinh nghiệm không được âm")
-            @Max(value = 70, message = "Số năm kinh nghiệm không hợp lệ")
-            int experienceYears,
 
             String bio,
 

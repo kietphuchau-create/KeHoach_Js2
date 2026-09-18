@@ -92,7 +92,6 @@ public class AccountService {
         }
         for (DoctorEntity doctor : profiles) {
             doctor.setAcademicTitle(blankToNull(request.academicTitle()));
-            doctor.setExperienceYears(request.experienceYears());
             doctor.setBio(blankToNull(request.bio()));
             doctor.setAvatarUrl(blankToNull(request.avatarUrl()));
             doctor.setUpdatedAt(Instant.now());
@@ -138,7 +137,7 @@ public class AccountService {
                     doctor.getId(), doctor.getSpecialtyId(),
                     specialty == null ? null : specialty.getName(),
                     centerId, centerName,
-                    doctor.getAcademicTitle(), doctor.getExperienceYears(), doctor.getConsultationFee(),
+                    doctor.getAcademicTitle(), doctor.getConsultationFee(),
                     doctor.getRoomNumber(), doctor.getBio(), doctor.getAvatarUrl()));
         }
         return views;

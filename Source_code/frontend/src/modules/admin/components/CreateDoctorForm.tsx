@@ -29,7 +29,6 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
     medicalCenterId: medicalCenters[0]?.id || '',
     specialtyId: specialties[0]?.id || '',
     academicTitle: 'ThS.BS',
-    experienceYears: 5,
     consultationFee: 300000,
     roomNumber: 'P.101',
     bio: '',
@@ -49,7 +48,6 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
         medicalCenterId: doctorForm.medicalCenterId,
         specialtyId: doctorForm.specialtyId,
         academicTitle: doctorForm.academicTitle,
-        experienceYears: Number(doctorForm.experienceYears) || 1,
         consultationFee: Number(doctorForm.consultationFee) || 200000,
         roomNumber: doctorForm.roomNumber.trim(),
         bio: doctorForm.bio.trim(),
@@ -68,7 +66,6 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
         medicalCenterId: medicalCenters[0]?.id || '',
         specialtyId: specialties[0]?.id || '',
         academicTitle: 'ThS.BS',
-        experienceYears: 5,
         consultationFee: 300000,
         roomNumber: 'P.101',
         bio: '',
@@ -186,7 +183,7 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Học Hàm / Học Vị</label>
           <input
@@ -196,27 +193,6 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
             placeholder="GS, PGS, ThS, BS.CKII..."
             className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 text-sm"
           />
-        </div>
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <label className="block text-xs font-semibold text-slate-700 uppercase">Số Năm Kinh Nghiệm</label>
-            <span className="text-[11px] text-pine-teal font-medium">Tự động tăng theo năm</span>
-          </div>
-          <div className="relative">
-            <input
-              type="number"
-              min="0"
-              max="60"
-              required
-              value={doctorForm.experienceYears}
-              onChange={(e) => setDoctorForm({ ...doctorForm, experienceYears: Math.max(0, Number(e.target.value)) })}
-              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-pine-teal/40 text-sm font-semibold"
-            />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium">năm</span>
-          </div>
-          <p className="text-[11px] text-slate-500 mt-1">
-            Bắt đầu từ ~{new Date().getFullYear() - (doctorForm.experienceYears || 0)} (hệ thống tự động cộng thêm 1 năm kinh nghiệm sau mỗi năm làm việc).
-          </p>
         </div>
         <div>
           <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Phòng Khám Số</label>
