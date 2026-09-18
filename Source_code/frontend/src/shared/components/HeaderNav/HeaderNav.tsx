@@ -35,6 +35,12 @@ export default function HeaderNav() {
     const authUser = getAuthUser();
     if (token && authUser) {
       setUser(authUser);
+      const userRoles: string[] = authUser.roles || [];
+      if (userRoles.includes('ROLE_ADMIN')) {
+        if (pathname === '/' || pathname === '/booking' || pathname === '/reception' || pathname === '/doctor') {
+          router.push('/admin');
+        }
+      }
       // Tự động đồng bộ thông tin mới nhất từ API backend để cập nhật tiếng Việt và quyền
       api.getProfile().then((freshProfile: any) => {
         if (freshProfile && freshProfile.fullName) {
@@ -48,12 +54,17 @@ export default function HeaderNav() {
           if (typeof window !== "undefined") {
             sessionStorage.setItem("user", JSON.stringify(updatedUser));
           }
+          if (updatedUser.roles?.includes('ROLE_ADMIN')) {
+            if (pathname === '/' || pathname === '/booking' || pathname === '/reception' || pathname === '/doctor') {
+              router.push('/admin');
+            }
+          }
         }
       }).catch(() => {});
     } else {
       setUser(null);
     }
-  }, [pathname]);
+  }, [pathname, router]);
 
   const handleLogout = () => {
     clearAuthSession();
@@ -66,13 +77,19 @@ export default function HeaderNav() {
   const isDoctor = roles.includes('ROLE_DOCTOR');
   const isStaff = roles.includes('ROLE_STAFF');
 
-  const navLinks = [
-    { href: '/', label: 'Trang Chủ', icon: Building2 },
-    { href: '/booking', label: 'Đặt Lịch Khám', icon: Calendar },
-    ...(isStaff || isAdmin ? [{ href: '/reception', label: 'Quầy Tiếp Đón', icon: QrCode }] : []),
-    ...(isDoctor || isAdmin ? [{ href: '/doctor', label: 'Buồng Khám Bác Sĩ', icon: Stethoscope }] : []),
-    ...(isAdmin ? [{ href: '/admin', label: 'Quản Trị Admin', icon: ShieldCheck }] : []),
-  ];
+  // Khi là Quản trị viên (Admin): chỉ thấy chức năng Quản trị hệ thống,
+  // KHÔNG hiển thị Trang chủ, Đặt lịch khám, Quầy tiếp đón và Buồng khám bác sĩ.
+  const navLinks = isAdmin
+    ? [
+        { href: '/admin', label: 'Quản Trị Người Dùng', icon: ShieldCheck },
+        { href: '/admin/create-user', label: 'Cấp Tài Khoản Mới', icon: UserPlus },
+      ]
+    : [
+        { href: '/', label: 'Trang Chủ', icon: Building2 },
+        { href: '/booking', label: 'Đặt Lịch Khám', icon: Calendar },
+        ...(isStaff ? [{ href: '/reception', label: 'Quầy Tiếp Đón', icon: QrCode }] : []),
+        ...(isDoctor ? [{ href: '/doctor', label: 'Buồng Khám Bác Sĩ', icon: Stethoscope }] : []),
+      ];
 
   return (
     <header className="bg-white border-b border-mint-light text-slate-800 sticky top-0 z-50 shadow-xs">
@@ -80,7 +97,7 @@ export default function HeaderNav() {
         <div className="flex items-center justify-between h-16">
           {/* Brand Logo */}
           <div className="flex items-center gap-3">
-            <Link href="/" className="flex items-center gap-2.5 group">
+            <Link href={isAdmin ? "/admin" : "/"} className="flex items-center gap-2.5 group">
               <div className="w-11 h-11 rounded-xl bg-white p-0.5 flex items-center justify-center shadow-xs border border-mint-light group-hover:scale-105 transition overflow-hidden">
                 <img src="/logo.png" alt="MedSched Online Medical Services Logo" className="w-full h-full object-contain" />
               </div>
@@ -89,7 +106,7 @@ export default function HeaderNav() {
                   MedSched
                 </span>
                 <span className="text-[10px] text-teal-primary font-bold tracking-wider uppercase">
-                  Smart Healthcare
+                  {isAdmin ? 'Admin Portal' : 'Smart Healthcare'}
                 </span>
               </div>
             </Link>
