@@ -64,17 +64,26 @@ export default function UserTable() {
         size: pageSize,
       });
 
-      if (res && res.content) {
-        setUsers(res.content);
-        setTotalElements(res.totalElements || res.content.length);
-        setTotalPages(res.totalPages || 1);
-      } else if (Array.isArray(res)) {
-        setUsers(res);
-        setTotalElements(res.length);
-        setTotalPages(1);
-      } else {
-        setUsers([]);
-      }
+      const rawList = res?.items || res?.content || (Array.isArray(res) ? res : []);
+      const normalizedUsers: UserItem[] = rawList.map((u: any) => {
+        const roleStrings: string[] = Array.isArray(u.roles)
+          ? u.roles.map((r: any) => (typeof r === 'string' ? r : r.role))
+          : [];
+        return {
+          id: u.userId || u.id,
+          email: u.email,
+          fullName: u.fullName,
+          phone: u.phone,
+          roles: roleStrings,
+          active: u.active ?? true,
+          createdAt: u.createdAt,
+          medicalCenterName: u.roles?.[0]?.medicalCenterName || u.medicalCenterName,
+        };
+      });
+
+      setUsers(normalizedUsers);
+      setTotalElements(res?.totalItems || res?.totalElements || normalizedUsers.length);
+      setTotalPages(res?.totalPages || 1);
     } catch (err: any) {
       console.error(err);
       setMessage({ type: 'error', text: err.message || 'Không thể tải danh sách người dùng. Kiểm tra quyền ADMIN hoặc Backend.' });
@@ -124,13 +133,13 @@ export default function UserTable() {
   return (
     <div className="space-y-6">
       {/* Header Banner */}
-      <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className="bg-white rounded-2xl p-6 shadow-sm border border-mint-light flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-blue-600 mb-1 text-sm font-medium">
+          <div className="flex items-center gap-2 text-pine-teal mb-1 text-sm font-semibold">
             <Shield size={18} />
             <span>Hệ thống Quản trị MedSched</span>
           </div>
-          <h1 className="text-2xl font-bold text-slate-800">Quản Lý Người Dùng & Nhân Sự</h1>
+          <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">Quản Lý Người Dùng & Nhân Sự</h1>
           <p className="text-slate-500 text-sm mt-1">
             Theo dõi, phân quyền và kích hoạt tài khoản Quản trị, Bác sĩ, Lễ tân và Bệnh nhân.
           </p>
@@ -139,7 +148,7 @@ export default function UserTable() {
         <div className="flex items-center gap-3">
           <Link
             href="/admin/create-user"
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-medium shadow-sm transition"
+            className="flex items-center gap-2 bg-pine-teal hover:bg-pine-teal-hover text-white px-4 py-2.5 rounded-xl font-bold shadow-xs transition"
           >
             <UserPlus size={18} />
             <span>Tạo Tài Khoản Mới</span>
@@ -147,7 +156,7 @@ export default function UserTable() {
           <button
             onClick={() => loadUsers()}
             disabled={loading}
-            className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition"
+            className="p-2.5 bg-mint-light hover:bg-mint-soft text-pine-teal rounded-xl transition cursor-pointer"
             title="Tải lại danh sách"
           >
             <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
@@ -161,9 +170,9 @@ export default function UserTable() {
       )}
 
       {/* Filter & Search Bar */}
-      <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+      <div className="bg-white rounded-2xl p-4 shadow-sm border border-mint-light flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
         {/* Role Tabs */}
-        <div className="flex flex-wrap gap-1 bg-slate-100 p-1 rounded-xl">
+        <div className="flex flex-wrap gap-1 bg-mint-soft p-1 rounded-xl">
           {[
             { id: 'ALL', label: 'Tất cả' },
             { id: 'ROLE_ADMIN', label: 'Quản trị' },
@@ -174,10 +183,10 @@ export default function UserTable() {
             <button
               key={tab.id}
               onClick={() => { setSelectedRole(tab.id); setCurrentPage(0); }}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
                 selectedRole === tab.id
-                  ? 'bg-white text-blue-600 shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white text-pine-teal shadow-xs font-bold'
+                  : 'text-slate-600 hover:text-pine-teal'
               }`}
             >
               {tab.label}
@@ -194,20 +203,20 @@ export default function UserTable() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Tìm theo tên, email, SĐT..."
-              className="pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white w-64"
+              className="pl-9 pr-3 py-2 text-sm bg-mint-soft border border-mint-light rounded-xl focus:outline-none focus:ring-2 focus:ring-pine-teal/30 focus:bg-white w-64"
             />
           </div>
           <button
             type="submit"
-            className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white text-sm font-medium rounded-xl transition"
+            className="px-3.5 py-2 bg-pine-teal hover:bg-pine-teal-hover text-white text-sm font-bold rounded-xl transition cursor-pointer"
           >
             Tìm
           </button>
         </form>
       </div>
 
-      {/* Table Data (3 Trạng thái UI chuẩn cẩm nang) */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+      {/* Table Data */}
+      <div className="bg-white rounded-2xl shadow-sm border border-mint-light overflow-hidden">
         {loading ? (
           <LoadingSpinner message="Đang nạp danh sách tài khoản từ máy chủ Spring Boot 3..." />
         ) : users.length === 0 ? (
@@ -220,7 +229,7 @@ export default function UserTable() {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                <tr className="bg-mint-soft border-b border-mint-light text-xs font-bold text-slate-700 uppercase tracking-wider">
                   <th className="py-3.5 px-4">Họ và Tên</th>
                   <th className="py-3.5 px-4">Email & SĐT</th>
                   <th className="py-3.5 px-4">Vai Trò</th>
@@ -231,14 +240,14 @@ export default function UserTable() {
               </thead>
               <tbody className="divide-y divide-slate-100 text-sm">
                 {users.map((user) => (
-                  <tr key={user.id} className="hover:bg-slate-50/80 transition">
+                  <tr key={user.id} className="hover:bg-mint-soft/50 transition">
                     <td className="py-3.5 px-4 font-medium text-slate-800">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs">
+                        <div className="w-8 h-8 rounded-full bg-mint-light text-pine-teal border border-teal-primary/30 flex items-center justify-center font-bold text-xs">
                           {user.fullName ? user.fullName.charAt(0).toUpperCase() : 'U'}
                         </div>
                         <div>
-                          <span>{user.fullName || 'Chưa cập nhật'}</span>
+                          <span className="font-semibold">{user.fullName || 'Chưa cập nhật'}</span>
                           <span className="block text-[11px] text-slate-400 font-normal">ID: {user.id.slice(0, 8)}...</span>
                         </div>
                       </div>
