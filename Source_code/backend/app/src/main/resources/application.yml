@@ -31,7 +31,7 @@ medsched:
     access-token-duration: 3600s
     refresh-token-duration: 604800s
   cors:
-    allowed-origins: http://localhost:3000
+    allowed-origins: ${CORS_ORIGINS:http://localhost:3000,http://localhost:3001}
 
 app:
   jwt:
@@ -48,4 +48,22 @@ spring:
     url: ${DB_URL:jdbc:mysql://localhost:3306/medsched_db?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Ho_Chi_Minh}
     username: ${DB_USER:root}
     password: ${DB_PASSWORD:}
+
+---
+# Production profile for Cloud (Render + Aiven MySQL)
+spring:
+  config:
+    activate:
+      on-profile: prod
+server:
+  port: ${PORT:8080}
+spring:
+  datasource:
+    url: jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}?useSSL=true&requireSSL=true&useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Ho_Chi_Minh
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
 
