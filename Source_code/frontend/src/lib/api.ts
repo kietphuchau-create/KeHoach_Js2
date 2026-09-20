@@ -65,6 +65,9 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   });
 
   if (!response.ok) {
+    if (response.status === 401 && token) {
+      clearAuthSession();
+    }
     const errorData = await response.json().catch(() => ({}));
     const message = errorData.detail || errorData.message || `Yêu cầu thất bại (${response.status})`;
     throw new Error(message);
@@ -84,6 +87,33 @@ export const api = {
     });
     setAuthSession(res.accessToken, res.user);
     return res;
+  },
+
+  async logout(refreshToken?: string) {
+    try {
+      await request<any>("/auth/logout", {
+        method: "POST",
+        body: JSON.stringify({ refreshToken: refreshToken || "" }),
+      });
+    } catch (e) {
+      console.warn("Backend logout notification failed:", e);
+    } finally {
+      clearAuthSession();
+    }
+  },
+
+  async forgotPassword(email: string) {
+    return request<{ message: string }>("/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+  },
+
+  async resetPassword(payload: { token: string; newPassword: string }) {
+    return request<{ message: string }>("/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
   },
 
   async register(payload: { fullName: string; email: string; phone: string; password: string }) {

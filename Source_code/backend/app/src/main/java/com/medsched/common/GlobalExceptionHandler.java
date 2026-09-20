@@ -50,6 +50,16 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.CONFLICT, ex.getMessage(), req);
     }
 
+    @ExceptionHandler(com.medsched.core.domain.exception.DomainException.class)
+    public ResponseEntity<ApiError> handleDomainException(com.medsched.core.domain.exception.DomainException ex, HttpServletRequest req) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), req);
+    }
+
+    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiError> handleNotReadable(org.springframework.http.converter.HttpMessageNotReadableException ex, HttpServletRequest req) {
+        return build(HttpStatus.BAD_REQUEST, "Dữ liệu JSON gửi lên không đúng định dạng", req);
+    }
+
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ApiError> handleBadCredentials(BadCredentialsException ex, HttpServletRequest req) {
         // Thông báo chung cho cả "email không tồn tại" và "sai mật khẩu".

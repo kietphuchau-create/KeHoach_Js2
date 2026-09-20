@@ -5,7 +5,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/reception")
+@RequestMapping({"/api/reception", "/api/v1/reception"})
 public class ReceptionController {
 
     private final CheckinUseCase checkinUseCase;

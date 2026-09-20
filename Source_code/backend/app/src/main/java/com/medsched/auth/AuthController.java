@@ -36,4 +36,25 @@ public class AuthController {
         return authService.refresh(request);
     }
 
+    /** Quên mật khẩu: Gửi email chứa liên kết đặt lại mật khẩu */
+    @PostMapping("/forgot-password")
+    public AuthDtos.SimpleMessageResponse forgotPassword(@Valid @RequestBody AuthDtos.ForgotPasswordRequest request) {
+        return authService.forgotPassword(request);
+    }
+
+    /** Đặt lại mật khẩu bằng token một lần */
+    @PostMapping("/reset-password")
+    public AuthDtos.SimpleMessageResponse resetPassword(@Valid @RequestBody AuthDtos.ResetPasswordRequest request) {
+        return authService.resetPassword(request);
+    }
+
+    /** Đăng xuất: Thu hồi token phía server và vô hiệu hóa phiên */
+    @PostMapping("/logout")
+    public AuthDtos.SimpleMessageResponse logout(
+            @org.springframework.web.bind.annotation.RequestHeader(value = "Authorization", required = false) String bearerToken,
+            @RequestBody(required = false) AuthDtos.LogoutRequest request,
+            @org.springframework.security.core.annotation.AuthenticationPrincipal com.medsched.security.AppUserDetails principal) {
+        return authService.logout(bearerToken, request, principal);
+    }
+
 }
