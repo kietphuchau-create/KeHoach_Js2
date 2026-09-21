@@ -3,12 +3,16 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, Lock, Mail } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { api } from '@/shared/lib/api';
 import AlertMessage from '@/shared/components/Feedback/AlertMessage';
 
 export default function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectUrl = searchParams.get('redirect') || '/booking';
+  const isAuthRequired = searchParams.get('reason') === 'auth_required';
+
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -46,7 +50,7 @@ export default function LoginForm() {
         } else if (roles.includes('ROLE_DOCTOR')) {
           router.push('/doctor');
         } else {
-          router.push('/booking');
+          router.push(redirectUrl);
         }
       }, 800);
     } catch (err: any) {
@@ -68,6 +72,15 @@ export default function LoginForm() {
           Hệ thống MedSched dành cho Bệnh nhân, Bác sĩ, Lễ tân & Admin
         </p>
       </div>
+
+      {/* Thông báo yêu cầu đăng nhập nếu từ trang đặt lịch */}
+      {isAuthRequired && !errorMessage && !successMessage && (
+        <AlertMessage 
+          type="info" 
+          message="Vui lòng đăng nhập tài khoản bệnh nhân để tiếp tục đặt lịch khám." 
+          className="mb-2.5 py-1.5 text-xs" 
+        />
+      )}
 
       {/* Thông báo lỗi / thành công */}
       {errorMessage && (

@@ -64,6 +64,22 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (jwtService.isType(claims, JwtService.TYPE_ACCESS)) {
                 AppUserDetails user = userDetailsService.loadUserById(claims.getSubject());
                 if (user.isEnabled()) {
+                    // Single active web session check (Zalo-style kickout):
+                    // Khi tài khoản đăng nhập trên trình duyệt khác, currentSessionId trong DB đã thay đổi.
+                    if (user.getCurrentSessionId() != null) {
+                        String tokenSid = claims.get(JwtService.CLAIM_SESSION_ID, String.class);
+                        if (tokenSid == null || !user.getCurrentSessionId().equals(tokenSid)) {
+                            SecurityContextHolder.clearContext();
+                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                            response.setContentType("application/json;charset=UTF-8");
+                            response.getWriter().write("""
+                                {"status":401,"error":"CONCURRENT_SESSION_EXPIRED","message":"Tài khoản của bạn đã được đăng nhập trên một trình duyệt/thiết bị khác. Phiên làm việc tại đây đã kết thúc.","path":"%s"}
+                                """.formatted(request.getRequestURI()));
+                            response.getWriter().flush();
+                            return;
+                        }
+                    }
+
                     UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
                             user, null, user.getAuthorities());
                     auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));

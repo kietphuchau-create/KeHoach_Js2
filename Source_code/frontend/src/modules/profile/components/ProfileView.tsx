@@ -41,6 +41,16 @@ export default function ProfileView() {
     bio: '',
   });
 
+  // Patient Profile Form (CCCD, BHYT, Ngày sinh, Giới tính, Tiền sử bệnh án)
+  const [patientForm, setPatientForm] = useState({
+    cccdNumber: '',
+    healthInsuranceNo: '',
+    dateOfBirth: '',
+    gender: 'MALE' as 'MALE' | 'FEMALE' | 'OTHER',
+    address: '',
+    medicalHistory: '',
+  });
+
   useEffect(() => {
     const token = getAuthToken();
     if (!token) {
@@ -68,6 +78,17 @@ export default function ProfileView() {
             bio: data.doctorProfile.bio || '',
           });
         }
+
+        if (data.patientProfile) {
+          setPatientForm({
+            cccdNumber: data.patientProfile.cccdNumber || '',
+            healthInsuranceNo: data.patientProfile.healthInsuranceNo || '',
+            dateOfBirth: data.patientProfile.dateOfBirth || '',
+            gender: data.patientProfile.gender || 'MALE',
+            address: data.patientProfile.address || '',
+            medicalHistory: data.patientProfile.medicalHistory || '',
+          });
+        }
       } catch (err: any) {
         setError(err.message || 'Không thể tải thông tin hồ sơ.');
       } finally {
@@ -88,11 +109,30 @@ export default function ProfileView() {
         fullName: profile.fullName.trim(),
         phone: profile.phone.trim(),
       });
-      setMessage('Cập nhật thông tin cá nhân thành công!');
+
+      let updatedPatientProfile = profile.patientProfile;
+      try {
+        const pRes = await api.updatePatientProfile({
+          fullName: profile.fullName.trim(),
+          cccdNumber: patientForm.cccdNumber.trim() || undefined,
+          healthInsuranceNo: patientForm.healthInsuranceNo.trim() || undefined,
+          dateOfBirth: patientForm.dateOfBirth || undefined,
+          gender: patientForm.gender,
+          phone: profile.phone.trim() || undefined,
+          address: patientForm.address.trim() || undefined,
+          medicalHistory: patientForm.medicalHistory.trim() || undefined,
+        });
+        updatedPatientProfile = pRes || updatedPatientProfile;
+      } catch (pErr: any) {
+        console.warn('Lỗi lưu patient profile:', pErr);
+      }
+
+      setMessage('Cập nhật thông tin cá nhân và hồ sơ y tế bệnh nhân thành công!');
       setProfile((prev) => ({
         ...prev,
         fullName: res.fullName || prev.fullName,
         phone: res.phone || prev.phone,
+        patientProfile: updatedPatientProfile,
       }));
     } catch (err: any) {
       setError(err.message || 'Cập nhật thất bại.');
@@ -324,17 +364,98 @@ export default function ProfileView() {
                 </div>
               </div>
 
-              {profile.patientProfile && (
-                <div className="pt-2 border-t border-mint-light text-sm">
-                  <p className="font-semibold text-slate-700 mb-2">Hồ sơ y tế bệnh nhân:</p>
-                  <div className="grid grid-cols-2 gap-3 bg-mint-soft p-3 rounded-xl border border-mint-light text-slate-600">
-                    <div>CCCD: <span className="font-medium text-slate-800">{profile.patientProfile.cccdNumber || 'Chưa cập nhật'}</span></div>
-                    <div>BHYT: <span className="font-medium text-slate-800">{profile.patientProfile.healthInsuranceNo || 'Chưa cập nhật'}</span></div>
-                    <div>Giới tính: <span className="font-medium text-slate-800">{profile.patientProfile.gender || 'Chưa cập nhật'}</span></div>
-                    <div>Tiền sử: <span className="font-medium text-slate-800">{profile.patientProfile.medicalHistory || 'Bình thường'}</span></div>
+              <div className="pt-4 border-t border-mint-light space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-pine-teal" />
+                    Hồ Sơ Y Tế & Thông Tin Khám Chữa Bệnh
+                  </h3>
+                  <span className="text-xs text-slate-500">Phục vụ xuất vé hẹn & thanh toán BHYT</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Số Căn Cước Công Dân (CCCD / CMND)
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={12}
+                      value={patientForm.cccdNumber}
+                      onChange={(e) => setPatientForm({ ...patientForm, cccdNumber: e.target.value.replace(/\D/g, '') })}
+                      placeholder="Nhập 9-12 số (Ví dụ: 079201008899)"
+                      className="w-full px-3.5 py-2.5 border border-mint-light bg-mint-soft rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-pine-teal/30 focus:border-teal-primary transition text-sm font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Mã Số Thẻ BHYT (Nếu có)
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={15}
+                      value={patientForm.healthInsuranceNo}
+                      onChange={(e) => setPatientForm({ ...patientForm, healthInsuranceNo: e.target.value.toUpperCase() })}
+                      placeholder="Ví dụ: DN4790123456789"
+                      className="w-full px-3.5 py-2.5 border border-mint-light bg-mint-soft rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-pine-teal/30 focus:border-teal-primary transition text-sm font-mono uppercase"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Ngày Sinh
+                    </label>
+                    <input
+                      type="date"
+                      value={patientForm.dateOfBirth}
+                      onChange={(e) => setPatientForm({ ...patientForm, dateOfBirth: e.target.value })}
+                      className="w-full px-3.5 py-2.5 border border-mint-light bg-mint-soft rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-pine-teal/30 focus:border-teal-primary transition text-sm"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Giới Tính
+                    </label>
+                    <select
+                      value={patientForm.gender}
+                      onChange={(e) => setPatientForm({ ...patientForm, gender: e.target.value as any })}
+                      className="w-full px-3.5 py-2.5 border border-mint-light bg-mint-soft rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-pine-teal/30 focus:border-teal-primary transition text-sm cursor-pointer"
+                    >
+                      <option value="MALE">Nam</option>
+                      <option value="FEMALE">Nữ</option>
+                      <option value="OTHER">Khác</option>
+                    </select>
                   </div>
                 </div>
-              )}
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Địa Chỉ Thường Trú / Tạm Trú
+                  </label>
+                  <input
+                    type="text"
+                    value={patientForm.address}
+                    onChange={(e) => setPatientForm({ ...patientForm, address: e.target.value })}
+                    placeholder="Số nhà, đường, phường/xã, quận/huyện, tỉnh/thành phố..."
+                    className="w-full px-3.5 py-2.5 border border-mint-light bg-mint-soft rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-pine-teal/30 focus:border-teal-primary transition text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Tiền Sử Bệnh Án & Dị Ứng Thuốc
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={patientForm.medicalHistory}
+                    onChange={(e) => setPatientForm({ ...patientForm, medicalHistory: e.target.value })}
+                    placeholder="Ví dụ: Tăng huyết áp, dị ứng kháng sinh Penicillin, dị ứng phấn hoa..."
+                    className="w-full px-3.5 py-2.5 border border-mint-light bg-mint-soft rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-pine-teal/30 focus:border-teal-primary transition text-sm"
+                  />
+                </div>
+              </div>
 
               <div className="pt-3">
                 <button
@@ -343,7 +464,7 @@ export default function ProfileView() {
                   className="bg-pine-teal hover:bg-pine-teal-hover text-white font-bold px-6 py-2.5 rounded-xl shadow-xs transition disabled:opacity-50 flex items-center gap-2 cursor-pointer text-sm"
                 >
                   <Save size={18} />
-                  {loading ? 'Đang lưu...' : 'Lưu thông tin'}
+                  {loading ? 'Đang lưu...' : 'Lưu Thay Đổi Hồ Sơ'}
                 </button>
               </div>
             </form>

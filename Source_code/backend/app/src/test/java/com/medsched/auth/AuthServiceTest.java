@@ -10,6 +10,7 @@ import com.medsched.persistence.repository.UserJpaRepository;
 import com.medsched.security.AppUserDetails;
 import com.medsched.security.AppUserDetailsService;
 import com.medsched.security.JwtService;
+import io.jsonwebtoken.Claims;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -176,5 +177,25 @@ class AuthServiceTest {
         assertThat(res.userId()).isEqualTo("user-1");
         assertThat(res.fullName()).isEqualTo("Nguyen Van A");
         assertThat(jwtService.isType(jwtService.parse(res.accessToken()), JwtService.TYPE_ACCESS)).isTrue();
+    }
+
+    @Test
+    @DisplayName("Login generates a new session ID to invalidate any previous web session")
+    void loginGeneratesNewSessionId() {
+        UserEntity u = user("user-1", "a@b.com", "Nguyen Van A");
+        u.setCurrentSessionId("old-session-123");
+        AppUserDetails principal = patient(u);
+
+        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
+                .thenReturn(new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities()));
+        when(users.findById("user-1")).thenReturn(Optional.of(u));
+
+        AuthDtos.AuthResponse res = authService.login(new AuthDtos.LoginRequest("a@b.com", "Matkhau@123"));
+
+        assertThat(u.getCurrentSessionId()).isNotNull();
+        assertThat(u.getCurrentSessionId()).isNotEqualTo("old-session-123");
+
+        Claims claims = jwtService.parse(res.accessToken());
+        assertThat(claims.get(JwtService.CLAIM_SESSION_ID, String.class)).isEqualTo(u.getCurrentSessionId());
     }
 }

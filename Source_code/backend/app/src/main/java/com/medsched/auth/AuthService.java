@@ -65,17 +65,19 @@ public class AuthService {
 
         UserEntity user = new UserEntity(UUID.randomUUID().toString(), email,
                 passwordEncoder.encode(request.password()), fullName, phone, true, now, now);
+        String sessionId = UUID.randomUUID().toString();
+        user.setCurrentSessionId(sessionId);
         users.save(user);
 
         PatientProfileEntity self = new PatientProfileEntity(UUID.randomUUID().toString(), user.getId(),
                 RelationshipType.SELF, fullName, null, null, null, null, phone, null, null, now, now);
         patientProfiles.save(self);
 
-        return issueTokens(userDetailsService.loadUserById(user.getId()), user.getFullName());
+        return issueTokens(userDetailsService.loadUserById(user.getId()), user.getFullName(), sessionId);
     }
 
     /** One login flow shared by Customer / Doctor / Staff / Admin. */
-    @Transactional(readOnly = true)
+    @Transactional
     public AuthDtos.AuthResponse login(AuthDtos.LoginRequest request) {
         // Wrong email/password -> BadCredentialsException; locked account ->
         // DisabledException. GlobalExceptionHandler turns both into the proper
@@ -85,7 +87,14 @@ public class AuthService {
         AppUserDetails principal = (AppUserDetails) authentication.getPrincipal();
         UserEntity user = users.findById(principal.getUserId())
                 .orElseThrow(() -> new AppExceptions.NotFoundException("Không tìm thấy tài khoản"));
-        return issueTokens(principal, user.getFullName());
+
+        // Single active web session (Zalo-style kickout):
+        // Sinh session ID mới, ghi đè session cũ để vô hiệu hóa trình duyệt trước đó
+        String sessionId = UUID.randomUUID().toString();
+        user.setCurrentSessionId(sessionId);
+        users.save(user);
+
+        return issueTokens(principal, user.getFullName(), sessionId);
     }
 
     /**
@@ -111,14 +120,21 @@ public class AuthService {
         }
         UserEntity user = users.findById(principal.getUserId())
                 .orElseThrow(() -> new AppExceptions.NotFoundException("Không tìm thấy tài khoản"));
-        return issueTokens(principal, user.getFullName());
+
+        String tokenSid = claims.get(JwtService.CLAIM_SESSION_ID, String.class);
+        if (user.getCurrentSessionId() != null && tokenSid != null && !user.getCurrentSessionId().equals(tokenSid)) {
+            throw new AppExceptions.BadRequestException("Phiên làm việc đã hết hạn do tài khoản được đăng nhập trên trình duyệt khác");
+        }
+
+        String effectiveSessionId = user.getCurrentSessionId() != null ? user.getCurrentSessionId() : tokenSid;
+        return issueTokens(principal, user.getFullName(), effectiveSessionId);
     }
 
-    private AuthDtos.AuthResponse issueTokens(AppUserDetails principal, String fullName) {
+    private AuthDtos.AuthResponse issueTokens(AppUserDetails principal, String fullName, String sessionId) {
         return new AuthDtos.AuthResponse(
                 "Bearer",
-                jwtService.generateAccessToken(principal.getUserId(), principal.getEmail(), principal.getRoleNames()),
-                jwtService.generateRefreshToken(principal.getUserId()),
+                jwtService.generateAccessToken(principal.getUserId(), principal.getEmail(), principal.getRoleNames(), sessionId),
+                jwtService.generateRefreshToken(principal.getUserId(), sessionId),
                 jwtService.accessTtlSeconds(),
                 principal.getUserId(),
                 principal.getEmail(),

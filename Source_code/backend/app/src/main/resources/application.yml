@@ -51,13 +51,12 @@ spring:
 
 ---
 # Production profile for Cloud (Render + Aiven MySQL)
+server:
+  port: ${PORT:8080}
 spring:
   config:
     activate:
       on-profile: prod
-server:
-  port: ${PORT:8080}
-spring:
   datasource:
     url: jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}?useSSL=true&requireSSL=true&useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Ho_Chi_Minh
     username: ${DB_USER}

@@ -123,4 +123,11 @@ public class CatalogController {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping("/doctors")
+    public List<CatalogDtos.DoctorSummaryResponse> listDoctors(
+            @RequestParam(required = false) String specialtyId,
+            @RequestParam(required = false) String centerId) {
+        return catalogService.listDoctors(specialtyId, centerId);
+    }
+
 }

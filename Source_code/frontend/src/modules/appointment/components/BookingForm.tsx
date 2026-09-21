@@ -18,45 +18,75 @@ import {
   Printer,
   ChevronRight
 } from 'lucide-react';
-import { api, AppointmentResponse, getAuthUser } from '@/shared/lib/api';
+import { api, AppointmentResponse, getAuthUser, getAuthToken } from '@/shared/lib/api';
 import AlertMessage from '@/shared/components/Feedback/AlertMessage';
 import LoadingSpinner from '@/shared/components/Feedback/LoadingSpinner';
+import { useSingleTabLock } from '@/shared/hooks/useSingleTabLock';
+import SingleTabLockOverlay from '@/shared/components/Feedback/SingleTabLockOverlay';
 
 export default function BookingForm() {
+  const { isBlocked, handleTakeOver } = useSingleTabLock({
+    channelKey: 'patient_booking',
+    moduleName: 'Đặt Lịch Khám Trực Tuyến',
+  });
+
   const router = useRouter();
+  const [authChecking, setAuthChecking] = useState(true);
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [centers, setCenters] = useState<any[]>([]);
   const [specialties, setSpecialties] = useState<any[]>([]);
   const [loadingData, setLoadingData] = useState(true);
 
   useEffect(() => {
+    const token = getAuthToken();
+    if (!token) {
+      router.push('/login?redirect=/booking&reason=auth_required');
+      return;
+    }
+
     const user = getAuthUser();
     const roles: string[] = user?.roles || [];
     if (roles.includes('ROLE_ADMIN')) {
       router.push('/admin');
+      return;
     } else if (roles.includes('ROLE_DOCTOR')) {
       router.push('/doctor');
+      return;
     } else if (roles.includes('ROLE_STAFF')) {
       router.push('/reception');
+      return;
     }
+    setAuthChecking(false);
   }, [router]);
 
   // Form selections
-  const [selectedCenter, setSelectedCenter] = useState<string>('mc000001-0000-0000-0000-000000000001');
-  const [selectedSpecialty, setSelectedSpecialty] = useState<string>('sp000001-0000-0000-0000-000000000001');
-  const [selectedDoctor, setSelectedDoctor] = useState({
-    id: 'd0000001-0000-0000-0000-000000000001',
-    name: 'PGS.TS.BS Trần Văn Hùng',
-    title: 'Trưởng Khoa Nội Tim Mạch',
-    room: 'P.201 - Lầu 2',
-    fee: 300000,
-  });
-  const [selectedSlot, setSelectedSlot] = useState({
+  const [selectedCenter, setSelectedCenter] = useState<string>('');
+  const [selectedSpecialty, setSelectedSpecialty] = useState<string>('');
+  const [doctors, setDoctors] = useState<any[]>([]);
+  const [selectedDoctor, setSelectedDoctor] = useState<any>(null);
+  const getTodayFormatted = () => {
+    const now = new Date();
+    const day = String(now.getDate()).padStart(2, '0');
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const year = now.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
+  const getTodayISODate = () => {
+    const now = new Date();
+    const day = String(now.getDate()).padStart(2, '0');
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const year = now.getFullYear();
+    return `${year}-${month}-${day}`;
+  };
+
+  const [bookingDate, setBookingDate] = useState<string>(getTodayISODate());
+  const [selectedSlot, setSelectedSlot] = useState<{ id: string; time: string; date: string }>({
     id: 'sl000002-0000-0000-0000-000000000001',
     time: '08:30 - 09:00',
-    date: 'Hôm nay',
+    date: getTodayFormatted(),
   });
-  const [symptoms, setSymptoms] = useState('Đau thắt ngực nhẹ khi leo cầu thang, hồi hộp đánh trống ngực vào buổi tối.');
+  const [symptoms, setSymptoms] = useState('');
   const [aiPreview, setAiPreview] = useState<{ specialty: string; summary: string } | null>(null);
   const [analyzingAi, setAnalyzingAi] = useState(false);
 
@@ -68,20 +98,33 @@ export default function BookingForm() {
   useEffect(() => {
     async function loadCategories() {
       try {
-        const [c, s] = await Promise.all([
-          api.getMedicalCenters().catch(() => [
-            { id: 'mc000001-0000-0000-0000-000000000001', name: 'MedSched Quận 1', address: '120 Nguyễn Du, P. Bến Thành, Q.1' },
-            { id: 'mc000002-0000-0000-0000-000000000002', name: 'MedSched Quận 7', address: '45 Nguyễn Thị Thập, P. Tân Hưng, Q.7' },
-          ]),
-          api.getSpecialties().catch(() => [
-            { id: 'sp000001-0000-0000-0000-000000000001', name: 'Khoa Nội Tim Mạch', code: 'INTERNAL_MEDICINE' },
-            { id: 'sp000002-0000-0000-0000-000000000002', name: 'Khoa Da Liễu', code: 'DERMATOLOGY' },
-            { id: 'sp000003-0000-0000-0000-000000000003', name: 'Khoa Răng Hàm Mặt', code: 'ODONTO_STOMATOLOGY' },
-            { id: 'sp000004-0000-0000-0000-000000000004', name: 'Khoa Mắt', code: 'OPHTHALMOLOGY' },
-          ]),
+        const [c, s, docList] = await Promise.all([
+          api.getMedicalCenters().catch(() => []),
+          api.getSpecialties().catch(() => []),
+          api.getDoctors().catch(() => []),
         ]);
-        setCenters(c);
-        setSpecialties(s);
+        if (c && c.length > 0) {
+          setCenters(c);
+          setSelectedCenter(c[0].id);
+        }
+        if (s && s.length > 0) {
+          setSpecialties(s);
+          setSelectedSpecialty(s[0].id);
+        }
+        if (docList && docList.length > 0) {
+          const mapped = docList.map((d: any) => ({
+            id: d.id,
+            name: `${d.academicTitle ? d.academicTitle + ' ' : ''}${d.fullName}`,
+            title: d.bio || `Bác sĩ ${d.specialtyName || ''}`,
+            room: d.roomNumber || 'Phòng Khám Chuyên Khoa',
+            fee: Number(d.consultationFee) || 200000,
+            specialty: d.specialtyName,
+            specialtyId: d.specialtyId,
+            centerId: d.medicalCenterId,
+          }));
+          setDoctors(mapped);
+          setSelectedDoctor(mapped[0]);
+        }
       } finally {
         setLoadingData(false);
       }
@@ -108,13 +151,24 @@ export default function BookingForm() {
     setError(null);
 
     try {
+      // Lấy patientProfileId thực tế của tài khoản hiện tại từ phiên đăng nhập
+      let currentPatientProfileId = '';
+      try {
+        const profile = await api.getProfile();
+        if (profile?.patientProfile?.profileId) {
+          currentPatientProfileId = profile.patientProfile.profileId;
+        }
+      } catch {
+        // Sẽ được Backend tự động phân giải từ JWT Session nếu để trống
+      }
+
       const res = await api.bookAppointment({
         medicalCenterId: selectedCenter,
-        patientProfileId: 'p0000001-0000-0000-0000-000000000001',
-        doctorId: selectedDoctor.id,
+        patientProfileId: currentPatientProfileId,
+        doctorId: selectedDoctor?.id || '',
         slotId: selectedSlot.id,
         symptoms: symptoms.trim() || 'Khám kiểm tra sức khỏe định kỳ',
-        medicalHistory: 'Huyết áp bình thường, không dị ứng thuốc kháng sinh',
+        medicalHistory: '',
       });
       setResult(res);
       setStep(4);
@@ -125,32 +179,7 @@ export default function BookingForm() {
     }
   };
 
-  const doctorList = [
-    {
-      id: 'd0000001-0000-0000-0000-000000000001',
-      name: 'PGS.TS.BS Trần Văn Hùng',
-      title: 'Chuyên gia Tim mạch 25 năm kinh nghiệm',
-      room: 'P.201 - Lầu 2',
-      fee: 300000,
-      specialty: 'Khoa Nội Tim Mạch',
-    },
-    {
-      id: 'd0000002-0000-0000-0000-000000000002',
-      name: 'BS.CKII Nguyễn Minh Anh',
-      title: 'Bác sĩ chuyên khoa Da Liễu thẩm mỹ',
-      room: 'P.104 - Lầu 1',
-      fee: 250000,
-      specialty: 'Khoa Da Liễu',
-    },
-    {
-      id: 'd0000003-0000-0000-0000-000000000003',
-      name: 'ThS.BS Hoàng Trọng Nam',
-      title: 'Bác sĩ Phục hình Răng Hàm Mặt',
-      room: 'P.302 - Lầu 3',
-      fee: 200000,
-      specialty: 'Khoa Răng Hàm Mặt',
-    },
-  ];
+  const doctorList = doctors;
 
   const timeSlots = [
     { id: 'sl000001-0000-0000-0000-000000000001', time: '08:00 - 08:30', status: 'full', label: 'Đã kín chỗ' },
@@ -160,6 +189,14 @@ export default function BookingForm() {
     { id: 'sl000005-0000-0000-0000-000000000001', time: '14:00 - 14:30', status: 'available', label: 'Khả dụng' },
     { id: 'sl000006-0000-0000-0000-000000000001', time: '14:30 - 15:00', status: 'available', label: 'Khả dụng' },
   ];
+
+  if (authChecking) {
+    return (
+      <div className="min-h-[50vh] flex items-center justify-center py-16">
+        <LoadingSpinner size={36} message="Đang kiểm tra quyền truy cập đặt lịch khám..." />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -310,42 +347,77 @@ export default function BookingForm() {
                 1. Chọn Bác Sĩ Phụ Trách:
               </label>
               <div className="space-y-3">
-                {doctorList.map((doc) => (
-                  <div
-                    key={doc.id}
-                    onClick={() => setSelectedDoctor(doc)}
-                    className={`p-4 rounded-xl border-2 transition cursor-pointer flex items-start justify-between ${
-                      selectedDoctor.id === doc.id
-                        ? 'border-blue-600 bg-blue-50/50'
-                        : 'border-slate-200 hover:border-slate-300 bg-white'
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-sm shrink-0">
-                        {doc.name.charAt(0)}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-bold text-slate-800 text-sm">{doc.name}</h4>
-                          <span className="text-[11px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
-                            {doc.room}
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-500 mt-0.5">{doc.title}</p>
-                        <div className="text-xs font-semibold text-emerald-600 mt-1">
-                          Phí tư vấn: {doc.fee.toLocaleString('vi-VN')} đ
-                        </div>
-                      </div>
-                    </div>
-                    {selectedDoctor.id === doc.id && <CheckCircle2 size={18} className="text-blue-600" />}
+                {doctorList.length === 0 ? (
+                  <div className="py-8 px-4 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                    <Stethoscope size={32} className="mx-auto text-slate-400 mb-2" />
+                    <p className="text-sm font-semibold text-slate-600">Chưa có bác sĩ khả dụng cho chuyên khoa này</p>
+                    <p className="text-xs text-slate-400 mt-1">Vui lòng quay lại bước trước để chọn chuyên khoa hoặc cơ sở y tế khác.</p>
                   </div>
-                ))}
+                ) : (
+                  doctorList.map((doc) => (
+                    <div
+                      key={doc.id}
+                      onClick={() => setSelectedDoctor(doc)}
+                      className={`p-4 rounded-xl border-2 transition cursor-pointer flex items-start justify-between ${
+                        selectedDoctor?.id === doc.id
+                          ? 'border-blue-600 bg-blue-50/50'
+                          : 'border-slate-200 hover:border-slate-300 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-sm shrink-0">
+                          {doc.name.charAt(0)}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-bold text-slate-800 text-sm">{doc.name}</h4>
+                            <span className="text-[11px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
+                              {doc.room}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-500 mt-0.5">{doc.title}</p>
+                          <div className="text-xs font-semibold text-emerald-600 mt-1">
+                            Phí tư vấn: {doc.fee.toLocaleString('vi-VN')} đ
+                          </div>
+                        </div>
+                      </div>
+                      {selectedDoctor?.id === doc.id && <CheckCircle2 size={18} className="text-blue-600" />}
+                    </div>
+                  ))
+                )}
               </div>
             </div>
 
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase mb-2">
-                2. Chọn Khung Giờ Khám (Time-slot):
+                2. Chọn Ngày Khám Bệnh:
+              </label>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="relative">
+                  <input
+                    type="date"
+                    value={bookingDate}
+                    min={getTodayISODate()}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setBookingDate(val);
+                      const parts = val.split('-');
+                      const formatted = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : val;
+                      setSelectedSlot((prev) => ({ ...prev, date: formatted }));
+                    }}
+                    className="pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 cursor-pointer"
+                  />
+                  <Calendar size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                </div>
+                <span className="text-xs text-blue-700 font-semibold bg-blue-50 px-3 py-2 rounded-xl border border-blue-200">
+                  Ngày đã chọn: <strong>Ngày {selectedSlot.date}</strong>
+                </span>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-2">
+                3. Chọn Khung Giờ Khám (Time-slot):
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                 {timeSlots.map((slot) => {
@@ -356,7 +428,7 @@ export default function BookingForm() {
                       key={slot.id}
                       type="button"
                       disabled={isFull}
-                      onClick={() => setSelectedSlot({ id: slot.id, time: slot.time, date: 'Hôm nay' })}
+                      onClick={() => setSelectedSlot({ id: slot.id, time: slot.time, date: selectedSlot.date })}
                       className={`p-3 rounded-xl border text-center transition flex flex-col items-center justify-center ${
                         isFull
                           ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
@@ -385,8 +457,9 @@ export default function BookingForm() {
               </button>
               <button
                 type="button"
+                disabled={!selectedDoctor || !selectedSlot}
                 onClick={() => setStep(3)}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2.5 rounded-xl transition shadow-sm flex items-center gap-2 cursor-pointer text-sm"
+                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2.5 rounded-xl transition shadow-sm flex items-center gap-2 cursor-pointer text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span>Tiếp tục nhập Triệu chứng</span>
                 <ArrowRight size={16} />
@@ -444,10 +517,10 @@ export default function BookingForm() {
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs space-y-2 text-slate-600">
               <div className="font-bold text-slate-800 text-sm mb-1">Xác nhận thông tin đặt khám:</div>
               <div className="grid grid-cols-2 gap-2">
-                <div>Bác sĩ: <strong className="text-slate-800">{selectedDoctor.name}</strong></div>
-                <div>Phòng khám: <strong className="text-slate-800">{selectedDoctor.room}</strong></div>
-                <div>Khung giờ: <strong className="text-blue-600">{selectedSlot.time} ({selectedSlot.date})</strong></div>
-                <div>Giá khám tư vấn: <strong className="text-emerald-600">{selectedDoctor.fee.toLocaleString('vi-VN')} đ</strong></div>
+                <div>Bác sĩ: <strong className="text-slate-800">{selectedDoctor?.name || 'Bác sĩ chuyên khoa'}</strong></div>
+                <div>Phòng khám: <strong className="text-slate-800">{selectedDoctor?.room || 'Phòng khám chuyên khoa'}</strong></div>
+                <div>Khung giờ: <strong className="text-blue-600">{selectedSlot.time} • Ngày {selectedSlot.date}</strong></div>
+                <div>Giá khám tư vấn: <strong className="text-emerald-600">{Number(selectedDoctor?.fee || 200000).toLocaleString('vi-VN')} đ</strong></div>
               </div>
             </div>
 
@@ -506,15 +579,15 @@ export default function BookingForm() {
                 <div className="space-y-2 text-sm">
                   <div>
                     <span className="text-xs text-slate-400 block">Bác sĩ chuyên khoa:</span>
-                    <strong className="text-slate-800 font-semibold">{selectedDoctor.name}</strong>
+                    <strong className="text-slate-800 font-semibold">{selectedDoctor?.name || 'Bác sĩ chuyên khoa'}</strong>
                   </div>
                   <div>
                     <span className="text-xs text-slate-400 block">Địa điểm & Phòng khám:</span>
-                    <span className="text-slate-700 font-medium">{selectedDoctor.room}</span>
+                    <span className="text-slate-700 font-medium">{selectedDoctor?.room || 'Phòng khám chuyên khoa'}</span>
                   </div>
                   <div>
                     <span className="text-xs text-slate-400 block">Khung giờ hẹn:</span>
-                    <span className="text-blue-600 font-bold">{selectedSlot.time} (Hôm nay)</span>
+                    <span className="text-blue-600 font-bold">{selectedSlot.time} • Ngày {selectedSlot.date}</span>
                   </div>
                 </div>
 
@@ -572,6 +645,14 @@ export default function BookingForm() {
           </div>
         )}
       </div>
+
+      {/* ── Overlay Khóa Đa Tab (Single Tab Enforcement) ── */}
+      <SingleTabLockOverlay
+        isBlocked={isBlocked}
+        moduleName="Cổng Đặt Lịch Khám Trực Tuyến"
+        onTakeOver={handleTakeOver}
+        description="Để tránh xung đột khóa giữ chỗ (Optimistic Slot Locking) và ngăn ngừa đặt trùng lịch hẹn, hệ thống chỉ cho phép bạn thao tác trên 1 tab duy nhất."
+      />
     </div>
   );
 }

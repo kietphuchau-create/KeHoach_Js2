@@ -33,4 +33,21 @@ public class DoctorPrescriptionDtos {
             String status,
             Instant createdAt
     ) {}
+
+    public record QueuePatientDto(
+            String id,
+            String queueNumber,
+            String bookingCode,
+            String patientName,
+            String gender,
+            int birthYear,
+            String phone,
+            String cccd,
+            String symptoms,
+            String aiSummary,
+            String status,
+            String checkInTime,
+            String appointmentTime
+    ) {}
 }
+

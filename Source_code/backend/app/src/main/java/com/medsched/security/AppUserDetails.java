@@ -30,6 +30,7 @@ public class AppUserDetails implements UserDetails {
     private final String email;
     private final String passwordHash;
     private final boolean active;
+    private final String currentSessionId;
     private final List<GrantedAuthority> authorities;
     private final List<String> roleNames;
 
@@ -38,6 +39,7 @@ public class AppUserDetails implements UserDetails {
         this.email = user.getEmail();
         this.passwordHash = user.getPasswordHash();
         this.active = user.isActive();
+        this.currentSessionId = user.getCurrentSessionId();
 
         List<GrantedAuthority> granted = new ArrayList<>();
         List<String> names = new ArrayList<>();
@@ -63,6 +65,10 @@ public class AppUserDetails implements UserDetails {
 
     public String getEmail() {
         return email;
+    }
+
+    public String getCurrentSessionId() {
+        return currentSessionId;
     }
 
     /** Authorities as plain strings, embedded in the JWT and returned to the client. */

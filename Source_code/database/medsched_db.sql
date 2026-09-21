@@ -28,6 +28,8 @@ CREATE DATABASE IF NOT EXISTS medsched_db
     CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE medsched_db;
 
+SET NAMES utf8mb4;
+SET CHARACTER SET utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
 DROP TABLE IF EXISTS doctor_reviews;
@@ -91,6 +93,7 @@ CREATE TABLE users (
     full_name VARCHAR(255) NOT NULL,
     phone VARCHAR(20),
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    current_session_id VARCHAR(64),
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     created_by VARCHAR(36),
@@ -440,126 +443,198 @@ CREATE INDEX idx_doctor_reviews_doctor ON doctor_reviews(doctor_id);
 
 -- [1] Hai chi nhánh
 INSERT INTO medical_centers (id, code, name, address, phone) VALUES
-('00000000-0000-0000-0000-000000000001', 'MED_Q1', 'Bệnh Viện Đa Khoa MedSched - Chi Nhánh Quận 1', 'Số 123 Nguyễn Thị Minh Khai, P. Bến Thành, Q.1, TP.HCM', '02839123456'),
-('00000000-0000-0000-0000-000000000002', 'MED_Q7', 'Bệnh Viện Đa Khoa MedSched - Chi Nhánh Quận 7', 'Số 45 Nguyễn Thị Thập, P. Tân Phú, Q.7, TP.HCM', '02839998877');
+('a1b2c3d4-0001-4000-8000-000000000001', 'MED_Q1', 'Bệnh Viện Đa Khoa MedSched - Chi Nhánh Quận 1', 'Số 123 Nguyễn Thị Minh Khai, P. Bến Thành, Q.1, TP.HCM', '02839123456'),
+('a1b2c3d4-0002-4000-8000-000000000002', 'MED_Q7', 'Bệnh Viện Đa Khoa MedSched - Chi Nhánh Quận 7', 'Số 45 Nguyễn Thị Thập, P. Tân Phú, Q.7, TP.HCM', '02839998877');
 
 INSERT INTO system_settings (id, medical_center_id, setting_key, setting_value, description) VALUES
-('10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'DEFAULT_SLOT_DURATION_MINUTES', '30', 'Thời lượng khám mặc định cho mỗi ca'),
-('10000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'BUFFER_TIME_MINUTES', '5', 'Thời gian chuẩn bị giữa 2 ca khám'),
-('10000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', 'CANCELLATION_LIMIT_HOURS', '2', 'Cho phép hủy lịch hẹn trước tối thiểu 2 giờ'),
-('10000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000001', 'MAX_NO_SHOW_PENALTY', '3', 'Số lần bỏ hẹn tối đa trước khi bị hạn chế đặt online');
+('b1b2c3d4-0001-4000-8000-000000000001', 'a1b2c3d4-0001-4000-8000-000000000001', 'DEFAULT_SLOT_DURATION_MINUTES', '30', 'Thời lượng khám mặc định cho mỗi ca'),
+('b1b2c3d4-0002-4000-8000-000000000002', 'a1b2c3d4-0001-4000-8000-000000000001', 'BUFFER_TIME_MINUTES', '5', 'Thời gian chuẩn bị giữa 2 ca khám'),
+('b1b2c3d4-0003-4000-8000-000000000003', 'a1b2c3d4-0001-4000-8000-000000000001', 'CANCELLATION_LIMIT_HOURS', '2', 'Cho phép hủy lịch hẹn trước tối thiểu 2 giờ'),
+('b1b2c3d4-0004-4000-8000-000000000004', 'a1b2c3d4-0001-4000-8000-000000000001', 'MAX_NO_SHOW_PENALTY', '3', 'Số lần bỏ hẹn tối đa trước khi bị hạn chế đặt online');
 
 INSERT INTO specialties (id, medical_center_id, name, code, description) VALUES
-('55555555-5555-5555-5555-555555555551', '00000000-0000-0000-0000-000000000001', 'Chuyên khoa Da liễu', 'DERMATOLOGY', 'Chẩn đoán và điều trị bệnh ngoài da, mẩn ngứa, viêm da dị ứng'),
-('55555555-5555-5555-5555-555555555552', '00000000-0000-0000-0000-000000000001', 'Chuyên khoa Nội tổng quát', 'INTERNAL_MEDICINE', 'Khám nội khoa người lớn, tim mạch, huyết áp, tiêu hóa'),
-('55555555-5555-5555-5555-555555555553', '00000000-0000-0000-0000-000000000001', 'Chuyên khoa Răng Hàm Mặt', 'ODONTO_STOMATOLOGY', 'Chăm sóc, điều trị và phục hình răng miệng'),
-('55555555-5555-5555-5555-555555555554', '00000000-0000-0000-0000-000000000001', 'Chuyên khoa Mắt', 'OPHTHALMOLOGY', 'Khám thị lực và điều trị khúc xạ, bệnh lý mắt'),
--- Chi nhánh Q7 cũng có khoa Da liễu riêng (cùng code, khác chi nhánh -> hợp lệ
--- nhờ UNIQUE(medical_center_id, code))
-('55555555-5555-5555-5555-555555555557', '00000000-0000-0000-0000-000000000002', 'Chuyên khoa Da liễu', 'DERMATOLOGY', 'Khoa Da liễu chi nhánh Quận 7');
+('c1b2c3d4-0001-4000-8000-000000000001', 'a1b2c3d4-0001-4000-8000-000000000001', 'Chuyên khoa Da liễu', 'DERMATOLOGY', 'Chẩn đoán và điều trị bệnh ngoài da, mẩn ngứa, viêm da dị ứng'),
+('c1b2c3d4-0002-4000-8000-000000000002', 'a1b2c3d4-0001-4000-8000-000000000001', 'Chuyên khoa Nội tổng quát', 'INTERNAL_MEDICINE', 'Khám nội khoa người lớn, tim mạch, huyết áp, tiêu hóa'),
+('c1b2c3d4-0003-4000-8000-000000000003', 'a1b2c3d4-0001-4000-8000-000000000001', 'Chuyên khoa Răng Hàm Mặt', 'ODONTO_STOMATOLOGY', 'Chăm sóc, điều trị và phục hình răng miệng'),
+('c1b2c3d4-0004-4000-8000-000000000004', 'a1b2c3d4-0001-4000-8000-000000000001', 'Chuyên khoa Mắt', 'OPHTHALMOLOGY', 'Khám thị lực và điều trị khúc xạ, bệnh lý mắt'),
+('c1b2c3d4-0005-4000-8000-000000000005', 'a1b2c3d4-0002-4000-8000-000000000002', 'Chuyên khoa Da liễu', 'DERMATOLOGY', 'Khoa Da liễu chi nhánh Quận 7');
 
--- Danh mục dịch vụ khám (bảng giá) của từng chuyên khoa - phục vụ CRUD service
+-- Danh mục dịch vụ khám (bảng giá) của từng chuyên khoa
 INSERT INTO services (id, specialty_id, name, code, description, price, estimated_duration_minutes) VALUES
-('5e100000-0000-0000-0000-000000000001', '55555555-5555-5555-5555-555555555551', 'Khám Da liễu cơ bản', 'DERM_BASIC', 'Khám và tư vấn các bệnh da liễu thông thường', 300000.00, 30),
-('5e100000-0000-0000-0000-000000000002', '55555555-5555-5555-5555-555555555551', 'Điều trị Laser vết nám', 'DERM_LASER', 'Điều trị nám, tàn nhang bằng công nghệ laser', 1200000.00, 45),
-('5e100000-0000-0000-0000-000000000003', '55555555-5555-5555-5555-555555555552', 'Khám Nội tổng quát', 'INT_BASIC', 'Khám nội khoa tổng quát, đo huyết áp, tư vấn dinh dưỡng', 250000.00, 30);
+('d1b2c3d4-0001-4000-8000-000000000001', 'c1b2c3d4-0001-4000-8000-000000000001', 'Khám Da liễu cơ bản', 'DERM_BASIC', 'Khám và tư vấn các bệnh da liễu thông thường', 300000.00, 30),
+('d1b2c3d4-0002-4000-8000-000000000002', 'c1b2c3d4-0001-4000-8000-000000000001', 'Điều trị Laser vết nám', 'DERM_LASER', 'Điều trị nám, tàn nhang bằng công nghệ laser', 1200000.00, 45),
+('d1b2c3d4-0003-4000-8000-000000000003', 'c1b2c3d4-0002-4000-8000-000000000002', 'Khám Nội tổng quát', 'INT_BASIC', 'Khám nội khoa tổng quát, đo huyết áp, tư vấn dinh dưỡng', 250000.00, 30);
 
--- Tài khoản: KHÔNG có cột role, KHÔNG gắn chi nhánh (danh tính toàn cục)
--- Mật khẩu của TẤT CẢ tài khoản mẫu: Medsched@123 (hash BCrypt cost 10).
--- Dùng để đăng nhập thử 4 luồng Login của Task 1.
+-- Tài khoản người dùng hệ thống.
+-- Mật khẩu của TẤT CẢ tài khoản mẫu: Medsched@123 (hash BCrypt cost 10: $2a$10$ahoI91g3N9UKv5TBC8/KnugbB5LeGWqti0P/cwgrxYh..X9Jxxwti).
 INSERT INTO users (id, email, password_hash, full_name, phone) VALUES
-('11111111-1111-1111-1111-111111111111', 'dr.minhanh@medsched.vn', '$2a$10$ahoI91g3N9UKv5TBC8/KnugbB5LeGWqti0P/cwgrxYh..X9Jxxwti', 'BS.CKII Nguyễn Minh Anh', '0901234567'),
-('22222222-2222-2222-2222-222222222222', 'benhnhan.demo@gmail.com', '$2a$10$ahoI91g3N9UKv5TBC8/KnugbB5LeGWqti0P/cwgrxYh..X9Jxxwti', 'Trần Văn Hoàng', '0912345678'),
-('33333333-3333-3333-3333-333333333333', 'letan.q1@medsched.vn', '$2a$10$ahoI91g3N9UKv5TBC8/KnugbB5LeGWqti0P/cwgrxYh..X9Jxxwti', 'Lễ Tân Tiếp Đón 01', '0988776655'),
-('ad000000-0000-0000-0000-000000000001', 'admin@medsched.vn', '$2a$10$ahoI91g3N9UKv5TBC8/KnugbB5LeGWqti0P/cwgrxYh..X9Jxxwti', 'Quản Trị Viên Hệ Thống', '0900000001');
+('e1b2c3d4-0001-4000-8000-000000000001', 'admin@medsched.vn', '$2a$10$ahoI91g3N9UKv5TBC8/KnugbB5LeGWqti0P/cwgrxYh..X9Jxxwti', 'Quản Trị Viên Hệ Thống', '0900000001'),
+('e1b2c3d4-0002-4000-8000-000000000002', 'dr.minhanh@medsched.vn', '$2a$10$ahoI91g3N9UKv5TBC8/KnugbB5LeGWqti0P/cwgrxYh..X9Jxxwti', 'BS.CKII Nguyễn Minh Anh', '0901234567'),
+('e1b2c3d4-0003-4000-8000-000000000003', 'dr.tranhung@medsched.vn', '$2a$10$ahoI91g3N9UKv5TBC8/KnugbB5LeGWqti0P/cwgrxYh..X9Jxxwti', 'PGS.TS Trần Văn Hùng', '0902345678'),
+('e1b2c3d4-0004-4000-8000-000000000004', 'letan.q1@medsched.vn', '$2a$10$ahoI91g3N9UKv5TBC8/KnugbB5LeGWqti0P/cwgrxYh..X9Jxxwti', 'Lễ Tân Tiếp Đón 01', '0988776655'),
+('e1b2c3d4-0005-4000-8000-000000000005', 'benhnhan.demo@gmail.com', '$2a$10$ahoI91g3N9UKv5TBC8/KnugbB5LeGWqti0P/cwgrxYh..X9Jxxwti', 'Trần Văn Hoàng', '0912345678'),
+('e1b2c3d4-0006-4000-8000-000000000006', 'lethithuha@gmail.com', '$2a$10$ahoI91g3N9UKv5TBC8/KnugbB5LeGWqti0P/cwgrxYh..X9Jxxwti', 'Lê Thị Thu Hà', '0923456789'),
+('e1b2c3d4-0007-4000-8000-000000000007', 'nguyenquocbao@gmail.com', '$2a$10$ahoI91g3N9UKv5TBC8/KnugbB5LeGWqti0P/cwgrxYh..X9Jxxwti', 'Nguyễn Quốc Bảo', '0934567890'),
+('e1b2c3d4-0008-4000-8000-000000000008', 'phamminhduc@gmail.com', '$2a$10$ahoI91g3N9UKv5TBC8/KnugbB5LeGWqti0P/cwgrxYh..X9Jxxwti', 'Phạm Minh Đức', '0945678901'),
+('e1b2c3d4-0009-4000-8000-000000000009', 'hoangmaianh@gmail.com', '$2a$10$ahoI91g3N9UKv5TBC8/KnugbB5LeGWqti0P/cwgrxYh..X9Jxxwti', 'Hoàng Thị Mai Anh', '0956789012'),
+('e1b2c3d4-0010-4000-8000-000000000010', 'doquangvinh@gmail.com', '$2a$10$ahoI91g3N9UKv5TBC8/KnugbB5LeGWqti0P/cwgrxYh..X9Jxxwti', 'Đỗ Quang Vinh', '0967890123'),
+('e1b2c3d4-0011-4000-8000-000000000011', 'vuthaonguyen@gmail.com', '$2a$10$ahoI91g3N9UKv5TBC8/KnugbB5LeGWqti0P/cwgrxYh..X9Jxxwti', 'Vũ Thảo Nguyên', '0978901234');
 
--- Quyền nhân sự theo chi nhánh. Bác sĩ Minh Anh trực CẢ Q1 VÀ Q7 (2 dòng).
--- Tài khoản bệnh nhân (2222...) cố ý KHÔNG có dòng nào ở đây: mọi tài khoản
--- đều đặt lịch khám được ở mọi chi nhánh mà không cần cấp quyền.
+-- Phân quyền nhân sự theo từng cơ sở khám chữa bệnh
 INSERT INTO user_medical_center_roles (id, user_id, medical_center_id, role) VALUES
-('77777777-7777-7777-7777-777777777771', '11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000001', 'ROLE_DOCTOR'),
-('77777777-7777-7777-7777-777777777772', '11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000002', 'ROLE_DOCTOR'),
-('77777777-7777-7777-7777-777777777773', '33333333-3333-3333-3333-333333333333', '00000000-0000-0000-0000-000000000001', 'ROLE_STAFF'),
-('77777777-7777-7777-7777-777777777774', 'ad000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'ROLE_ADMIN');
+('f1b2c3d4-0001-4000-8000-000000000001', 'e1b2c3d4-0002-4000-8000-000000000002', 'a1b2c3d4-0001-4000-8000-000000000001', 'ROLE_DOCTOR'),
+('f1b2c3d4-0002-4000-8000-000000000002', 'e1b2c3d4-0002-4000-8000-000000000002', 'a1b2c3d4-0002-4000-8000-000000000002', 'ROLE_DOCTOR'),
+('f1b2c3d4-0003-4000-8000-000000000003', 'e1b2c3d4-0003-4000-8000-000000000003', 'a1b2c3d4-0001-4000-8000-000000000001', 'ROLE_DOCTOR'),
+('f1b2c3d4-0004-4000-8000-000000000004', 'e1b2c3d4-0004-4000-8000-000000000004', 'a1b2c3d4-0001-4000-8000-000000000001', 'ROLE_STAFF'),
+('f1b2c3d4-0005-4000-8000-000000000005', 'e1b2c3d4-0001-4000-8000-000000000001', 'a1b2c3d4-0001-4000-8000-000000000001', 'ROLE_ADMIN');
 
--- Cùng 1 user_id nhưng 2 hồ sơ bác sĩ ở 2 chuyên khoa/chi nhánh khác nhau
--- (hợp lệ nhờ UNIQUE(user_id, specialty_id) thay cho UNIQUE(user_id))
+-- Hồ sơ hành nghề bác sĩ (1 bác sĩ có thể trực tại nhiều khoa/chi nhánh)
 INSERT INTO doctors (id, user_id, specialty_id, academic_title, consultation_fee, room_number, bio) VALUES
-('44444444-4444-4444-4444-444444444441',
- '11111111-1111-1111-1111-111111111111',
- '55555555-5555-5555-5555-555555555551',
- 'BS.CKII', 300000.00, 'P.205', 'Chuyên gia đầu ngành Da liễu với hơn 15 năm kinh nghiệm điều trị.'),
-('44444444-4444-4444-4444-444444444442',
- '11111111-1111-1111-1111-111111111111',
- '55555555-5555-5555-5555-555555555557',
- 'BS.CKII', 250000.00, 'P.101', 'Cùng bác sĩ trên, lịch trực chiều tại chi nhánh Quận 7.');
+('10b2c3d4-0001-4000-8000-000000000001', 'e1b2c3d4-0002-4000-8000-000000000002', 'c1b2c3d4-0001-4000-8000-000000000001', 'BS.CKII', 300000.00, 'P.205', 'Chuyên gia đầu ngành Da liễu với hơn 15 năm kinh nghiệm điều trị.'),
+('10b2c3d4-0002-4000-8000-000000000002', 'e1b2c3d4-0002-4000-8000-000000000002', 'c1b2c3d4-0005-4000-8000-000000000005', 'BS.CKII', 250000.00, 'P.101', 'Cùng bác sĩ trên, lịch trực chiều tại chi nhánh Quận 7.'),
+('10b2c3d4-0003-4000-8000-000000000003', 'e1b2c3d4-0003-4000-8000-000000000003', 'c1b2c3d4-0002-4000-8000-000000000002', 'PGS.TS', 350000.00, 'P.208', 'Chuyên gia Nội tổng quát, tim mạch học và rối loạn chuyển hóa.');
 
--- Hồ sơ người khám: toàn cục theo tài khoản, dùng được ở mọi chi nhánh
+-- Hồ sơ thông tin bệnh nhân (Patient Profiles)
 INSERT INTO patient_profiles (id, user_id, relationship, full_name, cccd_number, health_insurance_no, date_of_birth, gender, phone, address, medical_history) VALUES
-('66666666-6666-6666-6666-666666666661',
- '22222222-2222-2222-2222-222222222222', 'SELF',
- 'Trần Văn Hoàng', '079201008899', 'DN4790123456789', '2001-05-12', 'MALE', '0912345678', 'Quận 1, TP.HCM', 'Dị ứng phấn hoa nhẹ'),
-('66666666-6666-6666-6666-666666666662',
- '22222222-2222-2222-2222-222222222222', 'PARENT',
- 'Trần Văn Bảy (Bố)', '079060001234', 'GD4790987654321', '1960-03-20', 'MALE', '0912345678', 'Quận 1, TP.HCM', 'Tiền sử tăng huyết áp và đái tháo đường type 2');
+('20b2c3d4-0001-4000-8000-000000000001', 'e1b2c3d4-0005-4000-8000-000000000005', 'SELF', 'Trần Văn Hoàng', '079201008899', 'DN4790123456789', '2001-05-12', 'MALE', '0912345678', 'Quận 1, TP.HCM', 'Dị ứng phấn hoa nhẹ'),
+('20b2c3d4-0002-4000-8000-000000000002', 'e1b2c3d4-0005-4000-8000-000000000005', 'PARENT', 'Trần Văn Bảy (Bố)', '079060001234', 'GD4790987654321', '1960-03-20', 'MALE', '0912345678', 'Quận 1, TP.HCM', 'Tiền sử tăng huyết áp và đái tháo đường type 2'),
+('20b2c3d4-0003-4000-8000-000000000003', 'e1b2c3d4-0006-4000-8000-000000000006', 'SELF', 'Lê Thị Thu Hà', '079195004321', 'DN4791950043210', '1995-08-14', 'FEMALE', '0923456789', 'Quận 3, TP.HCM', 'Da nhạy cảm, dễ kích ứng hóa mỹ phẩm'),
+('20b2c3d4-0004-4000-8000-000000000004', 'e1b2c3d4-0007-4000-8000-000000000007', 'SELF', 'Nguyễn Quốc Bảo', '079088007654', 'DN4790880076541', '1988-11-25', 'MALE', '0934567890', 'Bình Thạnh, TP.HCM', 'Tiền sử dị ứng tôm cua biển'),
+('20b2c3d4-0005-4000-8000-000000000005', 'e1b2c3d4-0008-4000-8000-000000000008', 'SELF', 'Phạm Minh Đức', '079192003322', 'DN4791920033222', '1992-04-10', 'MALE', '0945678901', 'Quận 10, TP.HCM', 'Chàm khô từng đợt vào mùa đông'),
+('20b2c3d4-0006-4000-8000-000000000006', 'e1b2c3d4-0009-4000-8000-000000000009', 'SELF', 'Hoàng Thị Mai Anh', '079198005544', 'DN4791980055443', '1998-09-30', 'FEMALE', '0956789012', 'Tân Bình, TP.HCM', 'Không có tiền sử bệnh lý mạn tính'),
+('20b2c3d4-0007-4000-8000-000000000007', 'e1b2c3d4-0010-4000-8000-000000000010', 'SELF', 'Đỗ Quang Vinh', '079085002211', 'DN4790850022114', '1985-02-18', 'MALE', '0967890123', 'Phú Nhuận, TP.HCM', 'Vảy nến da đầu thể mảng 5 năm'),
+('20b2c3d4-0008-4000-8000-000000000008', 'e1b2c3d4-0011-4000-8000-000000000011', 'SELF', 'Vũ Thảo Nguyên', '079203009988', 'DN4792030099885', '2003-12-05', 'FEMALE', '0978901234', 'Gò Vấp, TP.HCM', 'Viêm mũi dị ứng thời tiết');
 
+-- Lịch trực bác sĩ trong ngày hiện tại (2026-09-21)
 INSERT INTO doctor_schedules (id, doctor_id, work_date, start_time, end_time, slot_duration_minutes, status) VALUES
-('88888888-8888-8888-8888-888888888881', '44444444-4444-4444-4444-444444444441', '2026-09-10', '08:00:00', '12:00:00', 30, 'COMPLETED'),
-('88888888-8888-8888-8888-888888888882', '44444444-4444-4444-4444-444444444442', '2026-09-12', '13:30:00', '17:00:00', 30, 'ACTIVE');
+('30b2c3d4-0001-4000-8000-000000000001', '10b2c3d4-0001-4000-8000-000000000001', '2026-09-21', '08:00:00', '12:00:00', 30, 'ACTIVE'),
+('30b2c3d4-0002-4000-8000-000000000002', '10b2c3d4-0002-4000-8000-000000000002', '2026-09-21', '13:30:00', '17:00:00', 30, 'ACTIVE'),
+('30b2c3d4-0003-4000-8000-000000000003', '10b2c3d4-0003-4000-8000-000000000003', '2026-09-21', '08:00:00', '12:00:00', 30, 'ACTIVE');
 
+-- Khung giờ khám (Time Slots) ngày 2026-09-21 cho BS.CKII Nguyễn Minh Anh (Phòng P.205 - Q1)
 INSERT INTO time_slots (id, schedule_id, doctor_id, start_time, end_time, status) VALUES
-('99999999-9999-9999-9999-999999999991', '88888888-8888-8888-8888-888888888881', '44444444-4444-4444-4444-444444444441', '2026-09-10 09:00:00', '2026-09-10 09:30:00', 'BOOKED'),
-('99999999-9999-9999-9999-999999999992', '88888888-8888-8888-8888-888888888882', '44444444-4444-4444-4444-444444444442', '2026-09-12 14:00:00', '2026-09-12 14:30:00', 'BOOKED');
+('40b2c3d4-0001-4000-8000-000000000001', '30b2c3d4-0001-4000-8000-000000000001', '10b2c3d4-0001-4000-8000-000000000001', '2026-09-21 08:00:00', '2026-09-21 08:30:00', 'BOOKED'),
+('40b2c3d4-0002-4000-8000-000000000002', '30b2c3d4-0001-4000-8000-000000000001', '10b2c3d4-0001-4000-8000-000000000001', '2026-09-21 08:30:00', '2026-09-21 09:00:00', 'BOOKED'),
+('40b2c3d4-0003-4000-8000-000000000003', '30b2c3d4-0001-4000-8000-000000000001', '10b2c3d4-0001-4000-8000-000000000001', '2026-09-21 09:00:00', '2026-09-21 09:30:00', 'BOOKED'),
+('40b2c3d4-0004-4000-8000-000000000004', '30b2c3d4-0001-4000-8000-000000000001', '10b2c3d4-0001-4000-8000-000000000001', '2026-09-21 09:30:00', '2026-09-21 10:00:00', 'BOOKED'),
+('40b2c3d4-0005-4000-8000-000000000005', '30b2c3d4-0001-4000-8000-000000000001', '10b2c3d4-0001-4000-8000-000000000001', '2026-09-21 10:00:00', '2026-09-21 10:30:00', 'BOOKED'),
+('40b2c3d4-0006-4000-8000-000000000006', '30b2c3d4-0001-4000-8000-000000000001', '10b2c3d4-0001-4000-8000-000000000001', '2026-09-21 10:30:00', '2026-09-21 11:00:00', 'BOOKED'),
+('40b2c3d4-0007-4000-8000-000000000007', '30b2c3d4-0001-4000-8000-000000000001', '10b2c3d4-0001-4000-8000-000000000001', '2026-09-21 11:00:00', '2026-09-21 11:30:00', 'BOOKED'),
+('40b2c3d4-0008-4000-8000-000000000008', '30b2c3d4-0001-4000-8000-000000000001', '10b2c3d4-0001-4000-8000-000000000001', '2026-09-21 11:30:00', '2026-09-21 12:00:00', 'AVAILABLE');
 
--- CHỨNG MINH SỬA ĐỔI [1]: cùng 1 patient_profile_id (66...61) có 2 ca khám ở
--- 2 medical_center_id khác nhau, dùng CHUNG 1 tài khoản users(22...22).
-INSERT INTO appointments (id, booking_code, medical_center_id, patient_profile_id, doctor_id, slot_id, queue_number, queue_type, patient_symptoms, ai_summary, checkin_method, status, check_in_time) VALUES
-('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1', 'MS26091001', '00000000-0000-0000-0000-000000000001',
- '66666666-6666-6666-6666-666666666661', '44444444-4444-4444-4444-444444444441',
- '99999999-9999-9999-9999-999999999991', 'APP-1001', 'ONLINE_BOOKED',
+-- Danh sách ca khám (Appointments) chuẩn hóa quy trình phòng khám:
+-- 2 ca đã hoàn tất (COMPLETED), 1 ca đang khám (IN_PROGRESS), 2 ca đã tiếp đón đang chờ (CHECKED_IN), 2 ca chưa tới (CONFIRMED)
+INSERT INTO appointments (id, booking_code, medical_center_id, patient_profile_id, doctor_id, slot_id, queue_number, queue_type, patient_symptoms, ai_summary, checkin_method, status, is_delayed, delay_minutes, check_in_time, created_at) VALUES
+('50b2c3d4-0001-4000-8000-000000000001', 'MS26092101', 'a1b2c3d4-0001-4000-8000-000000000001',
+ '20b2c3d4-0003-4000-8000-000000000003', '10b2c3d4-0001-4000-8000-000000000001',
+ '40b2c3d4-0001-4000-8000-000000000001', 'STT-01', 'ONLINE_BOOKED',
+ 'Ngứa rát và nổi mụn nước vùng hai mu bàn tay sau khi tiếp xúc nước tẩy rửa sàn nhà.',
+ 'Nữ 31 tuổi, tổn thương dạng chàm tiếp xúc cấp tính ở mu bàn tay do hóa chất tẩy rửa gia dụng.',
+ 'QR_CODE', 'COMPLETED', FALSE, 0, '2026-09-21 07:55:00', '2026-09-20 19:30:00'),
+
+('50b2c3d4-0002-4000-8000-000000000002', 'MS26092102', 'a1b2c3d4-0001-4000-8000-000000000001',
+ '20b2c3d4-0004-4000-8000-000000000004', '10b2c3d4-0001-4000-8000-000000000001',
+ '40b2c3d4-0002-4000-8000-000000000002', 'STT-02', 'ONLINE_BOOKED',
+ 'Nổi sẩn phù dạng mề đay toàn thân, ngứa dữ dội sau khi ăn hải sản tối qua.',
+ 'Nam 38 tuổi, mề đay cấp nghi do dị ứng thức ăn (hải sản), không khó thở, không phù mạch.',
+ 'QR_CODE', 'COMPLETED', FALSE, 0, '2026-09-21 08:25:00', '2026-09-20 21:00:00'),
+
+('50b2c3d4-0003-4000-8000-000000000003', 'MS26092103', 'a1b2c3d4-0001-4000-8000-000000000001',
+ '20b2c3d4-0001-4000-8000-000000000001', '10b2c3d4-0001-4000-8000-000000000001',
+ '40b2c3d4-0003-4000-8000-000000000003', 'STT-03', 'ONLINE_BOOKED',
  'Nổi mẩn đỏ vùng cổ và cánh tay 3 ngày, ngứa nhiều về đêm, đã tự bôi thuốc không đỡ.',
- 'Bệnh nhân nam 25 tuổi, mẩn đỏ ngứa vùng cổ/tay 3 ngày, tự điều trị không hiệu quả. Tiền sử dị ứng phấn hoa.',
- 'QR_CODE', 'COMPLETED', '2026-09-10 08:52:00'),
-('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2', 'MS26091202', '00000000-0000-0000-0000-000000000002',
- '66666666-6666-6666-6666-666666666661', '44444444-4444-4444-4444-444444444442',
- '99999999-9999-9999-9999-999999999992', 'APP-2001', 'ONLINE_BOOKED',
- 'Tái khám da liễu sau 2 ngày dùng thuốc, xin khám tại chi nhánh gần nhà (Quận 7).',
- 'Tái khám viêm da dị ứng sau 2 ngày điều trị, chuyển chi nhánh theo yêu cầu bệnh nhân.',
- NULL, 'CONFIRMED', NULL);
+ 'Nam 25 tuổi, mẩn đỏ ngứa vùng cổ và cánh tay 3 ngày, tự bôi kem chống dị ứng không thuyên giảm. Tiền sử dị ứng phấn hoa.',
+ 'QR_CODE', 'IN_PROGRESS', FALSE, 0, '2026-09-21 08:55:00', '2026-09-20 22:15:00'),
 
+('50b2c3d4-0004-4000-8000-000000000004', 'MS26092104', 'a1b2c3d4-0001-4000-8000-000000000001',
+ '20b2c3d4-0005-4000-8000-000000000005', '10b2c3d4-0001-4000-8000-000000000001',
+ '40b2c3d4-0004-4000-8000-000000000004', 'STT-04', 'ONLINE_BOOKED',
+ 'Tróc vảy ngứa ở hai khuỷu tay và đầu gối kéo dài 2 tuần, da khô nứt nẻ khó chịu.',
+ 'Nam 34 tuổi, tổn thương vảy da mạn tính đối xứng vùng khớp, nghi viêm da cơ địa hoặc vảy nến thể mảng.',
+ 'MANUAL', 'CHECKED_IN', FALSE, 0, '2026-09-21 09:20:00', '2026-09-21 07:10:00'),
+
+('50b2c3d4-0005-4000-8000-000000000005', 'MS26092105', 'a1b2c3d4-0001-4000-8000-000000000001',
+ '20b2c3d4-0006-4000-8000-000000000006', '10b2c3d4-0001-4000-8000-000000000001',
+ '40b2c3d4-0005-4000-8000-000000000005', 'STT-05', 'ONLINE_BOOKED',
+ 'Mụn viêm bọc tái phát nhiều ở hai bên má và trán, đau nhức khi chạm vào.',
+ 'Nữ 28 tuổi, mụn trứng cá viêm mức độ trung bình - nặng, cần tư vấn phác đồ kết hợp bôi và uống.',
+ 'QR_CODE', 'CHECKED_IN', FALSE, 0, '2026-09-21 09:25:00', '2026-09-21 07:45:00'),
+
+('50b2c3d4-0006-4000-8000-000000000006', 'MS26092106', 'a1b2c3d4-0001-4000-8000-000000000001',
+ '20b2c3d4-0007-4000-8000-000000000007', '10b2c3d4-0001-4000-8000-000000000001',
+ '40b2c3d4-0006-4000-8000-000000000006', 'STT-06', 'ONLINE_BOOKED',
+ 'Tái khám định kỳ theo hẹn, kiểm tra tiến triển tổn thương vảy nến da đầu.',
+ 'Nam 41 tuổi, tái khám vảy nến theo lịch hẹn, mang theo đơn thuốc cũ tháng trước.',
+ NULL, 'CONFIRMED', FALSE, 0, NULL, '2026-09-20 18:00:00'),
+
+('50b2c3d4-0007-4000-8000-000000000007', 'MS26092107', 'a1b2c3d4-0001-4000-8000-000000000001',
+ '20b2c3d4-0008-4000-8000-000000000008', '10b2c3d4-0001-4000-8000-000000000001',
+ '40b2c3d4-0007-4000-8000-000000000007', 'STT-07', 'ONLINE_BOOKED',
+ 'Khô da, ngứa nhiều vùng nếp gấp khủy tay và khoeo chân, gia đình có mẹ bị hen suyễn.',
+ 'Nữ 23 tuổi, cơ địa dị ứng, biểu hiện viêm da thể tạng đợt bùng phát nhẹ.',
+ NULL, 'CONFIRMED', FALSE, 0, NULL, '2026-09-20 19:15:00');
+
+-- Nhật ký luồng xử lý trạng thái ca khám (Status Logs)
 INSERT INTO appointment_status_logs (id, appointment_id, from_status, to_status, reason, changed_by) VALUES
-('ffffffff-ffff-ffff-ffff-fffffffffff1', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1', 'CONFIRMED', 'CHECKED_IN', 'Quét mã QR vé hẹn tại quầy tiếp đón', '33333333-3333-3333-3333-333333333333'),
-('ffffffff-ffff-ffff-ffff-fffffffffff2', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1', 'CHECKED_IN', 'IN_PROGRESS', 'Bác sĩ gọi vào phòng khám', '11111111-1111-1111-1111-111111111111'),
-('ffffffff-ffff-ffff-ffff-fffffffffff3', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1', 'IN_PROGRESS', 'COMPLETED', 'Hoàn tất khám và kê đơn', '11111111-1111-1111-1111-111111111111');
+('60b2c3d4-0001-4000-8000-000000000001', '50b2c3d4-0001-4000-8000-000000000001', 'CONFIRMED', 'CHECKED_IN', 'Quét mã QR vé hẹn tại quầy tiếp đón', 'e1b2c3d4-0004-4000-8000-000000000004'),
+('60b2c3d4-0002-4000-8000-000000000001', '50b2c3d4-0001-4000-8000-000000000001', 'CHECKED_IN', 'IN_PROGRESS', 'Bác sĩ gọi số STT-01 vào phòng khám', 'e1b2c3d4-0002-4000-8000-000000000002'),
+('60b2c3d4-0003-4000-8000-000000000001', '50b2c3d4-0001-4000-8000-000000000001', 'IN_PROGRESS', 'COMPLETED', 'Bác sĩ kết luận chẩn đoán và hoàn tất kê đơn', 'e1b2c3d4-0002-4000-8000-000000000002'),
+('60b2c3d4-0004-4000-8000-000000000002', '50b2c3d4-0002-4000-8000-000000000002', 'CONFIRMED', 'CHECKED_IN', 'Quét mã QR vé hẹn tại quầy tiếp đón', 'e1b2c3d4-0004-4000-8000-000000000004'),
+('60b2c3d4-0005-4000-8000-000000000002', '50b2c3d4-0002-4000-8000-000000000002', 'CHECKED_IN', 'IN_PROGRESS', 'Bác sĩ gọi số STT-02 vào phòng khám', 'e1b2c3d4-0002-4000-8000-000000000002'),
+('60b2c3d4-0006-4000-8000-000000000002', '50b2c3d4-0002-4000-8000-000000000002', 'IN_PROGRESS', 'COMPLETED', 'Bác sĩ kết luận chẩn đoán và hoàn tất kê đơn', 'e1b2c3d4-0002-4000-8000-000000000002'),
+('60b2c3d4-0007-4000-8000-000000000003', '50b2c3d4-0003-4000-8000-000000000003', 'CONFIRMED', 'CHECKED_IN', 'Bệnh nhân quét mã QR tại quầy tiếp đón', 'e1b2c3d4-0004-4000-8000-000000000004'),
+('60b2c3d4-0008-4000-8000-000000000003', '50b2c3d4-0003-4000-8000-000000000003', 'CHECKED_IN', 'IN_PROGRESS', 'Bác sĩ gọi số STT-03 vào phòng khám', 'e1b2c3d4-0002-4000-8000-000000000002'),
+('60b2c3d4-0009-4000-8000-000000000004', '50b2c3d4-0004-4000-8000-000000000004', 'CONFIRMED', 'CHECKED_IN', 'Lễ tân tiếp đón và xác nhận hồ sơ tại quầy', 'e1b2c3d4-0004-4000-8000-000000000004'),
+('60b2c3d4-0010-4000-8000-000000000005', '50b2c3d4-0005-4000-8000-000000000005', 'CONFIRMED', 'CHECKED_IN', 'Bệnh nhân quét mã QR tại quầy tiếp đón', 'e1b2c3d4-0004-4000-8000-000000000004');
 
+-- Kết luận khám và bệnh án y khoa (Medical Records)
 INSERT INTO medical_records (id, appointment_id, diagnosis, doctor_notes) VALUES
-('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1',
- 'Viêm da dị ứng cấp (ICD-10: L23.9)',
- 'Tránh tiếp xúc chất tẩy rửa, không chà xát vùng tổn thương. Tái khám sau 2 ngày nếu không giảm ngứa.');
+('70b2c3d4-0001-4000-8000-000000000001', '50b2c3d4-0001-4000-8000-000000000001',
+ 'Viêm da tiếp xúc dị ứng cấp do hóa chất tẩy rửa (ICD-10: L23.5)',
+ 'Tránh tiếp xúc trực tiếp hóa chất tẩy rửa, đeo găng tay cao su khi làm việc nhà. Tái khám sau 7 ngày nếu không thuyên giảm.'),
+('70b2c3d4-0002-4000-8000-000000000002', '50b2c3d4-0002-4000-8000-000000000002',
+ 'Mề đay cấp tính do dị ứng thực phẩm (ICD-10: L50.0)',
+ 'Kiêng hoàn toàn hải sản trong 2 tuần. Uống đủ 2 lít nước mỗi ngày. Tái khám ngay nếu có dấu hiệu khó thở hoặc sưng nề vùng mắt/môi.');
 
--- [3] Danh mục thuốc của chi nhánh Q1
+-- Danh mục thuốc của chi nhánh Q1
 INSERT INTO medicines (id, medical_center_id, code, name, active_ingredient, unit) VALUES
-('cccccccc-cccc-cccc-cccc-ccccccccccc1', '00000000-0000-0000-0000-000000000001', 'MED_CETIRIZIN', 'Cetirizine 10mg', 'Cetirizine hydrochloride', 'VIÊN'),
-('cccccccc-cccc-cccc-cccc-ccccccccccc2', '00000000-0000-0000-0000-000000000001', 'MED_HYDROCOR', 'Hydrocortisone cream 1%', 'Hydrocortisone acetate', 'TUÝP'),
-('cccccccc-cccc-cccc-cccc-ccccccccccc3', '00000000-0000-0000-0000-000000000001', 'MED_VITC', 'Vitamin C 500mg', 'Acid ascorbic', 'VIÊN');
+('80b2c3d4-0001-4000-8000-000000000001', 'a1b2c3d4-0001-4000-8000-000000000001', 'MED_CETIRIZIN', 'Cetirizine 10mg', 'Cetirizine hydrochloride', 'VIÊN'),
+('80b2c3d4-0002-4000-8000-000000000002', 'a1b2c3d4-0001-4000-8000-000000000001', 'MED_HYDROCOR', 'Hydrocortisone cream 1%', 'Hydrocortisone acetate', 'TUÝP'),
+('80b2c3d4-0003-4000-8000-000000000003', 'a1b2c3d4-0001-4000-8000-000000000001', 'MED_FEXOFEN', 'Fexofenadine 180mg (Telfast)', 'Fexofenadine hydrochloride', 'VIÊN'),
+('80b2c3d4-0004-4000-8000-000000000004', 'a1b2c3d4-0001-4000-8000-000000000001', 'MED_DESLORAT', 'Desloratadine 5mg', 'Desloratadine', 'VIÊN'),
+('80b2c3d4-0005-4000-8000-000000000005', 'a1b2c3d4-0001-4000-8000-000000000001', 'MED_VITC', 'Vitamin C 500mg', 'Acid ascorbic', 'VIÊN');
 
--- CHỨNG MINH SỬA ĐỔI [3]: đơn thuốc là các DÒNG dữ liệu truy vấn/thống kê được,
--- không còn là 1 đoạn TEXT. Dòng thứ 2 là thuốc ngoài danh mục (medicine_id NULL)
--- nhưng vẫn lưu đủ medicine_name/unit làm bản chụp lúc kê đơn.
-INSERT INTO prescription_items (id, medical_record_id, medicine_id, medicine_name, unit, dosage, frequency, duration_days, quantity, instruction) VALUES
-('dddddddd-dddd-dddd-dddd-ddddddddddd1', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1',
- 'cccccccc-cccc-cccc-cccc-ccccccccccc1', 'Cetirizine 10mg', 'VIÊN', '10mg', '1 lần/ngày, uống buổi tối', 5, 5.00, 'Uống sau ăn, có thể gây buồn ngủ nhẹ'),
-('dddddddd-dddd-dddd-dddd-ddddddddddd2', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1',
- NULL, 'Kem dưỡng ẩm Cetaphil (mua ngoài)', 'TUÝP', 'Thoa lớp mỏng', '2 lần/ngày sau khi rửa sạch', 7, 1.00, 'Thuốc ngoài danh mục bệnh viện, bệnh nhân tự mua tại nhà thuốc');
+-- Đơn thuốc điện tử (Prescriptions - CLAB-107)
+INSERT INTO prescriptions (id, appointment_id, medical_record_id, doctor_id, doctor_name, total_medicine_amount, status) VALUES
+('95b2c3d4-0001-4000-8000-000000000001', '50b2c3d4-0001-4000-8000-000000000001', '70b2c3d4-0001-4000-8000-000000000001', '10b2c3d4-0001-4000-8000-000000000001', 'BS.CKII Nguyễn Minh Anh', 85000.00, 'ACTIVE'),
+('95b2c3d4-0002-4000-8000-000000000002', '50b2c3d4-0002-4000-8000-000000000002', '70b2c3d4-0002-4000-8000-000000000002', '10b2c3d4-0001-4000-8000-000000000001', 'BS.CKII Nguyễn Minh Anh', 115000.00, 'ACTIVE');
 
--- CHỨNG MINH SỬA ĐỔI [2]: 1 ca khám - 2 lần thu tiền khác phương thức.
--- Cọc online trước qua VNPay (có transaction_ref của cổng) + thu thêm tại quầy
--- bằng tiền mặt (không có transaction_ref, do lễ tân 33...33 thu).
+-- Chi tiết từng loại thuốc trong đơn (Prescription Items)
+INSERT INTO prescription_items (id, prescription_id, medical_record_id, medicine_id, medicine_name, unit, dosage, frequency, duration_days, quantity, unit_price, instruction) VALUES
+('90b2c3d4-0001-4000-8000-000000000001', '95b2c3d4-0001-4000-8000-000000000001', '70b2c3d4-0001-4000-8000-000000000001',
+ '80b2c3d4-0001-4000-8000-000000000001', 'Cetirizine 10mg', 'VIÊN', '10mg', '1 lần/ngày, uống buổi tối sau ăn', 7, 7.00, 5000.00, 'Uống sau ăn tối, có thể gây buồn ngủ nhẹ'),
+('90b2c3d4-0002-4000-8000-000000000002', '95b2c3d4-0001-4000-8000-000000000001', '70b2c3d4-0001-4000-8000-000000000001',
+ '80b2c3d4-0002-4000-8000-000000000002', 'Hydrocortisone cream 1%', 'TUÝP', 'Thoa lớp mỏng', '2 lần/ngày (sáng, tối)', 7, 1.00, 50000.00, 'Thoa nhẹ nhàng sau khi rửa sạch và lau khô vùng da tổn thương'),
+('90b2c3d4-0003-4000-8000-000000000003', '95b2c3d4-0002-4000-8000-000000000002', '70b2c3d4-0002-4000-8000-000000000002',
+ '80b2c3d4-0003-4000-8000-000000000003', 'Fexofenadine 180mg (Telfast)', 'VIÊN', '180mg', '1 lần/ngày, uống buổi sáng sau ăn', 7, 7.00, 12000.00, 'Uống nguyên viên với nhiều nước'),
+('90b2c3d4-0004-4000-8000-000000000002', '95b2c3d4-0002-4000-8000-000000000002', '70b2c3d4-0002-4000-8000-000000000002',
+ '80b2c3d4-0005-4000-8000-000000000005', 'Vitamin C 500mg', 'VIÊN', '500mg', '2 lần/ngày (sáng, trưa)', 7, 14.00, 2200.00, 'Uống sau ăn để tăng sức bền thành mạch');
+
+-- Lịch sử thanh toán viện phí (Payments)
 INSERT INTO payments (id, appointment_id, amount, method, status, transaction_ref, paid_at, collected_by, note) VALUES
-('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeee1', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1', 100000.00, 'VNPAY', 'SUCCEEDED', 'VNPAY_26091013572468', '2026-09-09 21:15:00', NULL, 'Đặt cọc giữ chỗ online khi đặt lịch'),
-('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeee2', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1', 200000.00, 'CASH', 'SUCCEEDED', NULL, '2026-09-10 08:53:00', '33333333-3333-3333-3333-333333333333', 'Thu phần còn lại tại quầy khi check-in (tổng phí khám 300.000đ)');
+('a0b2c3d4-0001-4000-8000-000000000001', '50b2c3d4-0001-4000-8000-000000000001', 100000.00, 'VNPAY', 'SUCCEEDED', 'VNPAY_26092019324501', '2026-09-20 19:32:45', NULL, 'Đặt cọc giữ chỗ trực tuyến'),
+('a0b2c3d4-0002-4000-8000-000000000002', '50b2c3d4-0001-4000-8000-000000000001', 200000.00, 'CASH', 'SUCCEEDED', NULL, '2026-09-21 07:56:10', 'e1b2c3d4-0004-4000-8000-000000000004', 'Thu phí khám còn lại tại quầy tiếp đón'),
+('a0b2c3d4-0003-4000-8000-000000000003', '50b2c3d4-0002-4000-8000-000000000002', 300000.00, 'VNPAY', 'SUCCEEDED', 'VNPAY_26092021021502', '2026-09-20 21:02:15', NULL, 'Thanh toán 100% tiền khám trực tuyến qua VNPay'),
+('a0b2c3d4-0004-4000-8000-000000000004', '50b2c3d4-0003-4000-8000-000000000003', 100000.00, 'VNPAY', 'SUCCEEDED', 'VNPAY_26092022163003', '2026-09-20 22:16:30', NULL, 'Đặt cọc giữ chỗ trực tuyến'),
+('a0b2c3d4-0005-4000-8000-000000000005', '50b2c3d4-0004-4000-8000-000000000004', 300000.00, 'CASH', 'SUCCEEDED', NULL, '2026-09-21 09:21:00', 'e1b2c3d4-0004-4000-8000-000000000004', 'Thanh toán trọn gói phí khám tại quầy tiếp đón'),
+('a0b2c3d4-0006-4000-8000-000000000006', '50b2c3d4-0005-4000-8000-000000000005', 100000.00, 'VNPAY', 'SUCCEEDED', 'VNPAY_26092107471205', '2026-09-21 07:47:12', NULL, 'Đặt cọc giữ chỗ trực tuyến');
 
+-- Đánh giá chất lượng bác sĩ sau khi hoàn tất khám (Doctor Reviews & Spring AI Sentiment)
 INSERT INTO doctor_reviews (id, appointment_id, patient_profile_id, doctor_id, rating, comment, ai_sentiment, is_anonymous) VALUES
-('12121212-1212-1212-1212-121212121211', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1',
- '66666666-6666-6666-6666-666666666661', '44444444-4444-4444-4444-444444444441',
- 5, 'Bác sĩ khám rất kỹ và giải thích dễ hiểu, quầy tiếp đón quét QR nhanh gọn.', 'POSITIVE', FALSE);
+('f0b2c3d4-0001-4000-8000-000000000001', '50b2c3d4-0001-4000-8000-000000000001',
+ '20b2c3d4-0003-4000-8000-000000000003', '10b2c3d4-0001-4000-8000-000000000001',
+ 5, 'Bác sĩ Minh Anh giải thích rất cặn kẽ và ân cần. Quầy tiếp đón quét mã QR vào thẳng phòng khám, không phải chờ đợi lâu.', 'POSITIVE', FALSE),
+('f0b2c3d4-0002-4000-8000-000000000002', '50b2c3d4-0002-4000-8000-000000000002',
+ '20b2c3d4-0004-4000-8000-000000000004', '10b2c3d4-0001-4000-8000-000000000001',
+ 5, 'Uống thuốc theo đơn của bác sĩ chỉ sau 1 tiếng là các nốt mẩn đỏ lặn hẳn. Rất hài lòng về chất lượng dịch vụ!', 'POSITIVE', FALSE);
+

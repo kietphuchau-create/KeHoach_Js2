@@ -1,7 +1,14 @@
 import type { Metadata } from "next";
 import React from "react";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import HeaderNav from "@/shared/components/HeaderNav/HeaderNav";
+import ConcurrentSessionModal from "@/shared/components/Feedback/ConcurrentSessionModal";
+
+const inter = Inter({
+  subsets: ["latin", "vietnamese"],
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "MedSched - Smart Healthcare Appointment & Reception",
@@ -20,7 +27,8 @@ export default function RootLayout({
 }) {
   return (
     <html lang="vi">
-      <body className="min-h-screen bg-mint-soft text-slate-800 flex flex-col font-sans antialiased">
+      <body className={`${inter.className} min-h-screen bg-mint-soft text-slate-800 flex flex-col antialiased`}>
+        <ConcurrentSessionModal />
         <HeaderNav />
         <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-5 flex flex-col">
           {children}

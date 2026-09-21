@@ -39,6 +39,17 @@ class JwtServiceTest {
     }
 
     @Test
+    @DisplayName("Access token carries session ID when provided for single active session")
+    void accessTokenCarriesSessionId() {
+        JwtService jwt = jwtService();
+        String sessionId = "sess-123456";
+        String token = jwt.generateAccessToken("user-1", "a@b.com", List.of("ROLE_PATIENT"), sessionId);
+        Claims claims = jwt.parse(token);
+
+        assertThat(claims.get(JwtService.CLAIM_SESSION_ID, String.class)).isEqualTo(sessionId);
+    }
+
+    @Test
     @DisplayName("Access and refresh tokens can never be mistaken for each other")
     void accessAndRefreshTokensStaySeparate() {
         JwtService jwt = jwtService();

@@ -91,6 +91,23 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
+    if (
+      response.status === 401 &&
+      (errorData.error === "CONCURRENT_SESSION_EXPIRED" || errorData.code === "CONCURRENT_SESSION_EXPIRED")
+    ) {
+      clearAuthSession();
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("medsched:concurrent_kickout", {
+            detail: {
+              message:
+                errorData.message ||
+                "Tài khoản của bạn đã được đăng nhập trên một trình duyệt/thiết bị khác. Phiên làm việc tại đây đã kết thúc.",
+            },
+          })
+        );
+      }
+    }
     const message = errorData.detail || errorData.message || `Yêu cầu thất bại (${response.status})`;
     throw new Error(message);
   }
@@ -129,8 +146,28 @@ export const api = {
     return request<any>("/me");
   },
 
+  async getMe() {
+    return this.getProfile();
+  },
+
   async updateProfile(payload: { fullName: string; phone: string }) {
     return request<any>("/me", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async updatePatientProfile(payload: {
+    fullName: string;
+    cccdNumber?: string;
+    healthInsuranceNo?: string;
+    dateOfBirth?: string;
+    gender?: 'MALE' | 'FEMALE' | 'OTHER';
+    phone?: string;
+    address?: string;
+    medicalHistory?: string;
+  }) {
+    return request<any>("/me/patient-profile", {
       method: "PUT",
       body: JSON.stringify(payload),
     });
@@ -223,6 +260,14 @@ export const api = {
     return request<any[]>("/services");
   },
 
+  async getDoctors(params?: { specialtyId?: string; centerId?: string }) {
+    const query = new URLSearchParams();
+    if (params?.specialtyId) query.append("specialtyId", params.specialtyId);
+    if (params?.centerId) query.append("centerId", params.centerId);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    return request<any[]>(`/doctors${qs}`);
+  },
+
   // --- 5. ĐẶT LỊCH (APPOINTMENTS) & SPRING AI TRIAGE ---
   async bookAppointment(payload: {
     medicalCenterId?: string;
@@ -232,14 +277,9 @@ export const api = {
     symptoms?: string;
     medicalHistory?: string;
   }) {
-    // Đảm bảo medicalCenterId có giá trị nếu backend yêu cầu
-    const body = {
-      medicalCenterId: payload.medicalCenterId || "mc000001-0000-0000-0000-000000000001",
-      ...payload,
-    };
     return request<AppointmentResponse>("/appointments", {
       method: "POST",
-      body: JSON.stringify(body),
+      body: JSON.stringify(payload),
     });
   },
 
@@ -249,6 +289,13 @@ export const api = {
 
   async getAppointmentsByPatient(patientProfileId: string) {
     return request<AppointmentResponse[]>(`/appointments/patient/${patientProfileId}`);
+  },
+
+  async cancelAppointment(appointmentId: string, reason?: string) {
+    return request<any>(`/appointments/${appointmentId}/cancel`, {
+      method: "PATCH",
+      body: JSON.stringify({ reason: reason || "Bệnh nhân yêu cầu hủy qua cổng trực tuyến" }),
+    });
   },
 
   async triageSymptoms(symptoms: string) {
@@ -314,4 +361,40 @@ export const api = {
     }
     throw new Error("Vui lòng cung cấp mã QR vé hẹn hoặc số CCCD hợp lệ.");
   },
+
+  // --- 7. BUỒNG KHÁM BÁC SĨ (DOCTOR CLINIC & QUEUE) ---
+  async getDoctorQueue(doctorId?: string) {
+    const qs = doctorId ? `?doctorId=${encodeURIComponent(doctorId)}` : "";
+    return request<any[]>(`/doctor/queue${qs}`);
+  },
+
+  async createDoctorPrescription(appointmentId: string, payload: {
+    diagnosis: string;
+    doctorAdvice?: string;
+    items: Array<{
+      medicineName: string;
+      dosage?: string;
+      quantity: number;
+      unit?: string;
+      unitPrice?: number;
+    }>;
+  }) {
+    return request<any>(`/doctor/appointments/${appointmentId}/prescriptions`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async admitDoctorPatient(appointmentId: string) {
+    return request<void>(`/doctor/appointments/${appointmentId}/admit`, {
+      method: "POST",
+    });
+  },
+
+  async callDoctorPatient(appointmentId: string) {
+    return request<void>(`/doctor/appointments/${appointmentId}/call`, {
+      method: "POST",
+    });
+  },
 };
+

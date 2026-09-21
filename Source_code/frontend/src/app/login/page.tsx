@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import LoginForm from '@/modules/auth/components/LoginForm';
 
 export const metadata = {
@@ -9,7 +9,9 @@ export const metadata = {
 export default function LoginPage() {
   return (
     <div className="flex-1 flex flex-col items-center justify-center py-2 sm:py-4">
-      <LoginForm />
+      <Suspense fallback={<div className="text-center py-10 text-xs text-slate-400">Đang tải trang đăng nhập...</div>}>
+        <LoginForm />
+      </Suspense>
     </div>
   );
 }

@@ -11,8 +11,10 @@ import com.medsched.persistence.enums.QueueType;
 import com.medsched.persistence.repository.AppointmentJpaRepository;
 import com.medsched.persistence.repository.DoctorJpaRepository;
 import com.medsched.persistence.repository.MedicalRecordJpaRepository;
+import com.medsched.persistence.repository.PatientProfileJpaRepository;
 import com.medsched.persistence.repository.PrescriptionItemJpaRepository;
 import com.medsched.persistence.repository.PrescriptionJpaRepository;
+import com.medsched.persistence.repository.TimeSlotJpaRepository;
 import com.medsched.persistence.repository.UserJpaRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -52,6 +54,12 @@ class DoctorPrescriptionServiceTest {
 
     @Mock
     private UserJpaRepository userRepository;
+
+    @Mock
+    private PatientProfileJpaRepository patientProfileRepository;
+
+    @Mock
+    private TimeSlotJpaRepository timeSlotRepository;
 
     @InjectMocks
     private DoctorPrescriptionService doctorPrescriptionService;

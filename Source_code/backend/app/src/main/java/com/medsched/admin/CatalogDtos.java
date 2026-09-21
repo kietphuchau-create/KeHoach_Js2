@@ -87,4 +87,30 @@ public final class CatalogDtos {
             int estimatedDurationMinutes) {
     }
 
+    public record DoctorSummaryResponse(
+            String id,
+            String userId,
+            String fullName,
+            String phone,
+            String specialtyId,
+            String specialtyName,
+            String medicalCenterId,
+            String medicalCenterName,
+            String academicTitle,
+            BigDecimal consultationFee,
+            String roomNumber,
+            String bio,
+            String avatarUrl) {
+    }
+
+    public record TimeSlotResponse(
+            String id,
+            String doctorId,
+            String startTime,
+            String endTime,
+            String timeDisplay,
+            String status,
+            String label) {
+    }
+
 }

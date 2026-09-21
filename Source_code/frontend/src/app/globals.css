@@ -13,3 +13,20 @@ body {
   background-color: #f0faf7;
   color: #1e293b;
 }
+
+@media print {
+  body {
+    background: #fff !important;
+  }
+  header, nav, footer, button {
+    display: none !important;
+  }
+  #printable-handover-ticket {
+    display: block !important;
+    width: 100% !important;
+    max-width: 80mm !important;
+    margin: 0 auto !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+}

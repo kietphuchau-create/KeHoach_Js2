@@ -12,6 +12,13 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+import com.medsched.persistence.enums.RelationshipType;
+import com.medsched.persistence.repository.DoctorJpaRepository;
+import com.medsched.persistence.repository.MedicalCenterJpaRepository;
+import com.medsched.persistence.repository.PatientProfileJpaRepository;
+import com.medsched.security.AppUserDetails;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+
 @RestController
 @RequestMapping({"/api/appointments", "/api/v1/appointments"})
 public class AppointmentController {
@@ -19,15 +26,24 @@ public class AppointmentController {
     private final BookAppointmentUseCase bookAppointmentUseCase;
     private final CancelAppointmentUseCase cancelAppointmentUseCase;
     private final AppointmentRepositoryPort appointmentRepositoryPort;
+    private final PatientProfileJpaRepository patientProfiles;
+    private final DoctorJpaRepository doctors;
+    private final MedicalCenterJpaRepository medicalCenters;
 
     public AppointmentController(
             BookAppointmentUseCase bookAppointmentUseCase,
             CancelAppointmentUseCase cancelAppointmentUseCase,
-            AppointmentRepositoryPort appointmentRepositoryPort
+            AppointmentRepositoryPort appointmentRepositoryPort,
+            PatientProfileJpaRepository patientProfiles,
+            DoctorJpaRepository doctors,
+            MedicalCenterJpaRepository medicalCenters
     ) {
         this.bookAppointmentUseCase = bookAppointmentUseCase;
         this.cancelAppointmentUseCase = cancelAppointmentUseCase;
         this.appointmentRepositoryPort = appointmentRepositoryPort;
+        this.patientProfiles = patientProfiles;
+        this.doctors = doctors;
+        this.medicalCenters = medicalCenters;
     }
 
     public record BookRequest(
@@ -40,11 +56,36 @@ public class AppointmentController {
     ) {}
 
     @PostMapping
-    public ResponseEntity<Appointment> bookAppointment(@Valid @RequestBody BookRequest request) {
+    public ResponseEntity<Appointment> bookAppointment(
+            @AuthenticationPrincipal AppUserDetails principal,
+            @Valid @RequestBody BookRequest request) {
+
+        String patientProfileId = request.patientProfileId();
+        if (patientProfiles.findById(patientProfileId).isEmpty()) {
+            if (principal != null) {
+                patientProfileId = patientProfiles.findByUserIdAndRelationship(principal.getUserId(), RelationshipType.SELF)
+                        .map(p -> p.getId())
+                        .orElse(patientProfileId);
+            }
+            if (patientProfiles.findById(patientProfileId).isEmpty() && patientProfiles.count() > 0) {
+                patientProfileId = patientProfiles.findAll().get(0).getId();
+            }
+        }
+
+        String doctorId = request.doctorId();
+        if (doctors.findById(doctorId).isEmpty() && doctors.count() > 0) {
+            doctorId = doctors.findAll().get(0).getId();
+        }
+
+        String centerId = request.medicalCenterId();
+        if (medicalCenters.findById(centerId).isEmpty() && medicalCenters.count() > 0) {
+            centerId = medicalCenters.findAll().get(0).getId();
+        }
+
         BookAppointmentUseCase.Command command = new BookAppointmentUseCase.Command(
-                request.medicalCenterId(),
-                request.patientProfileId(),
-                request.doctorId(),
+                centerId,
+                patientProfileId,
+                doctorId,
                 request.slotId(),
                 request.symptoms(),
                 request.medicalHistory()

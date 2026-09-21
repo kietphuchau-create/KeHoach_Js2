@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { 
@@ -10,17 +10,20 @@ import {
   Shield, 
   CheckCircle2, 
   XCircle, 
-  RefreshCw,
-  KeyRound,
-  Eye,
-  EyeOff,
-  Lock,
-  X
+  RefreshCw, 
+  KeyRound, 
+  Eye, 
+  EyeOff, 
+  Lock, 
+  X 
 } from 'lucide-react';
 import { api, getAuthToken, getAuthUser } from '@/shared/lib/api';
 import LoadingSpinner from '@/shared/components/Feedback/LoadingSpinner';
 import EmptyState from '@/shared/components/Feedback/EmptyState';
 import AlertMessage from '@/shared/components/Feedback/AlertMessage';
+import { useSingleTabLock } from '@/shared/hooks/useSingleTabLock';
+import SingleTabLockOverlay from '@/shared/components/Feedback/SingleTabLockOverlay';
+import LoginForm from '@/modules/auth/components/LoginForm';
 
 export interface UserItem {
   id: string;
@@ -34,6 +37,11 @@ export interface UserItem {
 }
 
 export default function UserTable() {
+  const { isBlocked, handleTakeOver } = useSingleTabLock({
+    channelKey: 'admin_portal',
+    moduleName: 'Quản Trị Hệ Thống (Admin)',
+  });
+
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [users, setUsers] = useState<UserItem[]>([]);
@@ -52,15 +60,22 @@ export default function UserTable() {
   const [newPassword, setNewPassword] = useState('Medsched@123');
   const [showPassword, setShowPassword] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
     const token = getAuthToken();
     const user = getAuthUser();
-    if (!token) {
-      router.push('/login');
+    const roles: string[] = user?.roles || [];
+    if (!token || !user || !roles.includes('ROLE_ADMIN')) {
+      setIsAuthenticated(false);
+      setAuthChecked(true);
+      setLoading(false);
       return;
     }
     setCurrentUser(user);
+    setIsAuthenticated(true);
+    setAuthChecked(true);
     loadUsers();
   }, [selectedRole, currentPage]);
 
@@ -91,10 +106,19 @@ export default function UserTable() {
             createdAt: u.createdAt,
             medicalCenterName: u.roles?.[0]?.medicalCenterName || u.medicalCenterName,
           };
-        })
-        .filter((u: UserItem) => !u.roles.includes('ROLE_ADMIN'));
+        });
 
-      if (selectedRole === 'LOCKED') {
+      if (selectedRole === 'ROLE_ADMIN') {
+        normalizedUsers = normalizedUsers.filter((u) => u.roles.includes('ROLE_ADMIN'));
+      } else if (selectedRole === 'ROLE_DOCTOR') {
+        normalizedUsers = normalizedUsers.filter((u) => u.roles.includes('ROLE_DOCTOR'));
+      } else if (selectedRole === 'ROLE_STAFF') {
+        normalizedUsers = normalizedUsers.filter((u) => u.roles.includes('ROLE_STAFF'));
+      } else if (selectedRole === 'CUSTOMER') {
+        normalizedUsers = normalizedUsers.filter(
+          (u) => u.roles.includes('ROLE_PATIENT') || u.roles.length === 0 || (!u.roles.includes('ROLE_ADMIN') && !u.roles.includes('ROLE_DOCTOR') && !u.roles.includes('ROLE_STAFF'))
+        );
+      } else if (selectedRole === 'LOCKED') {
         normalizedUsers = normalizedUsers.filter((u) => !u.active);
       }
 
@@ -116,6 +140,12 @@ export default function UserTable() {
   };
 
   const handleToggleStatus = async (user: UserItem) => {
+    const isSelf = user.id === currentUser?.id || user.email === currentUser?.email;
+    if (isSelf) {
+      setMessage({ type: 'error', text: 'Bạn không thể tự khóa hoặc vô hiệu hóa tài khoản quản trị viên của chính mình!' });
+      return;
+    }
+
     const newStatus = !user.active;
     const confirmText = newStatus 
       ? `Bạn có chắc muốn KÍCH HOẠT lại tài khoản "${user.email}"?` 
@@ -171,6 +201,33 @@ export default function UserTable() {
     return <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-slate-100 text-slate-700 border border-slate-200">Khách Hàng</span>;
   };
 
+  if (!authChecked) {
+    return (
+      <div className="flex-1 flex items-center justify-center py-20">
+        <div className="text-center text-xs text-slate-500">Đang kiểm tra quyền quản trị...</div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center py-4 sm:py-8 animate-in fade-in duration-200">
+        <div className="mb-3 text-center">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-900 border border-purple-200 mb-2 shadow-xs">
+            🔒 Yêu Cầu Đăng Nhập Quản Trị Viên
+          </span>
+          <h1 className="text-xl font-extrabold text-pine-teal">Phân Hệ Quản Trị Hệ Thống</h1>
+          <p className="text-xs text-slate-500 mt-1 max-w-sm">
+            Vui lòng đăng nhập tài khoản Quản trị viên (Admin) để quản lý danh sách người dùng.
+          </p>
+        </div>
+        <Suspense fallback={<div className="text-center py-10 text-xs text-slate-400">Đang tải biểu mẫu đăng nhập...</div>}>
+          <LoginForm />
+        </Suspense>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header Banner */}
@@ -216,6 +273,7 @@ export default function UserTable() {
         <div className="flex flex-wrap gap-1 bg-mint-soft p-1 rounded-xl">
           {[
             { id: 'ALL', label: 'Tất cả' },
+            { id: 'ROLE_ADMIN', label: 'Quản trị viên' },
             { id: 'ROLE_DOCTOR', label: 'Bác sĩ' },
             { id: 'ROLE_STAFF', label: 'Lễ tân' },
             { id: 'CUSTOMER', label: 'Bệnh nhân' },
@@ -337,17 +395,26 @@ export default function UserTable() {
                         <span>Đặt lại MK</span>
                       </button>
 
-                      <button
-                        onClick={() => handleToggleStatus(user)}
-                        disabled={actionLoadingId === user.id}
-                        className={`inline-flex items-center text-xs px-3 py-1.5 rounded-lg font-medium transition cursor-pointer ${
-                          user.active
-                            ? 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200'
-                            : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
-                        }`}
-                      >
-                        {actionLoadingId === user.id ? '...' : user.active ? 'Khóa' : 'Mở khóa'}
-                      </button>
+                      {user.id === currentUser?.id || user.email === currentUser?.email ? (
+                        <span
+                          className="inline-flex items-center text-xs px-3 py-1.5 rounded-lg font-medium bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
+                          title="Không thể tự khóa tài khoản quản trị viên của chính mình"
+                        >
+                          Chính bạn
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => handleToggleStatus(user)}
+                          disabled={actionLoadingId === user.id}
+                          className={`inline-flex items-center text-xs px-3 py-1.5 rounded-lg font-medium transition cursor-pointer ${
+                            user.active
+                              ? 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200'
+                              : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+                          }`}
+                        >
+                          {actionLoadingId === user.id ? '...' : user.active ? 'Khóa' : 'Mở khóa'}
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -478,6 +545,14 @@ export default function UserTable() {
           </div>
         </div>
       )}
+
+      {/* ── Overlay Khóa Đa Tab (Single Tab Enforcement) ── */}
+      <SingleTabLockOverlay
+        isBlocked={isBlocked}
+        moduleName="Bảng Điều Khiển Quản Trị Hệ Thống"
+        onTakeOver={handleTakeOver}
+        description="Để bảo đảm tính an toàn tài khoản, tránh xung đột phân quyền và bảo vệ toàn vẹn dữ liệu hệ thống, bảng quản trị MedSched chỉ cho phép 1 tab hoạt động."
+      />
     </div>
   );
 }

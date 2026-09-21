@@ -31,6 +31,7 @@ public class JwtService {
     private static final String CLAIM_TYPE = "typ";
     private static final String CLAIM_EMAIL = "email";
     private static final String CLAIM_ROLES = "roles";
+    public static final String CLAIM_SESSION_ID = "sid";
 
     private final SecretKey key;
     private final Duration accessTtl;
@@ -58,24 +59,38 @@ public class JwtService {
     }
 
     public String generateAccessToken(String userId, String email, List<String> roles) {
+        return generateAccessToken(userId, email, roles, null);
+    }
+
+    public String generateAccessToken(String userId, String email, List<String> roles, String sessionId) {
         Instant now = Instant.now();
-        return Jwts.builder()
+        var builder = Jwts.builder()
                 .subject(userId)
                 .claim(CLAIM_TYPE, TYPE_ACCESS)
                 .claim(CLAIM_EMAIL, email)
-                .claim(CLAIM_ROLES, roles)
-                .issuedAt(Date.from(now))
+                .claim(CLAIM_ROLES, roles);
+        if (sessionId != null) {
+            builder.claim(CLAIM_SESSION_ID, sessionId);
+        }
+        return builder.issuedAt(Date.from(now))
                 .expiration(Date.from(now.plus(accessTtl)))
                 .signWith(key)
                 .compact();
     }
 
     public String generateRefreshToken(String userId) {
+        return generateRefreshToken(userId, null);
+    }
+
+    public String generateRefreshToken(String userId, String sessionId) {
         Instant now = Instant.now();
-        return Jwts.builder()
+        var builder = Jwts.builder()
                 .subject(userId)
-                .claim(CLAIM_TYPE, TYPE_REFRESH)
-                .issuedAt(Date.from(now))
+                .claim(CLAIM_TYPE, TYPE_REFRESH);
+        if (sessionId != null) {
+            builder.claim(CLAIM_SESSION_ID, sessionId);
+        }
+        return builder.issuedAt(Date.from(now))
                 .expiration(Date.from(now.plus(refreshTtl)))
                 .signWith(key)
                 .compact();

@@ -8,6 +8,7 @@ import com.medsched.persistence.repository.DoctorJpaRepository;
 import com.medsched.persistence.repository.MedicalCenterJpaRepository;
 import com.medsched.persistence.repository.ServiceJpaRepository;
 import com.medsched.persistence.repository.SpecialtyJpaRepository;
+import com.medsched.persistence.repository.UserJpaRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,15 +25,18 @@ public class CatalogService {
     private final SpecialtyJpaRepository specialties;
     private final ServiceJpaRepository services;
     private final DoctorJpaRepository doctors;
+    private final UserJpaRepository users;
 
     public CatalogService(MedicalCenterJpaRepository medicalCenters,
                           SpecialtyJpaRepository specialties,
                           ServiceJpaRepository services,
-                          DoctorJpaRepository doctors) {
+                          DoctorJpaRepository doctors,
+                          UserJpaRepository users) {
         this.medicalCenters = medicalCenters;
         this.specialties = specialties;
         this.services = services;
         this.doctors = doctors;
+        this.users = users;
     }
 
     @Transactional(readOnly = true)
@@ -189,6 +193,40 @@ public class CatalogService {
         service.setUpdatedAt(Instant.now());
         service.setUpdatedBy(actorId);
         services.save(service);
+    }
+
+    @Transactional(readOnly = true)
+    public List<CatalogDtos.DoctorSummaryResponse> listDoctors(String specialtyId, String centerId) {
+        List<com.medsched.persistence.entity.DoctorEntity> list = (specialtyId != null && !specialtyId.isBlank())
+                ? doctors.findBySpecialtyId(specialtyId)
+                : doctors.findAll();
+
+        List<CatalogDtos.DoctorSummaryResponse> results = new ArrayList<>();
+        for (var doc : list) {
+            SpecialtyEntity sp = specialties.findById(doc.getSpecialtyId()).orElse(null);
+            if (centerId != null && !centerId.isBlank() && sp != null && !centerId.equals(sp.getMedicalCenterId())) {
+                continue;
+            }
+            var user = users.findById(doc.getUserId()).orElse(null);
+            MedicalCenterEntity center = sp != null ? medicalCenters.findById(sp.getMedicalCenterId()).orElse(null) : null;
+
+            results.add(new CatalogDtos.DoctorSummaryResponse(
+                    doc.getId(),
+                    doc.getUserId(),
+                    user != null ? user.getFullName() : "Bác sĩ",
+                    user != null ? user.getPhone() : "",
+                    doc.getSpecialtyId(),
+                    sp != null ? sp.getName() : "Chuyên khoa",
+                    center != null ? center.getId() : (sp != null ? sp.getMedicalCenterId() : ""),
+                    center != null ? center.getName() : "",
+                    doc.getAcademicTitle() != null ? doc.getAcademicTitle() : "BS",
+                    doc.getConsultationFee() != null ? doc.getConsultationFee() : java.math.BigDecimal.valueOf(300000),
+                    doc.getRoomNumber() != null ? doc.getRoomNumber() : "P.101",
+                    doc.getBio() != null ? doc.getBio() : "",
+                    doc.getAvatarUrl()
+            ));
+        }
+        return results;
     }
 
     private MedicalCenterEntity requireCenter(String id) {

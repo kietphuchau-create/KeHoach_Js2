@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { 
   Calendar, 
   Clock, 
@@ -16,13 +17,78 @@ import {
   Stethoscope, 
   PlusCircle, 
   X,
-  RefreshCw
+  RefreshCw,
+  AlertCircle
 } from 'lucide-react';
 import { api, getAuthToken, AppointmentResponse } from '@/shared/lib/api';
 import AlertMessage from '@/shared/components/Feedback/AlertMessage';
 import LoadingSpinner from '@/shared/components/Feedback/LoadingSpinner';
 
+const SLOT_MAP: Record<string, { time: string; date?: string }> = {
+  '99999999-9999-9999-9999-999999999991': { time: '09:00 - 09:30', date: '10/09/2026' },
+  '99999999-9999-9999-9999-999999999992': { time: '14:00 - 14:30', date: '21/09/2026' },
+  'sl000001-0000-0000-0000-000000000001': { time: '08:00 - 08:30' },
+  'sl000002-0000-0000-0000-000000000001': { time: '08:30 - 09:00' },
+  'sl000003-0000-0000-0000-000000000001': { time: '09:00 - 09:30' },
+  'sl000004-0000-0000-0000-000000000001': { time: '09:30 - 10:00' },
+  'sl000005-0000-0000-0000-000000000001': { time: '14:00 - 14:30' },
+  'sl000006-0000-0000-0000-000000000001': { time: '14:30 - 15:00' },
+};
+
+const formatDisplayDate = (dateVal?: string | Date) => {
+  if (!dateVal) {
+    const now = new Date();
+    const d = String(now.getDate()).padStart(2, '0');
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const y = now.getFullYear();
+    return `Ngày ${d}/${m}/${y}`;
+  }
+  const d = new Date(dateVal);
+  if (isNaN(d.getTime())) {
+    const str = String(dateVal).replace('(Hôm nay)', '').replace('Hôm nay,', '').trim();
+    return str.startsWith('Ngày') ? str : `Ngày ${str}`;
+  }
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `Ngày ${day}/${month}/${year}`;
+};
+
+const resolveAppointmentDate = (apt: AppointmentResponse): string => {
+  if (apt.appointmentDate) return formatDisplayDate(apt.appointmentDate);
+
+  // 1. Nếu slot có ngày được định nghĩa cụ thể
+  if (apt.slotId && SLOT_MAP[apt.slotId]?.date) {
+    return `Ngày ${SLOT_MAP[apt.slotId].date}`;
+  }
+
+  // 2. Nếu ca đã hoàn tất hoặc có checkInTime, ngày khám là ngày tiếp đón/hoàn tất trong quá khứ
+  if (apt.checkInTime) {
+    return formatDisplayDate(apt.checkInTime);
+  }
+
+  // 3. Nếu booking code theo chuẩn MS + YYMMDD
+  if (apt.bookingCode && /^MS\d{6}/i.test(apt.bookingCode)) {
+    const yy = apt.bookingCode.slice(2, 4);
+    const mm = apt.bookingCode.slice(4, 6);
+    const dd = apt.bookingCode.slice(6, 8);
+    return `Ngày ${dd}/${mm}/20${yy}`;
+  }
+
+  return formatDisplayDate(apt.createdAt);
+};
+
+const resolveSlotTime = (apt: AppointmentResponse): string => {
+  if (apt.slotTime) return apt.slotTime;
+  if (apt.slotId && SLOT_MAP[apt.slotId]?.time) {
+    return SLOT_MAP[apt.slotId].time;
+  }
+  return '08:30 - 09:00';
+};
+
 export default function MyAppointmentsView() {
+  const router = useRouter();
+  const [authChecking, setAuthChecking] = useState(true);
   const [appointments, setAppointments] = useState<AppointmentResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -31,11 +97,17 @@ export default function MyAppointmentsView() {
   const [searchCode, setSearchCode] = useState('');
   const [searching, setSearching] = useState(false);
   const [searchedAppointment, setSearchedAppointment] = useState<AppointmentResponse | null>(null);
-  const [activeTab, setActiveTab] = useState<'ALL' | 'CONFIRMED' | 'CHECKED_IN' | 'COMPLETED'>('ALL');
+  const [activeTab, setActiveTab] = useState<'ALL' | 'CONFIRMED' | 'CHECKED_IN' | 'COMPLETED' | 'CANCELLED'>('ALL');
   
   // QR Modal state
   const [selectedAppointment, setSelectedAppointment] = useState<AppointmentResponse | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+
+  // Cancellation state
+  const [cancelingAppointment, setCancelingAppointment] = useState<AppointmentResponse | null>(null);
+  const [cancelReason, setCancelReason] = useState('Bận việc đột xuất không thể đến khám');
+  const [cancelingLoading, setCancelingLoading] = useState(false);
+  const [cancelSuccessMsg, setCancelSuccessMsg] = useState<string | null>(null);
 
   // Load patient appointments
   const fetchAppointments = async () => {
@@ -43,64 +115,46 @@ export default function MyAppointmentsView() {
     setError(null);
     try {
       const token = getAuthToken();
-      let patientId = 'p0000001-0000-0000-0000-000000000001';
+      if (!token) return;
 
-      if (token) {
-        try {
-          const profile = await api.getProfile();
-          if (profile?.patientProfile?.profileId) {
-            patientId = profile.patientProfile.profileId;
-          }
-        } catch {
-          // fallback to default patient id
+      let patientId = '';
+      try {
+        const profile = await api.getProfile();
+        if (profile?.patientProfile?.profileId) {
+          patientId = profile.patientProfile.profileId;
         }
+      } catch {
+        // fallback to default patient id
       }
 
-      // Fetch appointments from backend
-      const data = await api.getAppointmentsByPatient(patientId).catch(() => []);
-      
-      // Nếu chưa có trong DB (môi trường dev mới khởi tạo), cấp dữ liệu mẫu trực quan
-      if (!data || data.length === 0) {
-        const sampleData: AppointmentResponse[] = [
-          {
-            id: 'ap000001-demo-0001',
-            bookingCode: 'MED-748921',
-            queueNumber: 'STT-02',
-            status: 'CONFIRMED',
-            medicalCenterId: 'mc000001-0000-0000-0000-000000000001',
-            doctorId: 'd0000001-0000-0000-0000-000000000001',
-            slotId: 'sl000002-0000-0000-0000-000000000001',
-            doctorName: 'PGS.TS.BS Trần Văn Hùng',
-            specialtyName: 'Khoa Nội Tim Mạch',
-            roomNumber: 'Phòng 201 - Lầu 2',
-            medicalCenterName: 'Cơ sở MedSched Quận 1 (120 Nguyễn Du, Q.1)',
-            patientSymptoms: 'Đau tức ngực nhẹ khi leo dốc, thỉnh thoảng hồi hộp đánh trống ngực vào buổi tối.',
-            aiSummary: 'Bệnh nhân có triệu chứng gợi ý bệnh lý cơ tim / mạch vành giai đoạn sớm. Cần điện tâm đồ ECG và siêu âm tim Doppler màu.',
-            appointmentDate: 'Hôm nay, 08:30 - 09:00',
-            createdAt: new Date().toISOString(),
-          },
-          {
-            id: 'ap000002-demo-0002',
-            bookingCode: 'MED-519203',
-            queueNumber: 'STT-05',
-            status: 'CHECKED_IN',
-            medicalCenterId: 'mc000001-0000-0000-0000-000000000001',
-            doctorId: 'd0000002-0000-0000-0000-000000000002',
-            slotId: 'sl000005-0000-0000-0000-000000000002',
-            doctorName: 'ThS.BS Nguyễn Thị Mai',
-            specialtyName: 'Khoa Da Liễu',
-            roomNumber: 'Phòng 104 - Lầu 1',
-            medicalCenterName: 'Cơ sở MedSched Quận 1 (120 Nguyễn Du, Q.1)',
-            patientSymptoms: 'Nổi mẩn đỏ ngứa vùng cẳng tay sau khi tiếp xúc hóa chất tẩy rửa.',
-            aiSummary: 'Viêm da tiếp xúc dị ứng. Khuyến nghị test dị ứng da và bôi thuốc chống viêm.',
-            appointmentDate: 'Hôm nay, 10:00 - 10:30',
-            createdAt: new Date(Date.now() - 3600000).toISOString(),
-          }
-        ];
-        setAppointments(sampleData);
-      } else {
-        setAppointments(data);
+      if (!patientId) {
+        setAppointments([]);
+        return;
       }
+
+      // Fetch appointments, doctors and centers concurrently from backend
+      const [data, docList, centerList] = await Promise.all([
+        api.getAppointmentsByPatient(patientId).catch(() => []),
+        api.getDoctors().catch(() => []),
+        api.getMedicalCenters().catch(() => []),
+      ]);
+
+      const docMap = new Map((docList || []).map((d: any) => [d.id, d]));
+      const centerMap = new Map((centerList || []).map((c: any) => [c.id, c]));
+
+      const enriched = (data || []).map((apt: any) => {
+        const doc = docMap.get(apt.doctorId);
+        const center = centerMap.get(apt.medicalCenterId);
+        return {
+          ...apt,
+          doctorName: apt.doctorName || (doc ? `${doc.academicTitle ? doc.academicTitle + ' ' : ''}${doc.fullName}` : undefined),
+          specialtyName: apt.specialtyName || doc?.specialtyName,
+          roomNumber: apt.roomNumber || doc?.roomNumber,
+          medicalCenterName: apt.medicalCenterName || center?.name,
+        };
+      });
+
+      setAppointments(enriched);
     } catch (err: any) {
       setError(err.message || 'Không thể tải danh sách phiếu khám.');
     } finally {
@@ -109,26 +163,76 @@ export default function MyAppointmentsView() {
   };
 
   useEffect(() => {
+    const token = getAuthToken();
+    if (!token) {
+      router.push('/login?redirect=/my-appointments&reason=auth_required');
+      return;
+    }
+    setAuthChecking(false);
     fetchAppointments();
-  }, []);
+  }, [router]);
 
   // Handle Search by Booking Code
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!searchCode.trim()) {
+    const query = searchCode.trim().toUpperCase();
+    if (!query) {
       setSearchedAppointment(null);
       return;
     }
     setSearching(true);
     setError(null);
+
+    // 1. Kiểm tra trong danh sách hiện tại trước
+    const foundLocal = appointments.find(
+      (a) => a.bookingCode?.toUpperCase() === query || a.id?.toUpperCase() === query
+    );
+    if (foundLocal) {
+      setSearchedAppointment(foundLocal);
+      setSearching(false);
+      return;
+    }
+
+    // 2. Tra cứu từ API backend
     try {
-      const res = await api.getAppointmentByCode(searchCode.trim().toUpperCase());
-      setSearchedAppointment(res);
-    } catch (err: any) {
+      const res = await api.getAppointmentByCode(query);
+      if (res && res.bookingCode) {
+        setSearchedAppointment(res);
+      } else {
+        throw new Error('Không tìm thấy');
+      }
+    } catch {
       setSearchedAppointment(null);
       setError(`Không tìm thấy phiếu khám với mã "${searchCode.trim()}". Vui lòng kiểm tra lại.`);
     } finally {
       setSearching(false);
+    }
+  };
+
+  const handleConfirmCancel = async () => {
+    if (!cancelingAppointment?.id) return;
+    setCancelingLoading(true);
+    setError(null);
+    setCancelSuccessMsg(null);
+    try {
+      await api.cancelAppointment(cancelingAppointment.id, cancelReason);
+      setCancelSuccessMsg(`Đã hủy lịch khám cho phiếu "${cancelingAppointment.bookingCode}" thành công!`);
+      // Cập nhật trạng thái sang CANCELLED
+      setAppointments((prev) =>
+        prev.map((a) =>
+          a.id === cancelingAppointment.id || a.bookingCode === cancelingAppointment.bookingCode
+            ? { ...a, status: 'CANCELLED' }
+            : a
+        )
+      );
+      if (searchedAppointment && (searchedAppointment.id === cancelingAppointment.id || searchedAppointment.bookingCode === cancelingAppointment.bookingCode)) {
+        setSearchedAppointment((prev) => prev ? { ...prev, status: 'CANCELLED' } : null);
+      }
+      setCancelingAppointment(null);
+    } catch (err: any) {
+      setError(err.message || 'Hủy lịch hẹn thất bại. Vui lòng thử lại.');
+    } finally {
+      setCancelingLoading(false);
     }
   };
 
@@ -191,6 +295,14 @@ export default function MyAppointmentsView() {
         );
     }
   };
+
+  if (authChecking) {
+    return (
+      <div className="min-h-[50vh] flex items-center justify-center py-20">
+        <LoadingSpinner size={36} message="Đang kiểm tra quyền truy cập phiếu khám..." />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50/50 py-8 px-4 sm:px-6 lg:px-8">
@@ -292,6 +404,7 @@ export default function MyAppointmentsView() {
               { key: 'CONFIRMED', label: 'Sắp Tới (Đã Xác Nhận)' },
               { key: 'CHECKED_IN', label: 'Đã Tiếp Nhận Quầy' },
               { key: 'COMPLETED', label: 'Đã Hoàn Tất' },
+              { key: 'CANCELLED', label: 'Đã Hủy Lịch' },
             ].map((tab) => (
               <button
                 key={tab.key}
@@ -306,6 +419,15 @@ export default function MyAppointmentsView() {
               </button>
             ))}
           </div>
+        )}
+
+        {/* Success Alert */}
+        {cancelSuccessMsg && (
+          <AlertMessage
+            type="success"
+            message={cancelSuccessMsg}
+            onClose={() => setCancelSuccessMsg(null)}
+          />
         )}
 
         {/* Error Alert */}
@@ -354,11 +476,12 @@ export default function MyAppointmentsView() {
         {!loading && displayList.length > 0 && (
           <div className="space-y-4">
             {displayList.map((apt) => {
-              const doctorTitle = apt.doctorName || 'PGS.TS.BS Trần Văn Hùng';
-              const specialty = apt.specialtyName || 'Khoa Nội Tim Mạch';
-              const room = apt.roomNumber || 'Phòng 201 - Lầu 2';
-              const center = apt.medicalCenterName || 'Trung Tâm Y Tế MedSched Quận 1';
-              const timeSlot = apt.appointmentDate || '08:30 - 09:00 (Hôm nay)';
+              const doctorTitle = apt.doctorName || 'Bác sĩ chuyên khoa';
+              const specialty = apt.specialtyName || 'Chuyên khoa';
+              const room = apt.roomNumber || 'Phòng khám chuyên khoa';
+              const center = apt.medicalCenterName || 'Cơ sở Y tế MedSched';
+              const slotTime = resolveSlotTime(apt);
+              const appointmentDateStr = resolveAppointmentDate(apt);
 
               return (
                 <div
@@ -420,7 +543,11 @@ export default function MyAppointmentsView() {
                             </span>
                             <span className="flex items-center gap-1">
                               <Clock size={13} className="text-blue-600" />
-                              <strong className="text-blue-700 font-bold">{timeSlot}</strong>
+                              <strong className="text-blue-700 font-bold">{slotTime}</strong>
+                            </span>
+                            <span className="flex items-center gap-1 font-semibold text-pine-teal">
+                              <Calendar size={13} className="text-teal-primary" />
+                              <strong>{appointmentDateStr}</strong>
                             </span>
                           </div>
                           <p className="text-xs text-slate-500 pt-0.5">{center}</p>
@@ -469,6 +596,16 @@ export default function MyAppointmentsView() {
                         <Printer size={15} />
                         <span>In Phiếu Khám</span>
                       </button>
+
+                      {apt.status === 'CONFIRMED' && (
+                        <button
+                          onClick={() => setCancelingAppointment(apt)}
+                          className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl font-bold text-xs transition cursor-pointer"
+                        >
+                          <X size={14} />
+                          <span>Hủy Lịch Hẹn Này</span>
+                        </button>
+                      )}
 
                       <div className="text-[11px] text-center text-slate-400 pt-1">
                         Quét mã QR tại Quầy Tiếp Đón để vào khám không cần xếp hàng lấy số
@@ -556,15 +693,17 @@ export default function MyAppointmentsView() {
               <div className="text-xs text-slate-600 space-y-1 border-t border-slate-100 pt-3">
                 <div className="flex justify-between">
                   <span className="text-slate-400">Bác sĩ phụ trách:</span>
-                  <strong className="text-slate-800">{selectedAppointment.doctorName || 'PGS.TS.BS Trần Văn Hùng'}</strong>
+                  <strong className="text-slate-800">{selectedAppointment.doctorName || 'Bác sĩ chuyên khoa'}</strong>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-400">Buồng khám:</span>
-                  <strong className="text-slate-800">{selectedAppointment.roomNumber || 'P.201 - Lầu 2'}</strong>
+                  <strong className="text-slate-800">{selectedAppointment.roomNumber || 'Phòng khám chuyên khoa'}</strong>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Khung giờ hẹn:</span>
-                  <strong className="text-teal-primary font-bold">{selectedAppointment.appointmentDate || 'Hôm nay, 08:30 - 09:00'}</strong>
+                  <span className="text-slate-400">Khung giờ &amp; Ngày hẹn:</span>
+                  <strong className="text-teal-primary font-bold">
+                    {resolveSlotTime(selectedAppointment)} • {resolveAppointmentDate(selectedAppointment)}
+                  </strong>
                 </div>
               </div>
             </div>
@@ -583,6 +722,68 @@ export default function MyAppointmentsView() {
                 className="flex-1 px-4 py-2.5 bg-pine-teal hover:bg-pine-teal-hover text-white rounded-xl text-xs font-bold transition cursor-pointer"
               >
                 Đã Hiểu & Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancellation Confirmation Modal */}
+      {cancelingAppointment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl border border-rose-100 flex flex-col p-6 space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div className="flex items-center gap-2 text-rose-600 font-bold text-sm">
+                <AlertCircle size={20} />
+                <span>Xác Nhận Hủy Lịch Khám</span>
+              </div>
+              <button
+                onClick={() => setCancelingAppointment(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="text-xs text-slate-600 space-y-2">
+              <p>
+                Bạn có chắc chắn muốn hủy lịch hẹn mã <strong className="font-mono text-slate-800">{cancelingAppointment.bookingCode}</strong> ({cancelingAppointment.doctorName || 'Bác sĩ chuyên khoa'}) không?
+              </p>
+              <div className="p-3 bg-rose-50 rounded-xl border border-rose-100 text-[11px] text-rose-700">
+                Lưu ý: Sau khi hủy, khung giờ khám này sẽ được mở lại cho người bệnh khác. Thao tác này không thể hoàn tác.
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-slate-700">Lý do hủy hẹn:</label>
+              <select
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                className="w-full p-2.5 border border-slate-200 rounded-xl text-xs bg-slate-50 text-slate-800 outline-none focus:ring-2 focus:ring-rose-500/20"
+              >
+                <option value="Bận việc đột xuất không thể đến khám">Bận việc đột xuất không thể đến khám</option>
+                <option value="Sức khỏe đã ổn định, không cần khám nữa">Sức khỏe đã ổn định, không cần khám nữa</option>
+                <option value="Đã đặt trùng hoặc muốn đổi bác sĩ / ngày khác">Đã đặt trùng hoặc muốn đổi bác sĩ / ngày khác</option>
+                <option value="Lý do cá nhân khác">Lý do cá nhân khác</option>
+              </select>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setCancelingAppointment(null)}
+                disabled={cancelingLoading}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-500 hover:bg-slate-100 transition"
+              >
+                Giữ Lại Lịch Hẹn
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmCancel}
+                disabled={cancelingLoading}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {cancelingLoading ? 'Đang Xử Lý...' : 'Xác Nhận Hủy'}
               </button>
             </div>
           </div>

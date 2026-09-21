@@ -9,10 +9,22 @@ import com.medsched.core.port.out.AiTriagePort;
 import com.medsched.core.port.out.AppointmentRepositoryPort;
 import com.medsched.core.port.out.TimeSlotRepositoryPort;
 
+import java.time.DayOfWeek;
+import java.time.Instant;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class BookAppointmentService implements BookAppointmentUseCase {
+
+    /** Múi giờ Việt Nam (UTC+7) */
+    private static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+    /** Giờ bắt đầu hành chính */
+    private static final LocalTime BUSINESS_START = LocalTime.of(8, 0);
+    /** Giờ kết thúc hành chính */
+    private static final LocalTime BUSINESS_END = LocalTime.of(17, 0);
 
     private final AppointmentRepositoryPort appointmentRepository;
     private final TimeSlotRepositoryPort timeSlotRepository;
@@ -36,6 +48,9 @@ public class BookAppointmentService implements BookAppointmentUseCase {
         if (!slot.isAvailable()) {
             throw new SlotNotAvailableException("Khung giờ này đã có người đặt trước hoặc tạm khóa");
         }
+
+        // ── Kiểm tra giờ hành chính ──────────────────────────────────
+        validateBusinessHours(slot);
 
         boolean locked = timeSlotRepository.lockSlot(command.slotId());
         if (!locked) {
@@ -64,5 +79,36 @@ public class BookAppointmentService implements BookAppointmentUseCase {
         );
 
         return appointmentRepository.save(appointment);
+    }
+
+    /**
+     * Kiểm tra khung giờ khám có nằm trong giờ hành chính (8:00 – 17:00, Thứ Hai – Thứ Sáu)
+     * theo múi giờ Việt Nam hay không. Từ chối đặt lịch nếu slot đã qua hoặc rơi vào
+     * cuối tuần / ngoài giờ làm việc.
+     */
+    private void validateBusinessHours(TimeSlot slot) {
+        ZonedDateTime slotStart = slot.startTime().atZone(VN_ZONE);
+
+        // 1. Không cho đặt slot đã ở quá khứ
+        if (slotStart.toInstant().isBefore(Instant.now())) {
+            throw new SlotNotAvailableException(
+                    "Không thể đặt lịch khám cho khung giờ đã qua. Vui lòng chọn khung giờ trong tương lai.");
+        }
+
+        // 2. Không cho đặt vào Thứ Bảy / Chủ Nhật
+        DayOfWeek day = slotStart.getDayOfWeek();
+        if (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY) {
+            throw new SlotNotAvailableException(
+                    "Phòng khám không làm việc vào cuối tuần (Thứ Bảy & Chủ Nhật). "
+                    + "Vui lòng chọn ngày khám từ Thứ Hai đến Thứ Sáu.");
+        }
+
+        // 3. Khung giờ phải nằm trong 8:00 – 17:00
+        LocalTime slotTime = slotStart.toLocalTime();
+        if (slotTime.isBefore(BUSINESS_START) || slotTime.isAfter(BUSINESS_END.minusMinutes(1))) {
+            throw new SlotNotAvailableException(
+                    "Khung giờ khám phải nằm trong giờ hành chính (08:00 – 17:00). "
+                    + "Vui lòng chọn khung giờ phù hợp.");
+        }
     }
 }
