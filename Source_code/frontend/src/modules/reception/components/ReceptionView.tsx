@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback, Suspense } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo, Suspense } from 'react';
 import { 
   QrCode, 
   CreditCard, 
@@ -23,11 +23,13 @@ import {
   Check,
   Send,
   Stethoscope,
-  X
+  X,
+  Filter
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { api, AppointmentResponse, getAuthUser, getAuthToken } from '@/shared/lib/api';
+import { formatDoctorFullName } from '@/shared/lib/formatters';
 import AlertMessage from '@/shared/components/Feedback/AlertMessage';
 import { useSingleTabLock } from '@/shared/hooks/useSingleTabLock';
 import SingleTabLockOverlay from '@/shared/components/Feedback/SingleTabLockOverlay';
@@ -52,6 +54,8 @@ export default function ReceptionView() {
 
   // Live feed state of checked-in patients
   const [history, setHistory] = useState<any[]>([]);
+  const [filterStatus, setFilterStatus] = useState<'ALL' | 'ĐÃ TIẾP ĐÓN' | 'ĐANG KHÁM' | 'ĐÃ KHÁM'>('ALL');
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Walk-in Registration states (Khách vãng lai đăng ký tại quầy)
   const [walkinName, setWalkinName] = useState('');
@@ -126,8 +130,8 @@ export default function ReceptionView() {
             }
 
             const docObj = doctors.find((d: any) => d.id === item.doctorId);
-            const docTitle = docObj ? `${docObj.academicTitle ? docObj.academicTitle + ' ' : ''}${docObj.fullName}` : 'BS. CKII Nguyễn Minh Anh';
-            const roomTitle = docObj?.roomNumber || 'Phòng 201 - Lầu 2';
+            const docTitle = item.doctorName || (docObj ? formatDoctorFullName(docObj.academicTitle, docObj.fullName) : 'Bác sĩ phụ trách');
+            const roomTitle = item.roomNumber || docObj?.roomNumber || 'Phòng Khám Chuyên Khoa';
 
             return {
               queueNumber: item.queueNumber,
@@ -149,10 +153,53 @@ export default function ReceptionView() {
   }, [doctors]);
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (!isAuthenticated) return;
+    loadTodayFeed();
+
+    // 1. Tự động đồng bộ Live Feed định kỳ mỗi 8 giây
+    const pollInterval = setInterval(() => {
       loadTodayFeed();
-    }
+    }, 8000);
+
+    // 2. Lắng nghe tín hiệu cập nhật tức thì qua BroadcastChannel từ Buồng khám Bác sĩ
+    let channel: BroadcastChannel | null = null;
+    try {
+      channel = new BroadcastChannel('medsched_queue_sync');
+      channel.onmessage = (event) => {
+        if (event.data?.type === 'QUEUE_UPDATED') {
+          loadTodayFeed();
+        }
+      };
+    } catch {}
+
+    return () => {
+      clearInterval(pollInterval);
+      channel?.close();
+    };
   }, [isAuthenticated, loadTodayFeed]);
+
+  // Filter and statistics for Live Feed
+  const statusCounts = useMemo(() => {
+    return {
+      all: history.length,
+      waiting: history.filter(item => item.status === 'ĐÃ TIẾP ĐÓN').length,
+      inConsultation: history.filter(item => item.status === 'ĐANG KHÁM').length,
+      completed: history.filter(item => item.status === 'ĐÃ KHÁM').length,
+    };
+  }, [history]);
+
+  const filteredHistory = useMemo(() => {
+    return history.filter(item => {
+      const matchStatus = filterStatus === 'ALL' || item.status === filterStatus;
+      const term = searchTerm.trim().toLowerCase();
+      const matchSearch = !term || 
+        (item.patientName && item.patientName.toLowerCase().includes(term)) ||
+        (item.bookingCode && item.bookingCode.toLowerCase().includes(term)) ||
+        (item.queueNumber && String(item.queueNumber).toLowerCase().includes(term)) ||
+        (item.doctor && item.doctor.toLowerCase().includes(term));
+      return matchStatus && matchSearch;
+    });
+  }, [history, filterStatus, searchTerm]);
 
   const roles: string[] = currentUser?.roles || [];
   const isStaff = roles.includes('ROLE_STAFF') || roles.includes('ROLE_ADMIN');
@@ -199,6 +246,8 @@ export default function ReceptionView() {
       const res = await api.checkIn({
         bookingCode: method === 'QR_CODE' ? bookingCode : undefined,
         cccdNumber: method === 'CCCD_QR' ? cccdNumber : undefined,
+        fullName: patientName,
+        doctorId: selectedDoctorId,
         method: method === 'QR_CODE' ? 'QR_CODE' : 'CCCD_QR',
       });
 
@@ -218,6 +267,13 @@ export default function ReceptionView() {
       };
 
       setHistory((prev) => [newEntry, ...prev]);
+
+      // Bắn tín hiệu đồng bộ buồng khám Bác sĩ ngay lập tức
+      try {
+        const syncChannel = new BroadcastChannel('medsched_queue_sync');
+        syncChannel.postMessage({ type: 'QUEUE_UPDATED' });
+        syncChannel.close();
+      } catch {}
     } catch (err: any) {
       setError(err.message || 'Tiếp đón thất bại. Vui lòng kiểm tra lại mã hoặc thẻ.');
     } finally {
@@ -235,28 +291,29 @@ export default function ReceptionView() {
     const generatedEmail = `${cleanPhone}@medsched.vn`;
 
     try {
-      // 1. Tạo tài khoản người dùng thực tế vào Database
-      try {
-        await api.register({
-          fullName: cleanName,
-          phone: cleanPhone,
-          email: generatedEmail,
-          password: walkinPassword,
-        });
-      } catch (regErr: any) {
-        console.warn('Thông báo đăng ký:', regErr.message);
+      // 1. Tạo tài khoản & ca khám thực tế lưu vào CSDL MySQL
+      const walkinRes = await api.registerWalkinPatient({
+        fullName: cleanName,
+        phone: cleanPhone,
+        cccdNumber: walkinCccd.trim() || undefined,
+        doctorId: selectedDoctorId,
+        specialty: walkinSpecialty,
+        password: walkinPassword,
+      });
+
+      const now = new Date();
+      let timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+      if (walkinRes.checkInTime) {
+        try {
+          timeStr = new Date(walkinRes.checkInTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        } catch {}
       }
 
-      // 2. Tạo thông tin ca khám và cấp số thứ tự (STT)
-      const now = new Date();
-      const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
-      const queueNumber = String(history.length + 1).padStart(2, '0');
-      const bookingCode = `WALK-${Math.floor(100000 + Math.random() * 900000)}`;
-
-      const selectedDoc = doctors.find((d) => d.id === selectedDoctorId) || doctors[0];
-      const docName = selectedDoc ? `${selectedDoc.academicTitle ? selectedDoc.academicTitle + ' ' : ''}${selectedDoc.fullName}` : 'BS. Chuyên Khoa Tiếp Nhận';
-      const roomNum = selectedDoc?.roomNumber || 'P.201 - Lầu 2';
-      const specName = walkinSpecialty || selectedDoc?.specialtyName || 'Khoa Nội Tổng Quát';
+      const queueNumber = walkinRes.queueNumber;
+      const bookingCode = walkinRes.bookingCode;
+      const docName = walkinRes.doctorName;
+      const roomNum = walkinRes.roomNumber;
+      const specName = walkinRes.specialtyName;
 
       const newEntry = {
         queueNumber,
@@ -268,7 +325,14 @@ export default function ReceptionView() {
         status: 'ĐÃ TIẾP ĐÓN',
       };
 
-      setHistory((prev) => [newEntry, ...prev]);
+      setHistory((prev) => [newEntry, ...prev.filter(p => p.bookingCode !== bookingCode)]);
+
+      // 2. Phát tín hiệu đồng bộ tức thì qua BroadcastChannel tới Buồng khám Bác sĩ
+      try {
+        const syncChannel = new BroadcastChannel('medsched_queue_sync');
+        syncChannel.postMessage({ type: 'QUEUE_UPDATED', doctorId: walkinRes.doctorId });
+        syncChannel.close();
+      } catch {}
 
       // 3. Mở Modal bàn giao tài khoản & in phiếu khám cho bệnh nhân
       setAccountHandoverModal({
@@ -636,7 +700,7 @@ export default function ReceptionView() {
 
               {(() => {
                 const doc = doctors.find((d: any) => d.id === result.doctorId);
-                const docTitle = doc ? `${doc.academicTitle ? doc.academicTitle + ' ' : ''}${doc.fullName}` : 'Bác sĩ chuyên khoa';
+                const docTitle = doc ? formatDoctorFullName(doc.academicTitle, doc.fullName) : 'Bác sĩ chuyên khoa';
                 const roomTitle = doc?.roomNumber || 'Phòng khám chuyên khoa';
                 return (
                   <div className="grid grid-cols-2 gap-2 text-xs text-emerald-50">
@@ -685,12 +749,111 @@ export default function ReceptionView() {
               </span>
             </div>
 
+            {/* Filter & Search Toolbar */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 mb-3.5 pb-3 border-b border-slate-100">
+              {/* Pill Tabs with flex-wrap and shrink-0 to prevent clipping */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setFilterStatus('ALL')}
+                  className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap ${
+                    filterStatus === 'ALL'
+                      ? 'bg-slate-900 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  <span>Tất cả</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                    filterStatus === 'ALL' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                  }`}>
+                    {statusCounts.all}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setFilterStatus('ĐÃ TIẾP ĐÓN')}
+                  className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap ${
+                    filterStatus === 'ĐÃ TIẾP ĐÓN'
+                      ? 'bg-amber-600 text-white shadow-xs shadow-amber-600/20'
+                      : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200/60'
+                  }`}
+                >
+                  <Clock size={12} />
+                  <span>Đã tiếp đón</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                    filterStatus === 'ĐÃ TIẾP ĐÓN' ? 'bg-white/20 text-white' : 'bg-amber-200 text-amber-800'
+                  }`}>
+                    {statusCounts.waiting}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setFilterStatus('ĐANG KHÁM')}
+                  className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap ${
+                    filterStatus === 'ĐANG KHÁM'
+                      ? 'bg-blue-600 text-white shadow-xs shadow-blue-600/20'
+                      : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200/60'
+                  }`}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+                  <span>Đang khám</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                    filterStatus === 'ĐANG KHÁM' ? 'bg-white/20 text-white' : 'bg-blue-200 text-blue-800'
+                  }`}>
+                    {statusCounts.inConsultation}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setFilterStatus('ĐÃ KHÁM')}
+                  className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap ${
+                    filterStatus === 'ĐÃ KHÁM'
+                      ? 'bg-emerald-600 text-white shadow-xs shadow-emerald-600/20'
+                      : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/60'
+                  }`}
+                >
+                  <CheckCircle2 size={12} />
+                  <span>Đã khám</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                    filterStatus === 'ĐÃ KHÁM' ? 'bg-white/20 text-white' : 'bg-emerald-200 text-emerald-800'
+                  }`}>
+                    {statusCounts.completed}
+                  </span>
+                </button>
+              </div>
+
+              {/* Quick Search Input */}
+              <div className="relative w-full lg:w-48 shrink-0">
+                <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Tìm tên, mã vé, STT..."
+                  className="w-full pl-8 pr-7 py-1.5 text-xs bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent focus:outline-none transition"
+                />
+                {searchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchTerm('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded-full cursor-pointer"
+                    title="Xóa tìm kiếm"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+            </div>
+
             {/* Table Feed */}
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                    <th className="py-2.5 px-3">STT</th>
+                    <th className="py-2.5 px-3 w-20">STT</th>
                     <th className="py-2.5 px-3">Bệnh Nhân</th>
                     <th className="py-2.5 px-3">Bác Sĩ & Phòng</th>
                     <th className="py-2.5 px-3">Giờ Check-in</th>
@@ -704,11 +867,35 @@ export default function ReceptionView() {
                         Chưa có lượt tiếp đón nào trong phiên làm việc này.
                       </td>
                     </tr>
+                  ) : filteredHistory.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-10 text-center">
+                        <div className="flex flex-col items-center justify-center text-slate-400 space-y-1.5">
+                          <Filter size={22} className="text-slate-300" />
+                          <p className="text-xs font-medium text-slate-500">
+                            Không có bệnh nhân nào khớp với bộ lọc {filterStatus !== 'ALL' ? `"${filterStatus}"` : ''} {searchTerm ? `từ khóa "${searchTerm}"` : ''}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => { setFilterStatus('ALL'); setSearchTerm(''); }}
+                            className="text-xs text-emerald-600 font-bold hover:underline cursor-pointer pt-0.5"
+                          >
+                            Xóa bộ lọc để xem tất cả
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
                   ) : (
-                    history.map((item, idx) => (
+                    filteredHistory.map((item, idx) => (
                       <tr key={idx} className="hover:bg-slate-50/80 transition">
                         <td className="py-3 px-3">
-                          <span className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-800 font-extrabold flex items-center justify-center text-xs">
+                          <span className={`inline-flex items-center justify-center px-2 py-1 min-w-[58px] rounded-lg font-mono font-extrabold text-xs tracking-tight whitespace-nowrap shadow-2xs ${
+                            item.status === 'ĐÃ KHÁM'
+                              ? 'bg-slate-100 text-slate-500 border border-slate-200/60'
+                              : item.status === 'ĐANG KHÁM'
+                              ? 'bg-blue-100 text-blue-800 ring-2 ring-blue-400/50'
+                              : 'bg-amber-100 text-amber-800 border border-amber-200/60'
+                          }`}>
                             {item.queueNumber}
                           </span>
                         </td>
@@ -724,9 +911,24 @@ export default function ReceptionView() {
                           {item.checkInTime}
                         </td>
                         <td className="py-3 px-3 text-right">
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            <CheckCircle2 size={11} /> {item.status}
-                          </span>
+                          {item.status === 'ĐÃ TIẾP ĐÓN' ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                              <Clock size={11} /> ĐÃ TIẾP ĐÓN
+                            </span>
+                          ) : item.status === 'ĐANG KHÁM' ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                              <Stethoscope size={11} /> ĐANG KHÁM
+                            </span>
+                          ) : item.status === 'ĐÃ KHÁM' ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <CheckCircle2 size={11} /> ĐÃ KHÁM
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                              {item.status}
+                            </span>
+                          )}
                         </td>
                       </tr>
                     ))
@@ -737,7 +939,9 @@ export default function ReceptionView() {
           </div>
 
           <div className="pt-4 border-t border-slate-100 mt-4 flex items-center justify-between text-xs text-slate-400">
-            <span>Tổng số: <strong className="text-slate-700">{history.length}</strong> ca tiếp nhận</span>
+            <span>
+              Hiển thị: <strong className="text-slate-700">{filteredHistory.length}</strong> / <strong className="text-slate-700">{history.length}</strong> ca tiếp nhận
+            </span>
             <span>Hệ thống Lễ tân MedSched kết nối buồng khám 1s</span>
           </div>
         </div>

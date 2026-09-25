@@ -39,20 +39,25 @@ export default function LoginForm() {
       });
 
       const roles: string[] = res.user?.roles || res.roles || [];
-      const roleName = roles[0] || 'CUSTOMER';
-      setSuccessMessage(`Đăng nhập thành công! Vai trò: ${roleName}. Đang chuyển hướng...`);
+      const priorityRoles = ['ROLE_ADMIN', 'ROLE_DOCTOR', 'ROLE_STAFF', 'ROLE_PATIENT'];
+      const displayRole = priorityRoles.find((r) => roles.includes(r)) || roles[0] || 'CUSTOMER';
+      setSuccessMessage(`Đăng nhập thành công! Vai trò: ${displayRole}. Đang chuyển hướng...`);
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('auth-change'));
+      }
 
       setTimeout(() => {
+        let dest = redirectUrl;
         if (roles.includes('ROLE_ADMIN')) {
-          router.push('/admin');
+          dest = '/admin';
         } else if (roles.includes('ROLE_STAFF')) {
-          router.push('/reception');
+          dest = '/reception';
         } else if (roles.includes('ROLE_DOCTOR')) {
-          router.push('/doctor');
-        } else {
-          router.push(redirectUrl);
+          dest = '/doctor';
         }
-      }, 800);
+        window.location.href = dest;
+      }, 500);
     } catch (err: any) {
       setErrorMessage(err.message || 'Đăng nhập thất bại. Vui lòng kiểm tra lại tài khoản.');
     } finally {

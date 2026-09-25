@@ -10,6 +10,10 @@ public interface DoctorScheduleJpaRepository extends JpaRepository<DoctorSchedul
 
     List<DoctorScheduleEntity> findByDoctorIdAndWorkDate(String doctorId, LocalDate workDate);
 
+    List<DoctorScheduleEntity> findByDoctorIdOrderByWorkDateAscStartTimeAsc(String doctorId);
+
+    List<DoctorScheduleEntity> findByDoctorIdAndWorkDateBetweenOrderByWorkDateAscStartTimeAsc(String doctorId, LocalDate from, LocalDate to);
+
     /**
      * Lấy toàn bộ ca trực của 1 bác sĩ (theo users.id, không phải doctors.id của riêng 1 chi nhánh)
      * trong khoảng ngày để kiểm tra chồng chéo giờ trực đa chi nhánh (kịch bản 7.9).

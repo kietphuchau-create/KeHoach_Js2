@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   Calendar, 
@@ -16,9 +16,11 @@ import {
   MapPin, 
   ShieldCheck,
   Printer,
-  ChevronRight
+  ChevronRight,
+  AlertCircle
 } from 'lucide-react';
 import { api, AppointmentResponse, getAuthUser, getAuthToken } from '@/shared/lib/api';
+import { formatDoctorFullName } from '@/shared/lib/formatters';
 import AlertMessage from '@/shared/components/Feedback/AlertMessage';
 import LoadingSpinner from '@/shared/components/Feedback/LoadingSpinner';
 import { useSingleTabLock } from '@/shared/hooks/useSingleTabLock';
@@ -64,14 +66,6 @@ export default function BookingForm() {
   const [selectedSpecialty, setSelectedSpecialty] = useState<string>('');
   const [doctors, setDoctors] = useState<any[]>([]);
   const [selectedDoctor, setSelectedDoctor] = useState<any>(null);
-  const getTodayFormatted = () => {
-    const now = new Date();
-    const day = String(now.getDate()).padStart(2, '0');
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const year = now.getFullYear();
-    return `${day}/${month}/${year}`;
-  };
-
   const getTodayISODate = () => {
     const now = new Date();
     const day = String(now.getDate()).padStart(2, '0');
@@ -80,11 +74,35 @@ export default function BookingForm() {
     return `${year}-${month}-${day}`;
   };
 
-  const [bookingDate, setBookingDate] = useState<string>(getTodayISODate());
+  const getTomorrowISODate = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${year}-${month}-${day}`;
+  };
+
+  const formatISODateToVN = (iso: string) => {
+    const parts = iso.split('-');
+    return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : iso;
+  };
+
+  // Nếu hiện tại đã quá 14:30 chiều (khung giờ cuối cùng của ngày), tự động khởi tạo ngày mai
+  const isPastAllTodaySlots = () => {
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    return currentMinutes > 14 * 60 + 30;
+  };
+
+  const [bookingDate, setBookingDate] = useState<string>(
+    isPastAllTodaySlots() ? getTomorrowISODate() : getTodayISODate()
+  );
+
   const [selectedSlot, setSelectedSlot] = useState<{ id: string; time: string; date: string }>({
-    id: 'sl000002-0000-0000-0000-000000000001',
-    time: '08:30 - 09:00',
-    date: getTodayFormatted(),
+    id: '',
+    time: 'Chưa chọn',
+    date: formatISODateToVN(isPastAllTodaySlots() ? getTomorrowISODate() : getTodayISODate()),
   });
   const [symptoms, setSymptoms] = useState('');
   const [aiPreview, setAiPreview] = useState<{ specialty: string; summary: string } | null>(null);
@@ -114,7 +132,7 @@ export default function BookingForm() {
         if (docList && docList.length > 0) {
           const mapped = docList.map((d: any) => ({
             id: d.id,
-            name: `${d.academicTitle ? d.academicTitle + ' ' : ''}${d.fullName}`,
+            name: formatDoctorFullName(d.academicTitle, d.fullName),
             title: d.bio || `Bác sĩ ${d.specialtyName || ''}`,
             room: d.roomNumber || 'Phòng Khám Chuyên Khoa',
             fee: Number(d.consultationFee) || 200000,
@@ -147,8 +165,12 @@ export default function BookingForm() {
 
   const handleBook = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitting(true);
     setError(null);
+    if (!selectedSlot.id || timeSlots.find((s) => s.id === selectedSlot.id)?.disabled) {
+      setError('Khung giờ bạn chọn đã qua hoặc không còn khả dụng. Vui lòng chọn khung giờ khác hoặc ngày khác.');
+      return;
+    }
+    setSubmitting(true);
 
     try {
       // Lấy patientProfileId thực tế của tài khoản hiện tại từ phiên đăng nhập
@@ -181,14 +203,103 @@ export default function BookingForm() {
 
   const doctorList = doctors;
 
-  const timeSlots = [
-    { id: 'sl000001-0000-0000-0000-000000000001', time: '08:00 - 08:30', status: 'full', label: 'Đã kín chỗ' },
-    { id: 'sl000002-0000-0000-0000-000000000001', time: '08:30 - 09:00', status: 'available', label: 'Khả dụng' },
-    { id: 'sl000003-0000-0000-0000-000000000001', time: '09:00 - 09:30', status: 'available', label: 'Khả dụng' },
-    { id: 'sl000004-0000-0000-0000-000000000001', time: '09:30 - 10:00', status: 'available', label: 'Khả dụng' },
-    { id: 'sl000005-0000-0000-0000-000000000001', time: '14:00 - 14:30', status: 'available', label: 'Khả dụng' },
-    { id: 'sl000006-0000-0000-0000-000000000001', time: '14:30 - 15:00', status: 'available', label: 'Khả dụng' },
+  const BASE_TIME_SLOTS = [
+    { id: 'sl000001-0000-0000-0000-000000000001', time: '08:00 - 08:30', startMinutes: 8 * 60, defaultStatus: 'available' },
+    { id: 'sl000002-0000-0000-0000-000000000001', time: '08:30 - 09:00', startMinutes: 8 * 60 + 30, defaultStatus: 'available' },
+    { id: 'sl000003-0000-0000-0000-000000000001', time: '09:00 - 09:30', startMinutes: 9 * 60, defaultStatus: 'available' },
+    { id: 'sl000004-0000-0000-0000-000000000001', time: '09:30 - 10:00', startMinutes: 9 * 60 + 30, defaultStatus: 'available' },
+    { id: 'sl000005-0000-0000-0000-000000000001', time: '14:00 - 14:30', startMinutes: 14 * 60, defaultStatus: 'available' },
+    { id: 'sl000006-0000-0000-0000-000000000001', time: '14:30 - 15:00', startMinutes: 14 * 60 + 30, defaultStatus: 'available' },
   ];
+
+  const [dynamicSlots, setDynamicSlots] = useState<Array<{
+    id: string;
+    time: string;
+    startMinutes: number;
+    status: string;
+    label: string;
+    disabled: boolean;
+  }>>([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+
+  useEffect(() => {
+    const docId = selectedDoctor?.id;
+    if (!docId) return;
+    let isCancelled = false;
+    setLoadingSlots(true);
+    api.getDoctorAvailableSlots(docId, bookingDate)
+      .then((data) => {
+        if (!isCancelled && Array.isArray(data) && data.length > 0) {
+          setDynamicSlots(data);
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not fetch doctor slots:', err);
+      })
+      .finally(() => {
+        if (!isCancelled) setLoadingSlots(false);
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [selectedDoctor?.id, bookingDate]);
+
+  // Tính toán trạng thái các time-slots theo thời gian thực tế:
+  // Nếu có dữ liệu slot động từ DB của Bác sĩ -> Dùng dữ liệu thật 100%
+  const timeSlots = useMemo(() => {
+    if (dynamicSlots.length > 0) {
+      return dynamicSlots.map((s) => ({
+        id: s.id,
+        time: s.time,
+        status: (s.status === 'full' ? 'full' : s.status === 'expired' ? 'expired' : s.status === 'locked' ? 'full' : 'available') as 'available' | 'full' | 'expired',
+        label: s.label,
+        disabled: s.disabled,
+      }));
+    }
+
+    const isToday = bookingDate === getTodayISODate();
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+    return BASE_TIME_SLOTS.map((slot) => {
+      const isPast = isToday && slot.startMinutes <= currentMinutes;
+      if (isPast) {
+        return {
+          id: slot.id,
+          time: slot.time,
+          status: 'expired' as const,
+          label: 'Đã qua giờ',
+          disabled: true,
+        };
+      }
+      return {
+        id: slot.id,
+        time: slot.time,
+        status: 'available' as const,
+        label: 'Khả dụng',
+        disabled: false,
+      };
+    });
+  }, [bookingDate, dynamicSlots]);
+
+  // Tự động chọn khung giờ khả dụng đầu tiên khi đổi ngày hoặc đổi bác sĩ
+  useEffect(() => {
+    const firstAvailable = timeSlots.find((s) => !s.disabled);
+    if (firstAvailable) {
+      setSelectedSlot({
+        id: firstAvailable.id,
+        time: firstAvailable.time,
+        date: formatISODateToVN(bookingDate),
+      });
+    } else {
+      setSelectedSlot({
+        id: '',
+        time: 'Hết chỗ',
+        date: formatISODateToVN(bookingDate),
+      });
+    }
+  }, [bookingDate, timeSlots]);
 
   if (authChecking) {
     return (
@@ -210,7 +321,7 @@ export default function BookingForm() {
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold text-slate-800">Đặt Lịch Khám Trực Tuyến</h1>
             <p className="text-slate-500 text-sm mt-1">
-              Quy trình 4 bước đặt trước ca khám theo thời gian thực kết hợp phân loại triệu chứng tự động bằng <strong>Spring AI</strong>.
+              Quy trình 4 bước đặt trước ca khám theo thời gian thực kết hợp phân loại triệu chứng tự động bằng <strong>Spring AI</strong> (Tính năng AI đang trong quá trình phát triển).
             </p>
           </div>
           {step < 4 && (
@@ -256,7 +367,7 @@ export default function BookingForm() {
               <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
                 step === 3 ? 'bg-white text-blue-600' : 'bg-slate-200 text-slate-700'
               }`}>3</div>
-              <span className="text-xs font-semibold hidden sm:inline">Triệu Chứng & AI</span>
+              <span className="text-xs font-semibold hidden sm:inline">Triệu Chứng & AI (Thử nghiệm)</span>
             </button>
           </div>
         )}
@@ -419,26 +530,35 @@ export default function BookingForm() {
               <label className="block text-xs font-bold text-slate-700 uppercase mb-2">
                 3. Chọn Khung Giờ Khám (Time-slot):
               </label>
+
+              {timeSlots.every((s) => s.disabled) && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-center gap-2 mb-3">
+                  <AlertCircle size={16} className="text-amber-600 shrink-0" />
+                  <span>
+                    Hôm nay phòng khám đã kết thúc giờ nhận bệnh. Quý khách vui lòng chọn <strong>ngày mai ({formatISODateToVN(getTomorrowISODate())})</strong> hoặc các ngày tiếp theo để đặt lịch khám.
+                  </span>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                 {timeSlots.map((slot) => {
-                  const isFull = slot.status === 'full';
                   const isSelected = selectedSlot.id === slot.id;
                   return (
                     <button
                       key={slot.id}
                       type="button"
-                      disabled={isFull}
+                      disabled={slot.disabled}
                       onClick={() => setSelectedSlot({ id: slot.id, time: slot.time, date: selectedSlot.date })}
                       className={`p-3 rounded-xl border text-center transition flex flex-col items-center justify-center ${
-                        isFull
-                          ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
+                        slot.disabled
+                          ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed opacity-75'
                           : isSelected
                           ? 'border-blue-600 bg-blue-600 text-white shadow-sm cursor-pointer'
                           : 'border-slate-200 bg-white hover:border-blue-400 text-slate-700 cursor-pointer'
                       }`}
                     >
                       <span className="text-xs font-bold">{slot.time}</span>
-                      <span className={`text-[10px] mt-0.5 ${isSelected ? 'text-blue-100' : isFull ? 'text-slate-400' : 'text-emerald-600'}`}>
+                      <span className={`text-[10px] mt-0.5 ${isSelected ? 'text-blue-100' : slot.disabled ? 'text-slate-400' : 'text-emerald-600'}`}>
                         {slot.label}
                       </span>
                     </button>
@@ -480,10 +600,12 @@ export default function BookingForm() {
                   type="button"
                   onClick={handleAnalyzeSymptoms}
                   disabled={analyzingAi || !symptoms.trim()}
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-purple-700 hover:text-purple-800 bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-200 transition cursor-pointer"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-purple-700 hover:text-purple-800 bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-200 transition cursor-pointer"
+                  title="Tính năng AI đang trong quá trình phát triển"
                 >
                   <Sparkles size={13} className="text-purple-600" />
                   <span>{analyzingAi ? 'Đang phân tích...' : 'Thử phân tích AI'}</span>
+                  <span className="text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded font-medium border border-amber-300">Đang phát triển</span>
                 </button>
               </div>
               <textarea
@@ -494,21 +616,31 @@ export default function BookingForm() {
                 placeholder="Ví dụ: Đau tức vùng ngực trái, hồi hộp đánh trống ngực vào ban đêm, thỉnh thoảng choáng nhẹ..."
                 className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm text-slate-800"
               />
-              <p className="text-xs text-slate-400 mt-1">
-                * Dữ liệu triệu chứng sẽ được Spring AI xử lý và tóm tắt gửi tới Bác sĩ trước khi bạn bước vào phòng khám.
-              </p>
+              <div className="flex items-center gap-1.5 text-xs text-amber-800 bg-amber-50 px-3 py-2 rounded-xl border border-amber-200 mt-2">
+                <AlertCircle size={14} className="text-amber-600 shrink-0" />
+                <span><strong>Thông báo:</strong> Tính năng trợ lý Spring AI phân loại &amp; tóm tắt bệnh án hiện đang trong quá trình phát triển &amp; thử nghiệm.</span>
+              </div>
             </div>
 
             {/* AI Summary Preview Card */}
             {aiPreview && (
-              <div className="bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-200 rounded-2xl p-4 space-y-2">
-                <div className="flex items-center gap-2 text-purple-800 font-bold text-xs">
-                  <Sparkles size={16} className="text-purple-600" />
-                  <span>KẾT QUẢ ĐÁNH GIÁ TỰ ĐỘNG TỪ SPRING AI:</span>
+              <div className="bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-200 rounded-2xl p-4 space-y-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-purple-800 font-bold text-xs">
+                    <Sparkles size={16} className="text-purple-600 shrink-0" />
+                    <span>KẾT QUẢ ĐÁNH GIÁ TỰ ĐỘNG TỪ SPRING AI:</span>
+                  </div>
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-300">
+                    <Clock size={11} className="text-amber-600" />
+                    Đang Trong Quá Trình Phát Triển
+                  </span>
                 </div>
-                <div className="bg-white/80 backdrop-blur-xs p-3 rounded-xl text-xs text-slate-700 border border-purple-100">
+                <div className="bg-white/80 backdrop-blur-xs p-3 rounded-xl text-xs text-slate-700 border border-purple-100 space-y-1">
                   <div className="font-semibold text-purple-900 mb-0.5">Gợi ý chuyên khoa: {aiPreview.specialty}</div>
                   <p className="italic text-slate-600">{aiPreview.summary}</p>
+                  <p className="text-[11px] text-amber-700 font-medium pt-1">
+                    * Kết quả do mô hình AI thử nghiệm phân tích, mang tính chất tham khảo kỹ thuật.
+                  </p>
                 </div>
               </div>
             )}
@@ -604,10 +736,15 @@ export default function BookingForm() {
 
               {/* AI Clinical Summary on ticket */}
               {result.aiSummary && (
-                <div className="bg-purple-50 border border-purple-200 p-3 rounded-xl text-xs text-purple-900">
-                  <div className="flex items-center gap-1 font-bold mb-0.5 text-purple-800">
-                    <Sparkles size={13} />
-                    <span>Tóm Tắt Bệnh Án Điện Tử Từ Spring AI:</span>
+                <div className="bg-purple-50 border border-purple-200 p-3 rounded-xl text-xs text-purple-900 space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1 font-bold text-purple-800">
+                      <Sparkles size={13} className="text-purple-600" />
+                      <span>Tóm Tắt Bệnh Án Điện Tử Từ Spring AI:</span>
+                    </div>
+                    <span className="text-[10px] bg-amber-100 text-amber-800 font-semibold px-2 py-0.5 rounded-full border border-amber-300">
+                      Đang trong quá trình phát triển
+                    </span>
                   </div>
                   <p className="italic text-slate-700">🤖 {result.aiSummary}</p>
                 </div>

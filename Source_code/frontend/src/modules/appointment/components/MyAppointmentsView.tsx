@@ -18,9 +18,12 @@ import {
   PlusCircle, 
   X,
   RefreshCw,
-  AlertCircle
+  AlertCircle,
+  Pill,
+  FileText
 } from 'lucide-react';
-import { api, getAuthToken, AppointmentResponse } from '@/shared/lib/api';
+import { api, getAuthToken, AppointmentResponse, PrescriptionDetail } from '@/shared/lib/api';
+import { formatDoctorFullName } from '@/shared/lib/formatters';
 import AlertMessage from '@/shared/components/Feedback/AlertMessage';
 import LoadingSpinner from '@/shared/components/Feedback/LoadingSpinner';
 
@@ -80,10 +83,11 @@ const resolveAppointmentDate = (apt: AppointmentResponse): string => {
 
 const resolveSlotTime = (apt: AppointmentResponse): string => {
   if (apt.slotTime) return apt.slotTime;
+  if (apt.appointmentTime) return apt.appointmentTime;
   if (apt.slotId && SLOT_MAP[apt.slotId]?.time) {
     return SLOT_MAP[apt.slotId].time;
   }
-  return '08:30 - 09:00';
+  return '08:00 - 08:30';
 };
 
 export default function MyAppointmentsView() {
@@ -103,11 +107,105 @@ export default function MyAppointmentsView() {
   const [selectedAppointment, setSelectedAppointment] = useState<AppointmentResponse | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
+  // Prescription Modal state
+  const [viewingPrescriptionApt, setViewingPrescriptionApt] = useState<AppointmentResponse | null>(null);
+  const [prescriptionDetail, setPrescriptionDetail] = useState<PrescriptionDetail | null>(null);
+  const [loadingPrescription, setLoadingPrescription] = useState(false);
+
+  const handleOpenPrescription = async (apt: AppointmentResponse) => {
+    setViewingPrescriptionApt(apt);
+    setLoadingPrescription(true);
+    setPrescriptionDetail(null);
+    const appointmentId = apt.id;
+    if (!appointmentId) {
+      setLoadingPrescription(false);
+      return;
+    }
+    try {
+      const data = await api.getAppointmentPrescription(appointmentId);
+      setPrescriptionDetail(data);
+    } catch (err) {
+      console.warn('Không thể tải đơn thuốc từ backend:', err);
+    } finally {
+      setLoadingPrescription(false);
+    }
+  };
+
   // Cancellation state
   const [cancelingAppointment, setCancelingAppointment] = useState<AppointmentResponse | null>(null);
   const [cancelReason, setCancelReason] = useState('Bận việc đột xuất không thể đến khám');
   const [cancelingLoading, setCancelingLoading] = useState(false);
   const [cancelSuccessMsg, setCancelSuccessMsg] = useState<string | null>(null);
+
+  // Reschedule state (CLAB-106 / Sprint 2 CRUD Update)
+  const [reschedulingAppointment, setReschedulingAppointment] = useState<AppointmentResponse | null>(null);
+  const [rescheduleDate, setRescheduleDate] = useState<string>('2026-09-25');
+  const [rescheduleSlotId, setRescheduleSlotId] = useState<string>('40b2c3d4-0025-4000-8000-000000000001');
+  const [rescheduleSymptoms, setRescheduleSymptoms] = useState<string>('');
+  const [rescheduleLoading, setRescheduleLoading] = useState(false);
+  const [rescheduleSuccessMsg, setRescheduleSuccessMsg] = useState<string | null>(null);
+
+  const AVAILABLE_RESCHEDULE_SLOTS = [
+    { id: '40b2c3d4-0025-4000-8000-000000000001', time: '08:00 - 08:30' },
+    { id: '40b2c3d4-0025-4000-8000-000000000002', time: '08:30 - 09:00' },
+    { id: '40b2c3d4-0025-4000-8000-000000000003', time: '09:00 - 09:30' },
+    { id: '40b2c3d4-0025-4000-8000-000000000004', time: '09:30 - 10:00' },
+    { id: '40b2c3d4-0025-4000-8000-000000000005', time: '10:00 - 10:30' },
+    { id: '40b2c3d4-0025-4000-8000-000000000006', time: '10:30 - 11:00' },
+    { id: '40b2c3d4-0025-4000-8000-000000000008', time: '14:00 - 14:30' },
+    { id: '40b2c3d4-0025-4000-8000-000000000009', time: '14:30 - 15:00' },
+  ];
+
+  const formatISODateToVN = (iso: string) => {
+    const parts = iso.split('-');
+    return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : iso;
+  };
+
+  const handleOpenReschedule = (apt: AppointmentResponse) => {
+    setReschedulingAppointment(apt);
+    setRescheduleSymptoms(apt.symptoms || '');
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const day = String(tomorrow.getDate()).padStart(2, '0');
+    const month = String(tomorrow.getMonth() + 1).padStart(2, '0');
+    const year = tomorrow.getFullYear();
+    setRescheduleDate(`${year}-${month}-${day}`);
+    setRescheduleSlotId('40b2c3d4-0025-4000-8000-000000000001');
+  };
+
+  const handleConfirmReschedule = async () => {
+    if (!reschedulingAppointment?.id) return;
+    if (!rescheduleSlotId) {
+      alert('Vui lòng chọn khung giờ khám mới.');
+      return;
+    }
+    setRescheduleLoading(true);
+    try {
+      await api.rescheduleAppointment(reschedulingAppointment.id, {
+        newSlotId: rescheduleSlotId,
+        symptoms: rescheduleSymptoms.trim(),
+      });
+      const chosenSlot = AVAILABLE_RESCHEDULE_SLOTS.find((s) => s.id === rescheduleSlotId);
+      const chosenTime = chosenSlot ? chosenSlot.time : 'Khung giờ mới';
+      setRescheduleSuccessMsg(
+        `✅ Đã đổi lịch khám thành công cho phiếu "${reschedulingAppointment.bookingCode}" sang ngày ${formatISODateToVN(
+          rescheduleDate
+        )} (${chosenTime})!`
+      );
+      setAppointments((prev) =>
+        prev.map((a) =>
+          a.id === reschedulingAppointment.id || a.bookingCode === reschedulingAppointment.bookingCode
+            ? { ...a, slotId: rescheduleSlotId, symptoms: rescheduleSymptoms.trim(), appointmentTime: chosenTime }
+            : a
+        )
+      );
+      setReschedulingAppointment(null);
+    } catch (err: any) {
+      alert('Lỗi đổi lịch: ' + (err?.message || 'Không thể đổi lịch'));
+    } finally {
+      setRescheduleLoading(false);
+    }
+  };
 
   // Load patient appointments
   const fetchAppointments = async () => {
@@ -147,7 +245,7 @@ export default function MyAppointmentsView() {
         const center = centerMap.get(apt.medicalCenterId);
         return {
           ...apt,
-          doctorName: apt.doctorName || (doc ? `${doc.academicTitle ? doc.academicTitle + ' ' : ''}${doc.fullName}` : undefined),
+          doctorName: apt.doctorName || (doc ? formatDoctorFullName(doc.academicTitle, doc.fullName) : undefined),
           specialtyName: apt.specialtyName || doc?.specialtyName,
           roomNumber: apt.roomNumber || doc?.roomNumber,
           medicalCenterName: apt.medicalCenterName || center?.name,
@@ -430,6 +528,14 @@ export default function MyAppointmentsView() {
           />
         )}
 
+        {rescheduleSuccessMsg && (
+          <AlertMessage
+            type="success"
+            message={rescheduleSuccessMsg}
+            onClose={() => setRescheduleSuccessMsg(null)}
+          />
+        )}
+
         {/* Error Alert */}
         {error && (
           <AlertMessage
@@ -566,28 +672,48 @@ export default function MyAppointmentsView() {
 
                       {/* Spring AI Clinical Assessment */}
                       {apt.aiSummary && (
-                        <div className="bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-50 p-3.5 rounded-xl border border-purple-200 text-xs text-purple-900 space-y-1.5">
-                          <div className="flex items-center gap-1.5 font-bold text-purple-800 text-[11px] uppercase tracking-wider">
-                            <Sparkles size={14} className="text-purple-600" />
-                            <span>Tóm tắt lâm sàng từ Spring AI:</span>
+                        <div className="bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-50 p-3.5 rounded-xl border border-purple-200 text-xs text-purple-900 space-y-2">
+                          <div className="flex flex-wrap items-center justify-between gap-1.5">
+                            <div className="flex items-center gap-1.5 font-bold text-purple-800 text-[11px] uppercase tracking-wider">
+                              <Sparkles size={14} className="text-purple-600 shrink-0" />
+                              <span>Tóm tắt lâm sàng từ Spring AI:</span>
+                            </div>
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-300">
+                              <Clock size={11} className="text-amber-600" />
+                              Đang phát triển
+                            </span>
                           </div>
                           <p className="text-slate-700 leading-relaxed text-xs">
                             {apt.aiSummary}
                           </p>
+                          <div className="flex items-center gap-1.5 text-[11px] text-amber-700 bg-amber-50/80 px-2.5 py-1 rounded-lg border border-amber-200">
+                            <AlertCircle size={12} className="shrink-0 text-amber-600" />
+                            <span>Tính năng Spring AI đang trong quá trình phát triển &amp; thử nghiệm.</span>
+                          </div>
                         </div>
                       )}
                     </div>
 
                     {/* Right Actions & QR Voucher Button (1 Col) */}
                     <div className="flex flex-col sm:flex-row lg:flex-col items-center justify-center gap-3 p-4 bg-mint-soft/50 rounded-2xl border border-mint-light h-full">
-                      {/* Interactive QR Button */}
-                      <button
-                        onClick={() => setSelectedAppointment(apt)}
-                        className="w-full flex items-center justify-center gap-2.5 px-4 py-3 bg-white hover:bg-mint-light text-pine-teal border border-teal-primary/30 rounded-xl font-bold text-xs shadow-2xs transition group cursor-pointer"
-                      >
-                        <QrCode size={18} className="text-teal-primary group-hover:scale-110 transition" />
-                        <span>Mã QR Check-in Quầy</span>
-                      </button>
+                      {/* Interactive Button: Nếu COMPLETED -> Xem Đơn Thuốc, nếu chưa -> Mã QR Check-in Quầy */}
+                      {apt.status === 'COMPLETED' ? (
+                        <button
+                          onClick={() => handleOpenPrescription(apt)}
+                          className="w-full flex items-center justify-center gap-2.5 px-4 py-3 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white rounded-xl font-bold text-xs shadow-md shadow-emerald-600/20 transition group cursor-pointer"
+                        >
+                          <Pill size={17} className="text-white group-hover:scale-110 transition" />
+                          <span>Xem Đơn Thuốc &amp; Kết Quả</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setSelectedAppointment(apt)}
+                          className="w-full flex items-center justify-center gap-2.5 px-4 py-3 bg-white hover:bg-mint-light text-pine-teal border border-teal-primary/30 rounded-xl font-bold text-xs shadow-2xs transition group cursor-pointer"
+                        >
+                          <QrCode size={18} className="text-teal-primary group-hover:scale-110 transition" />
+                          <span>Mã QR Check-in Quầy</span>
+                        </button>
+                      )}
 
                       <button
                         onClick={() => handlePrint(apt)}
@@ -598,13 +724,24 @@ export default function MyAppointmentsView() {
                       </button>
 
                       {apt.status === 'CONFIRMED' && (
-                        <button
-                          onClick={() => setCancelingAppointment(apt)}
-                          className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl font-bold text-xs transition cursor-pointer"
-                        >
-                          <X size={14} />
-                          <span>Hủy Lịch Hẹn Này</span>
-                        </button>
+                        <div className="grid grid-cols-2 gap-2 w-full">
+                          <button
+                            onClick={() => handleOpenReschedule(apt)}
+                            className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl font-bold text-xs transition cursor-pointer"
+                            title="Đổi sang khung giờ hoặc ngày khám khác"
+                          >
+                            <Calendar size={13} />
+                            <span>Đổi Lịch</span>
+                          </button>
+                          <button
+                            onClick={() => setCancelingAppointment(apt)}
+                            className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl font-bold text-xs transition cursor-pointer"
+                            title="Hủy phiếu hẹn này"
+                          >
+                            <X size={13} />
+                            <span>Hủy Lịch</span>
+                          </button>
+                        </div>
                       )}
 
                       <div className="text-[11px] text-center text-slate-400 pt-1">
@@ -728,7 +865,103 @@ export default function MyAppointmentsView() {
         </div>
       )}
 
-      {/* Cancellation Confirmation Modal */}
+      {/* Reschedule Confirmation Modal (CLAB-106) */}
+      {reschedulingAppointment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-amber-200 flex flex-col p-6 space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div className="flex items-center gap-2 text-amber-700 font-bold text-sm">
+                <Calendar size={20} />
+                <span>Đổi Lịch Hẹn Khám (Reschedule)</span>
+              </div>
+              <button
+                onClick={() => setReschedulingAppointment(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-xs text-amber-900 space-y-1">
+              <div className="font-bold flex items-center justify-between">
+                <span>Mã phiếu: {reschedulingAppointment.bookingCode}</span>
+                <span className="text-teal-700">{reschedulingAppointment.doctorName || 'Bác sĩ chuyên khoa'}</span>
+              </div>
+              <p className="text-[11px] text-amber-800">
+                Khung giờ cũ sẽ được giải phóng cho bệnh nhân khác. Bạn có thể chọn ngày và khung giờ mới bên dưới.
+              </p>
+            </div>
+
+            {/* Chọn ngày mới */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-slate-700">1. Chọn ngày khám mới:</label>
+              <input
+                type="date"
+                min="2026-09-25"
+                value={rescheduleDate}
+                onChange={(e) => setRescheduleDate(e.target.value)}
+                className="w-full p-2.5 border border-slate-200 rounded-xl text-xs bg-slate-50 text-slate-800 outline-none focus:ring-2 focus:ring-amber-500/20 font-semibold"
+              />
+            </div>
+
+            {/* Chọn khung giờ mới */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-slate-700">2. Chọn khung giờ khám:</label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {AVAILABLE_RESCHEDULE_SLOTS.map((s) => {
+                  const isSelected = rescheduleSlotId === s.id;
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => setRescheduleSlotId(s.id)}
+                      className={`p-2.5 rounded-xl border text-xs font-bold transition cursor-pointer text-center ${
+                        isSelected
+                          ? 'border-amber-500 bg-amber-50 text-amber-900 shadow-xs'
+                          : 'border-slate-200 hover:border-slate-300 bg-white text-slate-700'
+                      }`}
+                    >
+                      <Clock size={12} className="mx-auto mb-1 text-slate-400" />
+                      <span>{s.time}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Cập nhật triệu chứng */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-slate-700">3. Lý do / Triệu chứng (nếu có thay đổi):</label>
+              <input
+                type="text"
+                value={rescheduleSymptoms}
+                onChange={(e) => setRescheduleSymptoms(e.target.value)}
+                placeholder="Nhập triệu chứng hoặc ghi chú cần bác sĩ lưu ý..."
+                className="w-full p-2.5 border border-slate-200 rounded-xl text-xs bg-slate-50 text-slate-800 outline-none focus:ring-2 focus:ring-amber-500/20"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setReschedulingAppointment(null)}
+                disabled={rescheduleLoading}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-500 hover:bg-slate-100 transition"
+              >
+                Hủy Bỏ
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmReschedule}
+                disabled={rescheduleLoading}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-md shadow-amber-500/20"
+              >
+                {rescheduleLoading ? 'Đang Lưu...' : 'Xác Nhận Đổi Lịch'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {cancelingAppointment && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl border border-rose-100 flex flex-col p-6 space-y-4">
@@ -784,6 +1017,184 @@ export default function MyAppointmentsView() {
                 className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
               >
                 {cancelingLoading ? 'Đang Xử Lý...' : 'Xác Nhận Hủy'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Chi Tiết Đơn Thuốc Điện Tử (Cho Bệnh Nhân) ── */}
+      {viewingPrescriptionApt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-2xl w-full overflow-hidden shadow-2xl border border-mint-light my-8 flex flex-col">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-pine-teal to-teal-primary text-white p-5 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
+                  <Pill size={22} className="text-mint-light" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm tracking-wide uppercase">ĐƠN THUỐC ĐIỆN TỬ NGOẠI TRÚ</h3>
+                  <p className="text-[10px] text-mint-soft">MedSched Smart Hospital System • CSDL Lưu Trữ Chuẩn Bộ Y Tế</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setViewingPrescriptionApt(null)}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
+              {loadingPrescription ? (
+                <div className="py-12">
+                  <LoadingSpinner size={32} message="Đang truy xuất đơn thuốc từ hệ thống cơ sở dữ liệu..." />
+                </div>
+              ) : (
+                <>
+                  {/* Administrative Information */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-mint-soft/40 p-3.5 rounded-2xl border border-mint-light text-xs">
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Mã đơn thuốc:</span>
+                      <span className="font-mono font-bold text-pine-teal text-xs">
+                        {prescriptionDetail?.prescriptionId || `PR-${viewingPrescriptionApt.bookingCode}`}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Mã đặt lịch:</span>
+                      <span className="font-mono font-bold text-slate-800 text-xs">
+                        {viewingPrescriptionApt.bookingCode}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Ngày khám / Kê đơn:</span>
+                      <span className="font-semibold text-slate-800">
+                        {resolveAppointmentDate(viewingPrescriptionApt)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Bác sĩ phụ trách:</span>
+                      <span className="font-bold text-slate-800">
+                        {prescriptionDetail?.doctorName || viewingPrescriptionApt.doctorName || 'Bác sĩ chuyên khoa'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Diagnosis */}
+                  <div className="space-y-1.5">
+                    <span className="font-bold text-slate-800 uppercase text-[11px] tracking-wider block">
+                      Kết Luận Chẩn Đoán Của Bác Sĩ:
+                    </span>
+                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs font-medium text-slate-800 leading-relaxed">
+                      {prescriptionDetail?.diagnosis || (
+                        <span className="text-slate-500 italic">
+                          Ca khám đã hoàn tất đánh giá lâm sàng. Bệnh nhân thực hiện chế độ theo dõi và dùng thuốc theo chỉ định.
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Prescribed Medicines */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-800 uppercase text-[11px] tracking-wider block">
+                        Danh Mục Thuốc Kê Đơn:
+                      </span>
+                      <span className="text-[11px] font-bold text-pine-teal bg-mint-soft px-2.5 py-0.5 rounded-full border border-mint-light">
+                        {prescriptionDetail?.items?.length || 0} loại thuốc
+                      </span>
+                    </div>
+
+                    {prescriptionDetail?.items && prescriptionDetail.items.length > 0 ? (
+                      <div className="overflow-x-auto rounded-xl border border-mint-light shadow-2xs">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-mint-soft/80 text-pine-teal font-bold border-b border-mint-light text-[11px]">
+                            <tr>
+                              <th className="p-2.5 text-center w-8">#</th>
+                              <th className="p-2.5">Tên thuốc &amp; Hàm lượng</th>
+                              <th className="p-2.5 w-16 text-center">ĐVT</th>
+                              <th className="p-2.5 w-14 text-center">SL</th>
+                              <th className="p-2.5">Liều dùng &amp; Hướng dẫn uống</th>
+                              <th className="p-2.5 text-right w-24">Thành tiền</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 bg-white">
+                            {prescriptionDetail.items.map((item, idx) => {
+                              const lineTotal = item.totalPrice ?? (item.quantity * (item.unitPrice || 0));
+                              return (
+                                <tr key={idx} className="hover:bg-mint-soft/30 transition">
+                                  <td className="p-2.5 text-center text-slate-400 font-mono text-[11px]">{idx + 1}</td>
+                                  <td className="p-2.5 font-bold text-slate-800">{item.medicineName}</td>
+                                  <td className="p-2.5 text-center text-slate-600 font-medium">{item.unit}</td>
+                                  <td className="p-2.5 text-center font-bold text-pine-teal font-mono">{item.quantity}</td>
+                                  <td className="p-2.5 text-slate-600 italic text-[11px]">{item.dosage}</td>
+                                  <td className="p-2.5 text-right font-bold text-slate-800 font-mono text-[11px]">
+                                    {lineTotal > 0 ? `${lineTotal.toLocaleString('vi-VN')} đ` : 'Theo viện'}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                          {prescriptionDetail.totalMedicineAmount > 0 && (
+                            <tfoot className="bg-mint-soft/50 border-t border-mint-light font-bold text-xs text-pine-teal">
+                              <tr>
+                                <td colSpan={5} className="p-2.5 text-right uppercase tracking-wider text-[11px]">
+                                  Tổng tiền thuốc:
+                                </td>
+                                <td className="p-2.5 text-right font-black text-pine-teal font-mono text-sm">
+                                  {prescriptionDetail.totalMedicineAmount.toLocaleString('vi-VN')} đ
+                                </td>
+                              </tr>
+                            </tfoot>
+                          )}
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="p-5 text-center bg-slate-50 border border-dashed border-slate-200 rounded-xl space-y-1">
+                        <Pill size={22} className="mx-auto text-slate-300" />
+                        <p className="text-xs text-slate-600 font-medium">Bác sĩ không kê thuốc ngoại trú cho ca khám này</p>
+                        <p className="text-[11px] text-slate-400">Bệnh nhân vui lòng tuân thủ theo lời dặn theo dõi sức khỏe bên dưới</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Doctor's Advice */}
+                  <div className="space-y-1.5">
+                    <span className="font-bold text-slate-800 uppercase text-[11px] tracking-wider block">
+                      Lời Dặn Dò &amp; Theo Dõi Của Bác Sĩ:
+                    </span>
+                    <div className="p-3.5 bg-amber-50/70 border border-amber-200 rounded-xl text-xs text-amber-950 italic leading-relaxed">
+                      &ldquo;{prescriptionDetail?.doctorAdvice || 'Uống thuốc đúng theo hướng dẫn, chú ý chế độ dinh dưỡng, nghỉ ngơi hợp lý. Tái khám sau 7 ngày hoặc ngay khi có dấu hiệu bất thường.'}&rdquo;
+                    </div>
+                  </div>
+
+                  {/* Note */}
+                  <div className="text-[11px] text-slate-400 italic bg-slate-50 p-2.5 rounded-lg border border-slate-100 flex items-center justify-between">
+                    <span>• Đơn thuốc điện tử này có giá trị mua thuốc trong 05 ngày kể từ ngày bác sĩ ký duyệt.</span>
+                    <span className="font-mono text-slate-400">MedSched Health ID</span>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Modal Actions */}
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setViewingPrescriptionApt(null)}
+                className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200 transition cursor-pointer"
+              >
+                Đóng
+              </button>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-pine-teal hover:bg-pine-teal-hover transition shadow-sm flex items-center gap-1.5 cursor-pointer"
+              >
+                <Printer size={15} />
+                <span>In Đơn Thuốc (A5)</span>
               </button>
             </div>
           </div>

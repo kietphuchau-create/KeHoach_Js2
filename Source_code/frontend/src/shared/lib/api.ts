@@ -298,6 +298,13 @@ export const api = {
     });
   },
 
+  async rescheduleAppointment(appointmentId: string, payload: { newSlotId: string; symptoms?: string }) {
+    return request<any>(`/appointments/${appointmentId}/reschedule`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+
   async triageSymptoms(symptoms: string) {
     try {
       return await request<{ specialty: string; summary: string }>("/ai/triage", {
@@ -337,10 +344,10 @@ export const api = {
     };
   },
 
-  async checkInCccd(cccdNumber: string, fullName: string = "Bệnh nhân") {
+  async checkInCccd(cccdNumber: string, fullName: string = "Bệnh nhân", doctorId?: string) {
     const res = await request<any>("/reception/checkin/cccd", {
       method: "POST",
-      body: JSON.stringify({ cccdNumber: cccdNumber.trim(), fullName: fullName.trim() }),
+      body: JSON.stringify({ cccdNumber: cccdNumber.trim(), fullName: fullName.trim(), doctorId }),
     });
     return {
       ...(res.appointment || {}),
@@ -352,14 +359,39 @@ export const api = {
     };
   },
 
-  async checkIn(payload: { bookingCode?: string; cccdNumber?: string; method: "QR_CODE" | "CCCD_QR" }) {
+  async checkIn(payload: { bookingCode?: string; cccdNumber?: string; fullName?: string; doctorId?: string; method: "QR_CODE" | "CCCD_QR" }) {
     if (payload.method === "QR_CODE" && payload.bookingCode) {
       return this.checkInQr(payload.bookingCode);
     }
     if (payload.method === "CCCD_QR" && payload.cccdNumber) {
-      return this.checkInCccd(payload.cccdNumber);
+      return this.checkInCccd(payload.cccdNumber, payload.fullName, payload.doctorId);
     }
     throw new Error("Vui lòng cung cấp mã QR vé hẹn hoặc số CCCD hợp lệ.");
+  },
+
+  async registerWalkinPatient(payload: {
+    fullName: string;
+    phone: string;
+    cccdNumber?: string;
+    doctorId?: string;
+    specialty?: string;
+    password?: string;
+  }) {
+    return request<{
+      appointmentId: string;
+      bookingCode: string;
+      queueNumber: string;
+      patientName: string;
+      doctorId: string;
+      doctorName: string;
+      roomNumber: string;
+      specialtyName: string;
+      checkInTime: string;
+      status: string;
+    }>("/reception/walkin", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
   },
 
   // --- 7. BUỒNG KHÁM BÁC SĨ (DOCTOR CLINIC & QUEUE) ---
@@ -396,5 +428,95 @@ export const api = {
       method: "POST",
     });
   },
+
+  async deferDoctorPatient(appointmentId: string) {
+    return request<void>(`/doctor/appointments/${appointmentId}/defer`, {
+      method: "POST",
+    });
+  },
+
+  async sendDoctorPatientToLab(appointmentId: string) {
+    return request<void>(`/doctor/appointments/${appointmentId}/lab`, {
+      method: "POST",
+    });
+  },
+
+  async missDoctorPatient(appointmentId: string) {
+    return request<void>(`/doctor/appointments/${appointmentId}/miss`, {
+      method: "POST",
+    });
+  },
+
+  async getAppointmentPrescription(appointmentId: string) {
+    return request<PrescriptionDetail>(`/v1/appointments/${appointmentId}/prescription`);
+  },
+
+  async getDoctorAvailableSlots(doctorId: string, date?: string) {
+    const qs = date ? `?date=${encodeURIComponent(date)}` : "";
+    return request<Array<{
+      id: string;
+      time: string;
+      startMinutes: number;
+      status: string;
+      label: string;
+      disabled: boolean;
+    }>>(`/appointments/doctors/${doctorId}/slots${qs}`);
+  },
+
+  // --- 8. QUẢN LÝ LỊCH TRỰC BÁC SĨ (DOCTOR SCHEDULE CRUD) ---
+  async getDoctorSchedules(doctorId?: string, from?: string, to?: string) {
+    const query = new URLSearchParams();
+    if (doctorId) query.append("doctorId", doctorId);
+    if (from) query.append("from", from);
+    if (to) query.append("to", to);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    return request<any[]>(`/doctor/schedules${qs}`);
+  },
+
+  async createDoctorSchedule(payload: {
+    workDate: string;
+    startTime: string;
+    endTime: string;
+    slotDurationMinutes?: number;
+  }) {
+    return request<any>("/doctor/schedules", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async toggleDoctorSlotLock(slotId: string) {
+    return request<any>(`/doctor/slots/${slotId}/toggle-lock`, {
+      method: "PATCH",
+    });
+  },
+
+  async deleteDoctorSchedule(scheduleId: string) {
+    return request<void>(`/doctor/schedules/${scheduleId}`, {
+      method: "DELETE",
+    });
+  },
 };
+
+export interface PrescriptionItemDetail {
+  id?: string;
+  medicineName: string;
+  unit: string;
+  quantity: number;
+  dosage: string;
+  unitPrice?: number;
+  totalPrice?: number;
+}
+
+export interface PrescriptionDetail {
+  prescriptionId: string;
+  appointmentId: string;
+  doctorName: string;
+  diagnosis: string;
+  doctorAdvice: string;
+  totalMedicineAmount: number;
+  status: string;
+  createdAt: string;
+  items: PrescriptionItemDetail[];
+}
 

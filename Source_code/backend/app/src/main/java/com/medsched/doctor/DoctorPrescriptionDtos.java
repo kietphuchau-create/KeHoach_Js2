@@ -34,6 +34,28 @@ public class DoctorPrescriptionDtos {
             Instant createdAt
     ) {}
 
+    public record PrescriptionDetailDto(
+            String prescriptionId,
+            String appointmentId,
+            String doctorName,
+            String diagnosis,
+            String doctorAdvice,
+            BigDecimal totalMedicineAmount,
+            String status,
+            Instant createdAt,
+            List<PrescriptionItemDetailDto> items
+    ) {}
+
+    public record PrescriptionItemDetailDto(
+            String id,
+            String medicineName,
+            String unit,
+            BigDecimal quantity,
+            String dosage,
+            BigDecimal unitPrice,
+            BigDecimal totalPrice
+    ) {}
+
     public record QueuePatientDto(
             String id,
             String queueNumber,
@@ -47,7 +69,9 @@ public class DoctorPrescriptionDtos {
             String aiSummary,
             String status,
             String checkInTime,
-            String appointmentTime
+            String appointmentTime,
+            String doctorId,
+            String doctorName,
+            String roomNumber
     ) {}
 }
-
