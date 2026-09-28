@@ -116,8 +116,12 @@ export default function AdminDashboardPage() {
     }
   };
 
-  const handleLogout = () => {
-    clearAuthSession();
+  const handleLogout = async () => {
+    try {
+      await api.logout();
+    } catch {
+      clearAuthSession();
+    }
     router.push('/login');
   };
 

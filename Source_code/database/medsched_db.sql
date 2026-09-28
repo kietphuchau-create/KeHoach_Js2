@@ -25,6 +25,8 @@ USE medsched_db;
 
 SET FOREIGN_KEY_CHECKS = 0;
 
+DROP TABLE IF EXISTS revoked_tokens;
+DROP TABLE IF EXISTS password_reset_tokens;
 DROP TABLE IF EXISTS doctor_reviews;
 DROP TABLE IF EXISTS payments;
 DROP TABLE IF EXISTS prescription_items;
@@ -84,10 +86,35 @@ CREATE TABLE users (
     full_name VARCHAR(255) NOT NULL,
     phone VARCHAR(20),
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    token_invalid_before DATETIME NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     created_by CHAR(36),
     updated_by CHAR(36)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 3b. TOKEN ĐẶT LẠI MẬT KHẨU (FORGOT / RESET PASSWORD - SINGLE USE, 15 PHÚT)
+CREATE TABLE password_reset_tokens (
+    id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    user_id CHAR(36) NOT NULL,
+    token_hash VARCHAR(64) NOT NULL UNIQUE,
+    expires_at DATETIME NOT NULL,
+    used_at DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_prt_hash (token_hash),
+    CONSTRAINT fk_prt_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 3c. DANH SÁCH TOKEN BỊ THU HỒI KHI ĐĂNG XUẤT (SERVER-SIDE LOGOUT INVALIDATION)
+CREATE TABLE revoked_tokens (
+    id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    token_hash VARCHAR(64) NOT NULL UNIQUE,
+    token_type VARCHAR(16) NOT NULL,
+    user_id CHAR(36) NOT NULL,
+    expires_at DATETIME NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_revoked_hash (token_hash),
+    INDEX idx_revoked_expiry (expires_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 4. PHÂN QUYỀN NHÂN SỰ THEO TỪNG CHI NHÁNH (BẢNG NỐI N-N)
