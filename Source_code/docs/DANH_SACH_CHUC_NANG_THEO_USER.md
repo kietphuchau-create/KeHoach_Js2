@@ -3,7 +3,7 @@
 
 ---
 
-> **NGƯỜI THỰC HIỆN KIỂM THỬ (TESTER):** **Hiếu**  
+> **NGƯỜI THỰC HIỆN KIỂM THỬ (TESTER):** **Tân**  
 > **NGÀY GIAO VIỆC:** 25/09/2026  
 > **MÔI TRƯỜNG KIỂM THỬ:**
 > * Frontend: `http://localhost:3000`
@@ -15,7 +15,7 @@
 
 ## 🔑 BẢNG TÀI KHOẢN KIỂM THỬ CHUẨN (TEST ACCOUNTS)
 
-Hiếu sử dụng các tài khoản có sẵn trong CSDL sau đây để test các vai trò:
+Tân sử dụng các tài khoản có sẵn trong CSDL sau đây để test các vai trò:
 
 | Vai trò (Role) | Họ và Tên | Email đăng nhập | Mật khẩu chung | URL Truy cập |
 | :--- | :--- | :--- | :--- | :--- |
@@ -113,7 +113,7 @@ Hiếu sử dụng các tài khoản có sẵn trong CSDL sau đây để test c
 
 # PHẦN 2: CHI TIẾT TEST CHO LỄ TÂN (STAFF / RECEPTION DESK)
 
-> **Lưu ý quan trọng cho Hiếu:** Mở trang Lễ tân trên tab Chrome thường, mở trang Bác sĩ trên tab Incognito để kiểm tra tính năng đồng bộ không cần F5!
+> **Lưu ý quan trọng cho Tân:** Mở trang Lễ tân trên tab Chrome thường, mở trang Bác sĩ trên tab Incognito để kiểm tra tính năng đồng bộ không cần F5!
 
 ### 📌 TC-REC-01: Tiếp Đón Bằng Mã QR Vé Hẹn (Tab 1: "1. QR Vé")
 * **Mục tiêu:** Tiếp đón bệnh nhân đã đặt online trong vòng ~1 giây.
@@ -365,7 +365,7 @@ Hiếu sử dụng các tài khoản có sẵn trong CSDL sau đây để test c
 
 # PHẦN 5: KỊCH BẢN KIỂM THỬ TÍCH HỢP TOÀN TRÌNH (END-TO-END FLOW)
 
-Hiếu thực hiện kịch bản này từ đầu đến cuối trong 1 lượt để kiểm tra tính liên kết toàn diện giữa 4 vai trò:
+Tân thực hiện kịch bản này từ đầu đến cuối trong 1 lượt để kiểm tra tính liên kết toàn diện giữa 4 vai trò:
 
 ```mermaid
 sequenceDiagram
@@ -390,7 +390,7 @@ sequenceDiagram
 
 ---
 
-## 📋 BẢNG CHECKLIST TỔNG HỢP KẾT QUẢ KIỂM THỬ (DÀNH CHO HIẾU ĐÁNH DẤU)
+## 📋 BẢNG CHECKLIST TỔNG HỢP KẾT QUẢ KIỂM THỬ (DÀNH CHO TÂN ĐÁNH DẤU)
 
 | STT | Mã Test Case | Tên Chức Năng Cần Kiểm Thử | Trạng thái | Ghi chú / Lỗi nếu có |
 | :---: | :--- | :--- | :---: | :--- |
@@ -419,9 +419,9 @@ sequenceDiagram
 
 ---
 
-## 🐞 BIỂU MẪU BÁO CÁO LỖI (NẾU HIẾU PHÁT HIỆN LỖI)
+## 🐞 BIỂU MẪU BÁO CÁO LỖI (NẾU TÂN PHÁT HIỆN LỖI)
 
-Nếu trong quá trình test gặp bất kỳ lỗi nào, Hiếu vui lòng ghi chú theo mẫu sau vào cuối file này:
+Nếu trong quá trình test gặp bất kỳ lỗi nào, Tân vui lòng ghi chú theo mẫu sau vào cuối file này:
 
 ```markdown
 ### ❌ BÁO CÁO LỖI #01
