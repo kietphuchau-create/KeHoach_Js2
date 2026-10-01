@@ -3,6 +3,8 @@ package com.medsched;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
+import org.springframework.scheduling.annotation.EnableScheduling;
+
 /**
  * Điểm khởi động ứng dụng MedSched.
  * Nằm ở gói gốc com.medsched để component scan bao trọn:
@@ -12,6 +14,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * - app (adapters, use cases config, controllers)
  */
 @SpringBootApplication
+@EnableScheduling
 public class MedSchedApplication {
 
     public static void main(String[] args) {

@@ -144,17 +144,31 @@ export default function MyAppointmentsView() {
   const [rescheduleSymptoms, setRescheduleSymptoms] = useState<string>('');
   const [rescheduleLoading, setRescheduleLoading] = useState(false);
   const [rescheduleSuccessMsg, setRescheduleSuccessMsg] = useState<string | null>(null);
+  
+  const [availableSlots, setAvailableSlots] = useState<any[]>([]);
+  const [fetchingSlots, setFetchingSlots] = useState(false);
 
-  const AVAILABLE_RESCHEDULE_SLOTS = [
-    { id: '40b2c3d4-0025-4000-8000-000000000001', time: '08:00 - 08:30' },
-    { id: '40b2c3d4-0025-4000-8000-000000000002', time: '08:30 - 09:00' },
-    { id: '40b2c3d4-0025-4000-8000-000000000003', time: '09:00 - 09:30' },
-    { id: '40b2c3d4-0025-4000-8000-000000000004', time: '09:30 - 10:00' },
-    { id: '40b2c3d4-0025-4000-8000-000000000005', time: '10:00 - 10:30' },
-    { id: '40b2c3d4-0025-4000-8000-000000000006', time: '10:30 - 11:00' },
-    { id: '40b2c3d4-0025-4000-8000-000000000008', time: '14:00 - 14:30' },
-    { id: '40b2c3d4-0025-4000-8000-000000000009', time: '14:30 - 15:00' },
-  ];
+  useEffect(() => {
+    if (reschedulingAppointment && reschedulingAppointment.doctorId && rescheduleDate) {
+      setFetchingSlots(true);
+      api.getDoctorAvailableSlots(reschedulingAppointment.doctorId, rescheduleDate)
+        .then(res => {
+          setAvailableSlots(res || []);
+          if (res?.length > 0) {
+            setRescheduleSlotId(res[0].id);
+          } else {
+            setRescheduleSlotId('');
+          }
+        })
+        .catch(err => {
+          console.error(err);
+          setAvailableSlots([]);
+          setRescheduleSlotId('');
+        })
+        .finally(() => setFetchingSlots(false));
+    }
+  }, [reschedulingAppointment, rescheduleDate]);
+
 
   const formatISODateToVN = (iso: string) => {
     const parts = iso.split('-');
@@ -170,7 +184,7 @@ export default function MyAppointmentsView() {
     const month = String(tomorrow.getMonth() + 1).padStart(2, '0');
     const year = tomorrow.getFullYear();
     setRescheduleDate(`${year}-${month}-${day}`);
-    setRescheduleSlotId('40b2c3d4-0025-4000-8000-000000000001');
+    setRescheduleSlotId('');
   };
 
   const handleConfirmReschedule = async () => {
@@ -185,8 +199,8 @@ export default function MyAppointmentsView() {
         newSlotId: rescheduleSlotId,
         symptoms: rescheduleSymptoms.trim(),
       });
-      const chosenSlot = AVAILABLE_RESCHEDULE_SLOTS.find((s) => s.id === rescheduleSlotId);
-      const chosenTime = chosenSlot ? chosenSlot.time : 'Khung giờ mới';
+      const chosenSlot = availableSlots.find((s) => s.id === rescheduleSlotId);
+      const chosenTime = chosenSlot ? `${chosenSlot.startTime.substring(11, 16)} - ${chosenSlot.endTime.substring(11, 16)}` : 'Khung giờ mới';
       setRescheduleSuccessMsg(
         `✅ Đã đổi lịch khám thành công cho phiếu "${reschedulingAppointment.bookingCode}" sang ngày ${formatISODateToVN(
           rescheduleDate
@@ -897,7 +911,7 @@ export default function MyAppointmentsView() {
               <label className="block text-xs font-bold text-slate-700">1. Chọn ngày khám mới:</label>
               <input
                 type="date"
-                min="2026-09-25"
+                min={new Date().toISOString().split('T')[0]}
                 value={rescheduleDate}
                 onChange={(e) => setRescheduleDate(e.target.value)}
                 className="w-full p-2.5 border border-slate-200 rounded-xl text-xs bg-slate-50 text-slate-800 outline-none focus:ring-2 focus:ring-amber-500/20 font-semibold"
@@ -908,24 +922,35 @@ export default function MyAppointmentsView() {
             <div className="space-y-1.5">
               <label className="block text-xs font-bold text-slate-700">2. Chọn khung giờ khám:</label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {AVAILABLE_RESCHEDULE_SLOTS.map((s) => {
-                  const isSelected = rescheduleSlotId === s.id;
-                  return (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => setRescheduleSlotId(s.id)}
-                      className={`p-2.5 rounded-xl border text-xs font-bold transition cursor-pointer text-center ${
-                        isSelected
-                          ? 'border-amber-500 bg-amber-50 text-amber-900 shadow-xs'
-                          : 'border-slate-200 hover:border-slate-300 bg-white text-slate-700'
-                      }`}
-                    >
-                      <Clock size={12} className="mx-auto mb-1 text-slate-400" />
-                      <span>{s.time}</span>
-                    </button>
-                  );
-                })}
+                {fetchingSlots ? (
+                  <div className="col-span-full py-4 text-center text-xs text-slate-500">
+                    Đang tải khung giờ...
+                  </div>
+                ) : availableSlots.length === 0 ? (
+                  <div className="col-span-full py-4 text-center text-xs text-rose-500 bg-rose-50 rounded-xl border border-rose-100 font-medium">
+                    Không có khung giờ trống nào trong ngày này.
+                  </div>
+                ) : (
+                  availableSlots.map((s) => {
+                    const isSelected = rescheduleSlotId === s.id;
+                    const timeRange = `${s.startTime.substring(11, 16)} - ${s.endTime.substring(11, 16)}`;
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => setRescheduleSlotId(s.id)}
+                        className={`p-2.5 rounded-xl border text-xs font-bold transition cursor-pointer text-center ${
+                          isSelected
+                            ? 'border-amber-500 bg-amber-50 text-amber-900 shadow-xs'
+                            : 'border-slate-200 hover:border-slate-300 bg-white text-slate-700'
+                        }`}
+                      >
+                        <Clock size={12} className="mx-auto mb-1 text-slate-400" />
+                        <span>{timeRange}</span>
+                      </button>
+                    );
+                  })
+                )}
               </div>
             </div>
 

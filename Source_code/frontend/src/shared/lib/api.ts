@@ -340,6 +340,10 @@ export const api = {
     });
   },
 
+  async createPaymentUrl(appointmentId: string) {
+    return request<{ url: string }>(`/payments/vnpay/create-url?appointmentId=${appointmentId}`);
+  },
+
   async getAppointmentByCode(bookingCode: string) {
     return request<AppointmentResponse>(`/appointments/booking-code/${bookingCode}`);
   },

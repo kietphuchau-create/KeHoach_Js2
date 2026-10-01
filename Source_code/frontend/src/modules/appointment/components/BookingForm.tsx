@@ -192,6 +192,19 @@ export default function BookingForm() {
         symptoms: symptoms.trim() || 'Khám kiểm tra sức khỏe định kỳ',
         medicalHistory: '',
       });
+      
+      try {
+        if (res.id) {
+          const paymentRes = await api.createPaymentUrl(res.id);
+          if (paymentRes.url) {
+            window.location.href = paymentRes.url;
+            return;
+          }
+        }
+      } catch (paymentErr) {
+        console.warn("Could not generate payment URL, falling back to direct success", paymentErr);
+      }
+
       setResult(res);
       setStep(4);
     } catch (err: any) {

@@ -45,7 +45,7 @@ public record Appointment(
                 patientSymptoms,
                 aiSummary,
                 null,
-                "CONFIRMED",
+                "PENDING",
                 false,
                 0,
                 null,
