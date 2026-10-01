@@ -247,18 +247,75 @@ export const api = {
     });
   },
 
-  // --- 4. DANH MỤC KHÁM (PUBLIC) ---
+  // --- 4. DANH MỤC KHÁM (PUBLIC & ADMIN) ---
   async getMedicalCenters() {
     return request<any[]>("/medical-centers");
   },
 
-  async getSpecialties() {
-    return request<any[]>("/specialties");
+  async createMedicalCenter(payload: { code: string; name: string; address: string; phone?: string }) {
+    return request<any>("/admin/medical-centers", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
   },
 
-  async getServices() {
-    return request<any[]>("/services");
+  async updateMedicalCenter(id: string, payload: { code: string; name: string; address: string; phone?: string }) {
+    return request<any>(`/admin/medical-centers/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
   },
+
+  async deactivateMedicalCenter(id: string) {
+    return request<void>(`/admin/medical-centers/${id}`, { method: "DELETE" });
+  },
+
+  async getSpecialties(centerId?: string) {
+    const qs = centerId ? `?centerId=${centerId}` : "";
+    return request<any[]>(`/specialties${qs}`);
+  },
+
+  async createSpecialty(payload: { medicalCenterId: string; name: string; code: string; description?: string; iconUrl?: string }) {
+    return request<any>("/admin/specialties", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async updateSpecialty(id: string, payload: { medicalCenterId: string; name: string; code: string; description?: string; iconUrl?: string }) {
+    return request<any>(`/admin/specialties/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async deactivateSpecialty(id: string) {
+    return request<void>(`/admin/specialties/${id}`, { method: "DELETE" });
+  },
+
+  async getServices(specialtyId?: string) {
+    const qs = specialtyId ? `?specialtyId=${specialtyId}` : "";
+    return request<any[]>(`/services${qs}`);
+  },
+
+  async createService(payload: { specialtyId: string; name: string; code: string; description?: string; price: number; estimatedDurationMinutes: number }) {
+    return request<any>("/admin/services", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async updateService(id: string, payload: { specialtyId: string; name: string; code: string; description?: string; price: number; estimatedDurationMinutes: number }) {
+    return request<any>(`/admin/services/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async deactivateService(id: string) {
+    return request<void>(`/admin/services/${id}`, { method: "DELETE" });
+  },
+
 
   async getDoctors(params?: { specialtyId?: string; centerId?: string }) {
     const query = new URLSearchParams();

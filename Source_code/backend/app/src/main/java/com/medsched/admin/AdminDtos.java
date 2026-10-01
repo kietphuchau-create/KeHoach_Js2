@@ -90,7 +90,10 @@ public final class AdminDtos {
             BigDecimal consultationFee,
 
             @Size(max = 50, message = "Số phòng tối đa 50 ký tự")
-            String roomNumber) {
+            String roomNumber,
+
+            @Size(max = 500, message = "Tiểu sử tối đa 500 ký tự")
+            String bio) {
     }
 
     public record UpdateStatusRequest(@NotNull(message = "Phải chỉ định trạng thái") Boolean active) {

@@ -245,6 +245,12 @@ export default function UserTable() {
 
         <div className="flex items-center gap-3">
           <Link
+            href="/admin/catalog"
+            className="flex items-center gap-2 bg-white text-blue-600 border border-blue-200 hover:bg-blue-50 px-4 py-2.5 rounded-xl font-bold shadow-xs transition"
+          >
+            <span>Quản Lý Danh Mục</span>
+          </Link>
+          <Link
             href="/admin/create-user"
             className="flex items-center gap-2 bg-pine-teal hover:bg-pine-teal-hover text-white px-4 py-2.5 rounded-xl font-bold shadow-xs transition"
           >

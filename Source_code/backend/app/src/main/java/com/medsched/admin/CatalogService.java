@@ -208,6 +208,9 @@ public class CatalogService {
                 continue;
             }
             var user = users.findById(doc.getUserId()).orElse(null);
+            if (user == null || !user.isActive()) {
+                continue;
+            }
             MedicalCenterEntity center = sp != null ? medicalCenters.findById(sp.getMedicalCenterId()).orElse(null) : null;
 
             results.add(new CatalogDtos.DoctorSummaryResponse(

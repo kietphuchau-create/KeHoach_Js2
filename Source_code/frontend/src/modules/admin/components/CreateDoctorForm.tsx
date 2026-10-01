@@ -21,13 +21,16 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  const initialCenterId = medicalCenters[0]?.id || '';
+  const initialSpecs = specialties.filter((s: any) => s.medicalCenterId === initialCenterId);
+
   const [doctorForm, setDoctorForm] = useState({
     fullName: '',
     email: '',
     phone: '',
     temporaryPassword: '',
-    medicalCenterId: medicalCenters[0]?.id || '',
-    specialtyId: specialties[0]?.id || '',
+    medicalCenterId: initialCenterId,
+    specialtyId: initialSpecs[0]?.id || '',
     academicTitle: 'ThS.BS',
     consultationFee: 300000,
     bio: '',
@@ -56,13 +59,14 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
         text: `Tạo tài khoản Bác sĩ thành công cho: ${doctorForm.email}! Mật khẩu mặc định: ${doctorForm.temporaryPassword || 'Medsched@123'}`,
       });
 
+      const newInitialSpecs = specialties.filter((s: any) => s.medicalCenterId === initialCenterId);
       setDoctorForm({
         fullName: '',
         email: '',
         phone: '',
         temporaryPassword: '',
-        medicalCenterId: medicalCenters[0]?.id || '',
-        specialtyId: specialties[0]?.id || '',
+        medicalCenterId: initialCenterId,
+        specialtyId: newInitialSpecs[0]?.id || '',
         academicTitle: 'ThS.BS',
         consultationFee: 300000,
         bio: '',
@@ -74,6 +78,8 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
       setLoading(false);
     }
   };
+
+  const filteredSpecialties = specialties.filter((s: any) => s.medicalCenterId === doctorForm.medicalCenterId);
 
   return (
     <form onSubmit={handleCreateDoctor} className="space-y-4">
@@ -144,10 +150,10 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
             onChange={(e) => setDoctorForm({ ...doctorForm, specialtyId: e.target.value })}
             className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
           >
-            {specialties.length === 0 ? (
+            {filteredSpecialties.length === 0 ? (
               <option value="">Không có chuyên khoa nào</option>
             ) : (
-              specialties.map(spec => (
+              filteredSpecialties.map(spec => (
                 <option key={spec.id} value={spec.id}>
                   {spec.name}
                 </option>
@@ -162,7 +168,15 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
           </label>
           <select
             value={doctorForm.medicalCenterId}
-            onChange={(e) => setDoctorForm({ ...doctorForm, medicalCenterId: e.target.value })}
+            onChange={(e) => {
+              const newCenterId = e.target.value;
+              const newSpecs = specialties.filter((s: any) => s.medicalCenterId === newCenterId);
+              setDoctorForm({ 
+                ...doctorForm, 
+                medicalCenterId: newCenterId,
+                specialtyId: newSpecs.length > 0 ? newSpecs[0].id : ''
+              });
+            }}
             className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
           >
             {medicalCenters.length === 0 ? (
