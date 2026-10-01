@@ -64,6 +64,14 @@ public class CatalogController {
         return ResponseEntity.noContent().build();
     }
 
+    @PostMapping("/admin/medical-centers/{id}/reactivate")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> reactivateCenter(@AuthenticationPrincipal AppUserDetails principal,
+                                                 @PathVariable String id) {
+        catalogService.reactivateCenter(id, principal.getUserId());
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/specialties")
     public List<CatalogDtos.SpecialtyResponse> listSpecialties(@RequestParam(required = false) String centerId) {
         return catalogService.listSpecialties(centerId);

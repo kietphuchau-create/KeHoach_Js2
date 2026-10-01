@@ -270,6 +270,10 @@ export const api = {
     return request<void>(`/admin/medical-centers/${id}`, { method: "DELETE" });
   },
 
+  async reactivateMedicalCenter(id: string) {
+    return request<void>(`/admin/medical-centers/${id}/reactivate`, { method: "POST" });
+  },
+
   async getSpecialties(centerId?: string) {
     const qs = centerId ? `?centerId=${centerId}` : "";
     return request<any[]>(`/specialties${qs}`);
@@ -450,6 +454,16 @@ export const api = {
       checkInTime: string;
       status: string;
     }>("/reception/walkin", {
+      method: "POST",
+      body: JSON.stringify(payload),
+  },
+
+  async getBillDetail(appointmentId: string) {
+    return request<any>(`/reception/appointments/${appointmentId}/bill`);
+  },
+
+  async payInvoice(invoiceId: string, payload: { amountPaid: number; paymentMethod: string; note?: string }) {
+    return request<any>(`/reception/invoices/${invoiceId}/pay`, {
       method: "POST",
       body: JSON.stringify(payload),
     });

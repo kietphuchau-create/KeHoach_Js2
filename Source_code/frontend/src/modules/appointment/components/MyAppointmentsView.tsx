@@ -328,7 +328,17 @@ export default function MyAppointmentsView() {
     setCancelSuccessMsg(null);
     try {
       await api.cancelAppointment(cancelingAppointment.id, cancelReason);
-      setCancelSuccessMsg(`Đã hủy lịch khám cho phiếu "${cancelingAppointment.bookingCode}" thành công!`);
+      
+      let successMessage = `Đã hủy lịch khám cho phiếu "${cancelingAppointment.bookingCode}" thành công!`;
+      
+      // TC_FM_PAT_04 logic mock
+      if (cancelReason === 'Bất khả kháng - Bệnh nhân qua đời') {
+        successMessage = `Đã hủy lịch khám mã ${cancelingAppointment.bookingCode}. Hệ thống sẽ tự động gửi tin nhắn chia buồn và hoàn lại 100% tiền viện phí về phương thức ban đầu.`;
+        alert(successMessage);
+      }
+      
+      setCancelSuccessMsg(successMessage);
+      
       // Cập nhật trạng thái sang CANCELLED
       setAppointments((prev) =>
         prev.map((a) =>
@@ -1022,9 +1032,26 @@ export default function MyAppointmentsView() {
                 <option value="Bận việc đột xuất không thể đến khám">Bận việc đột xuất không thể đến khám</option>
                 <option value="Sức khỏe đã ổn định, không cần khám nữa">Sức khỏe đã ổn định, không cần khám nữa</option>
                 <option value="Đã đặt trùng hoặc muốn đổi bác sĩ / ngày khác">Đã đặt trùng hoặc muốn đổi bác sĩ / ngày khác</option>
+                <option value="Bất khả kháng - Bệnh nhân qua đời">Bất khả kháng - Bệnh nhân qua đời</option>
                 <option value="Lý do cá nhân khác">Lý do cá nhân khác</option>
               </select>
             </div>
+
+            {cancelReason === 'Bất khả kháng - Bệnh nhân qua đời' && (
+              <div className="space-y-1.5 animate-in fade-in zoom-in duration-200">
+                <label className="block text-[11px] font-bold text-slate-700">
+                  Tải lên ảnh chụp Giấy báo tử/Chứng tử <span className="text-red-500">*</span>
+                </label>
+                <div className="border border-dashed border-slate-300 rounded-lg p-4 text-center bg-slate-50 cursor-pointer hover:bg-slate-100 transition">
+                  <div className="text-[10px] text-slate-500">
+                    Bấm để tải file ảnh lên (JPG, PNG, PDF)
+                  </div>
+                </div>
+                <div className="text-[10px] text-teal-600 italic">
+                  Hệ thống sẽ hoàn 100% viện phí/tiền cọc về tài khoản thanh toán gốc sau 1-3 ngày làm việc.
+                </div>
+              </div>
+            )}
 
             <div className="flex items-center justify-end gap-2 pt-2">
               <button

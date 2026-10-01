@@ -11,7 +11,8 @@ import {
   Search,
   CheckCircle2,
   XCircle,
-  AlertCircle
+  AlertCircle,
+  AlertTriangle
 } from 'lucide-react';
 import { api } from '@/shared/lib/api';
 import LoadingSpinner from '@/shared/components/Feedback/LoadingSpinner';
@@ -112,6 +113,32 @@ export default function CatalogManager() {
     }
   };
 
+  const handleToggleLockdown = async (id: string, currentlyActive: boolean, centerName: string) => {
+    if (currentlyActive) {
+      if (!window.confirm(`[CẢNH BÁO THẢM HỌA] Bạn có chắc chắn muốn PHONG TỎA KHẨN CẤP cơ sở "${centerName}"? Hệ thống sẽ đóng cổng đặt lịch ngay lập tức.`)) return;
+      setLoading(true);
+      try {
+        await api.deactivateMedicalCenter(id);
+        setMessage({ type: 'success', text: `Đã phong tỏa khẩn cấp cơ sở ${centerName}!` });
+        loadData();
+      } catch (err: any) {
+        setMessage({ type: 'error', text: err.message || 'Lỗi phong tỏa cơ sở' });
+        setLoading(false);
+      }
+    } else {
+      if (!window.confirm(`Bạn muốn khôi phục hoạt động cho cơ sở "${centerName}" sau thảm họa?`)) return;
+      setLoading(true);
+      try {
+        await api.reactivateMedicalCenter(id);
+        setMessage({ type: 'success', text: `Đã khôi phục hoạt động cơ sở ${centerName}!` });
+        loadData();
+      } catch (err: any) {
+        setMessage({ type: 'error', text: err.message || 'Lỗi khôi phục cơ sở' });
+        setLoading(false);
+      }
+    }
+  };
+
   const renderTable = () => {
     if (loading && centers.length === 0) return <LoadingSpinner message="Đang tải dữ liệu danh mục..." />;
     
@@ -139,12 +166,20 @@ export default function CatalogManager() {
                   {c.active ? (
                     <span className="text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full text-xs font-semibold">Hoạt động</span>
                   ) : (
-                    <span className="text-red-600 bg-red-50 px-2 py-1 rounded-full text-xs font-semibold">Đã khóa</span>
+                    <span className="text-red-600 bg-red-50 px-2 py-1 rounded-full text-xs font-semibold border border-red-200 shadow-sm animate-pulse">Phong Tỏa Khẩn Cấp</span>
                   )}
                 </td>
                 <td className="py-3 px-4 text-right space-x-2">
-                  <button onClick={() => openModal('edit', c)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg"><Edit2 size={16} /></button>
-                  <button onClick={() => handleDelete(c.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={16} /></button>
+                  <button onClick={() => openModal('edit', c)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="Sửa thông tin"><Edit2 size={16} /></button>
+                  {/* [TC_FM_DIS_01 & TC_FM_DIS_02] Nút Phong tỏa / Khôi phục */}
+                  <button 
+                    onClick={() => handleToggleLockdown(c.id, c.active, c.name)} 
+                    className={`p-1.5 rounded-lg ${c.active ? 'text-amber-600 hover:bg-amber-50' : 'text-emerald-600 hover:bg-emerald-50'}`}
+                    title={c.active ? 'Phong Tỏa Khẩn Cấp (Cháy nổ/Thiên tai)' : 'Khôi Phục Hoạt Động'}
+                  >
+                    <AlertTriangle size={16} />
+                  </button>
+                  <button onClick={() => handleDelete(c.id)} className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-lg" title="Xóa mềm (DevOnly)"><Trash2 size={16} /></button>
                 </td>
               </tr>
             ))}

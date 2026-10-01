@@ -89,6 +89,16 @@ public class CatalogService {
         medicalCenters.save(center);
     }
 
+    @Transactional
+    public void reactivateCenter(String id, String actorId) {
+        MedicalCenterEntity center = medicalCenters.findById(id)
+                .orElseThrow(() -> new AppExceptions.NotFoundException("Không tìm thấy cơ sở y tế"));
+        center.setActive(true);
+        center.setUpdatedAt(Instant.now());
+        center.setUpdatedBy(actorId);
+        medicalCenters.save(center);
+    }
+
     @Transactional(readOnly = true)
     public List<CatalogDtos.SpecialtyResponse> listSpecialties(String centerId) {
         List<SpecialtyEntity> found = (centerId == null || centerId.isBlank())

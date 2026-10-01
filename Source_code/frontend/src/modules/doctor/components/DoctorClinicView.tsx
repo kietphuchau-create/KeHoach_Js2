@@ -40,7 +40,10 @@ import {
   Lock,
   Unlock,
   PauseCircle,
-  ShieldAlert
+  ShieldAlert,
+  QrCode,
+  Siren,
+  HeartPulse
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { api, getAuthUser, getAuthToken } from '@/shared/lib/api';
@@ -686,6 +689,25 @@ export default function DoctorClinicView() {
   // ── Xử lý Yêu cầu Hoàn tất ca khám (Hiện modal xác nhận để chống bấm nhầm) ──
   const handleRequestComplete = () => {
     if (currentPatient && currentPatient.status === 'IN_CONSULTATION') {
+      // ── [TC_FM_MED_03] Guardrail: Cảnh báo quyết định lâm sàng (Overdose) ──
+      const hasOverdose = prescriptionItems.some(item => {
+        const qty = Number(item.quantity) || 0;
+        const nameLower = item.medicineName.toLowerCase();
+        // Giả lập rule: Paracetamol > 30 viên (hoặc các thuốc nguy hiểm) là bất thường cho 1 đơn
+        if ((nameLower.includes('paracetamol') || nameLower.includes('panadol') || nameLower.includes('efferalgan')) && qty > 30) {
+          return true;
+        }
+        // Rule chung chặn kê 1 loại quá 100 viên (trừ khi cố ý)
+        if (qty >= 100) return true;
+        return false;
+      });
+
+      if (hasOverdose) {
+        setNotification('🚨 [CDS] CẢNH BÁO ĐỎ: Hệ thống phát hiện liều lượng thuốc vược ngưỡng an toàn (có thể gây ngộ độc/tử vong). Vui lòng kiểm tra lại đơn thuốc!');
+        // Chặn đứng hành động lưu đơn
+        return;
+      }
+
       setShowCompleteModal(true);
     } else {
       handleCallNext();
@@ -1317,6 +1339,24 @@ export default function DoctorClinicView() {
                   <span>Báo Ca Cấp Cứu</span>
                 </>
               )}
+            </button>
+
+            {/* ── [TC_FM_MED_02] Nút CODE RED - Báo động đỏ toàn viện ── */}
+            <button
+              type="button"
+              onClick={() => {
+                const confirmRed = window.confirm("CẢNH BÁO: Phát CODE RED (Báo động đỏ) sẽ gửi tín hiệu cấp cứu khẩn cấp đến TOÀN BỘ ĐỘI PHẢN ỨNG NHANH. Bạn có chắc chắn?");
+                if (confirmRed) {
+                  const syncChannel = new BroadcastChannel('medsched_queue_sync');
+                  syncChannel.postMessage({ type: 'CODE_RED', source: `PHÒNG KHÁM BÁC SĨ ${currentUser?.fullName}`, timestamp: new Date().toISOString() });
+                  alert(`ĐÃ PHÁT BÁO ĐỘNG ĐỎ! Yêu cầu đội cấp cứu hỗ trợ phòng khám.`);
+                }
+              }}
+              className="px-3 py-1.5 rounded-lg font-bold text-xs bg-red-600 text-white hover:bg-red-700 transition cursor-pointer flex items-center gap-1.5 shadow-[0_0_10px_rgba(220,38,38,0.5)] animate-pulse"
+              title="Phát lệnh Code Red trong trường hợp sốc phản vệ / ngưng tim"
+            >
+              <Siren size={14} />
+              <span>CODE RED</span>
             </button>
           </div>
         </div>
@@ -2428,128 +2468,135 @@ export default function DoctorClinicView() {
               </div>
             </div>
 
-            {/* Printable Prescription Content (Chuẩn A5) */}
-            <div className="border border-slate-200 p-6 rounded-2xl bg-white space-y-5 text-slate-800 text-xs font-sans">
-              {/* Header */}
-              <div className="flex justify-between items-start border-b border-slate-200 pb-4">
-                <div>
-                  <div className="font-bold text-teal-900 text-sm uppercase tracking-wide">
-                    HỆ THỐNG PHÒNG KHÁM ĐA KHOA MEDSCHED
+            {/* Printable Prescription Content (Chuẩn A5) - PREMIUM MEDICAL DESIGN */}
+            <div className="relative border-2 border-slate-300 p-8 rounded-lg bg-white space-y-6 text-slate-800 text-sm font-serif max-w-[650px] mx-auto shadow-[0_0_20px_rgba(0,0,0,0.1)]">
+              {/* Watermark / Background Logo */}
+              <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none">
+                <Stethoscope size={400} />
+              </div>
+              
+              {/* Header - Clinic Info */}
+              <div className="flex justify-between items-start border-b-2 border-teal-800 pb-5">
+                <div className="flex gap-4">
+                  <div className="w-16 h-16 bg-teal-800 rounded-lg flex items-center justify-center text-white shrink-0 shadow-inner">
+                    <ShieldCheck size={36} />
                   </div>
-                  <div className="text-[11px] text-slate-500">Khoa Khám Bệnh - Buồng Khám Chuyên Khoa</div>
-                  <div className="text-[10px] text-slate-400">Hotline: 1900 8888 • Email: hotro@medsched.vn</div>
+                  <div>
+                    <h2 className="font-black text-teal-900 text-lg uppercase tracking-widest font-sans">MEDSCHED CLINIC</h2>
+                    <p className="text-[11px] text-slate-600 font-bold mt-1 uppercase">Khoa Khám Bệnh - Chuyên Khoa Ngoại Trú</p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">📍 123 Nguyễn Văn Cừ, Quận 5, TP.HCM</p>
+                    <p className="text-[11px] text-slate-500">📞 Hotline: 1900 8888 • 🌐 medsched.vn</p>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <div className="font-mono text-[11px] text-slate-400">Mã đơn thuốc:</div>
-                  <div className="font-mono font-bold text-teal-800 text-xs">
-                    {lastSavedPrescription.prescription?.prescriptionId || 'PR-2026-ONLINE'}
+                <div className="text-right flex flex-col items-end">
+                  <QrCode size={46} className="text-slate-800 mb-1.5" />
+                  <div className="font-mono font-bold text-[11px] text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-100">
+                    Mã Đơn: {lastSavedPrescription.prescription?.prescriptionId || 'PR-2026-ONLINE'}
                   </div>
-                  <div className="font-mono text-[10px] text-slate-400 mt-0.5">
-                    Mã hẹn: {lastSavedPrescription.patient?.bookingCode}
+                  <div className="font-mono text-[10px] text-slate-500 mt-1">
+                    Ca Khám: {lastSavedPrescription.patient?.bookingCode}
                   </div>
                 </div>
               </div>
 
               {/* Title */}
-              <div className="text-center py-1">
-                <h1 className="text-lg font-black text-slate-900 tracking-wider uppercase">
+              <div className="text-center py-2 space-y-1">
+                <h1 className="text-2xl font-black text-slate-900 tracking-widest font-sans uppercase">
                   ĐƠN THUỐC ĐIỆN TỬ
                 </h1>
-                <p className="text-[11px] text-slate-500 italic">
-                  (Dành cho người bệnh ngoại trú)
-                </p>
+                <p className="text-[11px] text-slate-500 font-sans italic tracking-widest">PRESCRIPTION</p>
               </div>
 
               {/* Patient Info */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-100 text-xs">
-                <div>
-                  <span className="text-slate-400 block text-[10px]">Họ và tên bệnh nhân:</span>
-                  <span className="font-bold text-slate-900 uppercase">{lastSavedPrescription.patient?.patientName}</span>
+              <div className="grid grid-cols-2 gap-y-3 gap-x-6 bg-slate-50 p-4 rounded-xl border border-slate-200 text-sm">
+                <div className="flex gap-2">
+                  <span className="text-slate-500 shrink-0">Họ và tên:</span>
+                  <span className="font-bold text-slate-900 uppercase truncate">{lastSavedPrescription.patient?.patientName}</span>
                 </div>
-                <div>
-                  <span className="text-slate-400 block text-[10px]">Giới tính / Năm sinh:</span>
+                <div className="flex gap-2">
+                  <span className="text-slate-500 shrink-0">Giới tính/Tuổi:</span>
                   <span className="font-semibold text-slate-800">
-                    {lastSavedPrescription.patient?.gender} • {lastSavedPrescription.patient?.birthYear}
+                    {lastSavedPrescription.patient?.gender} • {new Date().getFullYear() - (lastSavedPrescription.patient?.birthYear || 1990)} tuổi
                   </span>
                 </div>
-                <div>
-                  <span className="text-slate-400 block text-[10px]">Số điện thoại:</span>
+                <div className="flex gap-2">
+                  <span className="text-slate-500 shrink-0">Điện thoại:</span>
                   <span className="font-mono font-semibold text-slate-800">{lastSavedPrescription.patient?.phone}</span>
                 </div>
-                <div>
-                  <span className="text-slate-400 block text-[10px]">CCCD / Mã định danh:</span>
+                <div className="flex gap-2">
+                  <span className="text-slate-500 shrink-0">Số định danh:</span>
                   <span className="font-mono font-semibold text-slate-800">{lastSavedPrescription.patient?.cccd || 'Không có'}</span>
                 </div>
               </div>
 
               {/* Diagnosis */}
-              <div className="space-y-1">
-                <span className="font-bold text-slate-900 uppercase text-[11px]">Chẩn đoán xác định:</span>
-                <p className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 text-slate-800 font-medium">
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2 text-teal-800 border-b border-teal-100 pb-1">
+                  <Activity size={16} />
+                  <span className="font-bold uppercase text-xs tracking-wider">Chẩn đoán xác định</span>
+                </div>
+                <p className="px-2 py-1 text-slate-900 font-medium italic">
                   {lastSavedPrescription.diagnosis}
                 </p>
               </div>
 
               {/* Medicines List */}
-              <div className="space-y-2">
-                <span className="font-bold text-slate-900 uppercase text-[11px]">Thuốc điều trị:</span>
-                <div className="space-y-2.5 pl-1">
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-teal-800 border-b border-teal-100 pb-1">
+                  <Pill size={16} />
+                  <span className="font-bold uppercase text-xs tracking-wider">Chỉ định dùng thuốc</span>
+                </div>
+                <div className="space-y-4 pl-1">
                   {lastSavedPrescription.items?.map((item: any, idx: number) => (
-                    <div key={idx} className="flex justify-between items-start border-b border-slate-100 pb-2">
-                      <div className="space-y-0.5">
-                        <div className="font-bold text-slate-900">
-                          {idx + 1}. {item.medicineName}
+                    <div key={idx} className="flex justify-between items-start gap-4">
+                      <div className="space-y-1">
+                        <div className="font-bold text-slate-900 text-[15px] flex items-start gap-1">
+                          <span className="text-teal-700 w-5">{idx + 1}.</span>
+                          <span>{item.medicineName}</span>
                         </div>
-                        <div className="text-[11px] text-slate-600 italic">
-                          Cách dùng: {item.dosage}
+                        <div className="text-[13px] text-slate-700 italic ml-6 border-l-2 border-slate-200 pl-3">
+                          HDSD: {item.dosage}
                         </div>
                       </div>
-                      <div className="text-right shrink-0">
-                        <div className="font-bold text-teal-800 font-mono">
+                      <div className="text-right shrink-0 bg-slate-50 px-3 py-1 rounded-md border border-slate-100">
+                        <div className="font-black text-slate-800">
                           {item.quantity} {item.unit}
                         </div>
-                        {item.unitPrice > 0 && (
-                          <div className="text-[10px] text-slate-400 font-mono">
-                            {(item.quantity * item.unitPrice).toLocaleString('vi-VN')} đ
-                          </div>
-                        )}
                       </div>
                     </div>
                   ))}
                 </div>
-                {lastSavedPrescription.totalAmount > 0 && (
-                  <div className="text-right pt-2 font-bold text-xs text-slate-800">
-                    Tổng tiền thuốc thanh toán:{' '}
-                    <span className="font-mono text-emerald-700 text-sm">
-                      {lastSavedPrescription.totalAmount?.toLocaleString('vi-VN')} đ
-                    </span>
-                  </div>
-                )}
               </div>
 
               {/* Doctor Advice */}
-              <div className="space-y-1 pt-1">
-                <span className="font-bold text-slate-900 uppercase text-[11px]">Lời dặn của Bác sĩ:</span>
-                <p className="p-2.5 bg-amber-50/60 rounded-lg border border-amber-200 text-amber-950 italic text-xs">
+              <div className="space-y-1.5 pt-2">
+                <div className="flex items-center gap-2 text-amber-700 border-b border-amber-100 pb-1">
+                  <HeartPulse size={16} />
+                  <span className="font-bold uppercase text-xs tracking-wider">Lời dặn của Bác sĩ</span>
+                </div>
+                <p className="px-2 py-1 text-amber-950 italic text-[13px] font-sans bg-amber-50/30 rounded">
                   &ldquo;{lastSavedPrescription.doctorAdvice}&rdquo;
                 </p>
               </div>
 
               {/* Footer Signatures */}
-              <div className="pt-6 flex justify-between items-end text-xs">
-                <div className="text-[10px] text-slate-400 space-y-0.5">
-                  <p>• Tái khám mang theo đơn này.</p>
-                  <p>• Đơn thuốc có giá trị mua trong vòng 05 ngày kể từ ngày kê đơn.</p>
+              <div className="pt-8 pb-4 flex justify-between items-end">
+                <div className="text-[11px] text-slate-500 space-y-1 font-sans">
+                  <p className="flex items-center gap-1.5"><Check size={12} className="text-teal-600"/> Tái khám xin mang theo đơn này.</p>
+                  <p className="flex items-center gap-1.5"><Check size={12} className="text-teal-600"/> Đơn thuốc có giá trị mua trong vòng 05 ngày.</p>
                 </div>
-                <div className="text-center space-y-1">
-                  <p className="text-[11px] text-slate-500 italic">
-                    Ngày {new Date().getDate()} tháng {new Date().getMonth() + 1} năm {new Date().getFullYear()}
+                <div className="text-center space-y-1.5 w-48">
+                  <p className="text-[12px] text-slate-600 italic font-sans">
+                    Ngày {new Date().getDate().toString().padStart(2, '0')} tháng {(new Date().getMonth() + 1).toString().padStart(2, '0')} năm {new Date().getFullYear()}
                   </p>
-                  <p className="font-bold text-slate-900 uppercase text-[11px]">Bác Sĩ Khám Bệnh</p>
-                  <div className="h-12 flex items-center justify-center text-teal-700 font-serif italic text-sm">
-                    {lastSavedPrescription.prescription?.doctorName || 'BS. Chuyên Khoa'}
+                  <p className="font-bold text-slate-900 uppercase text-[12px] font-sans">Bác Sĩ Điều Trị</p>
+                  <div className="h-16 flex items-center justify-center">
+                    {/* Placeholder chữ ký */}
+                    <span className="font-serif italic text-2xl text-teal-800 opacity-80 transform -rotate-6">
+                      {lastSavedPrescription.prescription?.doctorName?.split(' ').pop() || 'BS.CKI'}
+                    </span>
                   </div>
-                  <p className="font-semibold text-slate-800 text-[11px]">
+                  <p className="font-bold text-slate-900 text-[13px] font-sans border-t border-slate-200 pt-2">
                     {lastSavedPrescription.prescription?.doctorName || 'BS. Chuyên Khoa'}
                   </p>
                 </div>

@@ -24,7 +24,9 @@ import {
   Send,
   Stethoscope,
   X,
-  Filter
+  Filter,
+  TriangleAlert,
+  Siren
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -86,6 +88,12 @@ export default function ReceptionView() {
   const [authChecked, setAuthChecked] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
+  // Billing Modal State
+  const [billingAppointmentId, setBillingAppointmentId] = useState<string | null>(null);
+  const [billingData, setBillingData] = useState<any>(null);
+  const [billingLoading, setBillingLoading] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState('CASH');
+
   const qrInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -134,6 +142,7 @@ export default function ReceptionView() {
             const roomTitle = item.roomNumber || docObj?.roomNumber || 'Phòng Khám Chuyên Khoa';
 
             return {
+              appointmentId: item.id,
               queueNumber: item.queueNumber,
               bookingCode: item.bookingCode,
               patientName: item.patientName,
@@ -257,6 +266,7 @@ export default function ReceptionView() {
       const now = new Date();
       const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
       const newEntry = {
+        appointmentId: (res as any).id,
         queueNumber: res.queueNumber || `0${history.length + 1}`,
         bookingCode: res.bookingCode || (method === 'QR_CODE' ? bookingCode : `MED-${cccdNumber.slice(-4)}`),
         patientName: (res as any).patientName || (method === 'CCCD_QR' ? (patientName || 'Bệnh nhân CCCD') : 'Bệnh nhân tiếp đón'),
@@ -316,6 +326,7 @@ export default function ReceptionView() {
       const specName = walkinRes.specialtyName;
 
       const newEntry = {
+        appointmentId: walkinRes.appointmentId,
         queueNumber,
         bookingCode,
         patientName: cleanName,
@@ -403,14 +414,34 @@ export default function ReceptionView() {
         </div>
 
         {/* Quick Stats Widget */}
-        <div className="flex items-center gap-3 bg-slate-50 p-2.5 rounded-2xl border border-slate-200">
-          <div className="px-4 py-1.5 border-r border-slate-200 text-center">
-            <span className="text-[10px] text-slate-400 font-semibold block uppercase">Đã tiếp đón</span>
-            <span className="text-lg font-bold text-emerald-600">{history.length} ca</span>
-          </div>
-          <div className="px-4 py-1.5 text-center">
-            <span className="text-[10px] text-slate-400 font-semibold block uppercase">Tốc độ xử lý</span>
-            <span className="text-lg font-bold text-blue-600">~1.2 giây</span>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              const confirmRed = window.confirm("CẢNH BÁO: Báo động đỏ sẽ gửi tín hiệu cấp cứu khẩn cấp (CODE RED) đến tất cả màn hình của bác sĩ. Bạn có chắc chắn?");
+              if (confirmRed) {
+                const syncChannel = new BroadcastChannel('medsched_queue_sync');
+                syncChannel.postMessage({ type: 'CODE_RED', timestamp: new Date().toISOString() });
+                alert("ĐÃ PHÁT BÁO ĐỘNG ĐỎ!");
+              }
+            }}
+            className="flex flex-col items-center justify-center h-full px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-2xl border border-red-700 shadow-[0_0_15px_rgba(220,38,38,0.5)] transition animate-pulse cursor-pointer"
+          >
+            <span className="text-[10px] font-bold uppercase tracking-wider opacity-90">Khẩn cấp</span>
+            <span className="text-sm font-black flex items-center gap-1.5">
+              <TriangleAlert size={16} /> CODE RED
+            </span>
+          </button>
+
+          <div className="flex items-center gap-3 bg-slate-50 p-2.5 rounded-2xl border border-slate-200">
+            <div className="px-4 py-1.5 border-r border-slate-200 text-center">
+              <span className="text-[10px] text-slate-400 font-semibold block uppercase">Đã tiếp đón</span>
+              <span className="text-lg font-bold text-emerald-600">{history.length} ca</span>
+            </div>
+            <div className="px-4 py-1.5 text-center">
+              <span className="text-[10px] text-slate-400 font-semibold block uppercase">Tốc độ xử lý</span>
+              <span className="text-lg font-bold text-blue-600">~1.2 giây</span>
+            </div>
           </div>
         </div>
       </div>
@@ -652,11 +683,30 @@ export default function ReceptionView() {
                 </div>
               )}
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl transition shadow-md shadow-emerald-600/20 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer text-sm"
-              >
+              <div className="flex flex-col sm:flex-row gap-3">
+                {method === 'WALK_IN' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const now = new Date();
+                      const timestamp = `${now.getHours()}${now.getMinutes()}${now.getSeconds()}`;
+                      setWalkinName(`Bệnh nhân Vô danh - ${timestamp}`);
+                      setWalkinPhone(`000${timestamp}0`);
+                      setWalkinCccd('');
+                      setWalkinPassword('Med@0000');
+                    }}
+                    className="sm:flex-1 bg-red-50 hover:bg-red-100 text-red-700 font-bold py-3.5 rounded-xl transition shadow-sm border border-red-200 flex items-center justify-center gap-2 cursor-pointer text-sm"
+                  >
+                    <Siren size={18} className="animate-pulse" />
+                    <span>Cấp Cứu Vô Danh</span>
+                  </button>
+                )}
+                
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className={`${method === 'WALK_IN' ? 'sm:flex-[2]' : 'w-full'} bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl transition shadow-md shadow-emerald-600/20 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer text-sm`}
+                >
                 {loading ? (
                   <>
                     <RefreshCw size={18} className="animate-spin" />
@@ -673,7 +723,8 @@ export default function ReceptionView() {
                     <span>Xác Nhận Tiếp Đón (Check-in 1 Giây)</span>
                   </>
                 )}
-              </button>
+                </button>
+              </div>
             </form>
           </div>
 
@@ -921,9 +972,25 @@ export default function ReceptionView() {
                               <Stethoscope size={11} /> ĐANG KHÁM
                             </span>
                           ) : item.status === 'ĐÃ KHÁM' ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              <CheckCircle2 size={11} /> ĐÃ KHÁM
-                            </span>
+                            <div className="flex items-center justify-end gap-2">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                <CheckCircle2 size={11} /> ĐÃ KHÁM
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setBillingAppointmentId(item.appointmentId);
+                                  setBillingLoading(true);
+                                  api.getBillDetail(item.appointmentId)
+                                    .then(setBillingData)
+                                    .catch(e => alert(e.message))
+                                    .finally(() => setBillingLoading(false));
+                                }}
+                                className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[10px] font-bold transition shadow-sm cursor-pointer whitespace-nowrap"
+                              >
+                                THU NGÂN
+                              </button>
+                            </div>
                           ) : (
                             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
                               {item.status}
@@ -970,73 +1037,120 @@ export default function ReceptionView() {
               </button>
             </div>
 
-            {/* Printable Ticket Area (K80 Standard) */}
-            <div id="printable-handover-ticket" className="p-6 bg-white space-y-4 text-slate-800">
-              {/* Receipt Clinic Title */}
-              <div className="text-center pb-3 border-b border-dashed border-slate-300">
-                <div className="font-black text-slate-900 text-lg uppercase tracking-tight">HỆ THỐNG Y TẾ MEDSCHED</div>
-                <p className="text-[11px] text-slate-500">Cơ sở: Chi Nhánh Quận 1 • Hotline: 1900 6868</p>
-                <div className="text-[10px] text-slate-400 font-mono mt-0.5">{accountHandoverModal.createdAt}</div>
-              </div>
-
-              {/* Huge Queue Number */}
-              <div className="bg-emerald-50 border-2 border-emerald-500 rounded-2xl py-3 px-4 text-center">
-                <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">SỐ THỨ TỰ VÀO KHÁM</span>
-                <div className="text-4xl font-black text-emerald-700 tracking-tight my-0.5">
-                  STT #{accountHandoverModal.queueNumber}
-                </div>
-                <div className="text-xs font-semibold text-slate-700">
-                  {accountHandoverModal.roomNumber} — <span className="text-emerald-800">{accountHandoverModal.specialtyName}</span>
-                </div>
-              </div>
-
-              {/* Patient Quick Info */}
-              <div className="space-y-1.5 text-xs border-b border-dashed border-slate-300 pb-3">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Bệnh nhân:</span>
-                  <strong className="text-slate-800 text-sm">{accountHandoverModal.fullName}</strong>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Số điện thoại:</span>
-                  <span className="font-mono font-bold text-slate-700">{accountHandoverModal.phone}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Mã lượt khám:</span>
-                  <span className="font-mono font-bold text-slate-700">{accountHandoverModal.bookingCode}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Bác sĩ phụ trách:</span>
-                  <span className="font-medium text-slate-700">{accountHandoverModal.doctorName}</span>
-                </div>
-              </div>
-
-              {/* ── HIGHLIGHT: PATIENT ONLINE ACCOUNT CREDENTIALS ── */}
-              <div className="bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-300 rounded-2xl p-4 space-y-2">
-                <div className="flex items-center gap-1.5 text-amber-900 font-bold text-xs uppercase tracking-wide">
-                  <KeyRound size={15} className="text-amber-700 shrink-0" />
-                  <span>Tài Khoản Tra Cứu Kết Quả Online:</span>
-                </div>
-                <div className="bg-white/90 p-3 rounded-xl border border-amber-200 space-y-1.5 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Tên đăng nhập:</span>
-                    <strong className="font-mono text-slate-900 text-sm select-all">{accountHandoverModal.phone}</strong>
+            {/* Printable Ticket Area (K80 Standard optimized for screen) */}
+            <div id="printable-handover-ticket" className="relative p-6 bg-[#f8fafc] text-slate-800 overflow-hidden">
+              {/* Decorative elements for ticket look */}
+              <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-emerald-500 via-teal-400 to-blue-500" />
+              
+              <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/50 border border-slate-100 relative overflow-hidden">
+                {/* Left/Right ticket cutouts */}
+                <div className="absolute top-[120px] -left-4 w-8 h-8 bg-[#f8fafc] rounded-full border-r border-slate-100 shadow-inner" />
+                <div className="absolute top-[120px] -right-4 w-8 h-8 bg-[#f8fafc] rounded-full border-l border-slate-100 shadow-inner" />
+                
+                {/* Header */}
+                <div className="p-6 text-center border-b-[2px] border-dashed border-slate-200 relative">
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white">
+                      <Sparkles size={16} />
+                    </div>
+                    <div className="font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-700 to-teal-900 text-xl tracking-tight">MEDSCHED</div>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Mật khẩu tạm:</span>
-                    <strong className="font-mono text-emerald-700 text-base font-black tracking-wider select-all">{accountHandoverModal.passwordInit}</strong>
+                  <p className="text-[11px] text-slate-500 font-medium uppercase tracking-widest">Phiếu Khám Bệnh Trực Tiếp</p>
+                  <div className="text-[10px] text-slate-400 font-mono mt-1">{accountHandoverModal.createdAt}</div>
+                </div>
+
+                {/* Body - Queue Number */}
+                <div className="px-6 py-8 text-center bg-gradient-to-b from-white to-emerald-50/30">
+                  <span className="text-[10px] font-bold text-emerald-600/70 uppercase tracking-[0.2em] block mb-1">SỐ THỨ TỰ VÀO KHÁM</span>
+                  <div className="text-6xl font-black text-emerald-600 tracking-tighter mb-2 drop-shadow-sm">
+                    {accountHandoverModal.queueNumber}
                   </div>
-                  <div className="flex items-center justify-between pt-1 border-t border-slate-100">
-                    <span className="text-slate-500">Địa chỉ truy cập:</span>
-                    <span className="font-mono text-blue-600 font-semibold text-[11px]">medsched.vn</span>
+                  <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-emerald-100/50 rounded-full text-emerald-800 text-sm font-semibold border border-emerald-200/50">
+                    <Building2 size={14} />
+                    <span>{accountHandoverModal.roomNumber}</span>
+                    <span className="w-1 h-1 rounded-full bg-emerald-400" />
+                    <span>{accountHandoverModal.specialtyName}</span>
                   </div>
                 </div>
-                <p className="text-[10px] text-amber-800 leading-tight italic">
-                  💡 Quý khách dùng tài khoản trên để xem kết quả xét nghiệm, đơn thuốc và đặt hẹn tái khám. Vui lòng đổi mật khẩu ở lần đăng nhập đầu tiên.
-                </p>
-              </div>
 
-              <div className="text-center text-[10px] text-slate-400 italic pt-1">
-                Chúc quý khách có trải nghiệm thăm khám thuận lợi &amp; mau chóng bình phục!
+                {/* Patient Info */}
+                <div className="px-6 py-5 bg-white border-t-[2px] border-dashed border-slate-200 space-y-3">
+                  <div className="flex justify-between items-end">
+                    <div>
+                      <span className="block text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-0.5">Bệnh nhân</span>
+                      <strong className="text-slate-800 text-base">{accountHandoverModal.fullName}</strong>
+                    </div>
+                    <div className="text-right">
+                      <span className="block text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-0.5">Mã Lượt Khám</span>
+                      <strong className="text-slate-800 text-sm font-mono">{accountHandoverModal.bookingCode}</strong>
+                    </div>
+                  </div>
+                  
+                  <div className="flex justify-between items-end pt-1">
+                    <div>
+                      <span className="block text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-0.5">Bác sĩ phụ trách</span>
+                      <span className="text-slate-700 text-sm font-medium">{accountHandoverModal.doctorName}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="block text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-0.5">Số điện thoại</span>
+                      <span className="text-slate-700 text-sm font-mono">{accountHandoverModal.phone}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── HIGHLIGHT: PATIENT ONLINE ACCOUNT CREDENTIALS ── */}
+                <div className="px-5 pb-6 bg-white">
+                  <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-4 text-white shadow-inner relative overflow-hidden group">
+                    <div className="absolute -right-4 -top-4 w-24 h-24 bg-white/5 rounded-full blur-xl group-hover:bg-emerald-500/20 transition-all duration-700" />
+                    
+                    <div className="flex items-center gap-2 text-emerald-400 font-bold text-[10px] uppercase tracking-widest mb-3">
+                      <KeyRound size={14} />
+                      <span>Tài Khoản Kết Quả Online</span>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <span className="block text-[10px] text-slate-400 mb-0.5">Tên đăng nhập:</span>
+                        <div className="font-mono text-white text-sm bg-white/10 px-2.5 py-1 rounded inline-block border border-white/5">
+                          {accountHandoverModal.phone}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="block text-[10px] text-slate-400 mb-0.5">Mật khẩu tạm:</span>
+                        <div className="font-mono text-emerald-300 font-bold tracking-widest text-sm bg-emerald-900/40 px-2.5 py-1 rounded inline-block border border-emerald-500/30">
+                          {accountHandoverModal.passwordInit}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-3 pt-3 border-t border-white/10 flex justify-between items-center">
+                      <span className="text-[9px] text-slate-400 w-2/3 leading-tight">Truy cập để xem bệnh án, xét nghiệm & đơn thuốc điện tử. Đổi MK lần đầu.</span>
+                      <span className="text-[10px] font-mono text-white bg-blue-600 px-2 py-0.5 rounded-full">medsched.vn</span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Fake Barcode footer */}
+                <div className="px-6 pb-6 pt-2 bg-white text-center">
+                   <div className="h-8 flex justify-center items-center opacity-60 mix-blend-multiply filter grayscale">
+                      <div className="w-1 h-full bg-black mx-[1px]" />
+                      <div className="w-2 h-full bg-black mx-[1px]" />
+                      <div className="w-1 h-full bg-black mx-[1px]" />
+                      <div className="w-3 h-full bg-black mx-[1px]" />
+                      <div className="w-1 h-full bg-black mx-[1px]" />
+                      <div className="w-2 h-full bg-black mx-[1px]" />
+                      <div className="w-1 h-full bg-black mx-[1px]" />
+                      <div className="w-1 h-full bg-black mx-[1px]" />
+                      <div className="w-2 h-full bg-black mx-[1px]" />
+                      <div className="w-1 h-full bg-black mx-[1px]" />
+                      <div className="w-1 h-full bg-black mx-[1px]" />
+                      <div className="w-3 h-full bg-black mx-[1px]" />
+                      <div className="w-1 h-full bg-black mx-[1px]" />
+                   </div>
+                   <div className="text-[9px] tracking-[0.3em] font-mono mt-1 text-slate-400">
+                     {accountHandoverModal.bookingCode.replace(/-/g, '')}
+                   </div>
+                </div>
               </div>
             </div>
 
@@ -1095,6 +1209,142 @@ export default function ReceptionView() {
               >
                 Đóng Cửa Sổ
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Thu Ngân & Viện Phí ── */}
+      {billingAppointmentId && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl overflow-hidden border border-slate-200 flex flex-col max-h-[90vh]">
+            <div className="bg-slate-800 text-white p-5 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center font-bold">
+                  <CreditCard size={20} className="text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg">Thanh Toán Viện Phí</h3>
+                  <p className="text-xs text-slate-300">Biên lai & Hóa đơn dịch vụ y tế</p>
+                </div>
+              </div>
+              <button
+                onClick={() => { setBillingAppointmentId(null); setBillingData(null); }}
+                className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition cursor-pointer"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex-1 bg-slate-50">
+              {billingLoading ? (
+                <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                  <RefreshCw size={32} className="animate-spin mb-3 text-amber-500" />
+                  <p>Đang trích xuất dữ liệu viện phí...</p>
+                </div>
+              ) : billingData ? (
+                <div className="space-y-6">
+                  {/* Patient Details */}
+                  <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex justify-between items-center">
+                    <div>
+                      <div className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-1">Bệnh nhân</div>
+                      <div className="font-black text-slate-800 text-lg">{billingData.patientName}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-1">Bác sĩ khám</div>
+                      <div className="font-semibold text-blue-700">{billingData.doctorName}</div>
+                    </div>
+                  </div>
+
+                  {/* Bill Items */}
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-slate-100/80 text-xs font-bold text-slate-600 uppercase tracking-wider">
+                          <th className="py-3 px-4 w-1/2">Chi tiết dịch vụ / Thuốc</th>
+                          <th className="py-3 px-4 text-center">SL</th>
+                          <th className="py-3 px-4 text-right">Đơn giá</th>
+                          <th className="py-3 px-4 text-right">Thành tiền</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-sm">
+                        <tr>
+                          <td className="py-3 px-4 font-semibold text-slate-700 flex items-center gap-2">
+                            <Stethoscope size={16} className="text-blue-500" /> Công khám bệnh
+                          </td>
+                          <td className="py-3 px-4 text-center font-mono">1</td>
+                          <td className="py-3 px-4 text-right font-mono text-slate-500">{billingData.consultationFee.toLocaleString('vi-VN')} đ</td>
+                          <td className="py-3 px-4 text-right font-mono font-bold text-slate-800">{billingData.consultationFee.toLocaleString('vi-VN')} đ</td>
+                        </tr>
+                        {billingData.items?.map((item: any, i: number) => (
+                          <tr key={i}>
+                            <td className="py-3 px-4 text-slate-600 pl-8">- {item.medicineName}</td>
+                            <td className="py-3 px-4 text-center font-mono text-xs">{item.quantity} {item.unit}</td>
+                            <td className="py-3 px-4 text-right font-mono text-xs text-slate-500">{item.unitPrice.toLocaleString('vi-VN')} đ</td>
+                            <td className="py-3 px-4 text-right font-mono font-semibold text-slate-700">{item.lineAmount.toLocaleString('vi-VN')} đ</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot className="bg-emerald-50/50">
+                        <tr>
+                          <td colSpan={3} className="py-4 px-4 text-right font-bold text-emerald-800 uppercase text-sm">Tổng cộng viện phí:</td>
+                          <td className="py-4 px-4 text-right font-black text-emerald-700 text-xl tracking-tight">{billingData.totalAmount.toLocaleString('vi-VN')} đ</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+
+                  {/* Payment Method & Action */}
+                  {billingData.status === 'PAID' ? (
+                    <div className="bg-emerald-100 border border-emerald-300 p-4 rounded-xl flex items-center justify-between text-emerald-800">
+                      <div className="flex items-center gap-2 font-bold">
+                        <CheckCircle2 size={24} /> ĐÃ THANH TOÁN VIỆN PHÍ ({billingData.invoiceId})
+                      </div>
+                      <button className="px-4 py-2 bg-white text-emerald-700 rounded-lg font-bold text-sm shadow-sm hover:bg-emerald-50 transition cursor-pointer">In Hóa Đơn</button>
+                    </div>
+                  ) : (
+                    <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                      <h4 className="font-bold text-slate-700 text-sm">Phương thức thanh toán</h4>
+                      <div className="flex gap-3">
+                        <label className={`flex-1 flex flex-col items-center justify-center p-3 rounded-xl border-2 cursor-pointer transition ${paymentMethod === 'CASH' ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-white hover:border-blue-300'}`}>
+                          <input type="radio" name="method" value="CASH" checked={paymentMethod === 'CASH'} onChange={(e) => setPaymentMethod(e.target.value)} className="sr-only" />
+                          <span className="font-bold text-slate-700">Tiền mặt</span>
+                        </label>
+                        <label className={`flex-1 flex flex-col items-center justify-center p-3 rounded-xl border-2 cursor-pointer transition ${paymentMethod === 'BANK_TRANSFER' ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-white hover:border-blue-300'}`}>
+                          <input type="radio" name="method" value="BANK_TRANSFER" checked={paymentMethod === 'BANK_TRANSFER'} onChange={(e) => setPaymentMethod(e.target.value)} className="sr-only" />
+                          <span className="font-bold text-slate-700">Chuyển khoản</span>
+                        </label>
+                        <label className={`flex-1 flex flex-col items-center justify-center p-3 rounded-xl border-2 cursor-pointer transition ${paymentMethod === 'POS_CARD' ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-white hover:border-blue-300'}`}>
+                          <input type="radio" name="method" value="POS_CARD" checked={paymentMethod === 'POS_CARD'} onChange={(e) => setPaymentMethod(e.target.value)} className="sr-only" />
+                          <span className="font-bold text-slate-700">Quẹt thẻ POS</span>
+                        </label>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          setBillingLoading(true);
+                          try {
+                            await api.payInvoice(billingData.invoiceId, {
+                              amountPaid: billingData.totalAmount,
+                              paymentMethod: paymentMethod
+                            });
+                            // Refresh
+                            const updated = await api.getBillDetail(billingAppointmentId);
+                            setBillingData(updated);
+                            alert("Thanh toán thành công!");
+                          } catch (e: any) {
+                            alert(e.message);
+                          } finally {
+                            setBillingLoading(false);
+                          }
+                        }}
+                        className="w-full bg-amber-500 hover:bg-amber-600 text-white font-black py-4 rounded-xl shadow-lg shadow-amber-500/30 transition text-lg flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        <CheckCircle2 size={24} /> XÁC NHẬN THANH TOÁN
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
