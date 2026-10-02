@@ -113,6 +113,7 @@ class AdminUserServiceTest {
                 specialtyId,
                 "BS.CKII",
                 new BigDecimal("300000"),
+                null,
                 null
         );
 
