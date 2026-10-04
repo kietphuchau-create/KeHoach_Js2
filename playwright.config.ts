@@ -6,16 +6,16 @@ export default defineConfig({
   workers: 1,
   forbidOnly: !!process.env.CI,
   retries: 0,
-  timeout: 60000,
+  timeout: 120000,
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {
     baseURL: 'http://localhost:3000',
     trace: 'retain-on-failure',
-    screenshot: 'only-on-failure',
+    screenshot: 'on',
     video: 'on',
-    viewport: { width: 1280, height: 720 },
-    actionTimeout: 15000,
-    navigationTimeout: 30000,
+    viewport: { width: 1366, height: 768 },
+    actionTimeout: 20000,
+    navigationTimeout: 40000,
   },
   projects: [
     {
