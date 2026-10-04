@@ -456,6 +456,7 @@ export const api = {
     }>("/reception/walkin", {
       method: "POST",
       body: JSON.stringify(payload),
+    });
   },
 
   async getBillDetail(appointmentId: string) {
