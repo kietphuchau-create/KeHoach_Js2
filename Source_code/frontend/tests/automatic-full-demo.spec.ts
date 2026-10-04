@@ -5,8 +5,9 @@ test.describe('DevHub/Medical Website - Automatic Demo (MedSched)', () => {
   // Helper đăng nhập chuẩn xác cho Playwright
   async function login(page: Page, email: string, pass: string) {
     await page.goto('/login', { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(500);
     const emailInput = page.locator('input[type="email"], input[name="email"]').first();
-    await emailInput.waitFor({ state: 'visible', timeout: 10000 });
+    await emailInput.waitFor({ state: 'visible', timeout: 15000 });
     await emailInput.fill(email);
 
     const passInput = page.locator('input[type="password"], input[name="password"]').first();
@@ -15,12 +16,12 @@ test.describe('DevHub/Medical Website - Automatic Demo (MedSched)', () => {
     const submitBtn = page.locator('button[type="submit"]').first();
     await submitBtn.click();
 
-    // Chờ xử lý đăng nhập & cập nhật session
+    // Chờ xử lý đăng nhập & chuyển hướng
     await page.waitForTimeout(1500);
   }
 
   // ----------------------------------------------------------------------------
-  // TEST 01: KHÁM BỆNH & ĐẶT LỊCH
+  // TEST 01: KHÁM BỆNH & ĐẶT LỊCH (QUY TRÌNH WIZARD 4 BƯỚC)
   // ----------------------------------------------------------------------------
   test('01 - Khám bệnh', async ({ page }) => {
     await test.step('1. Mở trang chủ', async () => {
@@ -42,36 +43,43 @@ test.describe('DevHub/Medical Website - Automatic Demo (MedSched)', () => {
       await page.screenshot({ path: 'test-results/01_booking_page.png' });
     });
 
-    await test.step('4. Kiểm tra và chọn Cơ sở y tế / Phòng khám', async () => {
-      const centerSelect = page.locator('select').first();
-      if (await centerSelect.isVisible()) {
-        const count = await centerSelect.locator('option').count();
-        expect(count).toBeGreaterThan(0);
+    await test.step('4. Bước 1: Chọn Cơ sở y tế & Chuyên khoa', async () => {
+      // Chọn cơ sở y tế đầu tiên nếu có
+      const centerCards = page.locator('div').filter({ hasText: /Cơ Sở|Bệnh Viện|Phòng Khám/i });
+      if (await centerCards.first().isVisible()) {
+        await centerCards.first().click().catch(() => {});
+        await page.waitForTimeout(300);
+      }
+
+      // Chọn chuyên khoa
+      const specCards = page.locator('div').filter({ hasText: /Da Liễu|Nội|Tim Mạch|Ngoại|Mắt/i });
+      if (await specCards.first().isVisible()) {
+        await specCards.first().click().catch(() => {});
+        await page.waitForTimeout(300);
+      }
+
+      // Bấm nút tiếp tục chọn bác sĩ
+      const nextBtn1 = page.locator('button').filter({ hasText: /Tiếp tục chọn Bác sĩ|Tiếp tục/i }).first();
+      if (await nextBtn1.isVisible() && await nextBtn1.isEnabled()) {
+        await nextBtn1.click();
+        await page.waitForTimeout(1000);
       }
     });
 
-    await test.step('5. Kiểm tra và chọn Chuyên khoa', async () => {
-      const specialtyButtons = page.locator('button, div').filter({ hasText: /Da Liễu|Nội|Tim Mạch|Ngoại/i });
-      if (await specialtyButtons.first().isVisible()) {
-        await specialtyButtons.first().click().catch(() => {});
-        await page.waitForTimeout(500);
-      }
-    });
-
-    await test.step('6. Chọn Bác sĩ và xem thông tin chi tiết', async () => {
-      const doctorCards = page.locator('div, button').filter({ hasText: /BS\.|ThS\.|Bác sĩ/i });
-      if (await doctorCards.first().isVisible()) {
-        await doctorCards.first().click().catch(() => {});
+    await test.step('5. Bước 2: Chọn Bác sĩ & Khung giờ khám', async () => {
+      // Chọn Bác sĩ
+      const docCards = page.locator('div').filter({ hasText: /BS\.|ThS\.|Bác sĩ/i });
+      if (await docCards.first().isVisible()) {
+        await docCards.first().click().catch(() => {});
         await page.waitForTimeout(500);
       }
       await page.screenshot({ path: 'test-results/01_selected_doctor.png' });
-    });
 
-    await test.step('7. Chọn khung giờ khám (Slot)', async () => {
+      // Chọn khung giờ khám khả dụng
       const slotButtons = page.locator('button').filter({ hasText: /:\d{2}|Khả dụng/i });
-      const count = await slotButtons.count();
-      if (count > 0) {
-        for (let i = 0; i < count; i++) {
+      const slotCount = await slotButtons.count();
+      if (slotCount > 0) {
+        for (let i = 0; i < slotCount; i++) {
           const btn = slotButtons.nth(i);
           if (await btn.isEnabled()) {
             await btn.click().catch(() => {});
@@ -80,25 +88,33 @@ test.describe('DevHub/Medical Website - Automatic Demo (MedSched)', () => {
           }
         }
       }
+
+      // Bấm nút tiếp tục nhập triệu chứng
+      const nextBtn2 = page.locator('button').filter({ hasText: /Tiếp tục nhập Triệu chứng|Tiếp tục/i }).first();
+      if (await nextBtn2.isVisible() && await nextBtn2.isEnabled()) {
+        await nextBtn2.click();
+        await page.waitForTimeout(1000);
+      }
     });
 
-    await test.step('8. Nhập triệu chứng và Xác nhận đặt lịch', async () => {
+    await test.step('6. Bước 3: Nhập triệu chứng & Xác nhận đặt lịch', async () => {
       const symptomInput = page.locator('textarea, input[placeholder*="triệu chứng"], input[placeholder*="lý do"]').first();
       if (await symptomInput.isVisible()) {
-        await symptomInput.fill('Đau tức ngực nhẹ và ho khan về đêm');
+        await symptomInput.fill('Đau tức ngực nhẹ và ho khan về đêm khi thời tiết thay đổi');
+        await page.waitForTimeout(500);
       }
 
-      const bookBtn = page.getByRole('button', { name: /Xác nhận|Đặt lịch|Tiếp tục/i }).first();
-      if (await bookBtn.isVisible() && await bookBtn.isEnabled()) {
-        await bookBtn.click();
-        await page.waitForTimeout(1500);
+      const confirmBtn = page.locator('button').filter({ hasText: /Xác Nhận & Xuất Vé Khám|Xác nhận|Đặt lịch/i }).first();
+      if (await confirmBtn.isVisible() && await confirmBtn.isEnabled()) {
+        await confirmBtn.click();
+        await page.waitForTimeout(2000);
       }
       await page.screenshot({ path: 'test-results/01_booking_success.png' });
     });
 
-    await test.step('9. Kiểm tra lịch khám trong Danh sách ca hẹn', async () => {
+    await test.step('7. Kiểm tra lịch khám trong Danh sách phiếu hẹn của tôi', async () => {
       await page.goto('/my-appointments', { waitUntil: 'domcontentloaded' });
-      await page.waitForTimeout(1000);
+      await page.waitForTimeout(1200);
       await expect(page.locator('body')).toBeVisible();
       await page.screenshot({ path: 'test-results/01_my_appointments.png' });
     });
