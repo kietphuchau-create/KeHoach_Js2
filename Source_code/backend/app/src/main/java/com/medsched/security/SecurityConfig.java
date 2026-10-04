@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -62,15 +63,39 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // 1. Endpoints công khai hoàn toàn: Auth, tài liệu Swagger / OpenAPI
                         .requestMatchers(
                                 "/error",
                                 "/api/v1/auth/**",
-                                "/api/v1/medical-centers",
-                                "/api/v1/specialties",
-                                "/api/v1/services",
-                                "/api/appointments/**",
-                                "/api/ai/**"
+                                "/v3/api-docs/**",
+                                "/swagger-ui/**",
+                                "/swagger-ui.html"
                         ).permitAll()
+
+                        // 2. Cho phép GET public danh mục y tế để người bệnh xem thông tin phòng khám/dịch vụ
+                        .requestMatchers(HttpMethod.GET,
+                                "/api/v1/medical-centers/**",
+                                "/api/v1/specialties/**",
+                                "/api/v1/services/**"
+                        ).permitAll()
+
+                        // 3. Khách xem danh sách slot giờ khám và tra cứu mã booking
+                        .requestMatchers(HttpMethod.GET,
+                                "/api/appointments/doctors/*/slots",
+                                "/api/v1/appointments/doctors/*/slots",
+                                "/api/appointments/booking-code/*",
+                                "/api/v1/appointments/booking-code/*"
+                        ).permitAll()
+
+                        // 4. AI Triage định hướng chuyên khoa ban đầu
+                        .requestMatchers("/api/ai/**", "/api/v1/ai/**").permitAll()
+
+                        // 5. Phân quyền theo vai trò cụ thể
+                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/v1/doctor/**", "/api/doctor/**").hasAnyRole("DOCTOR", "ADMIN")
+                        .requestMatchers("/api/v1/reception/**", "/api/reception/**").hasAnyRole("STAFF", "ADMIN")
+
+                        // 6. Toàn bộ các API còn lại (bao gồm /api/v1/appointments/**, /api/v1/me/**) BẮT BUỘC ĐĂNG NHẬP
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((req, res, e) -> write(res, HttpStatus.UNAUTHORIZED,

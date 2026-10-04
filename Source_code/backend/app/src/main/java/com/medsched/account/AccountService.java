@@ -21,6 +21,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import com.medsched.core.port.in.ChangePasswordUseCase;
+import com.medsched.core.port.in.UpdateProfileUseCase;
+
 /** Personal account operations: view profile, update profile, change password. */
 @Service
 public class AccountService {
@@ -31,19 +34,25 @@ public class AccountService {
     private final SpecialtyJpaRepository specialties;
     private final MedicalCenterJpaRepository medicalCenters;
     private final PasswordEncoder passwordEncoder;
+    private final UpdateProfileUseCase updateProfileUseCase;
+    private final ChangePasswordUseCase changePasswordUseCase;
 
     public AccountService(UserJpaRepository users,
                           PatientProfileJpaRepository patientProfiles,
                           DoctorJpaRepository doctors,
                           SpecialtyJpaRepository specialties,
                           MedicalCenterJpaRepository medicalCenters,
-                          PasswordEncoder passwordEncoder) {
+                          PasswordEncoder passwordEncoder,
+                          UpdateProfileUseCase updateProfileUseCase,
+                          ChangePasswordUseCase changePasswordUseCase) {
         this.users = users;
         this.patientProfiles = patientProfiles;
         this.doctors = doctors;
         this.specialties = specialties;
         this.medicalCenters = medicalCenters;
         this.passwordEncoder = passwordEncoder;
+        this.updateProfileUseCase = updateProfileUseCase;
+        this.changePasswordUseCase = changePasswordUseCase;
     }
 
     @Transactional(readOnly = true)
@@ -56,26 +65,25 @@ public class AccountService {
 
     @Transactional
     public AccountDtos.MeResponse updateProfile(AppUserDetails principal, AccountDtos.UpdateProfileRequest request) {
-        UserEntity user = requireUser(principal.getUserId());
-        user.setFullName(request.fullName().trim());
-        user.setPhone(blankToNull(request.phone()));
-        touch(user, principal.getUserId());
-        users.save(user);
+        updateProfileUseCase.updateProfile(new UpdateProfileUseCase.Command(
+                principal.getUserId(),
+                request.fullName(),
+                request.phone()
+        ));
         return me(principal);
     }
 
     @Transactional
     public void changePassword(AppUserDetails principal, AccountDtos.ChangePasswordRequest request) {
-        UserEntity user = requireUser(principal.getUserId());
-        if (!passwordEncoder.matches(request.currentPassword(), user.getPasswordHash())) {
-            throw new AppExceptions.BadRequestException("Mật khẩu hiện tại không đúng");
+        try {
+            changePasswordUseCase.changePassword(new ChangePasswordUseCase.Command(
+                    principal.getUserId(),
+                    request.currentPassword(),
+                    request.newPassword()
+            ));
+        } catch (IllegalArgumentException e) {
+            throw new AppExceptions.BadRequestException(e.getMessage());
         }
-        if (passwordEncoder.matches(request.newPassword(), user.getPasswordHash())) {
-            throw new AppExceptions.BadRequestException("Mật khẩu mới phải khác mật khẩu hiện tại");
-        }
-        user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
-        touch(user, principal.getUserId());
-        users.save(user);
     }
 
     /**
