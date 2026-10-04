@@ -26,8 +26,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="vi">
-      <body className={`${inter.className} min-h-screen bg-mint-soft text-slate-800 flex flex-col antialiased`}>
+    <html lang="vi" suppressHydrationWarning>
+      <body suppressHydrationWarning className={`${inter.className} min-h-screen bg-mint-soft text-slate-800 flex flex-col antialiased`}>
         <ConcurrentSessionModal />
         <HeaderNav />
         <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-5 flex flex-col">

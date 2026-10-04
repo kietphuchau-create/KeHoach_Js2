@@ -1,0 +1,9 @@
+{
+  "name": "medsched-project",
+  "private": true,
+  "scripts": {
+    "test:playwright": "pnpm --dir Source_code/frontend exec playwright test tests/automatic-full-demo.spec.ts",
+    "test:headed": "pnpm --dir Source_code/frontend exec playwright test tests/automatic-full-demo.spec.ts --headed",
+    "test:show-report": "pnpm --dir Source_code/frontend exec playwright show-report"
+  }
+}

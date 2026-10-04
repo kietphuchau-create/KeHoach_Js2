@@ -20,6 +20,9 @@ yarn-error.log*
 .env.test.local
 .env.production.local
 *.tsbuildinfo
+test-results/
+playwright-report/
+
 
 # --- Java & Gradle (Backend) ---
 .gradle/
