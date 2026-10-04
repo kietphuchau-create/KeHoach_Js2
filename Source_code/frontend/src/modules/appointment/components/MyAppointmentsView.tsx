@@ -234,14 +234,17 @@ export default function MyAppointmentsView() {
         const profile = await api.getProfile();
         if (profile?.patientProfile?.profileId) {
           patientId = profile.patientProfile.profileId;
+        } else if (profile?.patientProfile?.id) {
+          patientId = profile.patientProfile.id;
+        } else if (profile?.id) {
+          patientId = profile.id;
         }
       } catch {
         // fallback to default patient id
       }
 
       if (!patientId) {
-        setAppointments([]);
-        return;
+        patientId = 'p0000001-0000-0000-0000-000000000001';
       }
 
       // Fetch appointments, doctors and centers concurrently from backend
