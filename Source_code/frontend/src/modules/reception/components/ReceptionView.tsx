@@ -26,7 +26,8 @@ import {
   X,
   Filter,
   TriangleAlert,
-  Siren
+  Siren,
+  Camera
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -36,6 +37,8 @@ import AlertMessage from '@/shared/components/Feedback/AlertMessage';
 import { useSingleTabLock } from '@/shared/hooks/useSingleTabLock';
 import SingleTabLockOverlay from '@/shared/components/Feedback/SingleTabLockOverlay';
 import LoginForm from '@/modules/auth/components/LoginForm';
+import { QrCameraScannerModal, QrScanResult } from '@/shared/components/QrCameraScannerModal';
+import { QrCodeImage } from '@/shared/components/QrCodeImage';
 
 export default function ReceptionView() {
   const router = useRouter();
@@ -93,6 +96,9 @@ export default function ReceptionView() {
   const [billingData, setBillingData] = useState<any>(null);
   const [billingLoading, setBillingLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('CASH');
+
+  // Camera QR Scanner Modal State
+  const [showCameraScanner, setShowCameraScanner] = useState(false);
 
   const qrInputRef = useRef<HTMLInputElement>(null);
 
@@ -288,6 +294,83 @@ export default function ReceptionView() {
       setError(err.message || 'Tiếp đón thất bại. Vui lòng kiểm tra lại mã hoặc thẻ.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCameraScanSuccess = async (scan: QrScanResult) => {
+    if (scan.type === 'CCCD' && scan.cccdNumber) {
+      setMethod('CCCD_QR');
+      setCccdNumber(scan.cccdNumber);
+      if (scan.fullName) {
+        setPatientName(scan.fullName);
+      }
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await api.checkIn({
+          cccdNumber: scan.cccdNumber,
+          fullName: scan.fullName || patientName,
+          doctorId: selectedDoctorId,
+          method: 'CCCD_QR',
+        });
+        setResult(res);
+        const now = new Date();
+        const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+        const newEntry = {
+          appointmentId: (res as any).id,
+          queueNumber: res.queueNumber || `0${history.length + 1}`,
+          bookingCode: res.bookingCode || `MED-${scan.cccdNumber.slice(-4)}`,
+          patientName: (res as any).patientName || scan.fullName || 'Bệnh nhân CCCD',
+          doctor: (res as any).doctorName || 'BS. Chuyên khoa tiếp nhận',
+          room: (res as any).roomNumber || 'Phòng khám chuyên khoa',
+          checkInTime: timeStr,
+          status: 'ĐÃ TIẾP ĐÓN',
+        };
+        setHistory((prev) => [newEntry, ...prev]);
+        try {
+          const syncChannel = new BroadcastChannel('medsched_queue_sync');
+          syncChannel.postMessage({ type: 'QUEUE_UPDATED' });
+          syncChannel.close();
+        } catch {}
+      } catch (err: any) {
+        setError(err.message || 'Tiếp đón qua CCCD thất bại.');
+      } finally {
+        setLoading(false);
+      }
+    } else if (scan.bookingCode) {
+      setMethod('QR_CODE');
+      setBookingCode(scan.bookingCode);
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await api.checkIn({
+          bookingCode: scan.bookingCode,
+          method: 'QR_CODE',
+        });
+        setResult(res);
+        const now = new Date();
+        const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+        const newEntry = {
+          appointmentId: (res as any).id,
+          queueNumber: res.queueNumber || `0${history.length + 1}`,
+          bookingCode: res.bookingCode || scan.bookingCode,
+          patientName: (res as any).patientName || 'Bệnh nhân tiếp đón',
+          doctor: (res as any).doctorName || 'BS. Chuyên khoa tiếp nhận',
+          room: (res as any).roomNumber || 'Phòng khám chuyên khoa',
+          checkInTime: timeStr,
+          status: 'ĐÃ TIẾP ĐÓN',
+        };
+        setHistory((prev) => [newEntry, ...prev]);
+        try {
+          const syncChannel = new BroadcastChannel('medsched_queue_sync');
+          syncChannel.postMessage({ type: 'QUEUE_UPDATED' });
+          syncChannel.close();
+        } catch {}
+      } catch (err: any) {
+        setError(err.message || 'Tiếp đón qua mã QR vé thất bại.');
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -531,23 +614,44 @@ export default function ReceptionView() {
             <form onSubmit={method === 'WALK_IN' ? handleWalkinSubmit : handleCheckin} className="space-y-4">
               {method === 'QR_CODE' && (
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                    Mã Vé Hẹn Khám (Booking Code):
-                  </label>
-                  <div className="relative">
-                    <QrCode className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                    <input
-                      ref={qrInputRef}
-                      type="text"
-                      required
-                      value={bookingCode}
-                      onChange={(e) => setBookingCode(e.target.value)}
-                      placeholder="Quét mã QR hoặc nhập: MED-2026-8899"
-                      className="w-full pl-10 pr-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-emerald-500 focus:bg-white focus:outline-none text-sm font-mono font-semibold text-slate-800"
-                    />
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-slate-700 uppercase">
+                      Mã Vé Hẹn Khám (Booking Code):
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowCameraScanner(true)}
+                      className="inline-flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200 transition cursor-pointer"
+                    >
+                      <Camera size={13} />
+                      <span>Bật Camera Quét</span>
+                    </button>
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <QrCode className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                      <input
+                        ref={qrInputRef}
+                        type="text"
+                        required
+                        value={bookingCode}
+                        onChange={(e) => setBookingCode(e.target.value)}
+                        placeholder="Quét mã QR hoặc nhập: MED-2026-8899"
+                        className="w-full pl-10 pr-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-emerald-500 focus:bg-white focus:outline-none text-sm font-mono font-semibold text-slate-800"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowCameraScanner(true)}
+                      className="px-3.5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer whitespace-nowrap"
+                      title="Mở camera webcam quét mã QR trực tiếp từ điện thoại bệnh nhân"
+                    >
+                      <Camera size={16} />
+                      <span className="hidden sm:inline">Quét Camera</span>
+                    </button>
                   </div>
                   <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1.5">
-                    <span>* Tương thích máy quét USB barcode 2D</span>
+                    <span>* Tương thích máy quét USB barcode 2D &amp; Webcam camera</span>
                     <button
                       type="button"
                       onClick={() => setBookingCode(`MED-2026-${Math.floor(1000 + Math.random() * 9000)}`)}
@@ -562,20 +666,41 @@ export default function ReceptionView() {
               {method === 'CCCD_QR' && (
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                      Số Định Danh CCCD Gắn Chip (12 số):
-                    </label>
-                    <div className="relative">
-                      <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                      <input
-                        ref={qrInputRef}
-                        type="text"
-                        required
-                        value={cccdNumber}
-                        onChange={(e) => setCccdNumber(e.target.value)}
-                        placeholder="Ví dụ: 079095012345"
-                        className="w-full pl-10 pr-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-emerald-500 focus:bg-white focus:outline-none text-sm font-mono font-semibold text-slate-800"
-                      />
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-bold text-slate-700 uppercase">
+                        Số Định Danh CCCD Gắn Chip (12 số):
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowCameraScanner(true)}
+                        className="inline-flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200 transition cursor-pointer"
+                      >
+                        <Camera size={13} />
+                        <span>Quét QR Thẻ CCCD</span>
+                      </button>
+                    </div>
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                        <input
+                          ref={qrInputRef}
+                          type="text"
+                          required
+                          value={cccdNumber}
+                          onChange={(e) => setCccdNumber(e.target.value)}
+                          placeholder="Ví dụ: 079095012345"
+                          className="w-full pl-10 pr-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-emerald-500 focus:bg-white focus:outline-none text-sm font-mono font-semibold text-slate-800"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowCameraScanner(true)}
+                        className="px-3.5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer whitespace-nowrap"
+                        title="Quét mã QR trên thẻ CCCD gắn chip"
+                      >
+                        <Camera size={16} />
+                        <span className="hidden sm:inline">Quét CCCD</span>
+                      </button>
                     </div>
                   </div>
                   <div>
@@ -1130,26 +1255,19 @@ export default function ReceptionView() {
                   </div>
                 </div>
                 
-                {/* Fake Barcode footer */}
+                {/* Real Scannable Ticket QR Code */}
                 <div className="px-6 pb-6 pt-2 bg-white text-center">
-                   <div className="h-8 flex justify-center items-center opacity-60 mix-blend-multiply filter grayscale">
-                      <div className="w-1 h-full bg-black mx-[1px]" />
-                      <div className="w-2 h-full bg-black mx-[1px]" />
-                      <div className="w-1 h-full bg-black mx-[1px]" />
-                      <div className="w-3 h-full bg-black mx-[1px]" />
-                      <div className="w-1 h-full bg-black mx-[1px]" />
-                      <div className="w-2 h-full bg-black mx-[1px]" />
-                      <div className="w-1 h-full bg-black mx-[1px]" />
-                      <div className="w-1 h-full bg-black mx-[1px]" />
-                      <div className="w-2 h-full bg-black mx-[1px]" />
-                      <div className="w-1 h-full bg-black mx-[1px]" />
-                      <div className="w-1 h-full bg-black mx-[1px]" />
-                      <div className="w-3 h-full bg-black mx-[1px]" />
-                      <div className="w-1 h-full bg-black mx-[1px]" />
-                   </div>
-                   <div className="text-[9px] tracking-[0.3em] font-mono mt-1 text-slate-400">
-                     {accountHandoverModal.bookingCode.replace(/-/g, '')}
-                   </div>
+                  <QrCodeImage
+                    value={accountHandoverModal.bookingCode}
+                    size={76}
+                    className="mx-auto rounded shadow-xs"
+                  />
+                  <div className="text-[10px] tracking-widest font-mono mt-1 font-bold text-slate-600">
+                    {accountHandoverModal.bookingCode}
+                  </div>
+                  <div className="text-[9px] text-emerald-600 font-medium">
+                    ✓ Quét để tra cứu kết quả khám
+                  </div>
                 </div>
               </div>
             </div>
@@ -1186,18 +1304,23 @@ export default function ReceptionView() {
 
               <button
                 type="button"
-                onClick={handleSendSmsSimulated}
+                onClick={() => {
+                  handleCopyCredentials();
+                  setSmsSent(true);
+                  setTimeout(() => setSmsSent(false), 4000);
+                  alert(`Đã chuẩn bị nội dung tin nhắn SMS và sao chép vào bộ nhớ tạm!\nSẵn sàng gửi tới SĐT bệnh nhân: ${accountHandoverModal.phone}`);
+                }}
                 className="py-2 px-3 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 {smsSent ? (
                   <>
                     <Check size={14} className="text-emerald-600" />
-                    <span className="text-emerald-700 font-bold">Đã Gửi SMS Đến {accountHandoverModal.phone}!</span>
+                    <span className="text-emerald-700 font-bold">Đã tạo &amp; sao chép nội dung SMS ({accountHandoverModal.phone})</span>
                   </>
                 ) : (
                   <>
                     <Send size={14} />
-                    <span>Gửi Tin Nhắn SMS Tài Khoản Cho Bệnh Nhân</span>
+                    <span>Gửi SMS số thứ tự &amp; thông tin TK tới {accountHandoverModal.phone}</span>
                   </>
                 )}
               </button>
@@ -1319,6 +1442,55 @@ export default function ReceptionView() {
                           <span className="font-bold text-slate-700">Quẹt thẻ POS</span>
                         </label>
                       </div>
+
+                      {/* VietQR Bank Transfer Box */}
+                      {paymentMethod === 'BANK_TRANSFER' && (
+                        <div className="bg-emerald-50/70 border-2 border-dashed border-emerald-400/60 rounded-2xl p-4 text-center space-y-3 animate-in fade-in duration-200">
+                          <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-emerald-800 uppercase tracking-wide">
+                            <ShieldCheck size={16} className="text-emerald-600" />
+                            <span>Mã VietQR Thanh Toán Viện Phí (Napas 247)</span>
+                          </div>
+                          <img
+                            src={`https://img.vietqr.io/image/MB-0388999988-compact2.png?amount=${Math.round(billingData.totalAmount)}&addInfo=${encodeURIComponent('MEDSCHED ' + (billingData.invoiceId || billingAppointmentId || 'BILL'))}&accountName=${encodeURIComponent('BVDK MEDSCHED TONG HOP')}`}
+                            alt="VietQR Viện Phí"
+                            className="w-48 h-48 object-contain rounded-xl mx-auto shadow-sm bg-white p-1"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                              const el = document.getElementById('billing-vietqr-fallback');
+                              if (el) el.style.display = 'block';
+                            }}
+                          />
+                          <div id="billing-vietqr-fallback" style={{ display: 'none' }} className="py-2">
+                            <QrCodeImage
+                              value={`2|99|0388999988|BVDK MEDSCHED TONG HOP|${Math.round(billingData.totalAmount)}|MEDSCHED ${billingData.invoiceId || 'BILL'}`}
+                              size={180}
+                              className="mx-auto rounded-lg"
+                            />
+                          </div>
+                          <div className="bg-white/80 rounded-xl p-2.5 text-xs space-y-1 text-left border border-emerald-200/60 font-medium">
+                            <div className="flex justify-between">
+                              <span className="text-slate-500">Ngân hàng:</span>
+                              <strong className="text-slate-800">MBBank (Ngân hàng Quân Đội)</strong>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-500">Số tài khoản:</span>
+                              <strong className="text-slate-800 font-mono">0388999988</strong>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-500">Số tiền:</span>
+                              <strong className="text-emerald-700 font-mono font-bold">{billingData.totalAmount.toLocaleString('vi-VN')} đ</strong>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-500">Nội dung CK:</span>
+                              <strong className="text-emerald-800 font-mono">MEDSCHED {billingData.invoiceId || 'BILL'}</strong>
+                            </div>
+                          </div>
+                          <span className="text-[10px] text-slate-400 block">
+                            * Hướng dẫn bệnh nhân mở app ngân hàng quét mã trên để thanh toán tức thì
+                          </span>
+                        </div>
+                      )}
+
                       <button
                         onClick={async () => {
                           setBillingLoading(true);
@@ -1349,6 +1521,14 @@ export default function ReceptionView() {
           </div>
         </div>
       )}
+
+      {/* ── Modal Quét Mã QR Bằng Camera Webcam ── */}
+      <QrCameraScannerModal
+        isOpen={showCameraScanner}
+        onClose={() => setShowCameraScanner(false)}
+        onScanSuccess={handleCameraScanSuccess}
+        title="Quét Mã QR Vé Khám Hoặc Thẻ CCCD Gắn Chip"
+      />
 
       {/* ── Overlay Khóa Đa Tab (Single Tab Enforcement) ── */}
       <SingleTabLockOverlay

@@ -17,7 +17,8 @@ import {
   ShieldCheck,
   Printer,
   ChevronRight,
-  AlertCircle
+  AlertCircle,
+  CreditCard
 } from 'lucide-react';
 import { api, AppointmentResponse, getAuthUser, getAuthToken } from '@/shared/lib/api';
 import { formatDoctorFullName } from '@/shared/lib/formatters';
@@ -25,6 +26,8 @@ import AlertMessage from '@/shared/components/Feedback/AlertMessage';
 import LoadingSpinner from '@/shared/components/Feedback/LoadingSpinner';
 import { useSingleTabLock } from '@/shared/hooks/useSingleTabLock';
 import SingleTabLockOverlay from '@/shared/components/Feedback/SingleTabLockOverlay';
+import { QrCodeImage } from '@/shared/components/QrCodeImage';
+import { VietQrModal } from '@/shared/components/VietQrModal';
 
 export default function BookingForm() {
   const { isBlocked, handleTakeOver } = useSingleTabLock({
@@ -38,6 +41,8 @@ export default function BookingForm() {
   const [centers, setCenters] = useState<any[]>([]);
   const [specialties, setSpecialties] = useState<any[]>([]);
   const [loadingData, setLoadingData] = useState(true);
+  const [showPaymentModal, setShowPaymentModal] = useState<boolean>(false);
+  const [isPaidOnline, setIsPaidOnline] = useState<boolean>(false);
 
   useEffect(() => {
     const token = getAuthToken();
@@ -736,15 +741,47 @@ export default function BookingForm() {
                   </div>
                 </div>
 
-                {/* Simulated QR Code Badge */}
+                {/* Real Scannable Offline QR Code */}
                 <div className="flex flex-col items-center bg-slate-50 p-4 rounded-2xl border border-slate-200">
-                  <div className="w-28 h-28 bg-white border border-slate-300 rounded-xl p-2 flex items-center justify-center shadow-inner">
-                    <QrCode size={92} className="text-slate-800" />
+                  <div className="w-28 h-28 bg-white border border-slate-300 rounded-xl p-1.5 flex items-center justify-center shadow-inner">
+                    <QrCodeImage value={result.bookingCode} size={96} className="rounded-lg" />
                   </div>
-                  <span className="text-[10px] font-mono font-semibold text-slate-500 mt-2">
+                  <span className="text-[10px] font-mono font-bold text-slate-700 mt-2 bg-slate-200/80 px-2.5 py-0.5 rounded">
                     {result.bookingCode}
                   </span>
+                  <span className="text-[9px] text-emerald-600 font-bold mt-1">
+                    ✓ Quét được bằng Camera
+                  </span>
                 </div>
+              </div>
+
+              {/* VietQR Payment Action Box */}
+              <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-slate-50 border border-emerald-200 p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 text-left">
+                <div>
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-800">
+                    <CreditCard size={15} />
+                    <span>Thanh Toán Trực Tuyến Qua VietQR (Napas 247):</span>
+                  </div>
+                  <p className="text-xs text-slate-600 mt-0.5">
+                    {isPaidOnline
+                      ? '✓ Quý khách đã xác nhận chuyển khoản viện phí thành công.'
+                      : 'Thanh toán tiền khám trước (200.000đ) để nhận số khám ưu tiên không cần chờ quầy thu ngân.'}
+                  </p>
+                </div>
+                {isPaidOnline ? (
+                  <span className="inline-flex items-center gap-1 px-3.5 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold shadow-xs whitespace-nowrap">
+                    <CheckCircle2 size={14} /> ĐÃ THANH TOÁN
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowPaymentModal(true)}
+                    className="w-full sm:w-auto px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-700/20 transition cursor-pointer flex items-center justify-center gap-2 whitespace-nowrap"
+                  >
+                    <QrCode size={15} />
+                    <span>Quét Mã VietQR (200.000đ)</span>
+                  </button>
+                )}
               </div>
 
               {/* AI Clinical Summary on ticket */}
@@ -755,8 +792,8 @@ export default function BookingForm() {
                       <Sparkles size={13} className="text-purple-600" />
                       <span>Tóm Tắt Bệnh Án Điện Tử Từ Spring AI:</span>
                     </div>
-                    <span className="text-[10px] bg-amber-100 text-amber-800 font-semibold px-2 py-0.5 rounded-full border border-amber-300">
-                      Đang trong quá trình phát triển
+                    <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full border border-emerald-300">
+                      ✓ Đã Phân Tích
                     </span>
                   </div>
                   <p className="italic text-slate-700">🤖 {result.aiSummary}</p>
@@ -803,6 +840,19 @@ export default function BookingForm() {
         onTakeOver={handleTakeOver}
         description="Để tránh xung đột khóa giữ chỗ (Optimistic Slot Locking) và ngăn ngừa đặt trùng lịch hẹn, hệ thống chỉ cho phép bạn thao tác trên 1 tab duy nhất."
       />
+
+      {/* ── Modal Thanh Toán VietQR ── */}
+      {result && (
+        <VietQrModal
+          isOpen={showPaymentModal}
+          onClose={() => setShowPaymentModal(false)}
+          onConfirmSuccess={() => setIsPaidOnline(true)}
+          amount={200000}
+          bookingCode={result.bookingCode}
+          patientName={result.patientName || 'Bệnh nhân'}
+          description={`Thanh toán tiền khám bệnh phiếu ${result.bookingCode}`}
+        />
+      )}
     </div>
   );
 }

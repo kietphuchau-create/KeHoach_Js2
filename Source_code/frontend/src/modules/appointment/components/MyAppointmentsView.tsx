@@ -20,12 +20,15 @@ import {
   RefreshCw,
   AlertCircle,
   Pill,
-  FileText
+  FileText,
+  CreditCard
 } from 'lucide-react';
 import { api, getAuthToken, AppointmentResponse, PrescriptionDetail } from '@/shared/lib/api';
 import { formatDoctorFullName } from '@/shared/lib/formatters';
 import AlertMessage from '@/shared/components/Feedback/AlertMessage';
 import LoadingSpinner from '@/shared/components/Feedback/LoadingSpinner';
+import { QrCodeImage } from '@/shared/components/QrCodeImage';
+import { VietQrModal } from '@/shared/components/VietQrModal';
 
 const SLOT_MAP: Record<string, { time: string; date?: string }> = {
   '99999999-9999-9999-9999-999999999991': { time: '09:00 - 09:30', date: '10/09/2026' },
@@ -106,6 +109,7 @@ export default function MyAppointmentsView() {
   // QR Modal state
   const [selectedAppointment, setSelectedAppointment] = useState<AppointmentResponse | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [payingApt, setPayingApt] = useState<AppointmentResponse | null>(null);
 
   // Prescription Modal state
   const [viewingPrescriptionApt, setViewingPrescriptionApt] = useState<AppointmentResponse | null>(null);
@@ -828,16 +832,29 @@ export default function MyAppointmentsView() {
                 </div>
               </div>
 
-              {/* High-res Scannable QR Code */}
+              {/* High-res Scannable Offline QR Code */}
               <div className="p-4 bg-white border-2 border-dashed border-teal-primary/30 rounded-2xl inline-block shadow-inner">
-                <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(
-                    selectedAppointment.bookingCode
-                  )}`}
-                  alt={`QR Code ${selectedAppointment.bookingCode}`}
-                  className="w-48 h-48 object-contain rounded-lg mx-auto"
+                <QrCodeImage
+                  value={selectedAppointment.bookingCode}
+                  size={192}
+                  className="mx-auto rounded-lg shadow-xs"
                 />
+                <span className="text-[10px] text-emerald-600 font-bold mt-1.5 block">
+                  ✓ Mã QR chuẩn (quét bằng camera điện thoại/máy quét quầy)
+                </span>
               </div>
+
+              {/* VietQR Payment Button */}
+              {selectedAppointment.status !== 'CANCELLED' && (
+                <button
+                  type="button"
+                  onClick={() => setPayingApt(selectedAppointment)}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-700/20 transition cursor-pointer"
+                >
+                  <CreditCard size={15} />
+                  <span>Thanh Toán Viện Phí Qua VietQR (Napas 247)</span>
+                </button>
+              )}
 
               {/* Instructions */}
               <div className="bg-mint-soft p-3.5 rounded-xl border border-mint-light text-left text-xs space-y-1 text-slate-700">
@@ -1251,6 +1268,22 @@ export default function MyAppointmentsView() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* VietQR Payment Modal */}
+      {payingApt && (
+        <VietQrModal
+          isOpen={!!payingApt}
+          onClose={() => setPayingApt(null)}
+          amount={200000}
+          bookingCode={payingApt.bookingCode}
+          patientName={payingApt.patientName || 'Bệnh nhân'}
+          description={`Thanh toán viện phí phiếu hẹn ${payingApt.bookingCode}`}
+          onConfirmSuccess={() => {
+            alert(`Đã ghi nhận yêu cầu thanh toán chuyển khoản cho phiếu ${payingApt.bookingCode}!`);
+            setPayingApt(null);
+          }}
+        />
       )}
     </div>
   );

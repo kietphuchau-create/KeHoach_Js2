@@ -18,6 +18,7 @@ export default function LoginForm() {
     password: '',
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [showForgotModal, setShowForgotModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
@@ -136,6 +137,16 @@ export default function LoginForm() {
           </div>
         </div>
 
+        <div className="flex items-center justify-end">
+          <button
+            type="button"
+            onClick={() => setShowForgotModal(true)}
+            className="text-[11px] text-teal-600 hover:text-pine-teal font-medium hover:underline cursor-pointer"
+          >
+            Quên mật khẩu?
+          </button>
+        </div>
+
         <button
           type="submit"
           disabled={loading}
@@ -144,6 +155,38 @@ export default function LoginForm() {
           {loading ? 'Đang xác thực...' : 'Đăng Nhập Ngay'}
         </button>
       </form>
+
+      {/* Forgot Password Modal */}
+      {showForgotModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95">
+            <h3 className="text-base font-bold text-slate-800 mb-2 flex items-center gap-2">
+              <Lock className="text-pine-teal" size={18} />
+              Quên & Đặt lại mật khẩu
+            </h3>
+            <p className="text-xs text-slate-600 mb-3">
+              Để đảm bảo an toàn hồ sơ bệnh án điện tử, MedSched áp dụng quy trình cấp lại mật khẩu tập trung:
+            </p>
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-700 space-y-2 mb-4">
+              <div>
+                <span className="font-bold text-pine-teal">1. Bác sĩ / Nhân viên:</span>
+                <p className="text-[11px] text-slate-500">Liên hệ Quản trị viên (Admin) để thực hiện đặt lại mật khẩu trực tiếp qua cổng Quản trị hệ thống.</p>
+              </div>
+              <div>
+                <span className="font-bold text-emerald-700">2. Khách hàng / Bệnh nhân:</span>
+                <p className="text-[11px] text-slate-500">Liên hệ Tổng đài tiếp đón <b>1900-6868</b> hoặc xuất trình CCCD tại quầy Lễ tân để được cấp lại mật khẩu ngay.</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowForgotModal(false)}
+              className="w-full py-2 bg-pine-teal text-white rounded-xl text-xs font-semibold hover:bg-pine-teal-hover transition cursor-pointer"
+            >
+              Đã hiểu, quay lại đăng nhập
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Footer link */}
       <div className="text-center mt-4 pt-3 border-t border-mint-light text-xs text-slate-600">
