@@ -42,7 +42,6 @@ import {
   PauseCircle,
   ShieldAlert,
   QrCode,
-  Siren,
   HeartPulse
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -249,8 +248,8 @@ export default function DoctorClinicView() {
   const [timeRemaining, setTimeRemaining] = useState(MAX_CONSULTATION_SECONDS);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // ── Trạng Thái Bác Sĩ & Phòng Khám (Bình thường / Cấp cứu / Tới trễ) ──
-  const [doctorStatus, setDoctorStatus] = useState<'NORMAL' | 'EMERGENCY' | 'LATE'>('NORMAL');
+  // ── Trạng Thái Bác Sĩ & Phòng Khám (Bình thường / Tới trễ) ──
+  const [doctorStatus, setDoctorStatus] = useState<'NORMAL' | 'LATE'>('NORMAL');
   const [lateMinutes, setLateMinutes] = useState(20);
   const [showLateModal, setShowLateModal] = useState(false);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
@@ -1100,45 +1099,6 @@ export default function DoctorClinicView() {
     };
   }, [clinicActive, doctorStatus, queue]);
 
-  // ── Xử lý Cấp Cứu (Kích hoạt được cả khi phòng đang TẮT hoặc BẬT) ──
-  const handleEmergencyToggle = () => {
-    if (doctorStatus !== 'EMERGENCY') {
-      // BẬT chế độ cấp cứu
-      savedTimeRef.current = timeRemaining;
-      setDoctorStatus('EMERGENCY');
-      setQueue((prev) =>
-        prev.map((p, idx) => {
-          if (idx === activePatientIndex && p.status === 'IN_CONSULTATION') {
-            return { ...p, status: 'DEFERRED' as const };
-          }
-          return p;
-        })
-      );
-      setNotification(
-        '🚨 BÁO ĐỘNG CẤP CỨU: Bác sĩ được điều động xử lý ca cấp cứu đột xuất. Hàng đợi tạm hoãn, màn hình sảnh chờ đã cập nhật thông báo.'
-      );
-    } else {
-      // TẮT chế độ cấp cứu: Trở lại bình thường
-      setDoctorStatus('NORMAL');
-      setClinicActive(true);
-      setQueue((prev) =>
-        prev.map((p, idx) => {
-          if (idx === activePatientIndex && p.status === 'DEFERRED') {
-            return { ...p, status: 'IN_CONSULTATION' as const };
-          }
-          return p;
-        })
-      );
-      const restoredPatient = queue[activePatientIndex];
-      const remainingSec = savedTimeRef.current > 0 ? savedTimeRef.current : MAX_CONSULTATION_SECONDS;
-      if (restoredPatient?.id) {
-        initConsultationTimer(restoredPatient.id, remainingSec);
-      }
-      setTimeRemaining(remainingSec);
-      setNotification('✅ Đã kết thúc ca cấp cứu. Bác sĩ tiếp tục ca khám bình thường.');
-    }
-  };
-
   // ── Xử lý Báo Tới Trễ / Vắng Tạm Thời ──
   const handleConfirmLate = (minutes: number) => {
     setLateMinutes(minutes);
@@ -1423,84 +1383,16 @@ export default function DoctorClinicView() {
               <button
                 type="button"
                 onClick={() => setShowLateModal(true)}
-                disabled={doctorStatus === 'EMERGENCY'}
-                className="px-3 py-1.5 rounded-lg font-semibold text-xs bg-white text-amber-800 hover:bg-amber-50 border border-amber-200 transition cursor-pointer flex items-center gap-1.5 shadow-2xs disabled:opacity-50"
-                title="Báo tới trễ do hội chẩn hoặc kẹt việc đột xuất"
+                className="px-3 py-1.5 rounded-lg font-semibold text-xs bg-white text-amber-800 hover:bg-amber-50 border border-amber-200 transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                title="Báo tới trễ do kẹt việc đột xuất"
               >
                 <Clock size={13} className="text-amber-600" />
                 <span>Báo Tới Trễ</span>
               </button>
             )}
-
-            <button
-              type="button"
-              onClick={handleEmergencyToggle}
-              className={`px-3 py-1.5 rounded-lg font-bold text-xs transition cursor-pointer flex items-center gap-1.5 shadow-2xs ${
-                doctorStatus === 'EMERGENCY'
-                  ? 'bg-amber-500 text-white hover:bg-amber-600 animate-pulse'
-                  : 'bg-white text-red-700 border border-red-200 hover:bg-red-50'
-              }`}
-              title="Kích hoạt chế độ đi cấp cứu đột xuất"
-            >
-              {doctorStatus === 'EMERGENCY' ? (
-                <>
-                  <Play size={13} />
-                  <span>Kết Thúc Cấp Cứu</span>
-                </>
-              ) : (
-                <>
-                  <AlertTriangle size={13} className="text-red-600" />
-                  <span>Báo Ca Cấp Cứu</span>
-                </>
-              )}
-            </button>
-
-            {/* ── [TC_FM_MED_02] Nút CODE RED - Báo động đỏ toàn viện ── */}
-            <button
-              type="button"
-              onClick={() => {
-                const confirmRed = window.confirm("CẢNH BÁO: Phát CODE RED (Báo động đỏ) sẽ gửi tín hiệu cấp cứu khẩn cấp đến TOÀN BỘ ĐỘI PHẢN ỨNG NHANH. Bạn có chắc chắn?");
-                if (confirmRed) {
-                  const syncChannel = new BroadcastChannel('medsched_queue_sync');
-                  syncChannel.postMessage({ type: 'CODE_RED', source: `PHÒNG KHÁM BÁC SĨ ${currentUser?.fullName}`, timestamp: new Date().toISOString() });
-                  alert(`ĐÃ PHÁT BÁO ĐỘNG ĐỎ! Yêu cầu đội cấp cứu hỗ trợ phòng khám.`);
-                }
-              }}
-              className="px-3 py-1.5 rounded-lg font-bold text-xs bg-red-600 text-white hover:bg-red-700 transition cursor-pointer flex items-center gap-1.5 shadow-[0_0_10px_rgba(220,38,38,0.5)] animate-pulse"
-              title="Phát lệnh Code Red trong trường hợp sốc phản vệ / ngưng tim"
-            >
-              <Siren size={14} />
-              <span>CODE RED</span>
-            </button>
           </div>
         </div>
       </div>
-
-      {/* ── Cảnh Báo Trạng Thái Khẩn Cấp (Emergency / Late / Transferred Banners) ── */}
-      {doctorStatus === 'EMERGENCY' && (
-        <div className="bg-red-50 border-2 border-red-400 rounded-2xl p-5 flex items-start gap-4 animate-pulse shadow-sm">
-          <div className="w-10 h-10 rounded-xl bg-red-100 text-red-700 flex items-center justify-center shrink-0">
-            <AlertTriangle size={24} />
-          </div>
-          <div className="flex-1">
-            <div className="font-black text-red-800 text-base">🚨 BÁC SĨ ĐANG THỰC HIỆN CA CẤP CỨU / MỔ ĐỘT XUẤT</div>
-            <p className="text-red-700 text-xs mt-1 leading-relaxed">
-              Hàng đợi tại buồng khám đã <strong>tạm dừng</strong>. Ca khám hiện tại được chuyển sang trạng thái <strong>TẠM HOÃN (DEFERRED)</strong>. 
-              Màn hình sảnh chờ đã tự động hiển thị thông báo kính mong quý bệnh nhân thông cảm chờ đợi hoặc liên hệ quầy tiếp đón để được hỗ trợ.
-            </p>
-            <div className="mt-3 flex items-center gap-3">
-              <button
-                onClick={handleEmergencyToggle}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer"
-              >
-                <Play size={14} />
-                <span>Bác Sĩ Đã Hoàn Tất Cấp Cứu &amp; Tiếp Tục Ca Khám</span>
-              </button>
-
-            </div>
-          </div>
-        </div>
-      )}
 
       {doctorStatus === 'LATE' && (
         <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4.5 flex items-start gap-4 shadow-sm">
@@ -1682,9 +1574,9 @@ export default function DoctorClinicView() {
               <button
                 type="button"
                 onClick={handleCallNext}
-                disabled={doctorStatus === 'EMERGENCY' || queue.length === 0}
+                disabled={queue.length === 0}
                 className={`w-full mb-4 font-bold py-3.5 rounded-xl transition shadow-md flex items-center justify-center gap-2 cursor-pointer text-sm ${
-                  doctorStatus === 'EMERGENCY' || queue.length === 0
+                  queue.length === 0
                     ? 'bg-slate-300 text-slate-500 cursor-not-allowed shadow-none'
                     : 'bg-gradient-to-r from-teal-700 to-emerald-700 hover:from-teal-800 hover:to-emerald-800 text-white shadow-teal-700/20'
                 }`}
@@ -2350,9 +2242,9 @@ export default function DoctorClinicView() {
                   <button
                     type="button"
                     onClick={handleRequestComplete}
-                    disabled={doctorStatus === 'EMERGENCY' || submittingPrescription}
+                    disabled={submittingPrescription}
                     className={`w-full font-bold py-3.5 rounded-xl transition shadow-md text-xs flex items-center justify-center gap-2 cursor-pointer ${
-                      doctorStatus === 'EMERGENCY' || submittingPrescription
+                      submittingPrescription
                         ? 'bg-slate-300 text-slate-500 cursor-not-allowed shadow-none'
                         : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
                     }`}
@@ -2367,7 +2259,6 @@ export default function DoctorClinicView() {
                     <button
                       type="button"
                       onClick={() => handleExtendConsultation(15)}
-                      disabled={doctorStatus === 'EMERGENCY'}
                       className="px-3 py-2.5 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 rounded-xl font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
                       title="Thêm thời gian cho ca bệnh nặng hoặc phức tạp"
                     >
@@ -2379,7 +2270,6 @@ export default function DoctorClinicView() {
                     <button
                       type="button"
                       onClick={handleSendForTests}
-                      disabled={doctorStatus === 'EMERGENCY'}
                       className="px-3 py-2.5 bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200 rounded-xl font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
                       title="Bệnh nhân đi làm cận lâm sàng, buồng khám tiếp tục khám người khác"
                     >
@@ -2391,7 +2281,6 @@ export default function DoctorClinicView() {
                     <button
                       type="button"
                       onClick={handleSkipAbsent}
-                      disabled={doctorStatus === 'EMERGENCY'}
                       className="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-xl font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
                       title="Gọi loa 3 lần không có mặt, đẩy xuống cuối và gọi người tiếp theo"
                     >
@@ -2418,7 +2307,6 @@ export default function DoctorClinicView() {
                   <button
                     type="button"
                     onClick={() => handleRecallPatient(activePatientIndex)}
-                    disabled={doctorStatus === 'EMERGENCY'}
                     className="px-6 py-3.5 bg-gradient-to-r from-teal-700 to-emerald-700 hover:from-teal-800 hover:to-emerald-800 text-white font-bold rounded-xl text-xs transition shadow-md shadow-teal-700/20 flex items-center justify-center gap-2 mx-auto cursor-pointer"
                   >
                     <Volume2 size={16} />

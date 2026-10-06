@@ -25,8 +25,6 @@ import {
   Stethoscope,
   X,
   Filter,
-  TriangleAlert,
-  Siren,
   Camera
 } from 'lucide-react';
 import Link from 'next/link';
@@ -507,24 +505,6 @@ export default function ReceptionView() {
 
         {/* Quick Stats Widget */}
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => {
-              const confirmRed = window.confirm("CẢNH BÁO: Báo động đỏ sẽ gửi tín hiệu cấp cứu khẩn cấp (CODE RED) đến tất cả màn hình của bác sĩ. Bạn có chắc chắn?");
-              if (confirmRed) {
-                const syncChannel = new BroadcastChannel('medsched_queue_sync');
-                syncChannel.postMessage({ type: 'CODE_RED', timestamp: new Date().toISOString() });
-                alert("ĐÃ PHÁT BÁO ĐỘNG ĐỎ!");
-              }
-            }}
-            className="flex flex-col items-center justify-center h-full px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-2xl border border-red-700 shadow-[0_0_15px_rgba(220,38,38,0.5)] transition animate-pulse cursor-pointer"
-          >
-            <span className="text-[10px] font-bold uppercase tracking-wider opacity-90">Khẩn cấp</span>
-            <span className="text-sm font-black flex items-center gap-1.5">
-              <TriangleAlert size={16} /> CODE RED
-            </span>
-          </button>
-
           <div className="flex items-center gap-3 bg-slate-50 p-2.5 rounded-2xl border border-slate-200">
             <div className="px-4 py-1.5 border-r border-slate-200 text-center">
               <span className="text-[10px] text-slate-400 font-semibold block uppercase">Đã tiếp đón</span>
@@ -818,28 +798,10 @@ export default function ReceptionView() {
               )}
 
               <div className="flex flex-col sm:flex-row gap-3">
-                {method === 'WALK_IN' && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const now = new Date();
-                      const timestamp = `${now.getHours()}${now.getMinutes()}${now.getSeconds()}`;
-                      setWalkinName(`Bệnh nhân Vô danh - ${timestamp}`);
-                      setWalkinPhone(`000${timestamp}0`);
-                      setWalkinCccd('');
-                      setWalkinPassword('Med@0000');
-                    }}
-                    className="sm:flex-1 bg-red-50 hover:bg-red-100 text-red-700 font-bold py-3.5 rounded-xl transition shadow-sm border border-red-200 flex items-center justify-center gap-2 cursor-pointer text-sm"
-                  >
-                    <Siren size={18} className="animate-pulse" />
-                    <span>Cấp Cứu Vô Danh</span>
-                  </button>
-                )}
-                
                 <button
                   type="submit"
                   disabled={loading}
-                  className={`${method === 'WALK_IN' ? 'sm:flex-[2]' : 'w-full'} bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl transition shadow-md shadow-emerald-600/20 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer text-sm`}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl transition shadow-md shadow-emerald-600/20 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer text-sm"
                 >
                 {loading ? (
                   <>
