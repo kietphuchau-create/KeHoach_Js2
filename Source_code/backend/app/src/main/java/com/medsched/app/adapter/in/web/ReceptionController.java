@@ -106,6 +106,15 @@ public class ReceptionController {
             app.setStatus(AppointmentStatus.CHECKED_IN);
             app.setCheckInTime(Instant.now());
             app.setCheckinMethod(CheckinMethod.QR_CODE);
+            String qNum = app.getQueueNumber();
+            if (qNum != null && !qNum.startsWith("A-") && !qNum.startsWith("W-")) {
+                if (app.getQueueType() == QueueType.WALKIN) {
+                    qNum = "W-" + qNum;
+                } else {
+                    qNum = "A-" + qNum;
+                }
+                app.setQueueNumber(qNum);
+            }
             app.setUpdatedAt(Instant.now());
             appointmentJpaRepository.save(app);
 
@@ -144,6 +153,15 @@ public class ReceptionController {
                     app.setStatus(AppointmentStatus.CHECKED_IN);
                     app.setCheckInTime(Instant.now());
                     app.setCheckinMethod(CheckinMethod.CCCD_QR);
+                    String appQNum = app.getQueueNumber();
+                    if (appQNum != null && !appQNum.startsWith("A-") && !appQNum.startsWith("W-")) {
+                        if (app.getQueueType() == QueueType.WALKIN) {
+                            appQNum = "W-" + appQNum;
+                        } else {
+                            appQNum = "A-" + appQNum;
+                        }
+                        app.setQueueNumber(appQNum);
+                    }
                     app.setUpdatedAt(Instant.now());
                     appointmentJpaRepository.save(app);
 
@@ -208,7 +226,7 @@ public class ReceptionController {
                     .filter(a -> (a.getCheckInTime() != null && a.getCheckInTime().atZone(ZoneId.of("Asia/Ho_Chi_Minh")).toLocalDate().equals(today))
                             || (a.getCreatedAt() != null && a.getCreatedAt().atZone(ZoneId.of("Asia/Ho_Chi_Minh")).toLocalDate().equals(today)))
                     .count();
-            String queueNum = String.format("%02d", count + 1);
+            String queueNum = "W-" + String.format("%02d", count + 1);
             String bookingCode = "CCCD-" + (100000 + new Random().nextInt(900000));
 
             AppointmentEntity walkinApp = new AppointmentEntity(
@@ -336,7 +354,7 @@ public class ReceptionController {
                         || (a.getCreatedAt() != null && a.getCreatedAt().atZone(ZoneId.of("Asia/Ho_Chi_Minh")).toLocalDate().equals(today)))
                 .count();
 
-        String queueNumber = String.format("%02d", count + 1);
+        String queueNumber = "W-" + String.format("%02d", count + 1);
         String bookingCode = "WALK-" + (100000 + new Random().nextInt(900000));
         String specialty = req.specialty() != null && !req.specialty().isBlank() ? req.specialty() : "Khám chuyên khoa tiếp nhận tại quầy";
 

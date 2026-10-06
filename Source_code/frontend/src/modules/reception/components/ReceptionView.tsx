@@ -40,6 +40,15 @@ import LoginForm from '@/modules/auth/components/LoginForm';
 import { QrCameraScannerModal, QrScanResult } from '@/shared/components/QrCameraScannerModal';
 import { QrCodeImage } from '@/shared/components/QrCodeImage';
 
+const normalizeQueueNumber = (num?: string, isWalkin = false): string => {
+  if (!num) return isWalkin ? 'W-01' : 'A-01';
+  const str = String(num).trim();
+  if (str.startsWith('APP-')) return 'A-' + str.substring(4);
+  if (str.startsWith('WALK-')) return 'W-' + str.substring(5);
+  if (str.startsWith('A-') || str.startsWith('W-')) return str;
+  return isWalkin ? `W-${str}` : `A-${str}`;
+};
+
 export default function ReceptionView() {
   const router = useRouter();
   const { isBlocked, handleTakeOver } = useSingleTabLock({
@@ -149,7 +158,7 @@ export default function ReceptionView() {
 
             return {
               appointmentId: item.id,
-              queueNumber: item.queueNumber,
+              queueNumber: normalizeQueueNumber(item.queueNumber, false),
               bookingCode: item.bookingCode,
               patientName: item.patientName,
               doctor: docTitle,
@@ -273,7 +282,7 @@ export default function ReceptionView() {
       const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
       const newEntry = {
         appointmentId: (res as any).id,
-        queueNumber: res.queueNumber || `0${history.length + 1}`,
+        queueNumber: normalizeQueueNumber(res.queueNumber || `0${history.length + 1}`, method === 'WALK_IN'),
         bookingCode: res.bookingCode || (method === 'QR_CODE' ? bookingCode : `MED-${cccdNumber.slice(-4)}`),
         patientName: (res as any).patientName || (method === 'CCCD_QR' ? (patientName || 'Bệnh nhân CCCD') : 'Bệnh nhân tiếp đón'),
         doctor: (res as any).doctorName || 'BS. Chuyên khoa tiếp nhận',
@@ -318,7 +327,7 @@ export default function ReceptionView() {
         const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
         const newEntry = {
           appointmentId: (res as any).id,
-          queueNumber: res.queueNumber || `0${history.length + 1}`,
+          queueNumber: normalizeQueueNumber(res.queueNumber || `0${history.length + 1}`, false),
           bookingCode: res.bookingCode || `MED-${scan.cccdNumber.slice(-4)}`,
           patientName: (res as any).patientName || scan.fullName || 'Bệnh nhân CCCD',
           doctor: (res as any).doctorName || 'BS. Chuyên khoa tiếp nhận',
@@ -352,7 +361,7 @@ export default function ReceptionView() {
         const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
         const newEntry = {
           appointmentId: (res as any).id,
-          queueNumber: res.queueNumber || `0${history.length + 1}`,
+          queueNumber: normalizeQueueNumber(res.queueNumber || `0${history.length + 1}`, false),
           bookingCode: res.bookingCode || scan.bookingCode,
           patientName: (res as any).patientName || 'Bệnh nhân tiếp đón',
           doctor: (res as any).doctorName || 'BS. Chuyên khoa tiếp nhận',
@@ -402,7 +411,7 @@ export default function ReceptionView() {
         } catch {}
       }
 
-      const queueNumber = walkinRes.queueNumber;
+      const queueNumber = normalizeQueueNumber(walkinRes.queueNumber, true);
       const bookingCode = walkinRes.bookingCode;
       const docName = walkinRes.doctorName;
       const roomNum = walkinRes.roomNumber;
@@ -1065,15 +1074,28 @@ export default function ReceptionView() {
                     filteredHistory.map((item, idx) => (
                       <tr key={idx} className="hover:bg-slate-50/80 transition">
                         <td className="py-3 px-3">
-                          <span className={`inline-flex items-center justify-center px-2 py-1 min-w-[58px] rounded-lg font-mono font-extrabold text-xs tracking-tight whitespace-nowrap shadow-2xs ${
-                            item.status === 'ĐÃ KHÁM'
-                              ? 'bg-slate-100 text-slate-500 border border-slate-200/60'
-                              : item.status === 'ĐANG KHÁM'
-                              ? 'bg-blue-100 text-blue-800 ring-2 ring-blue-400/50'
-                              : 'bg-amber-100 text-amber-800 border border-amber-200/60'
-                          }`}>
-                            {item.queueNumber}
-                          </span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className={`inline-flex items-center justify-center px-2 py-1 min-w-[58px] rounded-lg font-mono font-extrabold text-xs tracking-tight whitespace-nowrap shadow-2xs ${
+                              item.status === 'ĐÃ KHÁM'
+                                ? 'bg-slate-100 text-slate-500 border border-slate-200/60'
+                                : item.status === 'ĐANG KHÁM'
+                                ? 'bg-blue-100 text-blue-800 ring-2 ring-blue-400/50'
+                                : item.queueNumber?.startsWith('W-')
+                                ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                : 'bg-blue-100 text-blue-900 border border-blue-300'
+                            }`}>
+                              {item.queueNumber}
+                            </span>
+                            {item.queueNumber?.startsWith('W-') ? (
+                              <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded">
+                                Vãng lai
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-bold text-blue-800 bg-blue-50 border border-blue-200 px-1.5 py-0.2 rounded">
+                                Đặt hẹn
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="py-3 px-3">
                           <div className="font-semibold text-slate-800">{item.patientName}</div>

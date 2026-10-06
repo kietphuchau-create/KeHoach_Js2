@@ -296,9 +296,22 @@ public class DoctorPrescriptionService {
 
             String checkInTimeStr = a.getCheckInTime() != null ? a.getCheckInTime().toString() : "";
 
+            String formattedQueueNum = a.getQueueNumber() != null ? a.getQueueNumber() : "";
+            if (formattedQueueNum.startsWith("APP-")) {
+                formattedQueueNum = "A-" + formattedQueueNum.substring(4);
+            } else if (formattedQueueNum.startsWith("WALK-")) {
+                formattedQueueNum = "W-" + formattedQueueNum.substring(5);
+            } else if (!formattedQueueNum.isBlank() && !formattedQueueNum.startsWith("A-") && !formattedQueueNum.startsWith("W-")) {
+                if (a.getQueueType() == com.medsched.persistence.enums.QueueType.WALKIN) {
+                    formattedQueueNum = "W-" + formattedQueueNum;
+                } else {
+                    formattedQueueNum = "A-" + formattedQueueNum;
+                }
+            }
+
             return new DoctorPrescriptionDtos.QueuePatientDto(
                     a.getId(),
-                    a.getQueueNumber(),
+                    formattedQueueNum,
                     a.getBookingCode(),
                     patientName,
                     gender,

@@ -143,6 +143,10 @@ public class AppointmentEntity {
         return queueNumber;
     }
 
+    public void setQueueNumber(String queueNumber) {
+        this.queueNumber = queueNumber;
+    }
+
     public QueueType getQueueType() {
         return queueType;
     }

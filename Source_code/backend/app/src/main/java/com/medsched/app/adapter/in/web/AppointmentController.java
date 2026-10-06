@@ -340,6 +340,19 @@ public class AppointmentController {
                 }
             }
 
+            String formattedQueueNum = e.getQueueNumber() != null ? e.getQueueNumber() : "";
+            if (formattedQueueNum.startsWith("APP-")) {
+                formattedQueueNum = "A-" + formattedQueueNum.substring(4);
+            } else if (formattedQueueNum.startsWith("WALK-")) {
+                formattedQueueNum = "W-" + formattedQueueNum.substring(5);
+            } else if (!formattedQueueNum.isBlank() && !formattedQueueNum.startsWith("A-") && !formattedQueueNum.startsWith("W-")) {
+                if (e.getQueueType() == com.medsched.persistence.enums.QueueType.WALKIN) {
+                    formattedQueueNum = "W-" + formattedQueueNum;
+                } else {
+                    formattedQueueNum = "A-" + formattedQueueNum;
+                }
+            }
+
             return new AppointmentDetailDto(
                     e.getId(),
                     e.getBookingCode(),
@@ -353,7 +366,7 @@ public class AppointmentController {
                     e.getSlotId(),
                     slotTime,
                     appointmentDate,
-                    e.getQueueNumber(),
+                    formattedQueueNum,
                     e.getQueueType() != null ? e.getQueueType().name() : null,
                     e.getPatientSymptoms(),
                     e.getAiSummary(),

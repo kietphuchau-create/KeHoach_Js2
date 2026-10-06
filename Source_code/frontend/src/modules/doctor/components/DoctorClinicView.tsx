@@ -639,17 +639,80 @@ export default function DoctorClinicView() {
     }
   }, [timeRemaining, currentPatient?.id, currentPatient?.status, clinicActive, doctorStatus, dismissedOvertimeForPatient]);
 
-  // ── Hàm chuyển ca tiếp theo (dùng chung cho cả thủ công & auto) ──
+  // ── Hàm chuyển ca tiếp theo: Hỗ trợ 2 luồng (Đúng lịch hẹn & Xen kẽ vãng lai khi dư thời gian >= 15p) ──
   const handleCallNext = useCallback(() => {
     setQueue((prev) => {
-      let nextIdx = prev.findIndex((p, idx) => idx > activePatientIndex && (p.status === 'WAITING' || p.status === 'DEFERRED'));
-      if (nextIdx === -1) {
-        nextIdx = prev.findIndex((p, idx) => idx !== activePatientIndex && (p.status === 'WAITING' || p.status === 'DEFERRED'));
-      }
-      if (nextIdx === -1) {
+      // 1. Lọc tất cả ứng viên đang chờ được gọi (WAITING hoặc DEFERRED), loại trừ ca đang khám
+      const waitingCandidates = prev
+        .map((p, idx) => ({ p, idx }))
+        .filter(({ p, idx }) => idx !== activePatientIndex && (p.status === 'WAITING' || p.status === 'DEFERRED'));
+
+      if (waitingCandidates.length === 0) {
         setNotification('Hiện tại đã hết bệnh nhân đang xếp hàng trong ca trực!');
         return prev;
       }
+
+      // Phân tách: Ca đặt lịch trước (A-) vs Ca vãng lai (W-)
+      const bookedCandidates = waitingCandidates.filter(({ p }) => !p.queueNumber?.startsWith('W-'));
+      const walkinCandidates = waitingCandidates.filter(({ p }) => p.queueNumber?.startsWith('W-'));
+
+      let chosenCandidate: { p: PatientQueueItem; idx: number } | null = null;
+      let notificationMsg = '';
+
+      // QUY TẮC A1: Ưu tiên 1 tuyệt đối cho ca hẹn đã check-in (WAITING)
+      if (bookedCandidates.length > 0) {
+        // Tìm ca hẹn tiếp theo theo thứ tự danh sách (ưu tiên sau activePatientIndex nếu có)
+        const afterCurrent = bookedCandidates.filter(({ idx }) => idx > activePatientIndex);
+        chosenCandidate = afterCurrent.length > 0 ? afterCurrent[0] : bookedCandidates[0];
+        notificationMsg = `🎯 [ĐÚNG LỊCH HẸN] Đã gọi ca đặt trước STT #${chosenCandidate.p.queueNumber} (${chosenCandidate.p.patientName}) vào buồng khám.`;
+      } else if (walkinCandidates.length > 0) {
+        // QUY TẮC A2: Chưa có ca hẹn nào đang chờ -> Kiểm tra khoảng trống thời gian đến ca hẹn kế tiếp
+        const now = new Date();
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+        let earliestSlotGap = Infinity;
+        let nextUpcomingTimeStr = '';
+        let nextUpcomingPatientName = '';
+
+        for (const item of prev) {
+          if (item.queueNumber?.startsWith('W-')) continue;
+          if (item.status === 'COMPLETED' || item.status === 'MISSED_CALL' || item.status === 'TRANSFERRED') continue;
+          if (item.appointmentTime) {
+            const match = item.appointmentTime.match(/(\d{1,2}):(\d{2})/);
+            if (match) {
+              const slotMins = parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
+              const diff = slotMins - currentMinutes;
+              // Khung giờ hôm nay chưa trôi qua quá lâu
+              if (diff >= -5 && diff < earliestSlotGap) {
+                earliestSlotGap = diff;
+                nextUpcomingTimeStr = item.appointmentTime;
+                nextUpcomingPatientName = item.patientName;
+              }
+            }
+          }
+        }
+
+        // CHẶN ĐỨNG NẾU KHOẢNG TRỐNG < 15 PHÚT (Bảo vệ ca hẹn không bị trễ)
+        if (earliestSlotGap !== Infinity && earliestSlotGap < 15) {
+          setNotification(
+            `⚠️ TẠM DỪNG GỌI VÃNG LAI: Chỉ còn ${earliestSlotGap} phút trước ca hẹn kế tiếp (${nextUpcomingPatientName} - ${nextUpcomingTimeStr}). Quy định cần tối thiểu 15 phút để đảm bảo đón ca hẹn đúng giờ!`
+          );
+          return prev;
+        }
+
+        // Đủ điều kiện xen kẽ ca vãng lai (khoảng trống >= 15 phút hoặc không còn ca hẹn nào trong ngày)
+        const walkinAfter = walkinCandidates.filter(({ idx }) => idx > activePatientIndex);
+        chosenCandidate = walkinAfter.length > 0 ? walkinAfter[0] : walkinCandidates[0];
+        const gapInfo = earliestSlotGap !== Infinity ? `dư trống ${earliestSlotGap} phút (trước ca ${nextUpcomingTimeStr})` : 'buồng khám đã hoàn tất ca hẹn';
+        notificationMsg = `⚡ [XEN KẼ VÃNG LAI] Khoảng trống ${gapInfo}. Đã tiếp nhận ca vãng lai STT #${chosenCandidate.p.queueNumber} (${chosenCandidate.p.patientName}) vào buồng khám.`;
+      }
+
+      if (!chosenCandidate) {
+        setNotification('Hiện tại không có bệnh nhân đủ điều kiện gọi khám!');
+        return prev;
+      }
+
+      const nextIdx = chosenCandidate.idx;
 
       // Xóa timer của bệnh nhân ca trước
       const oldPatient = prev[activePatientIndex];
@@ -681,7 +744,7 @@ export default function DoctorClinicView() {
       setActivePatientIndex(nextIdx);
       setClinicalNotes('');
       setTimeRemaining(MAX_CONSULTATION_SECONDS);
-      setNotification(`Đã gọi bệnh nhân STT #${prev[nextIdx].queueNumber} - ${prev[nextIdx].patientName} vào phòng khám.`);
+      setNotification(notificationMsg);
       return updated;
     });
   }, [activePatientIndex]);
@@ -1093,6 +1156,47 @@ export default function DoctorClinicView() {
   };
 
 
+  // ── Tính toán khoảng trống thời gian thực tế để xen kẽ ca vãng lai (Ngưỡng 15 phút) ──
+  const slotGapInfo = useMemo(() => {
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+    let earliestSlotGap = Infinity;
+    let nextUpcomingTimeStr = '';
+    let nextUpcomingPatient: PatientQueueItem | null = null;
+
+    for (const item of queue) {
+      if (item.queueNumber?.startsWith('W-')) continue;
+      if (item.status === 'COMPLETED' || item.status === 'MISSED_CALL' || item.status === 'TRANSFERRED') continue;
+      if (item.appointmentTime) {
+        const match = item.appointmentTime.match(/(\d{1,2}):(\d{2})/);
+        if (match) {
+          const slotMins = parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
+          const diff = slotMins - currentMinutes;
+          if (diff >= -5 && diff < earliestSlotGap) {
+            earliestSlotGap = diff;
+            nextUpcomingTimeStr = item.appointmentTime;
+            nextUpcomingPatient = item;
+          }
+        }
+      }
+    }
+
+    const waitingBookedCount = queue.filter(p => !p.queueNumber?.startsWith('W-') && p.status === 'WAITING').length;
+    const waitingWalkinCount = queue.filter(p => p.queueNumber?.startsWith('W-') && p.status === 'WAITING').length;
+    const canInterleave = earliestSlotGap === Infinity || earliestSlotGap >= 15;
+
+    return {
+      hasUpcomingAppointment: earliestSlotGap !== Infinity,
+      gapMinutes: earliestSlotGap !== Infinity ? Math.max(0, earliestSlotGap) : null,
+      nextUpcomingTimeStr,
+      nextUpcomingPatient,
+      waitingBookedCount,
+      waitingWalkinCount,
+      canInterleaveWalkin: canInterleave,
+    };
+  }, [queue]);
+
   const handleSelectPatient = (index: number) => {
     if (index === activePatientIndex) return;
     if (currentPatient?.status === 'IN_CONSULTATION' && (clinicalNotes.trim() || prescriptionItems.length > 0)) {
@@ -1101,6 +1205,16 @@ export default function DoctorClinicView() {
       );
       if (!confirmSwitch) return;
     }
+
+    // Cảnh báo nếu chọn ca vãng lai khi khoảng trống đến ca hẹn tiếp theo < 15 phút (Quy tắc A2)
+    const targetPatient = queue[index];
+    if (targetPatient?.queueNumber?.startsWith('W-') && !slotGapInfo.canInterleaveWalkin && targetPatient.status === 'WAITING') {
+      const confirmWalkin = window.confirm(
+        `⚠️ CẢNH BÁO LỊCH HẸN ĐÚNG GIỜ:\nKhoảng cách đến ca hẹn kế tiếp (${slotGapInfo.nextUpcomingTimeStr}) chỉ còn ${slotGapInfo.gapMinutes} phút (< 15 phút).\n\nNếu tiếp nhận ca vãng lai #${targetPatient.queueNumber} (${targetPatient.patientName}) bây giờ, có thể làm trễ ca hẹn của bệnh nhân đặt trước.\n\nBạn có chắc chắn muốn tiếp nhận ca này không?`
+      );
+      if (!confirmWalkin) return;
+    }
+
     setActivePatientIndex(index);
     setClinicalNotes('');
     setDoctorAdvice('');
@@ -1520,6 +1634,39 @@ export default function DoctorClinicView() {
               </div>
             </div>
 
+            {/* Dynamic Queue Scenario Status Banner (A1 / A2) */}
+            <div className={`mb-3 p-2.5 rounded-xl border text-xs flex items-center gap-2.5 transition shadow-2xs ${
+              slotGapInfo.canInterleaveWalkin
+                ? 'bg-emerald-50/90 border-emerald-200 text-emerald-900'
+                : 'bg-amber-50/90 border-amber-200 text-amber-900'
+            }`}>
+              <div className={`p-1.5 rounded-lg shrink-0 ${
+                slotGapInfo.canInterleaveWalkin ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+              }`}>
+                {slotGapInfo.canInterleaveWalkin ? <Zap size={14} /> : <AlertTriangle size={14} />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-1">
+                  <span className="font-bold tracking-tight">
+                    {slotGapInfo.canInterleaveWalkin ? 'Luồng xen kẽ vãng lai khả dụng' : 'Khóa chen ca — Chờ ca hẹn đúng giờ'}
+                  </span>
+                  <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded font-semibold ${
+                    slotGapInfo.canInterleaveWalkin ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                  }`}>
+                    {slotGapInfo.gapMinutes !== null ? `Còn ~${slotGapInfo.gapMinutes}p` : 'Trống slot'}
+                  </span>
+                </div>
+                <p className="text-[11px] opacity-85 truncate mt-0.5">
+                  {slotGapInfo.canInterleaveWalkin
+                    ? (slotGapInfo.gapMinutes !== null 
+                        ? `Khoảng trống ≥15p trước ca ${slotGapInfo.nextUpcomingTimeStr} • Có thể xen kẽ ca W` 
+                        : 'Không có ca hẹn sắp tới • Sẵn sàng đón ca A và W')
+                    : `Sắp tới ca hẹn ${slotGapInfo.nextUpcomingTimeStr} (dưới 15p) • Chặn gọi vãng lai để đón đúng giờ`
+                  }
+                </p>
+              </div>
+            </div>
+
             {/* Quick Call Next Button */}
             {currentPatient?.status === 'IN_CONSULTATION' ? (
               <button
@@ -1661,16 +1808,27 @@ export default function DoctorClinicView() {
                             ? 'bg-amber-200 text-amber-900'
                             : patient.status === 'TRANSFERRED'
                             ? 'bg-indigo-100 text-indigo-800'
-                            : 'bg-amber-100 text-amber-800'
+                            : patient.queueNumber?.startsWith('W-')
+                            ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                            : 'bg-blue-100 text-blue-900 border border-blue-300'
                         }`}>
                           {patient.queueNumber}
                         </div>
                         <div>
-                          <div className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
+                          <div className="font-bold text-slate-800 text-sm flex items-center gap-1.5 flex-wrap">
                             <span>{patient.patientName}</span>
+                            {patient.queueNumber?.startsWith('W-') ? (
+                              <span className="text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200 px-1.5 py-0.2 rounded-md">
+                                Vãng lai
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200 px-1.5 py-0.2 rounded-md">
+                                Đặt hẹn
+                              </span>
+                            )}
                             {patient.status === 'UPCOMING' && (
-                              <span className="text-[10px] font-semibold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
-                                Lịch hẹn
+                              <span className="text-[10px] font-semibold bg-blue-50 text-blue-700 px-1.5 py-0.2 rounded">
+                                Sắp tới
                               </span>
                             )}
                           </div>
@@ -1815,12 +1973,25 @@ export default function DoctorClinicView() {
             {/* Header of Active Patient - Sticky when scrolling */}
             <div className="sticky top-2 z-10 bg-white/95 backdrop-blur-md pt-1 pb-2.5 sm:pb-4 border-b border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 sm:gap-3 -mx-1 px-1 sm:-mx-2 sm:px-2">
               <div className="flex items-center gap-2.5 sm:gap-3">
-                <div className="px-2.5 sm:px-3.5 h-9 sm:h-11 min-w-[54px] sm:min-w-[68px] rounded-xl sm:rounded-2xl bg-teal-100 text-teal-800 flex items-center justify-center font-black text-xs sm:text-sm tracking-tight whitespace-nowrap shrink-0 shadow-inner">
+                <div className={`px-2.5 sm:px-3.5 h-9 sm:h-11 min-w-[54px] sm:min-w-[68px] rounded-xl sm:rounded-2xl flex items-center justify-center font-black text-xs sm:text-sm tracking-tight whitespace-nowrap shrink-0 shadow-inner ${
+                  currentPatient.queueNumber?.startsWith('W-')
+                    ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                    : 'bg-teal-100 text-teal-800'
+                }`}>
                   {currentPatient.queueNumber}
                 </div>
                 <div>
-                  <div className="flex items-center gap-1.5 sm:gap-2">
+                  <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                     <h2 className="text-base sm:text-xl font-bold text-slate-800">{currentPatient.patientName}</h2>
+                    {currentPatient.queueNumber?.startsWith('W-') ? (
+                      <span className="text-[10px] sm:text-xs bg-amber-100 text-amber-800 border border-amber-300 px-1.5 sm:px-2 py-0.5 rounded-md font-bold">
+                        VÃNG LAI XEN KẼ
+                      </span>
+                    ) : (
+                      <span className="text-[10px] sm:text-xs bg-blue-100 text-blue-800 border border-blue-300 px-1.5 sm:px-2 py-0.5 rounded-md font-bold">
+                        ĐẶT HẸN ĐÚNG GIỜ
+                      </span>
+                    )}
                     <span className="text-[10px] sm:text-xs bg-slate-100 text-slate-600 px-1.5 sm:px-2 py-0.5 rounded-md font-mono">
                       {currentPatient.gender} • {currentPatient.birthYear}
                     </span>
