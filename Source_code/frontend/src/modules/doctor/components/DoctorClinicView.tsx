@@ -1548,11 +1548,11 @@ export default function DoctorClinicView() {
             )}
 
             {/* Queue Category Filter Tabs */}
-            <div className="grid grid-cols-4 gap-1 p-1 bg-slate-100 rounded-xl mb-3 text-xs">
+            <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl mb-3 text-xs overflow-x-auto no-scrollbar whitespace-nowrap">
               <button
                 type="button"
                 onClick={() => setQueueTab('ALL')}
-                className={`py-1.5 px-2 rounded-lg font-bold transition cursor-pointer text-center ${
+                className={`py-1.5 px-2.5 rounded-lg font-bold transition cursor-pointer text-center shrink-0 flex-1 sm:flex-initial ${
                   queueTab === 'ALL'
                     ? 'bg-white text-slate-800 shadow-xs'
                     : 'text-slate-500 hover:text-slate-800'
@@ -1563,7 +1563,7 @@ export default function DoctorClinicView() {
               <button
                 type="button"
                 onClick={() => setQueueTab('WAITING')}
-                className={`py-1.5 px-2 rounded-lg font-bold transition cursor-pointer text-center ${
+                className={`py-1.5 px-2.5 rounded-lg font-bold transition cursor-pointer text-center shrink-0 flex-1 sm:flex-initial ${
                   queueTab === 'WAITING'
                     ? 'bg-white text-amber-800 shadow-xs'
                     : 'text-slate-500 hover:text-amber-700'
@@ -1574,7 +1574,7 @@ export default function DoctorClinicView() {
               <button
                 type="button"
                 onClick={() => setQueueTab('UPCOMING')}
-                className={`py-1.5 px-2 rounded-lg font-bold transition cursor-pointer text-center ${
+                className={`py-1.5 px-2.5 rounded-lg font-bold transition cursor-pointer text-center shrink-0 flex-1 sm:flex-initial ${
                   queueTab === 'UPCOMING'
                     ? 'bg-white text-blue-800 shadow-xs'
                     : 'text-slate-500 hover:text-blue-700'
@@ -1585,7 +1585,7 @@ export default function DoctorClinicView() {
               <button
                 type="button"
                 onClick={() => setQueueTab('COMPLETED')}
-                className={`py-1.5 px-2 rounded-lg font-bold transition cursor-pointer text-center ${
+                className={`py-1.5 px-2.5 rounded-lg font-bold transition cursor-pointer text-center shrink-0 flex-1 sm:flex-initial ${
                   queueTab === 'COMPLETED'
                     ? 'bg-white text-emerald-800 shadow-xs'
                     : 'text-slate-500 hover:text-emerald-700'
@@ -1811,51 +1811,51 @@ export default function DoctorClinicView() {
               </p>
             </div>
           ) : (
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-5">
+            <div className="bg-white rounded-2xl p-3.5 sm:p-6 shadow-sm border border-slate-200 space-y-4 sm:space-y-5">
             {/* Header of Active Patient - Sticky when scrolling */}
-            <div className="sticky top-2 z-10 bg-white/95 backdrop-blur-md pt-1 pb-4 border-b border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 -mx-2 px-2">
-              <div className="flex items-center gap-3">
-                <div className="px-3.5 h-11 min-w-[68px] rounded-2xl bg-teal-100 text-teal-800 flex items-center justify-center font-black text-sm tracking-tight whitespace-nowrap shrink-0 shadow-inner">
+            <div className="sticky top-2 z-10 bg-white/95 backdrop-blur-md pt-1 pb-2.5 sm:pb-4 border-b border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 sm:gap-3 -mx-1 px-1 sm:-mx-2 sm:px-2">
+              <div className="flex items-center gap-2.5 sm:gap-3">
+                <div className="px-2.5 sm:px-3.5 h-9 sm:h-11 min-w-[54px] sm:min-w-[68px] rounded-xl sm:rounded-2xl bg-teal-100 text-teal-800 flex items-center justify-center font-black text-xs sm:text-sm tracking-tight whitespace-nowrap shrink-0 shadow-inner">
                   {currentPatient.queueNumber}
                 </div>
                 <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-xl font-bold text-slate-800">{currentPatient.patientName}</h2>
-                    <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-mono">
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <h2 className="text-base sm:text-xl font-bold text-slate-800">{currentPatient.patientName}</h2>
+                    <span className="text-[10px] sm:text-xs bg-slate-100 text-slate-600 px-1.5 sm:px-2 py-0.5 rounded-md font-mono">
                       {currentPatient.gender} • {currentPatient.birthYear}
                     </span>
                     {currentPatient.status === 'DEFERRED' && (
-                      <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-md font-bold">
+                      <span className="text-[10px] sm:text-xs bg-orange-100 text-orange-700 px-1.5 sm:px-2 py-0.5 rounded-md font-bold">
                         TẠM HOÃN
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-slate-400 font-mono mt-0.5">
+                  <p className="text-[11px] sm:text-xs text-slate-400 font-mono mt-0.5">
                     CCCD: {currentPatient.cccd || 'Đang cập nhật'} • SĐT: {currentPatient.phone || 'Chưa có'}
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
                 {currentPatient.status === 'IN_CONSULTATION' && (
                   <button
                     type="button"
                     onClick={handleDeferCurrentConsultation}
-                    className="px-2.5 py-1.5 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    className="px-2.5 py-1.5 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 text-[11px] sm:text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
                     title="Tạm hoãn ca này để tiếp tục ca tiếp theo (Bệnh nhân có thể được gọi lại bất cứ lúc nào)"
                   >
                     <PauseCircle size={14} className="text-amber-600" />
-                    <span>Tạm Hoãn Ca (Defer)</span>
+                    <span>Tạm Hoãn Ca</span>
                   </button>
                 )}
-                <div className="text-xs text-slate-500 font-mono bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
-                  Mã Hẹn: <strong>{currentPatient.bookingCode}</strong>
+                <div className="text-[11px] sm:text-xs text-slate-500 font-mono bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-200">
+                  Mã: <strong>{currentPatient.bookingCode}</strong>
                 </div>
               </div>
             </div>
 
             {/* Clinical Summary & AI 1-Click Recommendation */}
-            <div className="bg-gradient-to-br from-purple-50 via-indigo-50 to-blue-50 border border-purple-200 rounded-2xl p-4.5 space-y-3">
+            <div className="bg-gradient-to-br from-purple-50 via-indigo-50 to-blue-50 border border-purple-200 rounded-2xl p-3.5 sm:p-4.5 space-y-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1 border-b border-purple-100">
                 <div className="flex flex-wrap items-center gap-2 text-purple-900 font-bold text-xs">
                   <Sparkles size={16} className="text-purple-600 shrink-0" />
@@ -1872,11 +1872,12 @@ export default function DoctorClinicView() {
                       const detectedKey = detectAiPreset(currentPatient);
                       handleApplyPreset(detectedKey);
                     }}
-                    className="px-3 py-1.5 bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-800 hover:to-indigo-800 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm hover:shadow-purple-700/20 cursor-pointer"
+                    className="px-2.5 sm:px-3 py-1.5 bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-800 hover:to-indigo-800 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm hover:shadow-purple-700/20 cursor-pointer"
                     title="Hệ thống tự động đọc triệu chứng và nạp đơn thuốc mẫu phù hợp (Đang thử nghiệm)"
                   >
-                    <Sparkles size={13} className="text-amber-300" />
-                    <span>⚡ Nạp Chẩn Đoán &amp; Đơn Thuốc Theo Gợi Ý AI (Thử nghiệm)</span>
+                    <Sparkles size={13} className="text-amber-300 shrink-0" />
+                    <span className="sm:hidden">⚡ Gợi ý AI</span>
+                    <span className="hidden sm:inline">⚡ Nạp Chẩn Đoán &amp; Đơn Thuốc Theo Gợi Ý AI (Thử nghiệm)</span>
                   </button>
                 )}
               </div>
@@ -1997,63 +1998,101 @@ export default function DoctorClinicView() {
                       <p className="text-[11px] text-slate-400">Chọn mẫu nhanh ở trên hoặc nhập thông tin thuốc bên dưới</p>
                     </div>
                   ) : (
-                    <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-2xs">
-                      <table className="w-full text-left text-xs">
-                        <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 text-[11px]">
-                          <tr>
-                            <th className="p-2.5 text-center w-8">#</th>
-                            <th className="p-2.5">Tên thuốc &amp; Hàm lượng</th>
-                            <th className="p-2.5 w-16 text-center">ĐVT</th>
-                            <th className="p-2.5 w-14 text-center">SL</th>
-                            <th className="p-2.5">Cách dùng / Liều uống</th>
-                            <th className="p-2.5 text-right w-24">Đơn giá</th>
-                            <th className="p-2.5 text-right w-24">Thành tiền</th>
-                            <th className="p-2.5 text-center w-10"></th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 bg-white">
-                          {prescriptionItems.map((item, idx) => {
-                            const lineTotal = (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
-                            return (
-                              <tr key={idx} className="hover:bg-slate-50/70 transition">
-                                <td className="p-2.5 text-center text-slate-400 font-mono text-[11px]">{idx + 1}</td>
-                                <td className="p-2.5 font-bold text-slate-800">{item.medicineName}</td>
-                                <td className="p-2.5 text-center text-slate-600 font-medium">{item.unit}</td>
-                                <td className="p-2.5 text-center font-bold text-teal-800 font-mono">{item.quantity}</td>
-                                <td className="p-2.5 text-slate-600 italic text-[11px]">{item.dosage}</td>
-                                <td className="p-2.5 text-right text-slate-600 font-mono text-[11px]">
-                                  {item.unitPrice?.toLocaleString('vi-VN')} đ
-                                </td>
-                                <td className="p-2.5 text-right font-bold text-slate-800 font-mono text-[11px]">
-                                  {lineTotal.toLocaleString('vi-VN')} đ
-                                </td>
-                                <td className="p-2.5 text-center">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemoveMedicine(idx)}
-                                    className="text-slate-400 hover:text-rose-600 p-1 rounded-md transition cursor-pointer"
-                                    title="Xóa thuốc này"
-                                  >
-                                    <Trash2 size={13} />
-                                  </button>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                        <tfoot className="bg-teal-50/60 border-t border-teal-100 font-bold text-xs text-teal-950">
-                          <tr>
-                            <td colSpan={6} className="p-2.5 text-right uppercase tracking-wider text-[11px]">
-                              Tổng chi phí tiền thuốc dự kiến:
-                            </td>
-                            <td className="p-2.5 text-right font-black text-teal-900 font-mono text-sm">
-                              {totalMedicineCost.toLocaleString('vi-VN')} đ
-                            </td>
-                            <td></td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
+                    <>
+                      {/* Mobile Card List View for Medications */}
+                      <div className="sm:hidden space-y-2">
+                        {prescriptionItems.map((item, idx) => {
+                          const lineTotal = (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
+                          return (
+                            <div key={idx} className="p-3 bg-white rounded-xl border border-slate-200 shadow-2xs space-y-2">
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <span className="text-[10px] text-slate-400 font-mono mr-1.5">#{idx + 1}</span>
+                                  <span className="font-bold text-slate-800 text-xs">{item.medicineName}</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveMedicine(idx)}
+                                  className="text-rose-500 hover:bg-rose-50 p-1.5 rounded-lg transition cursor-pointer shrink-0"
+                                  title="Xóa thuốc này"
+                                >
+                                  <Trash2 size={15} />
+                                </button>
+                              </div>
+                              <div className="grid grid-cols-3 gap-1 text-[11px] bg-slate-50 p-2 rounded-lg text-slate-700">
+                                <div>SL: <strong className="text-teal-800 font-mono">{item.quantity}</strong> {item.unit}</div>
+                                <div className="text-center">ĐG: <span className="font-mono">{item.unitPrice?.toLocaleString('vi-VN')}đ</span></div>
+                                <div className="text-right font-bold text-slate-900 font-mono">{lineTotal.toLocaleString('vi-VN')}đ</div>
+                              </div>
+                              <p className="text-[11px] text-slate-500 italic">👉 {item.dosage}</p>
+                            </div>
+                          );
+                        })}
+                        <div className="p-2.5 bg-teal-50 rounded-xl border border-teal-200 flex justify-between items-center text-xs">
+                          <span className="font-bold text-teal-900">Tổng tiền thuốc:</span>
+                          <span className="font-black text-teal-900 text-sm font-mono">{totalMedicineCost.toLocaleString('vi-VN')} đ</span>
+                        </div>
+                      </div>
+
+                      {/* Desktop Table View */}
+                      <div className="hidden sm:block overflow-x-auto rounded-xl border border-slate-200 shadow-2xs">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 text-[11px]">
+                            <tr>
+                              <th className="p-2.5 text-center w-8">#</th>
+                              <th className="p-2.5">Tên thuốc &amp; Hàm lượng</th>
+                              <th className="p-2.5 w-16 text-center">ĐVT</th>
+                              <th className="p-2.5 w-14 text-center">SL</th>
+                              <th className="p-2.5">Cách dùng / Liều uống</th>
+                              <th className="p-2.5 text-right w-24">Đơn giá</th>
+                              <th className="p-2.5 text-right w-24">Thành tiền</th>
+                              <th className="p-2.5 text-center w-10"></th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 bg-white">
+                            {prescriptionItems.map((item, idx) => {
+                              const lineTotal = (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
+                              return (
+                                <tr key={idx} className="hover:bg-slate-50/70 transition">
+                                  <td className="p-2.5 text-center text-slate-400 font-mono text-[11px]">{idx + 1}</td>
+                                  <td className="p-2.5 font-bold text-slate-800">{item.medicineName}</td>
+                                  <td className="p-2.5 text-center text-slate-600 font-medium">{item.unit}</td>
+                                  <td className="p-2.5 text-center font-bold text-teal-800 font-mono">{item.quantity}</td>
+                                  <td className="p-2.5 text-slate-600 italic text-[11px]">{item.dosage}</td>
+                                  <td className="p-2.5 text-right text-slate-600 font-mono text-[11px]">
+                                    {item.unitPrice?.toLocaleString('vi-VN')} đ
+                                  </td>
+                                  <td className="p-2.5 text-right font-bold text-slate-800 font-mono text-[11px]">
+                                    {lineTotal.toLocaleString('vi-VN')} đ
+                                  </td>
+                                  <td className="p-2.5 text-center">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveMedicine(idx)}
+                                      className="text-slate-400 hover:text-rose-600 p-1 rounded-md transition cursor-pointer"
+                                      title="Xóa thuốc này"
+                                    >
+                                      <Trash2 size={13} />
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                          <tfoot className="bg-teal-50/60 border-t border-teal-100 font-bold text-xs text-teal-950">
+                            <tr>
+                              <td colSpan={6} className="p-2.5 text-right uppercase tracking-wider text-[11px]">
+                                Tổng chi phí tiền thuốc dự kiến:
+                              </td>
+                              <td className="p-2.5 text-right font-black text-teal-900 font-mono text-sm">
+                                {totalMedicineCost.toLocaleString('vi-VN')} đ
+                              </td>
+                              <td></td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    </>
                   )}
 
                   {/* Manual Add Medicine Input Row */}
@@ -2069,11 +2108,11 @@ export default function DoctorClinicView() {
                           className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-teal-600 focus:outline-none"
                         />
                       </div>
-                      <div className="sm:col-span-2">
+                      <div className="grid grid-cols-3 sm:contents gap-2">
                         <select
                           value={newMedUnit}
                           onChange={(e) => setNewMedUnit(e.target.value)}
-                          className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-teal-600 focus:outline-none"
+                          className="sm:col-span-2 px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-teal-600 focus:outline-none"
                         >
                           <option value="Viên">Viên</option>
                           <option value="Gói">Gói</option>
@@ -2082,25 +2121,21 @@ export default function DoctorClinicView() {
                           <option value="Hộp">Hộp</option>
                           <option value="Ống">Ống</option>
                         </select>
-                      </div>
-                      <div className="sm:col-span-2">
                         <input
                           type="number"
                           min={1}
                           value={newMedQty}
                           onChange={(e) => setNewMedQty(e.target.value)}
                           placeholder="SL"
-                          className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-center font-mono focus:ring-1 focus:ring-teal-600 focus:outline-none"
+                          className="sm:col-span-2 px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-center font-mono focus:ring-1 focus:ring-teal-600 focus:outline-none"
                         />
-                      </div>
-                      <div className="sm:col-span-3">
                         <input
                           type="number"
                           step={500}
                           value={newMedPrice}
                           onChange={(e) => setNewMedPrice(e.target.value)}
-                          placeholder="Đơn giá (đ)"
-                          className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-right font-mono focus:ring-1 focus:ring-teal-600 focus:outline-none"
+                          placeholder="Đơn giá"
+                          className="sm:col-span-3 px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-right font-mono focus:ring-1 focus:ring-teal-600 focus:outline-none"
                         />
                       </div>
                     </div>
@@ -2115,9 +2150,9 @@ export default function DoctorClinicView() {
                       <button
                         type="button"
                         onClick={handleAddManualMedicine}
-                        className="px-4 py-1.5 bg-teal-700 hover:bg-teal-800 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0"
+                        className="px-3 sm:px-4 py-1.5 bg-teal-700 hover:bg-teal-800 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0"
                       >
-                        <Plus size={14} /> Thêm Thuốc
+                        <Plus size={14} /> <span className="hidden sm:inline">Thêm Thuốc</span><span className="sm:hidden">Thêm</span>
                       </button>
                     </div>
                   </div>

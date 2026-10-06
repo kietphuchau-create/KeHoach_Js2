@@ -13,6 +13,7 @@ export default function LoginForm() {
   const redirectUrl = searchParams.get('redirect') || '/booking';
   const isAuthRequired = searchParams.get('reason') === 'auth_required';
 
+  const emailInputRef = React.useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -24,6 +25,9 @@ export default function LoginForm() {
   const [successMessage, setSuccessMessage] = useState('');
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (errorMessage) {
+      setErrorMessage('');
+    }
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
@@ -60,7 +64,12 @@ export default function LoginForm() {
         window.location.href = dest;
       }, 500);
     } catch (err: any) {
-      setErrorMessage(err.message || 'Đăng nhập thất bại. Vui lòng kiểm tra lại tài khoản.');
+      setErrorMessage(err.message || 'Đăng nhập thất bại. Vui lòng kiểm tra lại email hoặc mật khẩu.');
+      // Auto-focus back to email input for better mobile UX
+      setTimeout(() => {
+        emailInputRef.current?.focus();
+        emailInputRef.current?.select();
+      }, 100);
     } finally {
       setLoading(false);
     }
@@ -90,7 +99,7 @@ export default function LoginForm() {
 
       {/* Thông báo lỗi / thành công */}
       {errorMessage && (
-        <AlertMessage type="error" message={errorMessage} className="mb-2.5 py-1.5 text-xs" onClose={() => setErrorMessage('')} />
+        <AlertMessage type="error" message={errorMessage} className="mb-2.5 py-1.5 text-xs animate-in fade-in zoom-in-95" onClose={() => setErrorMessage('')} />
       )}
       {successMessage && (
         <AlertMessage type="success" message={successMessage} className="mb-2.5 py-1.5 text-xs" />
@@ -101,15 +110,20 @@ export default function LoginForm() {
         <div>
           <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Email tài khoản</label>
           <div className="relative">
-            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
+            <Mail className={`absolute left-3 top-1/2 -translate-y-1/2 ${errorMessage ? 'text-rose-400' : 'text-slate-400'}`} size={15} />
             <input
+              ref={emailInputRef}
               type="email"
               name="email"
               required
               value={formData.email}
               onChange={handleChange}
               placeholder="nhap.email@medsched.vn"
-              className="w-full pl-8 pr-3 py-1.5 bg-mint-soft border border-mint-light rounded-xl focus:bg-white focus:ring-2 focus:ring-pine-teal/30 focus:border-teal-primary outline-none text-xs transition"
+              className={`w-full pl-8 pr-3 py-1.5 bg-mint-soft border rounded-xl outline-none text-xs transition ${
+                errorMessage
+                  ? 'border-rose-400 bg-rose-50/20 ring-1 ring-rose-200 focus:border-rose-500'
+                  : 'border-mint-light focus:bg-white focus:ring-2 focus:ring-pine-teal/30 focus:border-teal-primary'
+              }`}
             />
           </div>
         </div>
@@ -117,7 +131,7 @@ export default function LoginForm() {
         <div>
           <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Mật khẩu</label>
           <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
+            <Lock className={`absolute left-3 top-1/2 -translate-y-1/2 ${errorMessage ? 'text-rose-400' : 'text-slate-400'}`} size={15} />
             <input
               type={showPassword ? 'text' : 'password'}
               name="password"
@@ -125,7 +139,11 @@ export default function LoginForm() {
               value={formData.password}
               onChange={handleChange}
               placeholder="••••••••"
-              className="w-full pl-8 pr-8 py-1.5 bg-mint-soft border border-mint-light rounded-xl focus:bg-white focus:ring-2 focus:ring-pine-teal/30 focus:border-teal-primary outline-none text-xs transition"
+              className={`w-full pl-8 pr-8 py-1.5 bg-mint-soft border rounded-xl outline-none text-xs transition ${
+                errorMessage
+                  ? 'border-rose-400 bg-rose-50/20 ring-1 ring-rose-200 focus:border-rose-500'
+                  : 'border-mint-light focus:bg-white focus:ring-2 focus:ring-pine-teal/30 focus:border-teal-primary'
+              }`}
             />
             <button
               type="button"
@@ -135,6 +153,9 @@ export default function LoginForm() {
               {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
             </button>
           </div>
+          {errorMessage && (
+            <p className="text-[10px] text-rose-500 mt-1">Vui lòng kiểm tra lại email hoặc mật khẩu.</p>
+          )}
         </div>
 
         <div className="flex items-center justify-end">

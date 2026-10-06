@@ -21,6 +21,7 @@ export default function RegisterForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [successMessage, setSuccessMessage] = useState('');
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -29,6 +30,46 @@ export default function RegisterForm() {
       ...formData,
       [name]: type === 'checkbox' ? checked : value,
     });
+    // Clear individual field error on change
+    if (fieldErrors[name]) {
+      setFieldErrors((prev) => {
+        const next = { ...prev };
+        delete next[name];
+        return next;
+      });
+    }
+  };
+
+  const validateForm = () => {
+    const errors: Record<string, string> = {};
+    if (!formData.fullName.trim()) {
+      errors.fullName = 'Vui lòng nhập họ và tên.';
+    }
+    if (!formData.email.trim()) {
+      errors.email = 'Vui lòng nhập email.';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
+      errors.email = 'Email không đúng định dạng (vd: user@gmail.com).';
+    }
+    const cleanPhone = formData.phone.trim().replace(/\s+/g, '');
+    if (!cleanPhone) {
+      errors.phone = 'Vui lòng nhập số điện thoại.';
+    } else if (!/^(0|\+84)[3|5|7|8|9][0-9]{8}$/.test(cleanPhone)) {
+      errors.phone = 'Số điện thoại phải gồm 10 chữ số (vd: 0912345678).';
+    }
+    if (!formData.password) {
+      errors.password = 'Vui lòng nhập mật khẩu.';
+    } else if (formData.password.length < 6) {
+      errors.password = 'Mật khẩu phải có ít nhất 6 ký tự.';
+    }
+    if (!formData.confirmPassword) {
+      errors.confirmPassword = 'Vui lòng xác nhận lại mật khẩu.';
+    } else if (formData.password !== formData.confirmPassword) {
+      errors.confirmPassword = 'Mật khẩu xác nhận không khớp.';
+    }
+    if (!formData.agreeTerms) {
+      errors.agreeTerms = 'Bạn cần đồng ý với Điều khoản & Dịch vụ khám chữa bệnh.';
+    }
+    return errors;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -36,20 +77,13 @@ export default function RegisterForm() {
     setError('');
     setSuccessMessage('');
 
-    if (formData.password !== formData.confirmPassword) {
-      setError('Mật khẩu xác nhận không khớp!');
+    const validationErrors = validateForm();
+    if (Object.keys(validationErrors).length > 0) {
+      setFieldErrors(validationErrors);
+      setError('Vui lòng kiểm tra và sửa các thông tin chưa chính xác bên dưới.');
       return;
     }
-
-    if (formData.password.length < 6) {
-      setError('Mật khẩu phải có ít nhất 6 ký tự!');
-      return;
-    }
-
-    if (!formData.agreeTerms) {
-      setError('Bạn cần đồng ý với Điều khoản & Dịch vụ khám chữa bệnh.');
-      return;
-    }
+    setFieldErrors({});
 
     setLoading(true);
 
@@ -99,9 +133,14 @@ export default function RegisterForm() {
               value={formData.fullName}
               onChange={handleChange}
               placeholder="Nguyễn Văn A"
-              className="w-full pl-8 pr-3 py-1.5 bg-mint-soft border border-mint-light rounded-xl focus:bg-white focus:ring-2 focus:ring-pine-teal/30 focus:border-teal-primary outline-none text-xs transition"
+              className={`w-full pl-8 pr-3 py-1.5 bg-mint-soft border rounded-xl outline-none text-xs transition ${
+                fieldErrors.fullName
+                  ? 'border-rose-400 bg-rose-50/20 ring-1 ring-rose-200'
+                  : 'border-mint-light focus:bg-white focus:ring-2 focus:ring-pine-teal/30 focus:border-teal-primary'
+              }`}
             />
           </div>
+          {fieldErrors.fullName && <p className="text-[10px] text-rose-500 mt-0.5">{fieldErrors.fullName}</p>}
         </div>
 
         <div>
@@ -115,9 +154,14 @@ export default function RegisterForm() {
               value={formData.email}
               onChange={handleChange}
               placeholder="example@medsched.vn"
-              className="w-full pl-8 pr-3 py-1.5 bg-mint-soft border border-mint-light rounded-xl focus:bg-white focus:ring-2 focus:ring-pine-teal/30 focus:border-teal-primary outline-none text-xs transition"
+              className={`w-full pl-8 pr-3 py-1.5 bg-mint-soft border rounded-xl outline-none text-xs transition ${
+                fieldErrors.email
+                  ? 'border-rose-400 bg-rose-50/20 ring-1 ring-rose-200'
+                  : 'border-mint-light focus:bg-white focus:ring-2 focus:ring-pine-teal/30 focus:border-teal-primary'
+              }`}
             />
           </div>
+          {fieldErrors.email && <p className="text-[10px] text-rose-500 mt-0.5">{fieldErrors.email}</p>}
         </div>
 
         <div>
@@ -130,13 +174,18 @@ export default function RegisterForm() {
               required
               value={formData.phone}
               onChange={handleChange}
-              placeholder="0912345678"
-              className="w-full pl-8 pr-3 py-1.5 bg-mint-soft border border-mint-light rounded-xl focus:bg-white focus:ring-2 focus:ring-pine-teal/30 focus:border-teal-primary outline-none text-xs transition"
+              placeholder="0912345678 (10 số)"
+              className={`w-full pl-8 pr-3 py-1.5 bg-mint-soft border rounded-xl outline-none text-xs transition ${
+                fieldErrors.phone
+                  ? 'border-rose-400 bg-rose-50/20 ring-1 ring-rose-200'
+                  : 'border-mint-light focus:bg-white focus:ring-2 focus:ring-pine-teal/30 focus:border-teal-primary'
+              }`}
             />
           </div>
+          {fieldErrors.phone && <p className="text-[10px] text-rose-500 mt-0.5">{fieldErrors.phone}</p>}
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <div>
             <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Mật khẩu</label>
             <div className="relative">
@@ -148,7 +197,11 @@ export default function RegisterForm() {
                 value={formData.password}
                 onChange={handleChange}
                 placeholder="Tối thiểu 6 ký tự"
-                className="w-full pl-7 pr-7 py-1.5 bg-mint-soft border border-mint-light rounded-xl focus:bg-white focus:ring-2 focus:ring-pine-teal/30 focus:border-teal-primary outline-none text-xs transition"
+                className={`w-full pl-7 pr-7 py-1.5 bg-mint-soft border rounded-xl outline-none text-xs transition ${
+                  fieldErrors.password
+                    ? 'border-rose-400 bg-rose-50/20 ring-1 ring-rose-200'
+                    : 'border-mint-light focus:bg-white focus:ring-2 focus:ring-pine-teal/30 focus:border-teal-primary'
+                }`}
               />
               <button
                 type="button"
@@ -158,6 +211,7 @@ export default function RegisterForm() {
                 {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
               </button>
             </div>
+            {fieldErrors.password && <p className="text-[10px] text-rose-500 mt-0.5">{fieldErrors.password}</p>}
           </div>
 
           <div>
@@ -170,26 +224,32 @@ export default function RegisterForm() {
                 required
                 value={formData.confirmPassword}
                 onChange={handleChange}
-                placeholder="Nhập lại MK"
-                className="w-full pl-7 pr-3 py-1.5 bg-mint-soft border border-mint-light rounded-xl focus:bg-white focus:ring-2 focus:ring-pine-teal/30 focus:border-teal-primary outline-none text-xs transition"
+                placeholder="Nhập lại mật khẩu"
+                className={`w-full pl-7 pr-3 py-1.5 bg-mint-soft border rounded-xl outline-none text-xs transition ${
+                  fieldErrors.confirmPassword
+                    ? 'border-rose-400 bg-rose-50/20 ring-1 ring-rose-200'
+                    : 'border-mint-light focus:bg-white focus:ring-2 focus:ring-pine-teal/30 focus:border-teal-primary'
+                }`}
               />
             </div>
+            {fieldErrors.confirmPassword && <p className="text-[10px] text-rose-500 mt-0.5">{fieldErrors.confirmPassword}</p>}
           </div>
         </div>
 
-        <div className="flex items-center pt-0.5">
+        <div className="flex items-start pt-1">
           <input
             type="checkbox"
             id="agreeTerms"
             name="agreeTerms"
             checked={formData.agreeTerms}
             onChange={handleChange}
-            className="w-3.5 h-3.5 text-pine-teal rounded border-slate-300 focus:ring-pine-teal cursor-pointer"
+            className="w-4 h-4 mt-0.5 text-pine-teal rounded border-slate-300 focus:ring-pine-teal cursor-pointer shrink-0"
           />
-          <label htmlFor="agreeTerms" className="ml-2 text-[11px] text-slate-600 cursor-pointer">
+          <label htmlFor="agreeTerms" className="ml-2 text-[11px] text-slate-600 cursor-pointer leading-tight">
             Tôi đồng ý với các <span className="text-pine-teal font-semibold">Điều khoản</span> và chính sách MedSched
           </label>
         </div>
+        {fieldErrors.agreeTerms && <p className="text-[10px] text-rose-500">{fieldErrors.agreeTerms}</p>}
 
         <button
           type="submit"

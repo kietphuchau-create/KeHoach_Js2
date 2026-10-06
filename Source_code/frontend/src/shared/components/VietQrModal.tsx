@@ -61,13 +61,13 @@ export const VietQrModal: React.FC<VietQrModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl border border-slate-200 flex flex-col max-h-[95vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-3 sm:p-4 animate-in fade-in duration-200">
+      <div className="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl border border-slate-200 flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-gradient-to-r from-emerald-700 to-teal-800 text-white">
+        <div className="flex items-center justify-between px-4 sm:px-5 py-3 sm:py-3.5 border-b border-slate-100 bg-gradient-to-r from-emerald-700 to-teal-800 text-white shrink-0">
           <div className="flex items-center gap-2">
             <Building2 size={18} className="text-emerald-300" />
-            <span className="font-bold text-sm tracking-tight">{title}</span>
+            <span className="font-bold text-xs sm:text-sm tracking-tight">{title}</span>
           </div>
           <button
             type="button"
@@ -79,28 +79,28 @@ export const VietQrModal: React.FC<VietQrModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className="p-5 overflow-y-auto space-y-4 text-center">
+        <div className="p-3.5 sm:p-5 overflow-y-auto space-y-3 sm:space-y-4 text-center">
           {/* Amount Display */}
           <div>
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+            <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400">
               Số tiền thanh toán
             </span>
-            <div className="text-3xl font-black text-emerald-700 font-mono mt-0.5">
-              {cleanAmount.toLocaleString('vi-VN')} <span className="text-lg">đ</span>
+            <div className="text-2xl sm:text-3xl font-black text-emerald-700 font-mono mt-0.5">
+              {cleanAmount.toLocaleString('vi-VN')} <span className="text-base sm:text-lg">đ</span>
             </div>
             {patientName && (
-              <div className="text-xs text-slate-600 mt-1 font-medium">
+              <div className="text-[11px] sm:text-xs text-slate-600 mt-0.5 font-medium">
                 Bệnh nhân: <strong className="text-slate-800">{patientName}</strong>
               </div>
             )}
           </div>
 
           {/* QR Code Container with Napas fallback */}
-          <div className="bg-slate-50 border-2 border-dashed border-emerald-500/30 rounded-2xl p-4 inline-block shadow-inner">
+          <div className="bg-slate-50 border-2 border-dashed border-emerald-500/30 rounded-2xl p-2.5 sm:p-4 inline-block shadow-inner">
             <img
               src={vietQrUrl}
               alt="Mã VietQR Thanh Toán Viện Phí"
-              className="w-56 h-56 object-contain rounded-lg mx-auto shadow-xs"
+              className="w-44 h-44 sm:w-56 sm:h-56 object-contain rounded-lg mx-auto shadow-xs"
               onError={(e) => {
                 // Nếu không tải được ảnh từ vietqr.io (khi offline), chuyển sang render offline
                 e.currentTarget.style.display = 'none';
@@ -111,12 +111,12 @@ export const VietQrModal: React.FC<VietQrModalProps> = ({
             <div id="vietqr-offline-fallback" style={{ display: 'none' }} className="py-2">
               <QrCodeImage
                 value={`2|99|${ACCOUNT_NO}|${ACCOUNT_NAME}|${cleanAmount}|${transferContent}`}
-                size={220}
+                size={180}
                 className="mx-auto rounded-lg shadow-xs"
               />
               <span className="text-[10px] text-slate-400 block mt-1">Chế độ tạo mã QR ngoại tuyến</span>
             </div>
-            <div className="text-[11px] text-slate-500 font-medium mt-2 flex items-center justify-center gap-1.5">
+            <div className="text-[10px] sm:text-[11px] text-slate-500 font-medium mt-1.5 flex items-center justify-center gap-1.5">
               <ShieldCheck size={14} className="text-emerald-600" />
               <span>Quét bằng bất kỳ App Ngân hàng hoặc Ví MoMo/ZaloPay</span>
             </div>

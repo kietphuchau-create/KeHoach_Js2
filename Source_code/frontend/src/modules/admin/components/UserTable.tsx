@@ -274,9 +274,9 @@ export default function UserTable() {
       )}
 
       {/* Filter & Search Bar */}
-      <div className="bg-white rounded-2xl p-4 shadow-sm border border-mint-light flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+      <div className="bg-white rounded-2xl p-4 shadow-sm border border-mint-light flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
         {/* Role Tabs */}
-        <div className="flex flex-wrap gap-1 bg-mint-soft p-1 rounded-xl">
+        <div className="flex items-center gap-1 bg-mint-soft p-1 rounded-xl overflow-x-auto no-scrollbar whitespace-nowrap">
           {[
             { id: 'ALL', label: 'Tất cả' },
             { id: 'ROLE_ADMIN', label: 'Quản trị viên' },
@@ -288,7 +288,7 @@ export default function UserTable() {
             <button
               key={tab.id}
               onClick={() => { setSelectedRole(tab.id); setCurrentPage(0); }}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 shrink-0 whitespace-nowrap ${
                 selectedRole === tab.id
                   ? tab.id === 'LOCKED'
                     ? 'bg-red-50 text-red-600 shadow-xs font-bold border border-red-200'
@@ -305,20 +305,20 @@ export default function UserTable() {
         </div>
 
         {/* Search form */}
-        <form onSubmit={handleSearchSubmit} className="flex items-center gap-2">
-          <div className="relative">
+        <form onSubmit={handleSearchSubmit} className="flex items-center gap-2 w-full md:w-auto">
+          <div className="relative flex-1 md:flex-initial w-full md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Tìm theo tên, email, SĐT..."
-              className="pl-9 pr-3 py-2 text-sm bg-mint-soft border border-mint-light rounded-xl focus:outline-none focus:ring-2 focus:ring-pine-teal/30 focus:bg-white w-64"
+              className="pl-9 pr-3 py-2 text-sm bg-mint-soft border border-mint-light rounded-xl focus:outline-none focus:ring-2 focus:ring-pine-teal/30 focus:bg-white w-full text-xs sm:text-sm"
             />
           </div>
           <button
             type="submit"
-            className="px-3.5 py-2 bg-pine-teal hover:bg-pine-teal-hover text-white text-sm font-bold rounded-xl transition cursor-pointer"
+            className="px-3.5 py-2 bg-pine-teal hover:bg-pine-teal-hover text-white text-xs sm:text-sm font-bold rounded-xl transition cursor-pointer shrink-0"
           >
             Tìm
           </button>

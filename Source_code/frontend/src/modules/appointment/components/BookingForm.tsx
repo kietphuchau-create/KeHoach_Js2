@@ -351,41 +351,41 @@ export default function BookingForm() {
 
         {/* Stepper Wizard Progress */}
         {step < 4 && (
-          <div className="grid grid-cols-3 gap-2 pb-6 border-b border-slate-100">
+          <div className="grid grid-cols-3 gap-1.5 sm:gap-2 pb-5 sm:pb-6 border-b border-slate-100">
             <button
               onClick={() => setStep(1)}
-              className={`p-2.5 rounded-xl text-left transition flex items-center gap-2 cursor-pointer ${
+              className={`p-2 sm:p-2.5 rounded-xl text-left transition flex items-center gap-1.5 sm:gap-2 cursor-pointer ${
                 step === 1 ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
               }`}
             >
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+              <div className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
                 step === 1 ? 'bg-white text-blue-600' : 'bg-slate-200 text-slate-700'
               }`}>1</div>
-              <span className="text-xs font-semibold hidden sm:inline">Cơ Sở & Khoa</span>
+              <span className="text-[11px] sm:text-xs font-semibold truncate">Cơ Sở &amp; Khoa</span>
             </button>
 
             <button
               onClick={() => setStep(2)}
-              className={`p-2.5 rounded-xl text-left transition flex items-center gap-2 cursor-pointer ${
+              className={`p-2 sm:p-2.5 rounded-xl text-left transition flex items-center gap-1.5 sm:gap-2 cursor-pointer ${
                 step === 2 ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
               }`}
             >
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+              <div className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
                 step === 2 ? 'bg-white text-blue-600' : 'bg-slate-200 text-slate-700'
               }`}>2</div>
-              <span className="text-xs font-semibold hidden sm:inline">Bác Sĩ & Giờ</span>
+              <span className="text-[11px] sm:text-xs font-semibold truncate">Bác Sĩ &amp; Giờ</span>
             </button>
 
             <button
               onClick={() => setStep(3)}
-              className={`p-2.5 rounded-xl text-left transition flex items-center gap-2 cursor-pointer ${
+              className={`p-2 sm:p-2.5 rounded-xl text-left transition flex items-center gap-1.5 sm:gap-2 cursor-pointer ${
                 step === 3 ? 'bg-blue-600 text-white shadow-sm' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
               }`}
             >
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+              <div className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
                 step === 3 ? 'bg-white text-blue-600' : 'bg-slate-200 text-slate-700'
               }`}>3</div>
-              <span className="text-xs font-semibold hidden sm:inline">Triệu Chứng & AI (Thử nghiệm)</span>
+              <span className="text-[11px] sm:text-xs font-semibold truncate">Triệu Chứng</span>
             </button>
           </div>
         )}
@@ -558,7 +558,7 @@ export default function BookingForm() {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-2.5">
                 {timeSlots.map((slot) => {
                   const isSelected = selectedSlot.id === slot.id;
                   return (
@@ -567,7 +567,7 @@ export default function BookingForm() {
                       type="button"
                       disabled={slot.disabled}
                       onClick={() => setSelectedSlot({ id: slot.id, time: slot.time, date: selectedSlot.date })}
-                      className={`p-3 rounded-xl border text-center transition flex flex-col items-center justify-center ${
+                      className={`p-2.5 sm:p-3 rounded-xl border text-center transition flex flex-col items-center justify-center min-w-0 ${
                         slot.disabled
                           ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed opacity-75'
                           : isSelected
@@ -575,8 +575,8 @@ export default function BookingForm() {
                           : 'border-slate-200 bg-white hover:border-blue-400 text-slate-700 cursor-pointer'
                       }`}
                     >
-                      <span className="text-xs font-bold">{slot.time}</span>
-                      <span className={`text-[10px] mt-0.5 ${isSelected ? 'text-blue-100' : slot.disabled ? 'text-slate-400' : 'text-emerald-600'}`}>
+                      <span className="text-xs font-bold whitespace-nowrap tracking-tight">{slot.time}</span>
+                      <span className={`text-[10px] mt-0.5 whitespace-nowrap font-medium ${isSelected ? 'text-blue-100' : slot.disabled ? 'text-slate-400' : 'text-emerald-600'}`}>
                         {slot.label}
                       </span>
                     </button>

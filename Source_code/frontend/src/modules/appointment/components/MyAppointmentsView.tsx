@@ -623,11 +623,11 @@ export default function MyAppointmentsView() {
                   className="bg-white rounded-2xl border border-mint-light hover:border-teal-primary/40 shadow-xs hover:shadow-sm transition-all overflow-hidden"
                 >
                   {/* Top Bar of Card */}
-                  <div className="bg-mint-soft/70 px-6 py-3 border-b border-mint-light flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
+                  <div className="bg-mint-soft/70 px-4 sm:px-6 py-2.5 sm:py-3 border-b border-mint-light flex flex-wrap items-center justify-between gap-2.5">
+                    <div className="flex items-center gap-2.5 sm:gap-3">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-xs text-slate-400 font-medium">Mã đặt lịch:</span>
-                        <span className="font-mono font-bold text-pine-teal text-sm bg-white px-2 py-0.5 rounded border border-mint-light shadow-2xs">
+                        <span className="text-[11px] sm:text-xs text-slate-400 font-medium">Mã:</span>
+                        <span className="font-mono font-bold text-pine-teal text-xs sm:text-sm bg-white px-2 py-0.5 rounded border border-mint-light shadow-2xs">
                           {apt.bookingCode}
                         </span>
                         <button
@@ -655,22 +655,23 @@ export default function MyAppointmentsView() {
                   </div>
 
                   {/* Body of Card */}
-                  <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+                  <div className="p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 items-start">
                     {/* Left & Middle Info (2 Cols) */}
-                    <div className="lg:col-span-2 space-y-4">
+                    <div className="lg:col-span-2 space-y-3 sm:space-y-4">
                       {/* Doctor & Clinic */}
-                      <div className="flex items-start gap-3.5">
-                        <div className="w-12 h-12 rounded-xl bg-mint-light text-pine-teal flex items-center justify-center shrink-0 border border-teal-primary/20">
-                          <Stethoscope size={24} />
+                      <div className="flex items-start gap-3 sm:gap-3.5">
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-mint-light text-pine-teal flex items-center justify-center shrink-0 border border-teal-primary/20">
+                          <Stethoscope size={20} className="sm:hidden" />
+                          <Stethoscope size={24} className="hidden sm:block" />
                         </div>
-                        <div className="space-y-1">
-                          <div className="text-xs font-bold text-teal-primary uppercase tracking-wide">
+                        <div className="space-y-0.5 sm:space-y-1">
+                          <div className="text-[11px] sm:text-xs font-bold text-teal-primary uppercase tracking-wide">
                             {specialty}
                           </div>
-                          <h3 className="text-base font-extrabold text-slate-900 leading-tight">
+                          <h3 className="text-sm sm:text-base font-extrabold text-slate-900 leading-tight">
                             {doctorTitle}
                           </h3>
-                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 pt-0.5">
+                          <div className="flex flex-wrap items-center gap-x-3 sm:gap-x-4 gap-y-1 text-xs text-slate-500 pt-0.5">
                             <span className="flex items-center gap-1 font-semibold text-slate-700">
                               <Building2 size={13} className="text-teal-primary" />
                               {room}
@@ -684,13 +685,13 @@ export default function MyAppointmentsView() {
                               <strong>{appointmentDateStr}</strong>
                             </span>
                           </div>
-                          <p className="text-xs text-slate-500 pt-0.5">{center}</p>
+                          <p className="text-[11px] sm:text-xs text-slate-500 pt-0.5">{center}</p>
                         </div>
                       </div>
 
                       {/* Symptoms */}
                       {apt.patientSymptoms && (
-                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs text-slate-700 space-y-1">
+                        <div className="bg-slate-50 p-2.5 sm:p-3 rounded-xl border border-slate-200 text-xs text-slate-700 space-y-1">
                           <span className="font-bold text-slate-800 block text-[11px] uppercase tracking-wider text-slate-500">
                             Triệu chứng ban đầu:
                           </span>
@@ -700,7 +701,7 @@ export default function MyAppointmentsView() {
 
                       {/* Spring AI Clinical Assessment */}
                       {apt.aiSummary && (
-                        <div className="bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-50 p-3.5 rounded-xl border border-purple-200 text-xs text-purple-900 space-y-2">
+                        <div className="bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-50 p-3 sm:p-3.5 rounded-xl border border-purple-200 text-xs text-purple-900 space-y-1.5 sm:space-y-2">
                           <div className="flex flex-wrap items-center justify-between gap-1.5">
                             <div className="flex items-center gap-1.5 font-bold text-purple-800 text-[11px] uppercase tracking-wider">
                               <Sparkles size={14} className="text-purple-600 shrink-0" />
@@ -723,57 +724,61 @@ export default function MyAppointmentsView() {
                     </div>
 
                     {/* Right Actions & QR Voucher Button (1 Col) */}
-                    <div className="flex flex-col sm:flex-row lg:flex-col items-center justify-center gap-3 p-4 bg-mint-soft/50 rounded-2xl border border-mint-light h-full">
+                    <div className="flex flex-col gap-2 p-3 sm:p-4 bg-mint-soft/50 rounded-2xl border border-mint-light w-full">
                       {/* Interactive Button: Nếu COMPLETED -> Xem Đơn Thuốc, nếu chưa -> Mã QR Check-in Quầy */}
                       {apt.status === 'COMPLETED' ? (
                         <button
                           onClick={() => handleOpenPrescription(apt)}
-                          className="w-full flex items-center justify-center gap-2.5 px-4 py-3 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white rounded-xl font-bold text-xs shadow-md shadow-emerald-600/20 transition group cursor-pointer"
+                          className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white rounded-xl font-bold text-xs shadow-md shadow-emerald-600/20 transition group cursor-pointer"
                         >
-                          <Pill size={17} className="text-white group-hover:scale-110 transition" />
+                          <Pill size={16} className="text-white group-hover:scale-110 transition" />
                           <span>Xem Đơn Thuốc &amp; Kết Quả</span>
                         </button>
                       ) : (
                         <button
                           onClick={() => setSelectedAppointment(apt)}
-                          className="w-full flex items-center justify-center gap-2.5 px-4 py-3 bg-white hover:bg-mint-light text-pine-teal border border-teal-primary/30 rounded-xl font-bold text-xs shadow-2xs transition group cursor-pointer"
+                          className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-white hover:bg-mint-light text-pine-teal border border-teal-primary/30 rounded-xl font-bold text-xs shadow-2xs transition group cursor-pointer"
                         >
-                          <QrCode size={18} className="text-teal-primary group-hover:scale-110 transition" />
+                          <QrCode size={16} className="text-teal-primary group-hover:scale-110 transition" />
                           <span>Mã QR Check-in Quầy</span>
                         </button>
                       )}
 
-                      <button
-                        onClick={() => handlePrint(apt)}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl font-semibold text-xs shadow-2xs transition cursor-pointer"
-                      >
-                        <Printer size={15} />
-                        <span>In Phiếu Khám</span>
-                      </button>
+                      {/* Secondary Action Buttons Grid */}
+                      <div className={`grid ${apt.status === 'CONFIRMED' ? 'grid-cols-3' : 'grid-cols-1'} gap-1.5 w-full`}>
+                        <button
+                          onClick={() => handlePrint(apt)}
+                          className="flex items-center justify-center gap-1 px-2 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl font-semibold text-xs shadow-2xs transition cursor-pointer"
+                          title="In phiếu khám"
+                        >
+                          <Printer size={13} />
+                          <span>In Phiếu</span>
+                        </button>
 
-                      {apt.status === 'CONFIRMED' && (
-                        <div className="grid grid-cols-2 gap-2 w-full">
-                          <button
-                            onClick={() => handleOpenReschedule(apt)}
-                            className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl font-bold text-xs transition cursor-pointer"
-                            title="Đổi sang khung giờ hoặc ngày khám khác"
-                          >
-                            <Calendar size={13} />
-                            <span>Đổi Lịch</span>
-                          </button>
-                          <button
-                            onClick={() => setCancelingAppointment(apt)}
-                            className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl font-bold text-xs transition cursor-pointer"
-                            title="Hủy phiếu hẹn này"
-                          >
-                            <X size={13} />
-                            <span>Hủy Lịch</span>
-                          </button>
-                        </div>
-                      )}
+                        {apt.status === 'CONFIRMED' && (
+                          <>
+                            <button
+                              onClick={() => handleOpenReschedule(apt)}
+                              className="flex items-center justify-center gap-1 px-2 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl font-bold text-xs transition cursor-pointer"
+                              title="Đổi sang khung giờ hoặc ngày khám khác"
+                            >
+                              <Calendar size={13} />
+                              <span>Đổi Lịch</span>
+                            </button>
+                            <button
+                              onClick={() => setCancelingAppointment(apt)}
+                              className="flex items-center justify-center gap-1 px-2 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl font-bold text-xs transition cursor-pointer"
+                              title="Hủy phiếu hẹn này"
+                            >
+                              <X size={13} />
+                              <span>Hủy Lịch</span>
+                            </button>
+                          </>
+                        )}
+                      </div>
 
-                      <div className="text-[11px] text-center text-slate-400 pt-1">
-                        Quét mã QR tại Quầy Tiếp Đón để vào khám không cần xếp hàng lấy số
+                      <div className="text-[10px] sm:text-[11px] text-center text-slate-400 pt-0.5 leading-tight">
+                        Quét mã QR tại Quầy Tiếp Đón để vào khám không cần bốc số
                       </div>
                     </div>
                   </div>
