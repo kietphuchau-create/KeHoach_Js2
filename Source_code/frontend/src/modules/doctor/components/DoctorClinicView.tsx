@@ -248,10 +248,6 @@ export default function DoctorClinicView() {
   const [timeRemaining, setTimeRemaining] = useState(MAX_CONSULTATION_SECONDS);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // ── Trạng Thái Bác Sĩ & Phòng Khám (Bình thường / Tới trễ) ──
-  const [doctorStatus, setDoctorStatus] = useState<'NORMAL' | 'LATE'>('NORMAL');
-  const [lateMinutes, setLateMinutes] = useState(20);
-  const [showLateModal, setShowLateModal] = useState(false);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
 
   /** Lưu thời gian còn lại khi bấm cấp cứu để resume lại sau */
@@ -628,7 +624,7 @@ export default function DoctorClinicView() {
 
   // ── Cảnh báo quá giờ tự động khi đồng hồ về 00:00 ──
   useEffect(() => {
-    if (timeRemaining <= 0 && currentPatient?.status === 'IN_CONSULTATION' && clinicActive && doctorStatus === 'NORMAL') {
+    if (timeRemaining <= 0 && currentPatient?.status === 'IN_CONSULTATION' && clinicActive) {
       if (currentPatient.id && dismissedOvertimeForPatient !== currentPatient.id) {
         // Tự động mở cảnh báo quá giờ nếu bác sĩ để treo màn hình
         setShowOvertimeModal(true);
@@ -636,7 +632,7 @@ export default function DoctorClinicView() {
     } else {
       setShowOvertimeModal(false);
     }
-  }, [timeRemaining, currentPatient?.id, currentPatient?.status, clinicActive, doctorStatus, dismissedOvertimeForPatient]);
+  }, [timeRemaining, currentPatient?.id, currentPatient?.status, clinicActive, dismissedOvertimeForPatient]);
 
   // ── Hàm chuyển ca tiếp theo: Hỗ trợ 2 luồng (Đúng lịch hẹn & Xen kẽ vãng lai khi dư thời gian >= 15p) ──
   const handleCallNext = useCallback(() => {
@@ -1070,7 +1066,7 @@ export default function DoctorClinicView() {
 
   // ── Timer đếm ngược cho ca hiện tại (Lấy mốc từ lúc gọi ca, không reset khi F5) ──
   useEffect(() => {
-    if (!clinicActive || doctorStatus !== 'NORMAL') {
+    if (!clinicActive) {
       if (timerRef.current) clearInterval(timerRef.current);
       return;
     }
@@ -1097,23 +1093,7 @@ export default function DoctorClinicView() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [clinicActive, doctorStatus, queue]);
-
-  // ── Xử lý Báo Tới Trễ / Vắng Tạm Thời ──
-  const handleConfirmLate = (minutes: number) => {
-    setLateMinutes(minutes);
-    setDoctorStatus('LATE');
-    setShowLateModal(false);
-    setNotification(
-      `⏳ ĐÃ BÁO TRỄ: Màn hình sảnh chờ thông báo "Bác sĩ có mặt muộn khoảng ${minutes} phút do hội chẩn khẩn cấp. Quý bệnh nhân vui lòng ngồi chờ."`
-    );
-  };
-
-  const handleDoctorArrived = () => {
-    setDoctorStatus('NORMAL');
-    setClinicActive(true);
-    setNotification('✅ Bác sĩ đã có mặt tại buồng khám. Phòng khám chính thức mở tiếp nhận bệnh nhân.');
-  };
+  }, [clinicActive, queue]);
 
 
   // ── Tính toán khoảng trống thời gian thực tế để xen kẽ ca vãng lai (Ngưỡng 15 phút) ──
@@ -1339,14 +1319,14 @@ export default function DoctorClinicView() {
               type="button"
               onClick={() => setClinicActive(!clinicActive)}
               className={`px-3.5 py-2.5 rounded-xl font-bold text-xs transition cursor-pointer flex items-center gap-2 border shadow-xs ${
-                clinicActive && doctorStatus === 'NORMAL'
+                clinicActive
                   ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
                   : 'bg-red-50 text-red-800 border-red-300 hover:bg-red-100'
               }`}
               title="Mở hoặc tạm dừng tiếp nhận lượt khám mới"
             >
-              <span className={`w-2.5 h-2.5 rounded-full ${clinicActive && doctorStatus === 'NORMAL' ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
-              <span>{clinicActive && doctorStatus === 'NORMAL' ? 'Đang Mở Khám' : 'Tạm Dừng Khám'}</span>
+              <span className={`w-2.5 h-2.5 rounded-full ${clinicActive ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
+              <span>{clinicActive ? 'Đang Mở Khám' : 'Tạm Dừng Khám'}</span>
             </button>
           </div>
         </div>
@@ -1364,68 +1344,16 @@ export default function DoctorClinicView() {
               <Lock size={13} className="text-teal-700" />
               <span>Khóa Màn Hình</span>
             </button>
-
-
-          </div>
-
-          {/* Nhóm xử lý tình huống đặc biệt (Exceptions) */}
-          <div className="flex items-center gap-2">
-            {doctorStatus === 'LATE' ? (
-              <button
-                type="button"
-                onClick={handleDoctorArrived}
-                className="px-3 py-1.5 rounded-lg font-bold text-xs bg-emerald-600 text-white hover:bg-emerald-700 transition cursor-pointer flex items-center gap-1.5 shadow-xs"
-              >
-                <CheckCircle2 size={13} />
-                <span>Bác Sĩ Đã Có Mặt</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setShowLateModal(true)}
-                className="px-3 py-1.5 rounded-lg font-semibold text-xs bg-white text-amber-800 hover:bg-amber-50 border border-amber-200 transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
-                title="Báo tới trễ do kẹt việc đột xuất"
-              >
-                <Clock size={13} className="text-amber-600" />
-                <span>Báo Tới Trễ</span>
-              </button>
-            )}
           </div>
         </div>
       </div>
-
-      {doctorStatus === 'LATE' && (
-        <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4.5 flex items-start gap-4 shadow-sm">
-          <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
-            <Clock size={22} />
-          </div>
-          <div className="flex-1">
-            <div className="font-bold text-amber-900 text-sm">
-              ⏳ THÔNG BÁO TỚI TRỄ: Dự kiến trễ khoảng {lateMinutes} phút do hội chẩn khẩn cấp
-            </div>
-            <p className="text-amber-700 text-xs mt-0.5">
-              Hệ thống đã tự động gửi tin thông báo đến điện thoại và màn hình sảnh chờ để bệnh nhân không lo lắng bị trôi lịch hẹn.
-            </p>
-            <div className="mt-2.5">
-              <button
-                onClick={handleDoctorArrived}
-                className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
-              >
-                <CheckCircle2 size={14} />
-                <span>Bác Sĩ Đã Có Mặt — Bắt Đầu Tiếp Nhận Khám</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
 
       {notification && (
         <AlertMessage type="info" message={notification} onClose={() => setNotification(null)} />
       )}
 
       {/* ── Thanh Timer Đếm Ngược Ca Khám Hiện Tại ── */}
-      {currentPatient?.status === 'IN_CONSULTATION' && doctorStatus === 'NORMAL' && (
+      {currentPatient?.status === 'IN_CONSULTATION' && (
         <div className={`rounded-2xl p-4 border-2 transition-colors ${
           timeRemaining <= 0
             ? 'bg-red-50 border-red-400'
@@ -2388,56 +2316,6 @@ export default function DoctorClinicView() {
           )}
         </div>
       </div>
-
-      {/* ── Modal Báo Tới Trễ (Late Notice Modal) ── */}
-      {showLateModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 border border-slate-200">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2 text-amber-700 font-bold">
-                <Clock size={20} />
-                <span>Báo Cáo Tới Trễ / Vắng Tạm Thời</span>
-              </div>
-              <button
-                onClick={() => setShowLateModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <p className="text-xs text-slate-600 leading-relaxed">
-              Thông báo này sẽ được phát thanh tại sảnh chờ và gửi tin nhắn cảnh báo tới bệnh nhân có lịch hẹn trong buổi sáng để bệnh nhân an tâm:
-            </p>
-
-            <div className="space-y-2">
-              <label className="block text-xs font-bold text-slate-700">Dự kiến có mặt muộn khoảng:</label>
-              <div className="grid grid-cols-3 gap-2">
-                {[15, 30, 45].map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => handleConfirmLate(m)}
-                    className="p-3 rounded-xl border-2 border-slate-200 hover:border-amber-500 hover:bg-amber-50 text-xs font-bold text-slate-700 transition cursor-pointer text-center"
-                  >
-                    +{m} phút
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="pt-2 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setShowLateModal(false)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-500 hover:bg-slate-100 transition"
-              >
-                Hủy Bỏ
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
 
 
