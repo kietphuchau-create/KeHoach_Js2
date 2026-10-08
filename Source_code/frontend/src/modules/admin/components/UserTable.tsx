@@ -15,7 +15,8 @@ import {
   Eye, 
   EyeOff, 
   Lock, 
-  X 
+  X,
+  BarChart3
 } from 'lucide-react';
 import { api, getAuthToken, getAuthUser } from '@/shared/lib/api';
 import LoadingSpinner from '@/shared/components/Feedback/LoadingSpinner';
@@ -243,7 +244,14 @@ export default function UserTable() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <Link
+            href="/statistics"
+            className="flex items-center gap-2 bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 px-4 py-2.5 rounded-xl font-bold shadow-xs transition"
+          >
+            <BarChart3 size={17} className="text-sky-600" />
+            <span>Báo Cáo Thống Kê</span>
+          </Link>
           <Link
             href="/admin/catalog"
             className="flex items-center gap-2 bg-white text-blue-600 border border-blue-200 hover:bg-blue-50 px-4 py-2.5 rounded-xl font-bold shadow-xs transition"

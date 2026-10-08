@@ -14,7 +14,8 @@ import {
   Menu, 
   X,
   Stethoscope,
-  Calendar
+  Calendar,
+  BarChart3
 } from 'lucide-react';
 import { getAuthToken, getAuthUser, clearAuthSession, api } from '@/shared/lib/api';
 
@@ -108,15 +109,18 @@ export default function HeaderNav() {
     navLinks = [
       { href: '/admin', label: 'Quản Trị Người Dùng', icon: ShieldCheck },
       { href: '/admin/create-user', label: 'Cấp Tài Khoản Mới', icon: UserPlus },
+      { href: '/statistics', label: 'Báo Cáo Thống Kê', icon: BarChart3 },
     ];
   } else if (isDoctor) {
     navLinks = [
       { href: '/doctor', label: 'Buồng Khám Bác Sĩ', icon: Stethoscope },
+      { href: '/statistics', label: 'Thống Kê Khám Bệnh', icon: BarChart3 },
       { href: '/profile', label: 'Hồ Sơ Chuyên Môn', icon: User },
     ];
   } else if (isStaff) {
     navLinks = [
       { href: '/reception', label: 'Quầy Tiếp Đón', icon: QrCode },
+      { href: '/statistics', label: 'Thống Kê Tiếp Đón', icon: BarChart3 },
       { href: '/profile', label: 'Hồ Sơ Cá Nhân', icon: User },
     ];
   }
