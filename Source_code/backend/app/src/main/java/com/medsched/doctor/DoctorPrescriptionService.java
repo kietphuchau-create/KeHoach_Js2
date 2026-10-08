@@ -40,6 +40,7 @@ public class DoctorPrescriptionService {
     private final UserJpaRepository userRepository;
     private final PatientProfileJpaRepository patientProfileRepository;
     private final TimeSlotJpaRepository timeSlotRepository;
+    private final AppointmentReconciliationService reconciliationService;
 
     public DoctorPrescriptionService(AppointmentJpaRepository appointmentRepository,
                                    MedicalRecordJpaRepository medicalRecordRepository,
@@ -48,7 +49,8 @@ public class DoctorPrescriptionService {
                                    DoctorJpaRepository doctorRepository,
                                    UserJpaRepository userRepository,
                                    PatientProfileJpaRepository patientProfileRepository,
-                                   TimeSlotJpaRepository timeSlotRepository) {
+                                   TimeSlotJpaRepository timeSlotRepository,
+                                   AppointmentReconciliationService reconciliationService) {
         this.appointmentRepository = appointmentRepository;
         this.medicalRecordRepository = medicalRecordRepository;
         this.prescriptionItemRepository = prescriptionItemRepository;
@@ -57,6 +59,7 @@ public class DoctorPrescriptionService {
         this.userRepository = userRepository;
         this.patientProfileRepository = patientProfileRepository;
         this.timeSlotRepository = timeSlotRepository;
+        this.reconciliationService = reconciliationService;
     }
 
     /**
@@ -179,6 +182,9 @@ public class DoctorPrescriptionService {
 
     @Transactional
     public List<DoctorPrescriptionDtos.QueuePatientDto> getDoctorQueue(String userId, String queryDoctorId, LocalDate queryDate) {
+        // Tự động kết toán các ca của ngày cũ trước khi lấy hàng đợi hôm nay
+        reconciliationService.reconcileStaleAppointments();
+
         String targetDoctorId = queryDoctorId;
         boolean isAllDoctors = false;
         if (targetDoctorId == null || targetDoctorId.isBlank()) {
