@@ -117,13 +117,11 @@ export default function HeaderNav() {
       { href: '/doctor', label: 'Buồng Khám Bác Sĩ', icon: Stethoscope },
       { href: '/doctor/history', label: 'Lịch Sử Khám & Đơn Thuốc', icon: FileText },
       { href: '/statistics', label: 'Thống Kê Khám Bệnh', icon: BarChart3 },
-      { href: '/profile', label: 'Hồ Sơ Chuyên Môn', icon: User },
     ];
   } else if (isStaff) {
     navLinks = [
       { href: '/reception', label: 'Quầy Tiếp Đón', icon: QrCode },
       { href: '/statistics', label: 'Thống Kê Tiếp Đón', icon: BarChart3 },
-      { href: '/profile', label: 'Hồ Sơ Cá Nhân', icon: User },
     ];
   }
 
@@ -193,15 +191,18 @@ export default function HeaderNav() {
               <div className="flex items-center gap-3">
                 <Link
                   href="/profile"
+                  title="Xem thông tin cá nhân & Hồ sơ chuyên môn"
                   className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-xs font-semibold transition ${
                     pathname === '/profile'
-                      ? 'bg-mint-light border-teal-primary text-pine-teal'
-                      : 'bg-mint-soft border-mint-light text-slate-700 hover:border-teal-primary/40'
+                      ? 'bg-mint-light border-teal-primary text-pine-teal shadow-xs'
+                      : 'bg-mint-soft/80 border-mint-light text-slate-700 hover:border-teal-primary/40 hover:bg-mint-light/50'
                   }`}
                 >
-                  <User size={15} className="text-teal-primary" />
-                  <span className="max-w-[140px] truncate">{user.fullName || user.email}</span>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] bg-mint-light text-pine-teal border border-teal-primary/30 font-bold">
+                  <User size={15} className="text-teal-primary shrink-0" />
+                  <span className="max-w-[200px] lg:max-w-none truncate font-semibold">
+                    {user.fullName || user.email}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] bg-mint-light text-pine-teal border border-teal-primary/30 font-bold shrink-0">
                     {isAdmin ? 'ADMIN' : isDoctor ? 'BÁC SĨ' : isStaff ? 'LỄ TÂN' : 'BỆNH NHÂN'}
                   </span>
                 </Link>
