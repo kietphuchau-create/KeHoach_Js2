@@ -39,6 +39,13 @@ export interface BreakdownItem {
   badgeColor?: string;
 }
 
+export interface DoctorOption {
+  id: string;
+  name: string;
+  specialty?: string;
+  room?: string;
+}
+
 export interface StatisticsDataset {
   roleScope: UserRoleScope;
   dateRangeLabel: string;
@@ -53,4 +60,7 @@ export interface StatisticsDataset {
   breakdownTitle: string;
   breakdownHeaders: { rank: string; name: string; primary: string; secondary?: string };
   breakdownItems: BreakdownItem[];
+  availableDoctors?: DoctorOption[];
+  selectedDoctorId?: string;
+  selectedDoctorName?: string;
 }

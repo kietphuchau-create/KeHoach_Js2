@@ -578,12 +578,14 @@ export const api = {
     granularity?: string;
     range?: string;
     metricId?: string;
+    doctorId?: string;
   }) {
     const searchParams = new URLSearchParams();
     if (params?.role) searchParams.set("role", params.role);
     if (params?.granularity) searchParams.set("granularity", params.granularity);
     if (params?.range) searchParams.set("range", params.range);
     if (params?.metricId) searchParams.set("metricId", params.metricId);
+    if (params?.doctorId) searchParams.set("doctorId", params.doctorId);
     const queryString = searchParams.toString() ? `?${searchParams.toString()}` : "";
     return request<any>(`/statistics/overview${queryString}`);
   },

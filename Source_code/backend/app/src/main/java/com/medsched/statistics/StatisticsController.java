@@ -27,10 +27,11 @@ public class StatisticsController {
             @RequestParam(defaultValue = "DAY") String granularity,
             @RequestParam(defaultValue = "LAST_30_DAYS") String range,
             @RequestParam(required = false) String metricId,
+            @RequestParam(required = false) String doctorId,
             @AuthenticationPrincipal AppUserDetails principal) {
 
         String userId = (principal != null) ? principal.getUserId() : null;
-        return statisticsService.getOverview(role, granularity, range, metricId, userId);
+        return statisticsService.getOverview(role, granularity, range, metricId, userId, doctorId);
     }
 
     /**
@@ -43,9 +44,10 @@ public class StatisticsController {
             @RequestParam(defaultValue = "DAY") String granularity,
             @RequestParam(defaultValue = "LAST_30_DAYS") String range,
             @RequestParam(required = false) String metricId,
+            @RequestParam(required = false) String doctorId,
             @AuthenticationPrincipal AppUserDetails principal) {
 
         String userId = (principal != null) ? principal.getUserId() : null;
-        return statisticsService.getOverview("ROLE_ADMIN", granularity, range, metricId, userId);
+        return statisticsService.getOverview("ROLE_ADMIN", granularity, range, metricId, userId, doctorId);
     }
 }

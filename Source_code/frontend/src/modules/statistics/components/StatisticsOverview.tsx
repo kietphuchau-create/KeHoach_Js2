@@ -38,6 +38,7 @@ export default function StatisticsOverview() {
   const [granularity, setGranularity] = useState<TimeGranularity>('DAY');
   const [presetRange, setPresetRange] = useState<'TODAY' | 'LAST_7_DAYS' | 'LAST_30_DAYS' | 'THIS_MONTH' | 'CUSTOM'>('LAST_30_DAYS');
   const [selectedMetricId, setSelectedMetricId] = useState<string>('visits');
+  const [selectedDoctorId, setSelectedDoctorId] = useState<string>('');
   const [isExporting, setIsExporting] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -85,10 +86,14 @@ export default function StatisticsOverview() {
       granularity,
       presetRange,
       selectedMetricId,
+      doctorFilter: activeRole === 'ROLE_DOCTOR' ? selectedDoctorId : undefined,
     })
       .then((data) => {
         if (!isCancelled) {
           setDataset(data);
+          if (activeRole === 'ROLE_DOCTOR' && !selectedDoctorId && data.selectedDoctorId) {
+            setSelectedDoctorId(data.selectedDoctorId);
+          }
         }
       })
       .catch((err) => {
@@ -103,7 +108,7 @@ export default function StatisticsOverview() {
     return () => {
       isCancelled = true;
     };
-  }, [activeRole, granularity, presetRange, selectedMetricId]);
+  }, [activeRole, granularity, presetRange, selectedMetricId, selectedDoctorId]);
 
   const handleMetricCardClick = (metricId: string) => {
     // Nếu metric này có trong danh sách đồ thị thì đổi
@@ -143,7 +148,7 @@ export default function StatisticsOverview() {
             <BarChart3 className="text-sky-600" size={26} />
             <span>
               {activeRole === 'ROLE_ADMIN' && 'Tổng Quan Hoạt Động Toàn Viện'}
-              {activeRole === 'ROLE_DOCTOR' && 'Thống Kê Năng Suất Buồng Khám Bác Sĩ'}
+              {activeRole === 'ROLE_DOCTOR' && `Báo Cáo Năng Suất - ${dataset.selectedDoctorName || 'Bác Sĩ'}`}
               {activeRole === 'ROLE_STAFF' && 'Báo Cáo Tiếp Đón & Thu Ngân Ca Trực'}
             </span>
             {isLoading && (
@@ -152,7 +157,7 @@ export default function StatisticsOverview() {
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
             {activeRole === 'ROLE_ADMIN' && 'Số liệu toàn diện về lưu lượng bệnh nhân, doanh thu viện phí và hiệu suất bác sĩ.'}
-            {activeRole === 'ROLE_DOCTOR' && 'Theo dõi tiến độ khám cá nhân, thời gian trung bình/ca và các bệnh lý đã kê đơn.'}
+            {activeRole === 'ROLE_DOCTOR' && `Chi tiết các ca khám hoàn tất, đơn thuốc đã kê và thời gian trung bình của ${dataset.selectedDoctorName || 'bác sĩ'}.`}
             {activeRole === 'ROLE_STAFF' && 'Kiểm soát số lượng check-in sảnh chờ, ca vãng lai và kết toán tiền thu ca trực.'}
           </p>
         </div>
@@ -189,62 +194,76 @@ export default function StatisticsOverview() {
         </div>
       </div>
 
-      {/* ── Thanh Chuyển Đổi Nhanh Góc Nhìn (Role Switcher Tooltip Cho Demo Thầy Cô) ── */}
+      {/* ── Bộ Chọn Phạm Vi Báo Cáo (Scope Selector Cho Ban Quản Trị / Demo) ── */}
       {isAdmin && (
-        <div className="bg-sky-50/70 border border-sky-200 rounded-2xl p-3 px-4 flex flex-wrap items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-2 text-sky-900 font-medium">
-            <span className="w-2 h-2 rounded-full bg-sky-500 animate-pulse" />
-            <span>Chế độ kiểm thử phân quyền (Role Scope Simulation):</span>
+        <div className="bg-gradient-to-r from-sky-50/80 via-white to-sky-50/80 border border-sky-200/90 rounded-2xl p-3.5 px-4 flex flex-wrap items-center justify-between gap-3 text-xs shadow-2xs">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2 font-bold text-slate-800">
+              <span className="p-1.5 rounded-lg bg-sky-100 text-sky-700">
+                <Filter size={15} />
+              </span>
+              <span>Phạm vi phân tích:</span>
+            </div>
+
+            <div className="relative">
+              <select
+                value={activeRole === 'ROLE_DOCTOR' ? (selectedDoctorId || dataset.selectedDoctorId || '50b2c3d4-0001') : activeRole}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === 'ROLE_ADMIN') {
+                    setActiveRole('ROLE_ADMIN');
+                    setSelectedDoctorId('');
+                    setSelectedMetricId('visits');
+                  } else if (val === 'ROLE_STAFF') {
+                    setActiveRole('ROLE_STAFF');
+                    setSelectedDoctorId('');
+                    setSelectedMetricId('checkins');
+                  } else {
+                    setActiveRole('ROLE_DOCTOR');
+                    setSelectedDoctorId(val);
+                    setSelectedMetricId('doctor_visits');
+                  }
+                }}
+                className="appearance-none bg-white hover:bg-slate-50 border border-sky-300 font-bold text-slate-800 text-xs rounded-xl pl-3.5 pr-8 py-2 focus:ring-2 focus:ring-sky-500 focus:outline-none transition cursor-pointer shadow-2xs"
+              >
+                <option value="ROLE_ADMIN">🏥 Toàn Viện (Ban Giám Đốc / Toàn Bộ Phòng Khám)</option>
+                <optgroup label="🩺 Báo cáo theo Bác Sĩ (Số liệu cá nhân thực tế)">
+                  {(dataset.availableDoctors && dataset.availableDoctors.length > 0 ? dataset.availableDoctors : [
+                    { id: '50b2c3d4-0001', name: 'BS.CKII Nguyễn Minh Anh', specialty: 'Khoa Da Liễu', room: 'P.205' },
+                    { id: '50b2c3d4-0002', name: 'PGS.TS Trần Văn Hùng', specialty: 'Khoa Nội Tổng Quát', room: 'P.208' },
+                  ]).map((doc) => (
+                    <option key={doc.id} value={doc.id}>
+                      👨‍⚕️ {doc.name} {doc.specialty ? `— ${doc.specialty}` : ''} {doc.room ? `(${doc.room})` : ''}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="📋 Quầy Tiếp Đón & Thu Ngân">
+                  <option value="ROLE_STAFF">Quầy Lễ Tân (Check-in sảnh chờ & Thu ngân ca trực)</option>
+                </optgroup>
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-slate-400">
+                <Layers size={13} />
+              </div>
+            </div>
           </div>
 
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => {
-                setActiveRole('ROLE_ADMIN');
-                setSelectedMetricId('visits');
-              }}
-              className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer flex items-center gap-1.5 ${
-                activeRole === 'ROLE_ADMIN'
-                  ? 'bg-sky-600 text-white shadow-2xs'
-                  : 'bg-white text-slate-700 hover:bg-sky-100 border border-slate-200'
-              }`}
-            >
-              <Shield size={13} />
-              <span>Góc nhìn Admin (Toàn Viện)</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setActiveRole('ROLE_DOCTOR');
-                setSelectedMetricId('doctor_visits');
-              }}
-              className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer flex items-center gap-1.5 ${
-                activeRole === 'ROLE_DOCTOR'
-                  ? 'bg-sky-600 text-white shadow-2xs'
-                  : 'bg-white text-slate-700 hover:bg-sky-100 border border-slate-200'
-              }`}
-            >
-              <Stethoscope size={13} />
-              <span>Góc nhìn Bác Sĩ</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setActiveRole('ROLE_STAFF');
-                setSelectedMetricId('checkins');
-              }}
-              className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer flex items-center gap-1.5 ${
-                activeRole === 'ROLE_STAFF'
-                  ? 'bg-sky-600 text-white shadow-2xs'
-                  : 'bg-white text-slate-700 hover:bg-sky-100 border border-slate-200'
-              }`}
-            >
-              <UserCheck size={13} />
-              <span>Góc nhìn Lễ Tân</span>
-            </button>
+          <div className="flex items-center gap-2 text-xs">
+            {activeRole === 'ROLE_DOCTOR' ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Đang xem dữ liệu thực của <strong>{dataset.selectedDoctorName || 'bác sĩ'}</strong>
+              </span>
+            ) : activeRole === 'ROLE_ADMIN' ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-50 text-sky-700 border border-sky-200 font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
+                Tổng hợp tất cả chuyên khoa &amp; luồng khám
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                Thống kê quầy tiếp đón bệnh nhân
+              </span>
+            )}
           </div>
         </div>
       )}

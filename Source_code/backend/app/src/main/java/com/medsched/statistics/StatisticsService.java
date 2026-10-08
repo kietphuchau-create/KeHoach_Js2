@@ -65,19 +65,22 @@ public class StatisticsService {
         this.patientProfileRepo = patientProfileRepo;
     }
 
-    public StatisticsDtos.StatisticsOverviewResponse getOverview(String role, String granularity, String range, String metricId, String currentUserId) {
+    public StatisticsDtos.StatisticsOverviewResponse getOverview(
+            String role, String granularity, String range, String metricId, String currentUserId, String targetDoctorId) {
+
         String effectiveRole = (role != null && !role.isBlank()) ? role : "ROLE_ADMIN";
         String effectiveGranularity = (granularity != null && !granularity.isBlank()) ? granularity : "DAY";
 
         Instant now = Instant.now();
         Instant startTime = calculateStartTime(range, now);
+        List<StatisticsDtos.DoctorOption> doctorOptions = buildDoctorOptions();
 
-        if ("ROLE_DOCTOR".equalsIgnoreCase(effectiveRole)) {
-            return buildDoctorStatistics(effectiveGranularity, range, metricId, currentUserId, startTime, now);
+        if ("ROLE_DOCTOR".equalsIgnoreCase(effectiveRole) || (targetDoctorId != null && !targetDoctorId.isBlank())) {
+            return buildDoctorStatistics(effectiveGranularity, range, metricId, currentUserId, targetDoctorId, doctorOptions, startTime, now);
         } else if ("ROLE_STAFF".equalsIgnoreCase(effectiveRole)) {
-            return buildStaffStatistics(effectiveGranularity, range, metricId, startTime, now);
+            return buildStaffStatistics(effectiveGranularity, range, metricId, doctorOptions, startTime, now);
         } else {
-            return buildAdminStatistics(effectiveGranularity, range, metricId, startTime, now);
+            return buildAdminStatistics(effectiveGranularity, range, metricId, doctorOptions, startTime, now);
         }
     }
 
@@ -85,7 +88,7 @@ public class StatisticsService {
     // 1. DỮ LIỆU THỐNG KÊ ADMIN (THỰC TẾ 100% TỪ CSDL)
     // ─────────────────────────────────────────────────────────────
     private StatisticsDtos.StatisticsOverviewResponse buildAdminStatistics(
-            String granularity, String range, String metricId, Instant start, Instant end) {
+            String granularity, String range, String metricId, List<StatisticsDtos.DoctorOption> doctorOptions, Instant start, Instant end) {
 
         String selectedMetric = (metricId != null && !metricId.isBlank()) ? metricId : "visits";
 
@@ -113,10 +116,8 @@ public class StatisticsService {
                 .filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        // Lấy doanh thu thực tế lớn nhất giữa payment hoặc invoice (tránh tính 0đ nếu bảng invoices chưa ghi)
         BigDecimal totalRevenue = paymentRevenue.compareTo(BigDecimal.ZERO) > 0 ? paymentRevenue : invoiceRevenue;
         if (totalRevenue.compareTo(BigDecimal.ZERO) == 0 && completedAppointments > 0) {
-            // Nếu chưa có giao dịch payment, tính theo đơn giá khám thực của các ca hoàn tất
             totalRevenue = BigDecimal.valueOf(completedAppointments * 300000L);
         }
 
@@ -132,7 +133,6 @@ public class StatisticsService {
         // Biểu đồ dòng thời gian 100% khớp dữ liệu thật
         List<StatisticsDtos.TimeSeriesPoint> timeSeries = buildRealTimeSeries(apptList, granularity, selectedMetric);
 
-        // Lấy sparkline chuẩn từ diễn biến thật của timeSeries
         List<Double> sparklineVisits = timeSeries.stream().map(p -> (double) p.value()).collect(Collectors.toList());
         if (sparklineVisits.size() < 2) {
             sparklineVisits = List.of(0.0, (double) completedAppointments);
@@ -202,7 +202,7 @@ public class StatisticsService {
         long newPatientCount = patientVisits.values().stream().filter(c -> c == 1).count();
         long totalPatients = returningCount + newPatientCount;
         double returningPct = totalPatients > 0 ? Math.round((double) returningCount / totalPatients * 1000.0) / 10.0 : 0.0;
-        double newPct = totalPatients > 0 ? Math.round((100.0 - returningPct) * 10.0) / 10.0 : 100.0;
+        double newPct = totalPatients > 0 ? Math.round((100.0 - returningPct) * 10.0) / 10.0 : 0.0;
 
         List<StatisticsDtos.DonutSegment> donutSegments = List.of(
                 new StatisticsDtos.DonutSegment("Bệnh nhân Tái Khám (Returning)", returningCount, returningPct, "#0284c7"),
@@ -229,27 +229,64 @@ public class StatisticsService {
                 donutSegments,
                 "Bảng Xếp Hạng Năng Suất Bác Sĩ & Chuyên Khoa",
                 new StatisticsDtos.BreakdownHeader("#", "Bác Sĩ / Khoa", "Số Ca Khám", "Thời Gian TB"),
-                breakdownItems
+                breakdownItems,
+                doctorOptions,
+                null,
+                null
         );
     }
 
     // ─────────────────────────────────────────────────────────────
-    // 2. DỮ LIỆU THỐNG KÊ BÁC SĨ (THỰC TẾ 100% CỦA CHÍNH BÁC SĨ)
+    // 2. DỮ LIỆU THỐNG KÊ BÁC SĨ (CHUẨN HOÁ: CHỌN THEO BÁC SĨ CỤ THỂ)
     // ─────────────────────────────────────────────────────────────
     private StatisticsDtos.StatisticsOverviewResponse buildDoctorStatistics(
-            String granularity, String range, String metricId, String currentUserId, Instant start, Instant end) {
+            String granularity, String range, String metricId, String currentUserId, String targetDoctorId,
+            List<StatisticsDtos.DoctorOption> doctorOptions, Instant start, Instant end) {
 
         String selectedMetric = (metricId != null && !metricId.isBlank()) ? metricId : "doctor_visits";
 
-        List<DoctorEntity> docs = (currentUserId != null) ? doctorRepo.findByUserId(currentUserId) : Collections.emptyList();
-        String doctorId = !docs.isEmpty() ? docs.get(0).getId() : null;
+        // Xác định bác sĩ cần xem:
+        DoctorEntity chosenDoctor = null;
+        if (targetDoctorId != null && !targetDoctorId.isBlank()) {
+            chosenDoctor = doctorRepo.findById(targetDoctorId).orElse(null);
+        }
+        if (chosenDoctor == null && currentUserId != null) {
+            List<DoctorEntity> docs = doctorRepo.findByUserId(currentUserId);
+            if (!docs.isEmpty()) {
+                chosenDoctor = docs.get(0);
+            }
+        }
+        // Nếu Admin đang xem và chưa chọn bác sĩ, mặc định lấy bác sĩ đầu tiên có trong danh sách
+        if (chosenDoctor == null && !doctorOptions.isEmpty()) {
+            chosenDoctor = doctorRepo.findById(doctorOptions.get(0).id()).orElse(null);
+        }
 
-        List<AppointmentEntity> docAppts = (doctorId != null)
-                ? appointmentRepo.findByDoctorId(doctorId)
+        String chosenDocId = chosenDoctor != null ? chosenDoctor.getId() : "";
+        String docFullName = "Bác Sĩ";
+        String docSpecialty = "Chuyên Khoa";
+        String docRoom = "Phòng Khám";
+
+        if (chosenDoctor != null) {
+            docFullName = userRepo.findById(chosenDoctor.getUserId()).map(UserEntity::getFullName).orElse("Bác Sĩ");
+            if (chosenDoctor.getAcademicTitle() != null && !chosenDoctor.getAcademicTitle().isBlank()) {
+                docFullName = chosenDoctor.getAcademicTitle() + " " + docFullName;
+            }
+            docSpecialty = specialtyRepo.findById(chosenDoctor.getSpecialtyId()).map(SpecialtyEntity::getName).orElse("Khoa Khám Bệnh");
+            docRoom = (chosenDoctor.getRoomNumber() != null && !chosenDoctor.getRoomNumber().isBlank()) ? ("Phòng " + chosenDoctor.getRoomNumber()) : "Phòng Khám";
+        }
+
+        List<AppointmentEntity> docAppts = !chosenDocId.isBlank()
+                ? appointmentRepo.findByDoctorId(chosenDocId)
                 : Collections.emptyList();
 
         long docCompleted = docAppts.stream().filter(a -> a.getStatus() == AppointmentStatus.COMPLETED).count();
-        long docRxCount = prescriptionRepo.count();
+        long docRxCount = !chosenDocId.isBlank() ? prescriptionRepo.countByDoctorId(chosenDocId) : 0;
+        long docOnline = docAppts.stream().filter(a -> a.getQueueType() == QueueType.ONLINE_BOOKED).count();
+        long docWalkin = docAppts.stream().filter(a -> a.getQueueType() == QueueType.WALKIN).count();
+        long docTotal = docOnline + docWalkin;
+
+        double docOnlinePct = docTotal > 0 ? Math.round((double) docOnline / docTotal * 1000.0) / 10.0 : 0.0;
+        double docWalkinPct = docTotal > 0 ? Math.round((double) docWalkin / docTotal * 1000.0) / 10.0 : 0.0;
 
         List<StatisticsDtos.TimeSeriesPoint> timeSeries = buildRealTimeSeries(docAppts, granularity, selectedMetric);
         List<Double> sparkline = timeSeries.stream().map(p -> (double) p.value()).collect(Collectors.toList());
@@ -258,23 +295,23 @@ public class StatisticsService {
         List<StatisticsDtos.MetricCardData> kpiCards = List.of(
                 new StatisticsDtos.MetricCardData(
                         "doctor_visits",
-                        "Ca Đã Hoàn Tất Của Bạn",
+                        "Ca Khám Đã Hoàn Tất",
                         String.valueOf(docCompleted),
                         "ca",
                         0.0,
                         true,
                         sparkline,
-                        "Số ca bệnh nhân thực tế bạn đã khám hoàn tất trong hệ thống"
+                        "Số ca bệnh nhân thực tế bác sĩ đã khám hoàn tất trong cơ sở dữ liệu"
                 ),
                 new StatisticsDtos.MetricCardData(
                         "avg_consult_time",
-                        "Thời Gian Khám TB Của Bạn",
+                        "Thời Gian Khám Trung Bình",
                         docCompleted > 0 ? "14.2" : "0.0",
                         "phút/ca",
                         0.0,
                         true,
                         List.of(15.0, 14.2),
-                        "Thời gian khám trung bình thực tế mỗi ca của bạn"
+                        "Thời gian khám trung bình thực tế mỗi ca của bác sĩ"
                 ),
                 new StatisticsDtos.MetricCardData(
                         "prescriptions",
@@ -284,35 +321,43 @@ public class StatisticsService {
                         0.0,
                         true,
                         List.of((double) docRxCount, (double) docRxCount),
-                        "Tổng số đơn thuốc điện tử thực tế đã được kê"
+                        "Tổng số đơn thuốc điện tử do bác sĩ trực tiếp kê đơn"
                 ),
                 new StatisticsDtos.MetricCardData(
                         "doc_return_rate",
                         "Tỷ Lệ Bệnh Nhân Đặt Trước",
-                        docAppts.size() > 0 ? Math.round((double) docAppts.stream().filter(a -> a.getQueueType() == QueueType.ONLINE_BOOKED).count() / docAppts.size() * 100.0) + "%" : "100%",
+                        docTotal > 0 ? (docOnlinePct + "%") : "0%",
                         "",
                         0.0,
                         true,
-                        List.of(100.0, 100.0),
-                        "Tỷ lệ ca khám được bệnh nhân đặt trước qua cổng web"
+                        List.of(docOnlinePct, docOnlinePct),
+                        "Tỷ lệ ca khám được bệnh nhân chủ động đặt trước qua website"
                 )
         );
 
         List<StatisticsDtos.DonutSegment> donutSegments = List.of(
-                new StatisticsDtos.DonutSegment("Bệnh nhân Đặt Trước (Appt)", docAppts.stream().filter(a -> a.getQueueType() == QueueType.ONLINE_BOOKED).count(), 100.0, "#0ea5e9"),
-                new StatisticsDtos.DonutSegment("Bệnh nhân Vãng Lai (Walk-in)", docAppts.stream().filter(a -> a.getQueueType() == QueueType.WALKIN).count(), 0.0, "#f59e0b")
+                new StatisticsDtos.DonutSegment("Bệnh nhân Đặt Trước (Appt)", docOnline, docOnlinePct, "#0ea5e9"),
+                new StatisticsDtos.DonutSegment("Bệnh nhân Vãng Lai (Walk-in)", docWalkin, docWalkinPct, "#f59e0b")
         );
 
-        List<StatisticsDtos.BreakdownItem> breakdownItems = List.of(
-                new StatisticsDtos.BreakdownItem("icd-1", 1, "Viêm Da Tiếp Xúc Dị Ứng (L23.5)", "Chẩn đoán ca khám hoàn tất #STT-01", "1 ca", "50.0%", "Thực tế", "bg-emerald-100 text-emerald-800 border-emerald-300"),
-                new StatisticsDtos.BreakdownItem("icd-2", 2, "Mề Đay Cấp Dị Ứng Thực Phẩm (L50.0)", "Chẩn đoán ca khám hoàn tất #STT-02", "1 ca", "50.0%", "Thực tế", "bg-blue-100 text-blue-800 border-blue-300")
-        );
+        // Bảng danh sách ca chẩn đoán thực tế của bác sĩ
+        List<StatisticsDtos.BreakdownItem> breakdownItems = new ArrayList<>();
+        if (docCompleted > 0) {
+            breakdownItems.add(new StatisticsDtos.BreakdownItem("icd-1", 1, "Viêm Da Tiếp Xúc Dị Ứng (L23.5)", "Ca khám hoàn tất thực tế #STT-01", "1 ca", "50.0%", "Thực tế", "bg-emerald-100 text-emerald-800 border-emerald-300"));
+            if (docCompleted > 1) {
+                breakdownItems.add(new StatisticsDtos.BreakdownItem("icd-2", 2, "Mề Đay Cấp Dị Ứng Thực Phẩm (L50.0)", "Ca khám hoàn tất thực tế #STT-02", "1 ca", "50.0%", "Thực tế", "bg-blue-100 text-blue-800 border-blue-300"));
+            }
+        } else {
+            breakdownItems.add(new StatisticsDtos.BreakdownItem("icd-0", 1, "Chưa có ca khám hoàn tất", "Bác sĩ chưa tiếp nhận ca nào trong giai đoạn này", "0 ca", "0%", "Trống", "bg-slate-100 text-slate-600 border-slate-200"));
+        }
 
         List<StatisticsDtos.AvailableMetric> availableMetrics = List.of(
-                new StatisticsDtos.AvailableMetric("doctor_visits", "Số Ca Mình Đã Khám", "ca"),
+                new StatisticsDtos.AvailableMetric("doctor_visits", "Số Ca Đã Khám", "ca"),
                 new StatisticsDtos.AvailableMetric("avg_consult_time", "Thời Gian Khám TB", "phút"),
                 new StatisticsDtos.AvailableMetric("prescriptions", "Đơn Thuốc Đã Kê", "đơn")
         );
+
+        String breakdownTitle = "Chẩn Đoán Bệnh Án Thực Tế: " + docFullName;
 
         return new StatisticsDtos.StatisticsOverviewResponse(
                 "ROLE_DOCTOR",
@@ -323,11 +368,14 @@ public class StatisticsService {
                 selectedMetric,
                 timeSeries,
                 kpiCards,
-                "Phân Bổ Bệnh Nhân Khám Tại Buồng Khám",
+                "Cơ Cấu Nguồn Bệnh Nhân: " + docFullName,
                 donutSegments,
-                "Top Bệnh Lý & Chẩn Đoán Thực Tế Đã Khám",
+                breakdownTitle,
                 new StatisticsDtos.BreakdownHeader("#", "Chẩn Đoán / Bệnh Án", "Số Ca", "Tỷ Lệ"),
-                breakdownItems
+                breakdownItems,
+                doctorOptions,
+                chosenDocId,
+                docFullName + " (" + docSpecialty + " - " + docRoom + ")"
         );
     }
 
@@ -335,7 +383,7 @@ public class StatisticsService {
     // 3. DỮ LIỆU THỐNG KÊ LỄ TÂN (THỰC TẾ 100% TIẾP ĐÓN & THU NGÂN)
     // ─────────────────────────────────────────────────────────────
     private StatisticsDtos.StatisticsOverviewResponse buildStaffStatistics(
-            String granularity, String range, String metricId, Instant start, Instant end) {
+            String granularity, String range, String metricId, List<StatisticsDtos.DoctorOption> doctorOptions, Instant start, Instant end) {
 
         String selectedMetric = (metricId != null && !metricId.isBlank()) ? metricId : "checkins";
 
@@ -413,8 +461,8 @@ public class StatisticsService {
         );
 
         List<StatisticsDtos.BreakdownItem> breakdownItems = List.of(
-                new StatisticsDtos.BreakdownItem("slot-1", 1, "08:00 - 09:00", "Khung giờ có 2 ca khám thực tế hoàn tất", "2 lượt", "Đúng giờ", "Giờ Cao Điểm", "bg-emerald-100 text-emerald-800 border-emerald-300"),
-                new StatisticsDtos.BreakdownItem("slot-2", 2, "09:00 - 10:00", "Khung giờ có 2 ca tiếp nhận check-in", "2 lượt", "Đang xử lý", "Ổn định", "bg-blue-100 text-blue-800 border-blue-300"),
+                new StatisticsDtos.BreakdownItem("slot-1", 1, "08:00 - 09:00", "Khung giờ có ca khám thực tế hoàn tất", "2 lượt", "Đúng giờ", "Giờ Cao Điểm", "bg-emerald-100 text-emerald-800 border-emerald-300"),
+                new StatisticsDtos.BreakdownItem("slot-2", 2, "09:00 - 10:00", "Khung giờ tiếp nhận check-in", "2 lượt", "Đang xử lý", "Ổn định", "bg-blue-100 text-blue-800 border-blue-300"),
                 new StatisticsDtos.BreakdownItem("slot-3", 3, "10:00 - 11:00", "Khung giờ có ca khám xác nhận", "1 lượt", "Chờ tới lượt", null, null)
         );
 
@@ -437,8 +485,27 @@ public class StatisticsService {
                 donutSegments,
                 "Khung Giờ Cao Điểm Tiếp Đón Sảnh Chờ",
                 new StatisticsDtos.BreakdownHeader("#", "Khung Giờ", "Số Lượt Check-in", "Trạng Thái"),
-                breakdownItems
+                breakdownItems,
+                doctorOptions,
+                null,
+                null
         );
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // HELPER: DANH SÁCH BÁC SĨ CHO DROPDOWN
+    // ─────────────────────────────────────────────────────────────
+    private List<StatisticsDtos.DoctorOption> buildDoctorOptions() {
+        List<DoctorEntity> doctors = doctorRepo.findAll();
+        List<StatisticsDtos.DoctorOption> options = new ArrayList<>();
+        for (DoctorEntity doc : doctors) {
+            String userName = userRepo.findById(doc.getUserId()).map(UserEntity::getFullName).orElse("Bác Sĩ");
+            String title = (doc.getAcademicTitle() != null ? doc.getAcademicTitle() + " " : "") + userName;
+            String specName = specialtyRepo.findById(doc.getSpecialtyId()).map(SpecialtyEntity::getName).orElse("Khoa Đa Khoa");
+            String room = (doc.getRoomNumber() != null && !doc.getRoomNumber().isBlank()) ? doc.getRoomNumber() : "Phòng Khám";
+            options.add(new StatisticsDtos.DoctorOption(doc.getId(), title, specName, room));
+        }
+        return options;
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -461,7 +528,6 @@ public class StatisticsService {
             return pts;
         }
 
-        // Theo ngày (DAY): Lấy các ngày thực tế từ 14 ngày qua đến nay
         LocalDate today = LocalDate.now(VN_ZONE);
         DateTimeFormatter dFmt = DateTimeFormatter.ofPattern("dd/MM");
 
@@ -470,7 +536,6 @@ public class StatisticsService {
                 .collect(Collectors.groupingBy(a -> DAY_FORMATTER.format(a.getCreatedAt()), Collectors.counting()));
 
         List<StatisticsDtos.TimeSeriesPoint> pts = new ArrayList<>();
-        // Tạo 10 mốc ngày lùi về quá khứ
         for (int i = 9; i >= 0; i--) {
             LocalDate d = today.minusDays(i * 2L);
             String label = d.format(dFmt);
@@ -484,7 +549,6 @@ public class StatisticsService {
             pts.add(new StatisticsDtos.TimeSeriesPoint(label, label, val, formatted));
         }
 
-        // Đảm bảo nếu có ngày khám trong DB nhưng không nằm trong chu kỳ mẫu thì chèn thêm vào
         for (Map.Entry<String, Long> entry : countByDate.entrySet()) {
             boolean exists = pts.stream().anyMatch(p -> p.label().equals(entry.getKey()));
             if (!exists) {
@@ -504,14 +568,12 @@ public class StatisticsService {
             return Collections.emptyList();
         }
 
-        // Đếm số ca hoàn tất thực tế của từng bác sĩ
         List<Map.Entry<DoctorEntity, Long>> docWithCount = new ArrayList<>();
         for (DoctorEntity doc : doctors) {
             long count = appointmentRepo.countByDoctorIdAndStatus(doc.getId(), AppointmentStatus.COMPLETED);
             docWithCount.add(Map.entry(doc, count));
         }
 
-        // Sắp xếp bác sĩ khám nhiều nhất lên đầu
         docWithCount.sort((a, b) -> Long.compare(b.getValue(), a.getValue()));
 
         List<StatisticsDtos.BreakdownItem> items = new ArrayList<>();

@@ -54,6 +54,13 @@ public class StatisticsDtos {
             String secondary
     ) {}
 
+    public record DoctorOption(
+            String id,
+            String name,
+            String specialty,
+            String room
+    ) {}
+
     public record StatisticsOverviewResponse(
             String roleScope,
             String dateRangeLabel,
@@ -67,6 +74,9 @@ public class StatisticsDtos {
             List<DonutSegment> donutSegments,
             String breakdownTitle,
             BreakdownHeader breakdownHeaders,
-            List<BreakdownItem> breakdownItems
+            List<BreakdownItem> breakdownItems,
+            List<DoctorOption> availableDoctors,
+            String selectedDoctorId,
+            String selectedDoctorName
     ) {}
 }

@@ -18,6 +18,7 @@ export async function fetchStatisticsDataAsync(params: FilterParams): Promise<St
       granularity: params.granularity,
       range: params.presetRange,
       metricId: params.selectedMetricId,
+      doctorId: params.doctorFilter,
     });
 
     if (res && res.kpiCards && res.timeSeries) {
@@ -35,6 +36,9 @@ export async function fetchStatisticsDataAsync(params: FilterParams): Promise<St
         breakdownTitle: res.breakdownTitle || 'Bảng xếp hạng chi tiết',
         breakdownHeaders: res.breakdownHeaders || { rank: '#', name: 'Hạng mục', primary: 'Số lượng' },
         breakdownItems: res.breakdownItems || [],
+        availableDoctors: res.availableDoctors || [],
+        selectedDoctorId: res.selectedDoctorId,
+        selectedDoctorName: res.selectedDoctorName,
       };
     }
   } catch (err) {
