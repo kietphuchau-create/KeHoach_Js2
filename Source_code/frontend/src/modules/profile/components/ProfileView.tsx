@@ -204,10 +204,18 @@ export default function ProfileView() {
     );
   }
 
-  const isDoctor = profile.roles.includes('ROLE_DOCTOR');
+  const roles = profile.roles || [];
+  const isAdmin = roles.includes('ROLE_ADMIN');
+  const isDoctor = roles.includes('ROLE_DOCTOR');
+  const isStaff = roles.includes('ROLE_STAFF');
+
+  const backLinkHref = isDoctor ? "/doctor" : isAdmin ? "/admin" : isStaff ? "/reception" : "/";
+  const backLinkLabel = isDoctor ? "Quay về Buồng khám" : isAdmin ? "Quay về Quản trị" : isStaff ? "Quay về Tiếp đón" : "Quay về Trang chủ";
 
   const getCleanRoleBadges = (roles: string[]) => {
     const badges = [];
+    const isSpecialRole = roles.includes('ROLE_ADMIN') || roles.includes('ROLE_DOCTOR') || roles.includes('ROLE_STAFF');
+
     if (roles.includes('ROLE_ADMIN')) {
       badges.push({ label: '👑 Quản Trị Viên', bg: 'bg-emerald-500/20 text-emerald-200 border-emerald-400/40' });
     }
@@ -217,7 +225,7 @@ export default function ProfileView() {
     if (roles.includes('ROLE_STAFF')) {
       badges.push({ label: '📋 Lễ Tân', bg: 'bg-amber-500/20 text-amber-200 border-amber-400/40' });
     }
-    if (badges.length === 0 || roles.includes('ROLE_PATIENT')) {
+    if (!isSpecialRole) {
       badges.push({ label: '🧑 Bệnh Nhân', bg: 'bg-teal-500/20 text-teal-200 border-teal-400/40' });
     }
     return badges;
@@ -227,8 +235,8 @@ export default function ProfileView() {
     <div className="max-w-3xl mx-auto py-4 space-y-4">
       {/* Return button & Logout */}
       <div className="flex items-center justify-between">
-        <Link href="/" className="inline-flex items-center gap-2 text-sm text-slate-600 hover:text-pine-teal font-medium transition">
-          <ArrowLeft size={16} /> Quay về Trang chủ
+        <Link href={backLinkHref} className="inline-flex items-center gap-2 text-sm text-slate-600 hover:text-pine-teal font-medium transition">
+          <ArrowLeft size={16} /> {backLinkLabel}
         </Link>
         <button
           onClick={handleLogout}
