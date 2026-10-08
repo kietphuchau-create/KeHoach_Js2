@@ -11,4 +11,10 @@ public interface InvoiceJpaRepository extends JpaRepository<InvoiceEntity, Strin
 
     Optional<InvoiceEntity> findByInvoiceNumber(String invoiceNumber);
 
+    java.util.List<InvoiceEntity> findByCreatedAtBetween(java.time.Instant start, java.time.Instant end);
+
+    java.util.List<InvoiceEntity> findByStatus(String status);
+
+    java.util.List<InvoiceEntity> findByDoctorId(String doctorId);
+
 }

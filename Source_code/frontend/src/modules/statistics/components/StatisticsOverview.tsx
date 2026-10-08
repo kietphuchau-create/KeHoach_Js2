@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { getAuthUser, getAuthToken } from '@/shared/lib/api';
 import { TimeGranularity, UserRoleScope } from '../types';
-import { getStatisticsData, exportStatisticsCSV } from '../services/statisticsService';
+import { getStatisticsData, fetchStatisticsDataAsync, exportStatisticsCSV } from '../services/statisticsService';
 import AnalyticsLineChart from './AnalyticsLineChart';
 import MetricCard from './MetricCard';
 import DonutChart from './DonutChart';
@@ -39,6 +39,17 @@ export default function StatisticsOverview() {
   const [presetRange, setPresetRange] = useState<'TODAY' | 'LAST_7_DAYS' | 'LAST_30_DAYS' | 'THIS_MONTH' | 'CUSTOM'>('LAST_30_DAYS');
   const [selectedMetricId, setSelectedMetricId] = useState<string>('visits');
   const [isExporting, setIsExporting] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Dữ liệu dataset
+  const [dataset, setDataset] = useState(() =>
+    getStatisticsData({
+      role: 'ROLE_ADMIN',
+      granularity: 'DAY',
+      presetRange: 'LAST_30_DAYS',
+      selectedMetricId: 'visits',
+    })
+  );
 
   useEffect(() => {
     const token = getAuthToken();
@@ -58,20 +69,41 @@ export default function StatisticsOverview() {
         setSelectedMetricId('checkins');
       }
     } else {
-      // Mặc định demo Admin nếu chưa đăng nhập
       setActiveRole('ROLE_ADMIN');
       setSelectedMetricId('visits');
     }
     setAuthChecked(true);
   }, []);
 
-  // Lấy dữ liệu dataset theo bộ lọc
-  const dataset = getStatisticsData({
-    role: activeRole,
-    granularity,
-    presetRange,
-    selectedMetricId,
-  });
+  // Tải dữ liệu thật từ Backend (hoặc fallback thông minh) mỗi khi đổi bộ lọc
+  useEffect(() => {
+    let isCancelled = false;
+    setIsLoading(true);
+
+    fetchStatisticsDataAsync({
+      role: activeRole,
+      granularity,
+      presetRange,
+      selectedMetricId,
+    })
+      .then((data) => {
+        if (!isCancelled) {
+          setDataset(data);
+        }
+      })
+      .catch((err) => {
+        console.warn('Lỗi tải thống kê:', err);
+      })
+      .finally(() => {
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [activeRole, granularity, presetRange, selectedMetricId]);
 
   const handleMetricCardClick = (metricId: string) => {
     // Nếu metric này có trong danh sách đồ thị thì đổi
@@ -114,6 +146,9 @@ export default function StatisticsOverview() {
               {activeRole === 'ROLE_DOCTOR' && 'Thống Kê Năng Suất Buồng Khám Bác Sĩ'}
               {activeRole === 'ROLE_STAFF' && 'Báo Cáo Tiếp Đón & Thu Ngân Ca Trực'}
             </span>
+            {isLoading && (
+              <RefreshCw size={16} className="text-sky-500 animate-spin ml-1" />
+            )}
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
             {activeRole === 'ROLE_ADMIN' && 'Số liệu toàn diện về lưu lượng bệnh nhân, doanh thu viện phí và hiệu suất bác sĩ.'}

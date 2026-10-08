@@ -1,4 +1,5 @@
 import { StatisticsDataset, TimeGranularity, UserRoleScope } from '../types';
+import { api } from '@/shared/lib/api';
 
 export interface FilterParams {
   role: UserRoleScope;
@@ -8,6 +9,40 @@ export interface FilterParams {
   startDate?: string;
   endDate?: string;
   doctorFilter?: string; // cho Admin
+}
+
+export async function fetchStatisticsDataAsync(params: FilterParams): Promise<StatisticsDataset> {
+  try {
+    const res = await api.getStatisticsOverview({
+      role: params.role,
+      granularity: params.granularity,
+      range: params.presetRange,
+      metricId: params.selectedMetricId,
+    });
+
+    if (res && res.kpiCards && res.timeSeries) {
+      return {
+        roleScope: (res.roleScope as UserRoleScope) || params.role,
+        dateRangeLabel: res.dateRangeLabel || getDateRangeLabel(params.presetRange),
+        totalSessionsOrVisits: res.totalSessionsOrVisits || 0,
+        timeGranularity: (res.timeGranularity as TimeGranularity) || params.granularity,
+        availableMetrics: res.availableMetrics || [],
+        selectedMetricId: res.selectedMetricId || params.selectedMetricId || 'visits',
+        timeSeries: res.timeSeries || [],
+        kpiCards: res.kpiCards || [],
+        donutTitle: res.donutTitle || 'Cơ cấu phân bổ',
+        donutSegments: res.donutSegments || [],
+        breakdownTitle: res.breakdownTitle || 'Bảng xếp hạng chi tiết',
+        breakdownHeaders: res.breakdownHeaders || { rank: '#', name: 'Hạng mục', primary: 'Số lượng' },
+        breakdownItems: res.breakdownItems || [],
+      };
+    }
+  } catch (err) {
+    // Graceful fallback to client-side generator if backend is not running
+    console.info('Backend statistics API unavailable or empty, using enriched baseline:', err);
+  }
+
+  return getStatisticsData(params);
 }
 
 export function getStatisticsData(params: FilterParams): StatisticsDataset {
