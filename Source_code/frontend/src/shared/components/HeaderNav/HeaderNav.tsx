@@ -16,7 +16,8 @@ import {
   Stethoscope,
   Calendar,
   BarChart3,
-  FileText
+  FileText,
+  ClipboardList
 } from 'lucide-react';
 import { getAuthToken, getAuthUser, clearAuthSession, api } from '@/shared/lib/api';
 
@@ -121,6 +122,7 @@ export default function HeaderNav() {
   } else if (isStaff) {
     navLinks = [
       { href: '/reception', label: 'Quầy Tiếp Đón', icon: QrCode },
+      { href: '/reception/history', label: 'Lịch Sử Tiếp Đón', icon: ClipboardList },
       { href: '/statistics', label: 'Thống Kê Tiếp Đón', icon: BarChart3 },
     ];
   }

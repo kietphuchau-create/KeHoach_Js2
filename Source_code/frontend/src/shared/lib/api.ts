@@ -470,6 +470,23 @@ export const api = {
     });
   },
 
+  async getReceptionHistory(params?: {
+    q?: string;
+    method?: string;
+    status?: string;
+    from?: string;
+    to?: string;
+  }) {
+    const query = new URLSearchParams();
+    if (params?.q) query.append("q", params.q);
+    if (params?.method) query.append("method", params.method);
+    if (params?.status) query.append("status", params.status);
+    if (params?.from) query.append("from", params.from);
+    if (params?.to) query.append("to", params.to);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    return request<ReceptionHistoryResponse>(`/reception/history${qs}`);
+  },
+
   // --- 7. BUỒNG KHÁM BÁC SĨ (DOCTOR CLINIC & QUEUE) ---
   async getDoctorQueue(doctorId?: string) {
     const qs = doctorId ? `?doctorId=${encodeURIComponent(doctorId)}` : "";
@@ -649,5 +666,41 @@ export interface ConsultationHistoryItem {
   medicineCount: number;
   consultationTime: string;
   formattedDate: string;
+}
+
+export interface ReceptionHistoryItem {
+  appointmentId: string;
+  bookingCode: string;
+  queueNumber: string;
+  queueType: string;
+  checkinMethod: string;
+  patientName: string;
+  gender: string;
+  birthYear: number;
+  phone: string;
+  cccdNumber: string;
+  doctorName: string;
+  specialtyName: string;
+  roomNumber: string;
+  symptoms: string;
+  status: string;
+  checkInTime?: string;
+  formattedCheckInTime?: string;
+  createdAt?: string;
+  formattedCreatedAt?: string;
+}
+
+export interface ReceptionHistorySummary {
+  totalCheckins: number;
+  qrCheckins: number;
+  cccdCheckins: number;
+  manualWalkinCheckins: number;
+  completedCount: number;
+  waitingCount: number;
+}
+
+export interface ReceptionHistoryResponse {
+  summary: ReceptionHistorySummary;
+  items: ReceptionHistoryItem[];
 }
 

@@ -45,6 +45,7 @@ public class ReceptionController {
     private final UserJpaRepository userJpaRepository;
     private final DoctorJpaRepository doctorJpaRepository;
     private final PasswordEncoder passwordEncoder;
+    private final com.medsched.reception.ReceptionHistoryService receptionHistoryService;
 
     public ReceptionController(
             CheckinUseCase checkinUseCase,
@@ -54,7 +55,8 @@ public class ReceptionController {
             AppointmentRepositoryPort appointmentRepositoryPort,
             UserJpaRepository userJpaRepository,
             DoctorJpaRepository doctorJpaRepository,
-            PasswordEncoder passwordEncoder) {
+            PasswordEncoder passwordEncoder,
+            com.medsched.reception.ReceptionHistoryService receptionHistoryService) {
         this.checkinUseCase = checkinUseCase;
         this.billingService = billingService;
         this.appointmentJpaRepository = appointmentJpaRepository;
@@ -63,6 +65,7 @@ public class ReceptionController {
         this.userJpaRepository = userJpaRepository;
         this.doctorJpaRepository = doctorJpaRepository;
         this.passwordEncoder = passwordEncoder;
+        this.receptionHistoryService = receptionHistoryService;
     }
 
     public record QrCheckinRequest(String bookingCode) {}
@@ -411,6 +414,21 @@ public class ReceptionController {
             @Valid @RequestBody BillingDtos.PayInvoiceRequest request) {
         BillingDtos.PayInvoiceResponse response = billingService.payInvoice(invoiceId, request);
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Tra cứu lịch sử tiếp đón & check-in bệnh nhân tại quầy lễ tân.
+     */
+    @GetMapping("/history")
+    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
+    public ResponseEntity<com.medsched.reception.ReceptionDtos.ReceptionHistoryResponse> getReceptionHistory(
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String method,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) LocalDate to) {
+
+        return ResponseEntity.ok(receptionHistoryService.getReceptionHistory(q, method, status, from, to));
     }
 }
 

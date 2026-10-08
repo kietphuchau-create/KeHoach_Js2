@@ -25,7 +25,8 @@ import {
   Stethoscope,
   X,
   Filter,
-  Camera
+  Camera,
+  History
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -503,8 +504,15 @@ export default function ReceptionView() {
           </p>
         </div>
 
-        {/* Quick Stats Widget */}
-        <div className="flex items-center gap-3">
+        {/* Quick Stats Widget & History Button */}
+        <div className="flex flex-wrap items-center gap-3">
+          <Link
+            href="/reception/history"
+            className="flex items-center gap-2 px-3.5 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-bold transition shadow-xs"
+          >
+            <History size={16} className="text-emerald-600" />
+            <span>Lịch Sử Tiếp Đón</span>
+          </Link>
           <div className="flex items-center gap-3 bg-slate-50 p-2.5 rounded-2xl border border-slate-200">
             <div className="px-4 py-1.5 border-r border-slate-200 text-center">
               <span className="text-[10px] text-slate-400 font-semibold block uppercase">Đã tiếp đón</span>
@@ -1114,11 +1122,16 @@ export default function ReceptionView() {
             </div>
           </div>
 
-          <div className="pt-4 border-t border-slate-100 mt-4 flex items-center justify-between text-xs text-slate-400">
+          <div className="pt-4 border-t border-slate-100 mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-400">
             <span>
               Hiển thị: <strong className="text-slate-700">{filteredHistory.length}</strong> / <strong className="text-slate-700">{history.length}</strong> ca tiếp nhận
             </span>
-            <span>Hệ thống Lễ tân MedSched kết nối buồng khám 1s</span>
+            <Link
+              href="/reception/history"
+              className="text-emerald-700 hover:text-emerald-800 font-bold hover:underline inline-flex items-center gap-1 text-xs"
+            >
+              <span>Xem toàn bộ lịch sử tiếp đón &amp; Tra cứu nâng cao →</span>
+            </Link>
           </div>
         </div>
       </div>
