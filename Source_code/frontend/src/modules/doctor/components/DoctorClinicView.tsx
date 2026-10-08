@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback, useMemo, Suspense } from 'react';
+import Link from 'next/link';
 import { 
   Stethoscope, 
   Users, 
@@ -1335,6 +1336,14 @@ export default function DoctorClinicView() {
         <div className="border-t border-slate-100 bg-slate-50/70 px-5 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
           {/* Nhóm thao tác vận hành an toàn */}
           <div className="flex items-center gap-2">
+            <Link
+              href="/doctor/history"
+              className="px-3 py-1.5 rounded-lg font-semibold text-xs bg-white text-teal-800 hover:bg-teal-50 border border-teal-200 transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
+              title="Tra cứu lịch sử bệnh nhân đã khám và xem lại các đơn thuốc đã kê"
+            >
+              <FileText size={13} className="text-teal-700" />
+              <span>Lịch Sử Khám &amp; Đơn Thuốc</span>
+            </Link>
             <button
               type="button"
               onClick={() => setIsScreenLocked(true)}

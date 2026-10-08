@@ -6,6 +6,7 @@ import com.medsched.persistence.entity.MedicalRecordEntity;
 import com.medsched.persistence.entity.PrescriptionEntity;
 import com.medsched.persistence.entity.PrescriptionItemEntity;
 import com.medsched.persistence.enums.AppointmentStatus;
+import com.medsched.persistence.enums.QueueType;
 import com.medsched.persistence.repository.AppointmentJpaRepository;
 import com.medsched.persistence.repository.DoctorJpaRepository;
 import com.medsched.persistence.repository.MedicalRecordJpaRepository;
@@ -464,6 +465,113 @@ public class DoctorPrescriptionService {
                 createdAt,
                 itemDtos
         );
+    }
+
+    /**
+     * Tra cứu lịch sử bệnh nhân từng khám và đơn thuốc đã kê của bác sĩ.
+     */
+    @Transactional(readOnly = true)
+    public List<DoctorPrescriptionDtos.ConsultationHistoryItemDto> getDoctorConsultationHistory(
+            String userId, String queryDoctorId, String keyword, LocalDate from, LocalDate to) {
+
+        String targetDoctorId = queryDoctorId;
+        if (targetDoctorId == null || targetDoctorId.isBlank()) {
+            if (userId != null) {
+                List<DoctorEntity> doctors = doctorRepository.findByUserId(userId);
+                if (!doctors.isEmpty()) {
+                    targetDoctorId = doctors.get(0).getId();
+                }
+            }
+        }
+
+        List<AppointmentEntity> completedList;
+        if (targetDoctorId != null && !targetDoctorId.isBlank()) {
+            completedList = appointmentRepository.findByDoctorIdAndStatus(targetDoctorId, AppointmentStatus.COMPLETED);
+        } else {
+            completedList = appointmentRepository.findAll().stream()
+                    .filter(a -> a.getStatus() == AppointmentStatus.COMPLETED)
+                    .toList();
+        }
+
+        ZoneId vnZone = ZoneId.of("Asia/Ho_Chi_Minh");
+        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("HH:mm - dd/MM/yyyy").withZone(vnZone);
+        String kw = keyword != null ? keyword.trim().toLowerCase() : "";
+
+        return completedList.stream()
+                .filter(a -> {
+                    Instant t = a.getUpdatedAt() != null ? a.getUpdatedAt() : a.getCreatedAt();
+                    if (t == null) return true;
+                    LocalDate apptDate = t.atZone(vnZone).toLocalDate();
+                    if (from != null && apptDate.isBefore(from)) return false;
+                    if (to != null && apptDate.isAfter(to)) return false;
+                    return true;
+                })
+                .sorted((a, b) -> {
+                    Instant t1 = a.getUpdatedAt() != null ? a.getUpdatedAt() : a.getCreatedAt();
+                    Instant t2 = b.getUpdatedAt() != null ? b.getUpdatedAt() : b.getCreatedAt();
+                    if (t1 == null || t2 == null) return 0;
+                    return t2.compareTo(t1);
+                })
+                .map(a -> {
+                    PatientProfileEntity profile = patientProfileRepository.findById(a.getPatientProfileId()).orElse(null);
+                    String patientName = profile != null ? profile.getFullName() : "Bệnh nhân";
+                    String gender = profile != null && profile.getGender() != null
+                            ? (profile.getGender().name().equals("FEMALE") ? "Nữ" : "Nam")
+                            : "Nam";
+                    int birthYear = profile != null && profile.getDateOfBirth() != null
+                            ? profile.getDateOfBirth().getYear()
+                            : 1990;
+                    String phone = profile != null && profile.getPhone() != null ? profile.getPhone() : "";
+
+                    MedicalRecordEntity medRecord = medicalRecordRepository.findByAppointmentId(a.getId()).orElse(null);
+                    String diagnosis = medRecord != null && medRecord.getDiagnosis() != null ? medRecord.getDiagnosis() : "Chẩn đoán thông thường";
+                    String advice = medRecord != null && medRecord.getDoctorNotes() != null ? medRecord.getDoctorNotes() : "";
+
+                    PrescriptionEntity rx = prescriptionRepository.findByAppointmentId(a.getId()).orElse(null);
+                    String rxId = rx != null ? rx.getId() : "";
+                    BigDecimal rxTotal = rx != null && rx.getTotalMedicineAmount() != null ? rx.getTotalMedicineAmount() : BigDecimal.ZERO;
+                    int medCount = 0;
+                    if (medRecord != null) {
+                        medCount = prescriptionItemRepository.findByMedicalRecordId(medRecord.getId()).size();
+                    }
+
+                    Instant consultTime = a.getUpdatedAt() != null ? a.getUpdatedAt() : a.getCreatedAt();
+                    String formattedDate = consultTime != null ? dtf.format(consultTime) : "";
+
+                    String queueNum = a.getQueueNumber() != null ? a.getQueueNumber() : "STT-01";
+                    if (a.getQueueType() == QueueType.WALKIN && !queueNum.startsWith("W-")) {
+                        queueNum = "W-" + queueNum;
+                    } else if (a.getQueueType() == QueueType.ONLINE_BOOKED && !queueNum.startsWith("A-")) {
+                        queueNum = "A-" + queueNum;
+                    }
+
+                    return new DoctorPrescriptionDtos.ConsultationHistoryItemDto(
+                            a.getId(),
+                            a.getBookingCode(),
+                            queueNum,
+                            a.getQueueType() != null ? a.getQueueType().name() : "WALKIN",
+                            patientName,
+                            gender,
+                            birthYear,
+                            phone,
+                            a.getPatientSymptoms() != null ? a.getPatientSymptoms() : "",
+                            diagnosis,
+                            advice,
+                            rxId,
+                            rxTotal,
+                            medCount,
+                            consultTime,
+                            formattedDate
+                    );
+                })
+                .filter(item -> {
+                    if (kw.isBlank()) return true;
+                    return item.patientName().toLowerCase().contains(kw)
+                            || item.bookingCode().toLowerCase().contains(kw)
+                            || item.phone().toLowerCase().contains(kw)
+                            || item.diagnosis().toLowerCase().contains(kw);
+                })
+                .toList();
     }
 }
 

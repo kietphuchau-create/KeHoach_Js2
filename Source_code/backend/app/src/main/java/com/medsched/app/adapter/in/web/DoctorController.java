@@ -118,6 +118,21 @@ public class DoctorController {
     }
 
     /**
+     * Tra cứu lịch sử ca khám đã hoàn tất & đơn thuốc của bác sĩ.
+     */
+    @GetMapping("/history")
+    public ResponseEntity<List<DoctorPrescriptionDtos.ConsultationHistoryItemDto>> getConsultationHistory(
+            @AuthenticationPrincipal AppUserDetails principal,
+            @RequestParam(required = false) String doctorId,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+
+        String userId = principal != null ? principal.getUserId() : null;
+        return ResponseEntity.ok(doctorPrescriptionService.getDoctorConsultationHistory(userId, doctorId, q, from, to));
+    }
+
+    /**
      * Lấy danh sách ca trực & các khung giờ (TimeSlots) của bác sĩ.
      */
     @GetMapping("/schedules")

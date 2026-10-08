@@ -524,7 +524,26 @@ export const api = {
   },
 
   async getAppointmentPrescription(appointmentId: string) {
-    return request<PrescriptionDetail>(`/v1/appointments/${appointmentId}/prescription`);
+    return request<PrescriptionDetail>(`/doctor/appointments/${appointmentId}/prescription`);
+  },
+
+  async getDoctorAppointmentPrescription(appointmentId: string) {
+    return request<PrescriptionDetail>(`/doctor/appointments/${appointmentId}/prescription`);
+  },
+
+  async getDoctorConsultationHistory(params?: {
+    doctorId?: string;
+    q?: string;
+    from?: string;
+    to?: string;
+  }) {
+    const query = new URLSearchParams();
+    if (params?.doctorId) query.append("doctorId", params.doctorId);
+    if (params?.q) query.append("q", params.q);
+    if (params?.from) query.append("from", params.from);
+    if (params?.to) query.append("to", params.to);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    return request<ConsultationHistoryItem[]>(`/doctor/history${qs}`);
   },
 
   async getDoctorAvailableSlots(doctorId: string, date?: string) {
@@ -611,5 +630,24 @@ export interface PrescriptionDetail {
   status: string;
   createdAt: string;
   items: PrescriptionItemDetail[];
+}
+
+export interface ConsultationHistoryItem {
+  appointmentId: string;
+  bookingCode: string;
+  queueNumber: string;
+  queueType: string;
+  patientName: string;
+  gender: string;
+  birthYear: number;
+  phone: string;
+  symptoms: string;
+  diagnosis: string;
+  doctorAdvice: string;
+  prescriptionId: string;
+  totalMedicineAmount: number;
+  medicineCount: number;
+  consultationTime: string;
+  formattedDate: string;
 }
 

@@ -15,7 +15,8 @@ import {
   X,
   Stethoscope,
   Calendar,
-  BarChart3
+  BarChart3,
+  FileText
 } from 'lucide-react';
 import { getAuthToken, getAuthUser, clearAuthSession, api } from '@/shared/lib/api';
 
@@ -114,6 +115,7 @@ export default function HeaderNav() {
   } else if (isDoctor) {
     navLinks = [
       { href: '/doctor', label: 'Buồng Khám Bác Sĩ', icon: Stethoscope },
+      { href: '/doctor/history', label: 'Lịch Sử Khám & Đơn Thuốc', icon: FileText },
       { href: '/statistics', label: 'Thống Kê Khám Bệnh', icon: BarChart3 },
       { href: '/profile', label: 'Hồ Sơ Chuyên Môn', icon: User },
     ];

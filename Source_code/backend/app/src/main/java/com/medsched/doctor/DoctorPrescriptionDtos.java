@@ -74,4 +74,23 @@ public class DoctorPrescriptionDtos {
             String doctorName,
             String roomNumber
     ) {}
+
+    public record ConsultationHistoryItemDto(
+            String appointmentId,
+            String bookingCode,
+            String queueNumber,
+            String queueType,
+            String patientName,
+            String gender,
+            int birthYear,
+            String phone,
+            String symptoms,
+            String diagnosis,
+            String doctorAdvice,
+            String prescriptionId,
+            BigDecimal totalMedicineAmount,
+            int medicineCount,
+            Instant consultationTime,
+            String formattedDate
+    ) {}
 }
