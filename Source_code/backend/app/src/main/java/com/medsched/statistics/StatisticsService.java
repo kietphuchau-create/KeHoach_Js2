@@ -143,7 +143,7 @@ public class StatisticsService {
         DecimalFormat dfCurrency = new DecimalFormat("#,###");
 
         // Biểu đồ dòng thời gian 100% khớp dữ liệu thật
-        List<StatisticsDtos.TimeSeriesPoint> timeSeries = buildRealTimeSeries(apptList, granularity, selectedMetric);
+        List<StatisticsDtos.TimeSeriesPoint> timeSeries = buildRealTimeSeries(apptList, granularity, selectedMetric, false);
 
         List<Double> sparklineVisits = timeSeries.stream().map(p -> (double) p.value()).collect(Collectors.toList());
         if (sparklineVisits.size() < 2) {
@@ -308,7 +308,7 @@ public class StatisticsService {
         double docOnlinePct = docTotal > 0 ? Math.round((double) docOnline / docTotal * 1000.0) / 10.0 : 0.0;
         double docWalkinPct = docTotal > 0 ? Math.round((double) docWalkin / docTotal * 1000.0) / 10.0 : 0.0;
 
-        List<StatisticsDtos.TimeSeriesPoint> timeSeries = buildRealTimeSeries(docAppts, granularity, selectedMetric);
+        List<StatisticsDtos.TimeSeriesPoint> timeSeries = buildRealTimeSeries(docAppts, granularity, selectedMetric, false);
         List<Double> sparkline = timeSeries.stream().map(p -> (double) p.value()).collect(Collectors.toList());
         if (sparkline.size() < 2) sparkline = List.of(0.0, (double) docCompleted);
 
@@ -424,7 +424,10 @@ public class StatisticsService {
 
         DecimalFormat df = new DecimalFormat("#,###");
 
-        List<StatisticsDtos.TimeSeriesPoint> timeSeries = buildRealTimeSeries(apptList, granularity, selectedMetric);
+        List<AppointmentEntity> checkedInAppts = apptList.stream()
+                .filter(a -> a.getStatus() != AppointmentStatus.PENDING && a.getStatus() != AppointmentStatus.CONFIRMED && a.getStatus() != AppointmentStatus.CANCELLED)
+                .collect(Collectors.toList());
+        List<StatisticsDtos.TimeSeriesPoint> timeSeries = buildRealTimeSeries(checkedInAppts, granularity, selectedMetric, true);
         List<Double> sparkline = timeSeries.stream().map(p -> (double) p.value()).collect(Collectors.toList());
         if (sparkline.size() < 2) sparkline = List.of(0.0, (double) totalCheckins);
 
@@ -532,13 +535,14 @@ public class StatisticsService {
     // HELPER: TÍNH TIME SERIES KHỚP 100% CSDL THẬT
     // ─────────────────────────────────────────────────────────────
     private List<StatisticsDtos.TimeSeriesPoint> buildRealTimeSeries(
-            List<AppointmentEntity> appointments, String granularity, String metricId) {
+            List<AppointmentEntity> appointments, String granularity, String metricId, boolean isCheckinMode) {
 
         if ("HOURLY".equalsIgnoreCase(granularity)) {
             String[] hours = {"07:00", "08:00", "09:00", "10:00", "11:00", "13:30", "14:30", "15:30", "16:30"};
             Map<String, Long> countByHour = appointments.stream()
-                    .filter(a -> a.getCreatedAt() != null)
-                    .collect(Collectors.groupingBy(a -> HOUR_FORMATTER.format(a.getCreatedAt()), Collectors.counting()));
+                    .map(a -> (isCheckinMode && a.getCheckInTime() != null) ? a.getCheckInTime() : a.getCreatedAt())
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.groupingBy(t -> HOUR_FORMATTER.format(t), Collectors.counting()));
 
             List<StatisticsDtos.TimeSeriesPoint> pts = new ArrayList<>();
             for (String h : hours) {
@@ -551,15 +555,28 @@ public class StatisticsService {
         LocalDate today = LocalDate.now(VN_ZONE);
         DateTimeFormatter dFmt = DateTimeFormatter.ofPattern("dd/MM");
 
-        Map<String, Long> countByDate = appointments.stream()
-                .filter(a -> a.getCreatedAt() != null)
-                .collect(Collectors.groupingBy(a -> DAY_FORMATTER.format(a.getCreatedAt()), Collectors.counting()));
+        Map<LocalDate, Long> countByLocalDate = new HashMap<>();
+        for (AppointmentEntity a : appointments) {
+            Instant t = (isCheckinMode && a.getCheckInTime() != null) ? a.getCheckInTime() : a.getCreatedAt();
+            if (t != null) {
+                LocalDate d = t.atZone(VN_ZONE).toLocalDate();
+                countByLocalDate.put(d, countByLocalDate.getOrDefault(d, 0L) + 1);
+            }
+        }
 
+        // Lấy khoảng ngày liên tục: tối thiểu 14 ngày gần nhất, hoặc bắt đầu từ ngày có ca khám sớm nhất (giới hạn 30 ngày)
+        LocalDate startDate = today.minusDays(14);
+        for (LocalDate d : countByLocalDate.keySet()) {
+            if (d.isBefore(startDate) && d.isAfter(today.minusDays(31))) {
+                startDate = d;
+            }
+        }
+
+        // Tạo mảng điểm thời gian LIÊN TỤC và TĂNG DẦN THEO THỜI GIAN CHUẨN XÁC
         List<StatisticsDtos.TimeSeriesPoint> pts = new ArrayList<>();
-        for (int i = 9; i >= 0; i--) {
-            LocalDate d = today.minusDays(i * 2L);
+        for (LocalDate d = startDate; !d.isAfter(today); d = d.plusDays(1)) {
             String label = d.format(dFmt);
-            long val = countByDate.getOrDefault(label, 0L);
+            long val = countByLocalDate.getOrDefault(d, 0L);
 
             String formatted = String.valueOf(val);
             if ("revenue".equalsIgnoreCase(metricId)) {
@@ -567,13 +584,6 @@ public class StatisticsService {
                 formatted = val > 0 ? (val / 1000) + "k" : "0đ";
             }
             pts.add(new StatisticsDtos.TimeSeriesPoint(label, label, val, formatted));
-        }
-
-        for (Map.Entry<String, Long> entry : countByDate.entrySet()) {
-            boolean exists = pts.stream().anyMatch(p -> p.label().equals(entry.getKey()));
-            if (!exists) {
-                pts.add(new StatisticsDtos.TimeSeriesPoint(entry.getKey(), entry.getKey(), entry.getValue(), String.valueOf(entry.getValue())));
-            }
         }
 
         return pts;

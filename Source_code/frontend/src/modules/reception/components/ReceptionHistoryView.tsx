@@ -44,7 +44,7 @@ export default function ReceptionHistoryView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [methodFilter, setMethodFilter] = useState<'ALL' | 'QR_CODE' | 'CCCD_QR' | 'MANUAL'>('ALL');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'CHECKED_IN' | 'IN_PROGRESS' | 'COMPLETED' | 'MISSED_NO_SHOW'>('ALL');
-  const [datePreset, setDatePreset] = useState<'TODAY' | 'LAST_7_DAYS' | 'LAST_30_DAYS' | 'ALL'>('TODAY');
+  const [datePreset, setDatePreset] = useState<'TODAY' | 'LAST_7_DAYS' | 'LAST_30_DAYS' | 'ALL'>('ALL');
 
   // Modal Chi tiết & In Phiếu Tiếp Đón
   const [selectedItem, setSelectedItem] = useState<ReceptionHistoryItem | null>(null);
@@ -386,6 +386,15 @@ export default function ReceptionHistoryView() {
             <p className="text-xs text-slate-400 mt-1 max-w-sm">
               Không tìm thấy hồ sơ tiếp đón nào khớp với từ khóa tìm kiếm hoặc mốc thời gian đã chọn.
             </p>
+            {datePreset !== 'ALL' && (
+              <button
+                type="button"
+                onClick={() => setDatePreset('ALL')}
+                className="mt-3.5 px-3.5 py-1.5 rounded-xl bg-pine-teal text-white text-xs font-semibold hover:bg-teal-700 transition shadow-2xs cursor-pointer"
+              >
+                Xem tất cả lịch sử tiếp đón
+              </button>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
