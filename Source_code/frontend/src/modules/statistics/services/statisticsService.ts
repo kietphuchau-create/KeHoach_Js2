@@ -538,14 +538,14 @@ function getDateRangeLabel(range: string): string {
     case 'TODAY':
       return 'Hôm nay (Thời gian thực)';
     case 'LAST_7_DAYS':
-      return '7 ngày gần nhất (25/09/2026 - 01/10/2026)';
+      return '7 ngày gần nhất';
     case 'THIS_MONTH':
-      return 'Tháng 10, 2026';
+      return 'Tháng này (Tháng 10/2026)';
     case 'CUSTOM':
       return 'Khoảng tùy chọn tùy biến';
     case 'LAST_30_DAYS':
     default:
-      return '30 ngày qua (01/10/2026 - 31/10/2026)';
+      return '30 ngày gần nhất';
   }
 }
 

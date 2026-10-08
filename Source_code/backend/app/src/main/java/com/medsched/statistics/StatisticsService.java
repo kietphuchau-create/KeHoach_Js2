@@ -626,21 +626,23 @@ public class StatisticsService {
     }
 
     private Instant calculateStartTime(String range, Instant now) {
+        java.time.ZoneId vnZone = java.time.ZoneId.of("Asia/Ho_Chi_Minh");
+        java.time.LocalDate today = now.atZone(vnZone).toLocalDate();
         if ("TODAY".equalsIgnoreCase(range)) {
-            return now.truncatedTo(ChronoUnit.DAYS);
+            return today.atStartOfDay(vnZone).toInstant();
         } else if ("LAST_7_DAYS".equalsIgnoreCase(range)) {
-            return now.minus(7, ChronoUnit.DAYS);
+            return today.minusDays(7).atStartOfDay(vnZone).toInstant();
         } else if ("THIS_MONTH".equalsIgnoreCase(range)) {
-            return now.minus(30, ChronoUnit.DAYS);
+            return today.withDayOfMonth(1).atStartOfDay(vnZone).toInstant();
         } else {
-            return now.minus(30, ChronoUnit.DAYS);
+            return today.minusDays(30).atStartOfDay(vnZone).toInstant();
         }
     }
 
     private String formatRangeLabel(String range) {
         if ("TODAY".equalsIgnoreCase(range)) return "Hôm nay (Thời gian thực)";
         if ("LAST_7_DAYS".equalsIgnoreCase(range)) return "7 ngày gần nhất";
-        if ("THIS_MONTH".equalsIgnoreCase(range)) return "Tháng 10, 2026";
-        return "30 ngày qua (01/10/2026 - 31/10/2026)";
+        if ("THIS_MONTH".equalsIgnoreCase(range)) return "Tháng hiện tại (Từ ngày 01 đến nay)";
+        return "30 ngày gần nhất";
     }
 }

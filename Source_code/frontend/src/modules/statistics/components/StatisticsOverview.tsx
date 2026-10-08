@@ -179,7 +179,7 @@ export default function StatisticsOverview() {
             >
               <option value="TODAY">📅 Hôm nay (Thời gian thực)</option>
               <option value="LAST_7_DAYS">📅 7 ngày gần nhất</option>
-              <option value="LAST_30_DAYS">📅 30 ngày qua (01/10 - 31/10)</option>
+              <option value="LAST_30_DAYS">📅 30 ngày gần nhất</option>
               <option value="THIS_MONTH">📅 Tháng này (Tháng 10/2026)</option>
             </select>
             <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400">
