@@ -32,6 +32,7 @@ export default function StatisticsOverview() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [activeRole, setActiveRole] = useState<UserRoleScope>('ROLE_ADMIN');
   const [userRoles, setUserRoles] = useState<string[]>([]);
+  const isAdmin = userRoles.includes('ROLE_ADMIN');
   const [authChecked, setAuthChecked] = useState(false);
 
   // Bộ lọc thời gian & tham số
@@ -86,12 +87,12 @@ export default function StatisticsOverview() {
       granularity,
       presetRange,
       selectedMetricId,
-      doctorFilter: activeRole === 'ROLE_DOCTOR' ? selectedDoctorId : undefined,
+      doctorFilter: (isAdmin && activeRole === 'ROLE_DOCTOR') ? selectedDoctorId : undefined,
     })
       .then((data) => {
         if (!isCancelled) {
           setDataset(data);
-          if (activeRole === 'ROLE_DOCTOR' && !selectedDoctorId && data.selectedDoctorId) {
+          if (isAdmin && activeRole === 'ROLE_DOCTOR' && !selectedDoctorId && data.selectedDoctorId) {
             setSelectedDoctorId(data.selectedDoctorId);
           }
         }
@@ -108,7 +109,7 @@ export default function StatisticsOverview() {
     return () => {
       isCancelled = true;
     };
-  }, [activeRole, granularity, presetRange, selectedMetricId, selectedDoctorId]);
+  }, [activeRole, granularity, presetRange, selectedMetricId, selectedDoctorId, isAdmin]);
 
   const handleMetricCardClick = (metricId: string) => {
     // Nếu metric này có trong danh sách đồ thị thì đổi
@@ -126,8 +127,6 @@ export default function StatisticsOverview() {
       setTimeout(() => setIsExporting(false), 600);
     }
   };
-
-  const isAdmin = userRoles.includes('ROLE_ADMIN');
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-in fade-in duration-150">
@@ -148,7 +147,11 @@ export default function StatisticsOverview() {
             <BarChart3 className="text-sky-600" size={26} />
             <span>
               {activeRole === 'ROLE_ADMIN' && 'Tổng Quan Hoạt Động Toàn Viện'}
-              {activeRole === 'ROLE_DOCTOR' && `Báo Cáo Năng Suất - ${dataset.selectedDoctorName || 'Bác Sĩ'}`}
+              {activeRole === 'ROLE_DOCTOR' && (
+                isAdmin 
+                  ? `Báo Cáo Năng Suất - ${dataset.selectedDoctorName || 'Bác Sĩ'}`
+                  : `Báo Cáo Năng Suất Cá Nhân - ${currentUser?.fullName || dataset.selectedDoctorName || 'Bác Sĩ'}`
+              )}
               {activeRole === 'ROLE_STAFF' && 'Báo Cáo Tiếp Đón & Thu Ngân Ca Trực'}
             </span>
             {isLoading && (
@@ -157,7 +160,11 @@ export default function StatisticsOverview() {
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
             {activeRole === 'ROLE_ADMIN' && 'Số liệu toàn diện về lưu lượng bệnh nhân, doanh thu viện phí và hiệu suất bác sĩ.'}
-            {activeRole === 'ROLE_DOCTOR' && `Chi tiết các ca khám hoàn tất, đơn thuốc đã kê và thời gian trung bình của ${dataset.selectedDoctorName || 'bác sĩ'}.`}
+            {activeRole === 'ROLE_DOCTOR' && (
+              isAdmin
+                ? `Chi tiết các ca khám hoàn tất, đơn thuốc đã kê và thời gian trung bình của ${dataset.selectedDoctorName || 'bác sĩ'}.`
+                : `Theo dõi tiến độ khám cá nhân, thời gian trung bình/ca và các bệnh lý bạn đã kê đơn trong kỳ.`
+            )}
             {activeRole === 'ROLE_STAFF' && 'Kiểm soát số lượng check-in sảnh chờ, ca vãng lai và kết toán tiền thu ca trực.'}
           </p>
         </div>

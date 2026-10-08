@@ -9,6 +9,8 @@ import com.medsched.persistence.entity.UserEntity;
 import com.medsched.persistence.enums.AppointmentStatus;
 import com.medsched.persistence.enums.PaymentStatus;
 import com.medsched.persistence.enums.QueueType;
+import com.medsched.persistence.entity.UserMedicalCenterRoleEntity;
+import com.medsched.persistence.enums.UserRole;
 import com.medsched.persistence.repository.AppointmentJpaRepository;
 import com.medsched.persistence.repository.DoctorJpaRepository;
 import com.medsched.persistence.repository.InvoiceJpaRepository;
@@ -17,6 +19,7 @@ import com.medsched.persistence.repository.PaymentJpaRepository;
 import com.medsched.persistence.repository.PrescriptionJpaRepository;
 import com.medsched.persistence.repository.SpecialtyJpaRepository;
 import com.medsched.persistence.repository.UserJpaRepository;
+import com.medsched.persistence.repository.UserMedicalCenterRoleJpaRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,6 +45,7 @@ public class StatisticsService {
     private final UserJpaRepository userRepo;
     private final SpecialtyJpaRepository specialtyRepo;
     private final PatientProfileJpaRepository patientProfileRepo;
+    private final UserMedicalCenterRoleJpaRepository roleRepo;
 
     private static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final DateTimeFormatter DAY_FORMATTER = DateTimeFormatter.ofPattern("dd/MM").withZone(VN_ZONE);
@@ -54,7 +58,8 @@ public class StatisticsService {
                              DoctorJpaRepository doctorRepo,
                              UserJpaRepository userRepo,
                              SpecialtyJpaRepository specialtyRepo,
-                             PatientProfileJpaRepository patientProfileRepo) {
+                             PatientProfileJpaRepository patientProfileRepo,
+                             UserMedicalCenterRoleJpaRepository roleRepo) {
         this.appointmentRepo = appointmentRepo;
         this.invoiceRepo = invoiceRepo;
         this.paymentRepo = paymentRepo;
@@ -63,6 +68,7 @@ public class StatisticsService {
         this.userRepo = userRepo;
         this.specialtyRepo = specialtyRepo;
         this.patientProfileRepo = patientProfileRepo;
+        this.roleRepo = roleRepo;
     }
 
     public StatisticsDtos.StatisticsOverviewResponse getOverview(
@@ -75,8 +81,14 @@ public class StatisticsService {
         Instant startTime = calculateStartTime(range, now);
         List<StatisticsDtos.DoctorOption> doctorOptions = buildDoctorOptions();
 
+        boolean isCurrentUserAdmin = false;
+        if (currentUserId != null) {
+            List<UserMedicalCenterRoleEntity> userRoles = roleRepo.findByUserIdAndActiveTrue(currentUserId);
+            isCurrentUserAdmin = userRoles.stream().anyMatch(r -> r.getRole() == UserRole.ROLE_ADMIN);
+        }
+
         if ("ROLE_DOCTOR".equalsIgnoreCase(effectiveRole) || (targetDoctorId != null && !targetDoctorId.isBlank())) {
-            return buildDoctorStatistics(effectiveGranularity, range, metricId, currentUserId, targetDoctorId, doctorOptions, startTime, now);
+            return buildDoctorStatistics(effectiveGranularity, range, metricId, currentUserId, targetDoctorId, doctorOptions, startTime, now, isCurrentUserAdmin);
         } else if ("ROLE_STAFF".equalsIgnoreCase(effectiveRole)) {
             return buildStaffStatistics(effectiveGranularity, range, metricId, doctorOptions, startTime, now);
         } else {
@@ -241,23 +253,29 @@ public class StatisticsService {
     // ─────────────────────────────────────────────────────────────
     private StatisticsDtos.StatisticsOverviewResponse buildDoctorStatistics(
             String granularity, String range, String metricId, String currentUserId, String targetDoctorId,
-            List<StatisticsDtos.DoctorOption> doctorOptions, Instant start, Instant end) {
+            List<StatisticsDtos.DoctorOption> doctorOptions, Instant start, Instant end, boolean isCurrentUserAdmin) {
 
         String selectedMetric = (metricId != null && !metricId.isBlank()) ? metricId : "doctor_visits";
 
         // Xác định bác sĩ cần xem:
         DoctorEntity chosenDoctor = null;
-        if (targetDoctorId != null && !targetDoctorId.isBlank()) {
+
+        // 1. Nếu là Admin và có chọn targetDoctorId cụ thể:
+        if (isCurrentUserAdmin && targetDoctorId != null && !targetDoctorId.isBlank()) {
             chosenDoctor = doctorRepo.findById(targetDoctorId).orElse(null);
         }
-        if (chosenDoctor == null && currentUserId != null) {
+
+        // 2. Nếu người đăng nhập là Bác Sĩ (hoặc bất kỳ ai không phải Admin):
+        // Bắt buộc lấy hồ sơ của CHÍNH bác sĩ đó! TUYỆT ĐỐI không lấy bác sĩ khác!
+        if (!isCurrentUserAdmin && currentUserId != null) {
             List<DoctorEntity> docs = doctorRepo.findByUserId(currentUserId);
             if (!docs.isEmpty()) {
                 chosenDoctor = docs.get(0);
             }
         }
-        // Nếu Admin đang xem và chưa chọn bác sĩ, mặc định lấy bác sĩ đầu tiên có trong danh sách
-        if (chosenDoctor == null && !doctorOptions.isEmpty()) {
+
+        // 3. Nếu là Admin xem mô phỏng mà chưa chọn ai: mặc định lấy bác sĩ đầu tiên
+        if (chosenDoctor == null && isCurrentUserAdmin && !doctorOptions.isEmpty()) {
             chosenDoctor = doctorRepo.findById(doctorOptions.get(0).id()).orElse(null);
         }
 
@@ -273,6 +291,8 @@ public class StatisticsService {
             }
             docSpecialty = specialtyRepo.findById(chosenDoctor.getSpecialtyId()).map(SpecialtyEntity::getName).orElse("Khoa Khám Bệnh");
             docRoom = (chosenDoctor.getRoomNumber() != null && !chosenDoctor.getRoomNumber().isBlank()) ? ("Phòng " + chosenDoctor.getRoomNumber()) : "Phòng Khám";
+        } else if (currentUserId != null) {
+            docFullName = userRepo.findById(currentUserId).map(UserEntity::getFullName).orElse("Bác Sĩ");
         }
 
         List<AppointmentEntity> docAppts = !chosenDocId.isBlank()

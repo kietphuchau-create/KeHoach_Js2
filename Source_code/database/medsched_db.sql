@@ -491,8 +491,9 @@ INSERT INTO user_medical_center_roles (id, user_id, medical_center_id, role) VAL
 -- Hồ sơ hành nghề bác sĩ (1 bác sĩ có thể trực tại nhiều khoa/chi nhánh)
 INSERT INTO doctors (id, user_id, specialty_id, academic_title, consultation_fee, room_number, bio) VALUES
 ('10b2c3d4-0001-4000-8000-000000000001', 'e1b2c3d4-0002-4000-8000-000000000002', 'c1b2c3d4-0001-4000-8000-000000000001', 'BS.CKII', 300000.00, 'P.205', 'Chuyên gia đầu ngành Da liễu với hơn 15 năm kinh nghiệm điều trị.'),
-('10b2c3d4-0002-4000-8000-000000000002', 'e1b2c3d4-0002-4000-8000-000000000002', 'c1b2c3d4-0005-4000-8000-000000000005', 'BS.CKII', 250000.00, 'P.101', 'Cùng bác sĩ trên, lịch trực chiều tại chi nhánh Quận 7.'),
-('10b2c3d4-0003-4000-8000-000000000003', 'e1b2c3d4-0003-4000-8000-000000000003', 'c1b2c3d4-0002-4000-8000-000000000002', 'PGS.TS', 350000.00, 'P.208', 'Chuyên gia Nội tổng quát, tim mạch học và rối loạn chuyển hóa.');
+('10b2c3d4-0002-4000-8000-000000000002', 'e1b2c3d4-0010-4000-8000-000000000010', 'c1b2c3d4-0005-4000-8000-000000000005', 'ThS.BS', 250000.00, 'P.101', 'Chuyên gia Da liễu & Thẩm mỹ da tại chi nhánh Quận 7.'),
+('10b2c3d4-0003-4000-8000-000000000003', 'e1b2c3d4-0003-4000-8000-000000000003', 'c1b2c3d4-0002-4000-8000-000000000002', 'PGS.TS', 350000.00, 'P.208', 'Chuyên gia Nội tổng quát, tim mạch học và rối loạn chuyển hóa.'),
+('10b2c3d4-0004-4000-8000-000000000004', 'e1b2c3d4-0006-4000-8000-000000000006', 'c1b2c3d4-0005-4000-8000-000000000005', 'ThS.BS', 250000.00, 'P.102', 'Bác sĩ chuyên khoa điều trị và chăm sóc da tại Chi nhánh Quận 7.');
 
 -- Hồ sơ thông tin bệnh nhân (Patient Profiles)
 INSERT INTO patient_profiles (id, user_id, relationship, full_name, cccd_number, health_insurance_no, date_of_birth, gender, phone, address, medical_history) VALUES
