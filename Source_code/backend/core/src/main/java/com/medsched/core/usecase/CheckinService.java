@@ -17,8 +17,19 @@ public class CheckinService implements CheckinUseCase {
 
     @Override
     public CheckinResult checkinByQrCode(String bookingCode) {
-        Appointment appointment = appointmentRepository.findByBookingCode(bookingCode)
+        if (bookingCode == null || bookingCode.trim().isEmpty()) {
+            throw new com.medsched.core.domain.exception.DomainException("Mã đặt lịch không được để trống");
+        }
+        Appointment appointment = appointmentRepository.findByBookingCode(bookingCode.trim())
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn với mã: " + bookingCode));
+
+        if ("CHECKED_IN".equalsIgnoreCase(appointment.status())) {
+            return new CheckinResult(
+                    appointment,
+                    appointment.queueNumber(),
+                    "Lịch hẹn này đã được tiếp đón trước đó! Bệnh nhân đang trong hàng đợi."
+            );
+        }
 
         Appointment updated = appointment.checkIn("QR_CODE", Instant.now());
         appointmentRepository.save(updated);
@@ -32,6 +43,9 @@ public class CheckinService implements CheckinUseCase {
 
     @Override
     public CheckinResult checkinByCccd(String cccdNumber, String fullName) {
+        if (cccdNumber == null || cccdNumber.trim().isEmpty()) {
+            throw new com.medsched.core.domain.exception.DomainException("Số thẻ CCCD không được để trống");
+        }
         return new CheckinResult(
                 null,
                 "WLK-" + (100 + (int)(Math.random() * 900)),

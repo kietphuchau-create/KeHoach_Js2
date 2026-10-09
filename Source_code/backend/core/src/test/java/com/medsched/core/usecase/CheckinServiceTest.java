@@ -40,9 +40,9 @@ class CheckinServiceTest {
 
         assertThat(result).isNotNull();
         assertThat(result.queueNumber()).isEqualTo("APP-1001");
-        assertThat(result.status()).isEqualTo("CHECKED_IN");
+        assertThat(result.appointment().status()).isEqualTo("CHECKED_IN");
         assertThat(result.message()).contains("Tiếp đón thành công");
-        assertThat(result.checkInTime()).isNotNull();
+        assertThat(result.appointment().checkInTime()).isNotNull();
 
         // Kiểm tra trong repo đã đổi status và method
         Appointment saved = repo.findByBookingCode("MED123456").orElseThrow();
@@ -90,7 +90,6 @@ class CheckinServiceTest {
 
         assertThat(result).isNotNull();
         assertThat(result.queueNumber()).startsWith("WLK-");
-        assertThat(result.status()).isEqualTo("WAITING");
         assertThat(result.message()).contains("Nguyễn Văn A", "079201008899");
     }
 

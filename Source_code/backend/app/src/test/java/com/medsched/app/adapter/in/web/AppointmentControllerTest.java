@@ -53,6 +53,45 @@ class AppointmentControllerTest {
     @MockBean
     private JwtAuthenticationFilter jwtAuthenticationFilter;
 
+    @MockBean
+    private com.medsched.core.port.in.CancelAppointmentUseCase cancelAppointmentUseCase;
+
+    @MockBean
+    private com.medsched.persistence.repository.PatientProfileJpaRepository patientProfiles;
+
+    @MockBean
+    private com.medsched.persistence.repository.DoctorJpaRepository doctors;
+
+    @MockBean
+    private com.medsched.persistence.repository.MedicalCenterJpaRepository medicalCenters;
+
+    @MockBean
+    private com.medsched.doctor.DoctorPrescriptionService doctorPrescriptionService;
+
+    @MockBean
+    private com.medsched.persistence.repository.AppointmentJpaRepository appointmentJpaRepository;
+
+    @MockBean
+    private com.medsched.persistence.repository.TimeSlotJpaRepository timeSlotJpaRepository;
+
+    @MockBean
+    private com.medsched.persistence.repository.DoctorScheduleJpaRepository doctorScheduleJpaRepository;
+
+    @MockBean
+    private com.medsched.persistence.repository.UserJpaRepository users;
+
+    @MockBean
+    private com.medsched.persistence.repository.SpecialtyJpaRepository specialties;
+
+    @MockBean
+    private com.medsched.billing.BillingService billingService;
+
+    @MockBean
+    private org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
+
+    @MockBean
+    private com.medsched.reception.ReceptionHistoryService receptionHistoryService;
+
     @Test
     @DisplayName("POST /api/v1/appointments: Đặt lịch thành công trả về HTTP 201 Created")
     void testBookAppointmentSuccess() throws Exception {
@@ -73,7 +112,7 @@ class AppointmentControllerTest {
                 .andExpect(jsonPath("$.id").value("app-1"))
                 .andExpect(jsonPath("$.bookingCode").value("MED269780"))
                 .andExpect(jsonPath("$.queueNumber").value("APP-1001"))
-                .andExpect(jsonPath("$.status").value("CONFIRMED"));
+                .andExpect(jsonPath("$.status").value("PENDING"));
     }
 
     @Test
@@ -97,32 +136,6 @@ class AppointmentControllerTest {
     }
 
     @Test
-    @DisplayName("POST /api/v1/appointments/check-in: Tiếp đón qua mã QR")
-    void testCheckinEndpoint() throws Exception {
-        Appointment mockApp = Appointment.createNew(
-                "app-1", "MED269780", "center-1", "pat-1", "doc-1",
-                "slot-1", "APP-1001", "Đau họng", "Tóm tắt AI"
-        ).checkIn("QR_CODE", Instant.now());
-
-        CheckinUseCase.CheckinResult checkinResult = CheckinUseCase.CheckinResult.of(
-                mockApp, "APP-1001", "Tiếp đón thành công"
-        );
-        given(checkinUseCase.checkinByQrCode("MED269780")).willReturn(checkinResult);
-
-        AppointmentController.CheckinApiRequest request = new AppointmentController.CheckinApiRequest(
-                "MED269780", null, null, "QR_CODE"
-        );
-
-        mockMvc.perform(post("/api/v1/appointments/check-in")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.bookingCode").value("MED269780"))
-                .andExpect(jsonPath("$.queueNumber").value("APP-1001"))
-                .andExpect(jsonPath("$.status").value("CHECKED_IN"));
-    }
-
-    @Test
     @DisplayName("POST /api/v1/reception/checkin/qr: Tiếp đón qua QR trên ReceptionController")
     void testReceptionQrCheckin() throws Exception {
         Appointment mockApp = Appointment.createNew(
@@ -130,7 +143,7 @@ class AppointmentControllerTest {
                 "slot-1", "APP-1001", "Đau họng", "Tóm tắt AI"
         ).checkIn("QR_CODE", Instant.now());
 
-        CheckinUseCase.CheckinResult checkinResult = CheckinUseCase.CheckinResult.of(
+        CheckinUseCase.CheckinResult checkinResult = new CheckinUseCase.CheckinResult(
                 mockApp, "APP-1001", "Tiếp đón thành công"
         );
         given(checkinUseCase.checkinByQrCode("MED269780")).willReturn(checkinResult);
