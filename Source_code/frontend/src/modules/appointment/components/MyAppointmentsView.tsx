@@ -613,7 +613,7 @@ export default function MyAppointmentsView() {
               const doctorTitle = apt.doctorName || 'Bác sĩ chuyên khoa';
               const specialty = apt.specialtyName || 'Chuyên khoa';
               const room = apt.roomNumber || 'Phòng khám chuyên khoa';
-              const center = apt.medicalCenterName || 'Cơ sở Y tế MedSched';
+              const center = apt.medicalCenterName || 'Phòng khám MedSched';
               const slotTime = resolveSlotTime(apt);
               const appointmentDateStr = resolveAppointmentDate(apt);
 

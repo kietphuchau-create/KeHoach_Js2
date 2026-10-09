@@ -1,9 +1,11 @@
 package com.medsched.app.adapter.in.web;
 
 import com.medsched.core.port.out.AiTriagePort;
+import com.medsched.core.port.out.TriageEvaluation;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.Map;
 
 @RestController
@@ -19,13 +21,26 @@ public class TriageController {
     public record TriageRequest(String symptoms, String medicalHistory) {}
 
     @PostMapping("/triage")
-    public ResponseEntity<Map<String, String>> triage(@RequestBody TriageRequest request) {
-        String specialty = aiTriagePort.suggestSpecialty(request.symptoms());
-        String summary = aiTriagePort.generateClinicalSummary(request.symptoms(), request.medicalHistory());
-        return ResponseEntity.ok(Map.of(
-                "suggestedSpecialty", specialty,
-                "clinicalSummary", summary,
-                "disclaimer", "Lưu ý: Kết quả định hướng bởi AI chỉ mang tính tham khảo, vui lòng tham vấn bác sĩ chuyên khoa."
-        ));
+    public ResponseEntity<Map<String, Object>> triage(@RequestBody TriageRequest request) {
+        TriageEvaluation eval = aiTriagePort.evaluateSymptoms(request.symptoms(), request.medicalHistory());
+
+        Map<String, Object> response = new HashMap<>();
+        // Tương thích ngược với các hàm Frontend cũ
+        response.put("specialty", eval.specialtyName());
+        response.put("suggestedSpecialty", eval.specialtyCode());
+        response.put("summary", eval.clinicalSummary());
+        response.put("clinicalSummary", eval.clinicalSummary());
+        response.put("disclaimer", eval.disclaimer());
+
+        // Các trường mở rộng mới chuẩn hóa cho Phòng khám tư
+        response.put("specialtyCode", eval.specialtyCode());
+        response.put("specialtyName", eval.specialtyName());
+        response.put("recommendedService", eval.recommendedService());
+        response.put("estimatedFee", eval.estimatedFee());
+        response.put("preparationAdvice", eval.preparationAdvice());
+        response.put("isEmergency", eval.isEmergency());
+        response.put("emergencyWarning", eval.emergencyWarning());
+
+        return ResponseEntity.ok(response);
     }
 }

@@ -12,6 +12,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import com.medsched.doctor.DoctorScheduleDtos;
 import com.medsched.doctor.DoctorScheduleService;
 import java.util.List;
@@ -146,6 +147,20 @@ public class DoctorController {
         List<DoctorScheduleDtos.DoctorScheduleDto> schedules =
                 doctorScheduleService.getDoctorSchedules(userId, doctorId, from, to);
         return ResponseEntity.ok(schedules);
+    }
+
+    /**
+     * Lấy tình trạng chiếm dụng của các buồng khám theo ngày và khung giờ.
+     */
+    @GetMapping("/schedules/room-occupancy")
+    public ResponseEntity<List<DoctorScheduleDtos.RoomOccupancyDto>> getRoomOccupancy(
+            @AuthenticationPrincipal AppUserDetails principal,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate workDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.TIME) LocalTime startTime,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.TIME) LocalTime endTime) {
+
+        String userId = principal != null ? principal.getUserId() : null;
+        return ResponseEntity.ok(doctorScheduleService.getRoomOccupancy(userId, workDate, startTime, endTime));
     }
 
     /**

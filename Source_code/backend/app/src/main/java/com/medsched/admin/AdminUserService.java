@@ -207,8 +207,25 @@ public class AdminUserService {
             assignments.add(new AdminDtos.RoleAssignment(role.getId(), role.getRole(),
                     role.getMedicalCenterId(), centerName, role.isActive()));
         }
+
+        String specialtyName = null;
+        String academicTitle = null;
+        String roomNumber = null;
+
+        List<com.medsched.persistence.entity.DoctorEntity> docList = doctors.findByUserId(user.getId());
+        if (!docList.isEmpty()) {
+            com.medsched.persistence.entity.DoctorEntity doc = docList.get(0);
+            academicTitle = doc.getAcademicTitle();
+            roomNumber = doc.getRoomNumber();
+            if (doc.getSpecialtyId() != null) {
+                specialtyName = specialties.findById(doc.getSpecialtyId())
+                        .map(s -> s.getName())
+                        .orElse(null);
+            }
+        }
+
         return new AdminDtos.UserSummary(user.getId(), user.getEmail(), user.getFullName(), user.getPhone(),
-                user.isActive(), assignments, user.getCreatedAt());
+                user.isActive(), assignments, user.getCreatedAt(), specialtyName, academicTitle, roomNumber);
     }
 
     private UserEntity requireUser(String userId) {

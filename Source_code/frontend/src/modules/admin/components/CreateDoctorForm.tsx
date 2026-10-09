@@ -1,15 +1,18 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Stethoscope, 
   Building2, 
   Mail, 
   Phone, 
-  User 
+  User,
+  DoorOpen,
+  Plus
 } from 'lucide-react';
 import { api } from '@/shared/lib/api';
 import AlertMessage from '@/shared/components/Feedback/AlertMessage';
+import { getClinicRooms, ROOMS_UPDATED_EVENT, ClinicRoom } from '@/shared/lib/clinicRooms';
 
 interface CreateDoctorFormProps {
   medicalCenters: Array<{ id: string; name: string }>;
@@ -23,6 +26,26 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
 
   const initialCenterId = medicalCenters[0]?.id || '';
   const initialSpecs = specialties.filter((s: any) => s.medicalCenterId === initialCenterId);
+
+  // Danh mục phòng khám lấy từ cấu hình
+  const [availableRooms, setAvailableRooms] = useState<ClinicRoom[]>([]);
+  const [selectedRoom, setSelectedRoom] = useState<string>('P.208');
+  const [isCustomRoom, setIsCustomRoom] = useState<boolean>(false);
+  const [customRoomValue, setCustomRoomValue] = useState<string>('');
+
+  useEffect(() => {
+    const refreshRooms = () => {
+      const rooms = getClinicRooms();
+      setAvailableRooms(rooms);
+      if (rooms.length > 0 && !selectedRoom) {
+        setSelectedRoom(rooms[0].code);
+      }
+    };
+    refreshRooms();
+
+    window.addEventListener(ROOMS_UPDATED_EVENT, refreshRooms);
+    return () => window.removeEventListener(ROOMS_UPDATED_EVENT, refreshRooms);
+  }, []);
 
   const [doctorForm, setDoctorForm] = useState({
     fullName: '',
@@ -41,6 +64,16 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
     setLoading(true);
     setMessage(null);
 
+    const finalRoomNumber = isCustomRoom 
+      ? customRoomValue.trim().toUpperCase() 
+      : selectedRoom;
+
+    if (!finalRoomNumber) {
+      setMessage({ type: 'error', text: 'Vui lòng chọn hoặc nhập phòng khám làm việc cho Bác sĩ.' });
+      setLoading(false);
+      return;
+    }
+
     try {
       await api.createDoctor({
         fullName: doctorForm.fullName.trim(),
@@ -51,12 +84,13 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
         specialtyId: doctorForm.specialtyId,
         academicTitle: doctorForm.academicTitle,
         consultationFee: Number(doctorForm.consultationFee) || 200000,
+        roomNumber: finalRoomNumber,
         bio: doctorForm.bio.trim(),
       });
 
       setMessage({
         type: 'success',
-        text: `Tạo tài khoản Bác sĩ thành công cho: ${doctorForm.email}! Mật khẩu mặc định: ${doctorForm.temporaryPassword || 'Medsched@123'}`,
+        text: `Tạo tài khoản Bác sĩ thành công cho: ${doctorForm.email} tại phòng [${finalRoomNumber}]! Mật khẩu mặc định: ${doctorForm.temporaryPassword || 'Medsched@123'}`,
       });
 
       const newInitialSpecs = specialties.filter((s: any) => s.medicalCenterId === initialCenterId);
@@ -71,6 +105,8 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
         consultationFee: 300000,
         bio: '',
       });
+      setIsCustomRoom(false);
+      setCustomRoomValue('');
       if (onSuccess) onSuccess();
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || 'Tạo tài khoản Bác sĩ thất bại.' });
@@ -164,7 +200,7 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
 
         <div>
           <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-            Cơ Sở Y Tế Công Tác <span className="text-red-500">*</span>
+            Chi Nhánh Phòng Khám Công Tác <span className="text-red-500">*</span>
           </label>
           <select
             value={doctorForm.medicalCenterId}
@@ -180,7 +216,7 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
             className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
           >
             {medicalCenters.length === 0 ? (
-              <option value="">Không có cơ sở y tế nào</option>
+              <option value="">Không có chi nhánh phòng khám nào</option>
             ) : (
               medicalCenters.map(center => (
                 <option key={center.id} value={center.id}>
@@ -189,6 +225,63 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
               ))
             )}
           </select>
+        </div>
+      </div>
+
+      {/* Cấu hình Phòng Khám cho Bác sĩ */}
+      <div className="bg-blue-50/60 border border-blue-200/80 rounded-2xl p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <label className="flex items-center gap-1.5 text-xs font-bold text-blue-900 uppercase">
+            <DoorOpen size={16} className="text-blue-600" />
+            <span>Phòng Khám Làm Việc / Nơi Khám Bệnh <span className="text-red-500">*</span></span>
+          </label>
+          <span className="text-[11px] text-blue-600 font-medium">Admin chủ động cấu hình & gán phòng</span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <select
+              value={isCustomRoom ? 'CUSTOM' : selectedRoom}
+              onChange={(e) => {
+                if (e.target.value === 'CUSTOM') {
+                  setIsCustomRoom(true);
+                } else {
+                  setIsCustomRoom(false);
+                  setSelectedRoom(e.target.value);
+                }
+              }}
+              className="w-full px-3 py-2.5 bg-white border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm font-semibold text-slate-800"
+            >
+              <optgroup label="Danh mục phòng khám tiêu chuẩn">
+                {availableRooms.map((room) => (
+                  <option key={room.id} value={room.code}>
+                    {room.code} - {room.name} ({room.floor})
+                  </option>
+                ))}
+              </optgroup>
+              <option value="CUSTOM" className="text-blue-600 font-bold">
+                ➕ Mở phòng mới / Nhập mã phòng khác...
+              </option>
+            </select>
+          </div>
+
+          {isCustomRoom ? (
+            <div>
+              <input
+                type="text"
+                required
+                value={customRoomValue}
+                onChange={(e) => setCustomRoomValue(e.target.value)}
+                placeholder="Nhập mã phòng (Ví dụ: P.209, P.301, P.210...)"
+                className="w-full px-3 py-2.5 bg-white border-2 border-blue-400 rounded-xl focus:ring-2 focus:ring-blue-500 text-sm font-bold text-blue-700 placeholder:text-slate-400 placeholder:font-normal"
+                autoFocus
+              />
+            </div>
+          ) : (
+            <div className="flex items-center text-xs text-slate-600 bg-white/70 px-3 py-2 rounded-xl border border-blue-100">
+              <span>Đang phân công: <strong>{selectedRoom}</strong> ({availableRooms.find(r => r.code === selectedRoom)?.name || 'Phòng khám chuyên khoa'})</span>
+            </div>
+          )}
         </div>
       </div>
 

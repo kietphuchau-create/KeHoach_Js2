@@ -14,6 +14,8 @@ import java.time.Instant;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -51,6 +53,9 @@ public class BookAppointmentService implements BookAppointmentUseCase {
 
         // ── Kiểm tra giờ hành chính ──────────────────────────────────
         validateBusinessHours(slot);
+
+        // ── Kiểm tra tránh bệnh nhân đặt trùng giờ 2 bác sĩ ──────────
+        validatePatientNotDoubleBooked(command.patientProfileId(), slot);
 
         boolean locked = timeSlotRepository.lockSlot(command.slotId());
         if (!locked) {
@@ -109,6 +114,54 @@ public class BookAppointmentService implements BookAppointmentUseCase {
             throw new SlotNotAvailableException(
                     "Khung giờ khám phải nằm trong giờ hành chính (08:00 – 17:00). "
                     + "Vui lòng chọn khung giờ phù hợp.");
+        }
+    }
+
+    /**
+     * Ngăn chặn bệnh nhân đặt trùng lịch: Bệnh nhân không được phép có hai ca khám
+     * đang kích hoạt (PENDING, CONFIRMED, CHECKED_IN) có khung giờ khám chồng chéo nhau.
+     */
+    private void validatePatientNotDoubleBooked(String patientProfileId, TimeSlot targetSlot) {
+        if (patientProfileId == null || patientProfileId.isBlank() || targetSlot.startTime() == null || targetSlot.endTime() == null) {
+            return;
+        }
+
+        List<Appointment> existingApps = appointmentRepository.findByPatientProfileId(patientProfileId);
+        if (existingApps == null || existingApps.isEmpty()) {
+            return;
+        }
+
+        for (Appointment existing : existingApps) {
+            String status = existing.status();
+            boolean isActive = "PENDING".equalsIgnoreCase(status)
+                    || "CONFIRMED".equalsIgnoreCase(status)
+                    || "CHECKED_IN".equalsIgnoreCase(status);
+
+            if (!isActive || existing.slotId() == null || existing.slotId().isBlank()) {
+                continue;
+            }
+
+            // Trùng chính xác slot ID
+            if (existing.slotId().equals(targetSlot.id())) {
+                throw new SlotNotAvailableException(
+                        "Bạn đã có một lịch hẹn (Mã: " + existing.bookingCode()
+                        + ") tại đúng khung giờ này. Không thể đặt trùng lặp!");
+            }
+
+            // Kiểm tra khung giờ của ca khám trước có chồng lấn với slot đang chọn không
+            Optional<TimeSlot> existingSlotOpt = timeSlotRepository.findById(existing.slotId());
+            if (existingSlotOpt.isPresent()) {
+                TimeSlot existingSlot = existingSlotOpt.get();
+                if (existingSlot.startTime() != null && existingSlot.endTime() != null) {
+                    boolean overlap = targetSlot.startTime().isBefore(existingSlot.endTime())
+                            && targetSlot.endTime().isAfter(existingSlot.startTime());
+                    if (overlap) {
+                        throw new SlotNotAvailableException(
+                                "Bạn đã có lịch khám (Mã vé: " + existing.bookingCode()
+                                + ") trong cùng khung giờ này. Không thể đặt đồng thời hai ca khám trùng giờ nhau!");
+                    }
+                }
+            }
         }
     }
 }

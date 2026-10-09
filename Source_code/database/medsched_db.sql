@@ -443,8 +443,8 @@ CREATE INDEX idx_doctor_reviews_doctor ON doctor_reviews(doctor_id);
 
 -- [1] Hai chi nhánh
 INSERT INTO medical_centers (id, code, name, address, phone) VALUES
-('a1b2c3d4-0001-4000-8000-000000000001', 'MED_Q1', 'Bệnh Viện Đa Khoa MedSched - Chi Nhánh Quận 1', 'Số 123 Nguyễn Thị Minh Khai, P. Bến Thành, Q.1, TP.HCM', '02839123456'),
-('a1b2c3d4-0002-4000-8000-000000000002', 'MED_Q7', 'Bệnh Viện Đa Khoa MedSched - Chi Nhánh Quận 7', 'Số 45 Nguyễn Thị Thập, P. Tân Phú, Q.7, TP.HCM', '02839998877');
+('a1b2c3d4-0001-4000-8000-000000000001', 'MED_Q1', 'Phòng Khám Đa Khoa MedSched - Chi Nhánh Quận 1', 'Số 123 Nguyễn Thị Minh Khai, P. Bến Thành, Q.1, TP.HCM', '02839123456'),
+('a1b2c3d4-0002-4000-8000-000000000002', 'MED_Q7', 'Phòng Khám Đa Khoa MedSched - Chi Nhánh Quận 7', 'Số 45 Nguyễn Thị Thập, P. Tân Phú, Q.7, TP.HCM', '02839998877');
 
 INSERT INTO system_settings (id, medical_center_id, setting_key, setting_value, description) VALUES
 ('b1b2c3d4-0001-4000-8000-000000000001', 'a1b2c3d4-0001-4000-8000-000000000001', 'DEFAULT_SLOT_DURATION_MINUTES', '30', 'Thời lượng khám mặc định cho mỗi ca'),
@@ -491,7 +491,7 @@ INSERT INTO user_medical_center_roles (id, user_id, medical_center_id, role) VAL
 -- Hồ sơ hành nghề bác sĩ (1 bác sĩ có thể trực tại nhiều khoa/chi nhánh)
 INSERT INTO doctors (id, user_id, specialty_id, academic_title, consultation_fee, room_number, bio) VALUES
 ('10b2c3d4-0001-4000-8000-000000000001', 'e1b2c3d4-0002-4000-8000-000000000002', 'c1b2c3d4-0001-4000-8000-000000000001', 'BS.CKII', 300000.00, 'P.205', 'Chuyên gia đầu ngành Da liễu với hơn 15 năm kinh nghiệm điều trị.'),
-('10b2c3d4-0002-4000-8000-000000000002', 'e1b2c3d4-0010-4000-8000-000000000010', 'c1b2c3d4-0005-4000-8000-000000000005', 'ThS.BS', 250000.00, 'P.101', 'Chuyên gia Da liễu & Thẩm mỹ da tại chi nhánh Quận 7.'),
+('10b2c3d4-0002-4000-8000-000000000002', 'e1b2c3d4-0010-4000-8000-000000000010', 'c1b2c3d4-0005-4000-8000-000000000005', 'ThS.BS', 250000.00, 'P.102', 'Chuyên gia Da liễu & Thẩm mỹ da tại chi nhánh Quận 7.'),
 ('10b2c3d4-0003-4000-8000-000000000003', 'e1b2c3d4-0003-4000-8000-000000000003', 'c1b2c3d4-0002-4000-8000-000000000002', 'PGS.TS', 350000.00, 'P.208', 'Chuyên gia Nội tổng quát, tim mạch học và rối loạn chuyển hóa.'),
 ('10b2c3d4-0004-4000-8000-000000000004', 'e1b2c3d4-0006-4000-8000-000000000006', 'c1b2c3d4-0005-4000-8000-000000000005', 'ThS.BS', 250000.00, 'P.102', 'Bác sĩ chuyên khoa điều trị và chăm sóc da tại Chi nhánh Quận 7.');
 

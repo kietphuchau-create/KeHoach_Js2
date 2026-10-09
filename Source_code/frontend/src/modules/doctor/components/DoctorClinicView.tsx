@@ -43,7 +43,8 @@ import {
   PauseCircle,
   ShieldAlert,
   QrCode,
-  HeartPulse
+  HeartPulse,
+  DoorOpen
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { api, getAuthUser, getAuthToken } from '@/shared/lib/api';
@@ -51,6 +52,7 @@ import { formatDoctorFullName } from '@/shared/lib/formatters';
 import AlertMessage from '@/shared/components/Feedback/AlertMessage';
 import LoginForm from '@/modules/auth/components/LoginForm';
 import DoctorScheduleView from './DoctorScheduleView';
+import { getClinicRooms, ClinicRoom } from '@/shared/lib/clinicRooms';
 
 interface PatientQueueItem {
   id: string;
@@ -230,6 +232,81 @@ export default function DoctorClinicView() {
   const [clinicActive, setClinicActive] = useState(true);
   const [activePatientIndex, setActivePatientIndex] = useState(0);
   const [notification, setNotification] = useState<string | null>(null);
+
+  // ── Quản Lý Buồng Khám Trực Của Bác Sĩ ──
+  const [activeRoom, setActiveRoom] = useState<string>('P.208');
+  const [showChangeRoomModal, setShowChangeRoomModal] = useState<boolean>(false);
+  const [availableRooms, setAvailableRooms] = useState<ClinicRoom[]>([]);
+
+  // Trạng thái ca trực hôm nay & kiểm tra chiếm dụng buồng khám
+  const [todayShift, setTodayShift] = useState<{ hasShift: boolean; shiftTime?: string } | null>(null);
+  const [roomOccupantConflict, setRoomOccupantConflict] = useState<string | null>(null);
+
+  const verifyShiftAndOccupancy = useCallback(async (room: string, docId?: string) => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    // 1. Kiểm tra bác sĩ có ca trực hôm nay không
+    try {
+      const schedules = await api.getDoctorSchedules(docId || currentUser?.doctorId, todayStr, todayStr);
+      if (Array.isArray(schedules)) {
+        const activeShifts = schedules.filter((s: any) => s.workDate === todayStr && s.status === 'ACTIVE');
+        if (activeShifts.length > 0) {
+          const times = activeShifts.map((s: any) => `${s.startTime} - ${s.endTime}`).join(', ');
+          setTodayShift({ hasShift: true, shiftTime: times });
+          setClinicActive(true);
+        } else {
+          setTodayShift({ hasShift: false });
+          setClinicActive(false);
+        }
+      }
+    } catch (e) {
+      console.warn('Lỗi kiểm tra ca trực:', e);
+    }
+
+    // 2. Kiểm tra buồng khám có bị bác sĩ khác chiếm dụng không
+    try {
+      const occupancies = await api.getRoomOccupancy(todayStr);
+      if (Array.isArray(occupancies)) {
+        const occ = occupancies.find(
+          (o: any) => o.roomNumber.toUpperCase() === room.toUpperCase() && (docId ? o.doctorId !== docId : true)
+        );
+        if (occ) {
+          setRoomOccupantConflict(`Buồng khám [${room}] hiện đã có ${occ.doctorName} (${occ.startTime} - ${occ.endTime}) trực.`);
+        } else {
+          setRoomOccupantConflict(null);
+        }
+      }
+    } catch (e) {
+      console.warn('Lỗi kiểm tra chiếm dụng buồng:', e);
+    }
+  }, []);
+
+  const currentRoomInfo = useMemo(() => {
+    return availableRooms.find(r => r.code === activeRoom) || {
+      code: activeRoom,
+      name: 'Khoa Nội Tổng Quát',
+      floor: 'Tầng 2',
+      medicalCenterName: 'Phòng Khám Đa Khoa MedSched'
+    };
+  }, [availableRooms, activeRoom]);
+
+  const handleChangeRoom = (roomCode: string) => {
+    const code = roomCode.trim().toUpperCase();
+    if (!code) return;
+    const roomInfo = availableRooms.find(r => r.code === code);
+    if (!roomInfo) {
+      setNotification(`⚠️ Buồng khám [${code}] không nằm trong danh mục do Quản Trị Viên (Admin) phê duyệt.`);
+      return;
+    }
+    setActiveRoom(code);
+    setCurrentUser((prev: any) => ({ ...prev, roomNumber: code }));
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('medsched_doctor_active_room', code);
+      window.dispatchEvent(new CustomEvent('medsched:doctor_room_changed', { detail: { roomNumber: code } }));
+    }
+    setShowChangeRoomModal(false);
+    setNotification(`🚪 Đã chuyển sang trực tại buồng khám [${code}] - ${roomInfo.name}.`);
+    verifyShiftAndOccupancy(code, currentUser?.doctorId);
+  };
 
   // ── Khóa Buồng Khám Bảo Mật Khi Rảnh (Idle Screen Lock) ──
   const [isScreenLocked, setIsScreenLocked] = useState(false);
@@ -499,6 +576,12 @@ export default function DoctorClinicView() {
         setAuthChecked(true);
         return;
       }
+      const storedRoom = typeof window !== 'undefined' ? sessionStorage.getItem('medsched_doctor_active_room') : null;
+      if (storedRoom) {
+        setActiveRoom(storedRoom);
+      }
+      setAvailableRooms(getClinicRooms());
+
       const enrichedUser = { ...user };
       api.getDoctors().then((docs) => {
         if (Array.isArray(docs)) {
@@ -508,10 +591,18 @@ export default function DoctorClinicView() {
             (user.email && d.email?.toLowerCase() === user.email?.toLowerCase())
           );
           if (matched) {
+            enrichedUser.doctorId = matched.id;
             enrichedUser.academicTitle = matched.academicTitle;
             enrichedUser.specialtyName = matched.specialtyName;
             enrichedUser.roomNumber = matched.roomNumber;
+            const targetRoom = storedRoom || matched.roomNumber || 'P.101';
+            setActiveRoom(targetRoom);
+            if (typeof window !== 'undefined') {
+              sessionStorage.setItem('medsched_doctor_active_room', targetRoom);
+              window.dispatchEvent(new CustomEvent('medsched:doctor_room_changed', { detail: { roomNumber: targetRoom } }));
+            }
             setCurrentUser({ ...enrichedUser });
+            verifyShiftAndOccupancy(targetRoom, matched.id);
           }
         }
       }).catch(() => {});
@@ -1262,7 +1353,7 @@ export default function DoctorClinicView() {
           }`}
         >
           <CalendarDays size={15} />
-          <span>Quản Lý Lịch Trực &amp; Khung Giờ (CRUD)</span>
+          <span>Quản Lý Lịch Trực &amp; Khung Giờ Khám</span>
         </button>
       </div>
 
@@ -1279,15 +1370,41 @@ export default function DoctorClinicView() {
               <Stethoscope size={15} />
               <span>Phân Hệ Buồng Khám Chuyên Khoa</span>
             </div>
-            <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">
-              {`Bàn Khám: ${formatDoctorFullName(currentUser?.academicTitle || 'BS.CKII', currentUser?.fullName || 'Nguyễn Minh Anh')}`}
-            </h1>
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">
+                {`Bàn Khám: ${formatDoctorFullName(currentUser?.academicTitle || 'BS.CKII', currentUser?.fullName || 'Nguyễn Minh Anh')}`}
+              </h1>
+              {/* Badge Phòng Khám Nổi Bật Cho Bác Sĩ */}
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-900 border border-blue-200/90 shadow-2xs font-bold text-xs sm:text-sm">
+                <div className="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                  <DoorOpen size={13} />
+                </div>
+                <span>
+                  Phòng Trực: <strong className="text-blue-700 font-extrabold text-sm sm:text-base">{activeRoom}</strong>
+                </span>
+                <span className="hidden sm:inline-block text-[11px] font-semibold text-blue-600 bg-blue-100/70 px-2 py-0.5 rounded-md">
+                  {currentRoomInfo.floor} • {currentRoomInfo.name}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowChangeRoomModal(true)}
+                  className="ml-1 text-[11px] text-teal-700 hover:text-teal-900 bg-white hover:bg-teal-50 px-2.5 py-1 rounded-lg border border-teal-200 transition font-bold cursor-pointer shadow-2xs"
+                  title="Bấm để chuyển buồng khám trực khác nếu cần"
+                >
+                  Đổi phòng
+                </button>
+              </div>
+            </div>
             <div className="flex items-center gap-2 text-xs text-slate-500 flex-wrap font-medium">
               <span>{currentUser?.rolesWithCenter?.[0]?.medicalCenterName || 'Hệ Thống MedSched'}</span>
               <span>•</span>
               <span className="text-teal-700 font-semibold">Buồng Khám Bác Sĩ</span>
               <span>•</span>
-              <span className="inline-flex items-center gap-1.5 text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-md font-mono text-[11px]">
+              <span className="text-blue-800 font-bold flex items-center gap-1 bg-blue-50/70 px-2 py-0.5 rounded-md border border-blue-100">
+                <DoorOpen size={12} className="text-blue-600" />
+                <span>Buồng Khám {activeRoom} ({currentRoomInfo.floor})</span>
+              </span>
+              <span className="inline-flex items-center gap-1.5 text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-md font-mono text-[11px] ml-0.5">
                 <Calendar size={12} className="text-teal-600" />
                 <span>{todayVietnameseDate}</span>
               </span>
@@ -1318,16 +1435,34 @@ export default function DoctorClinicView() {
             {/* Công tắc Mở/Dừng Phòng Khám */}
             <button
               type="button"
-              onClick={() => setClinicActive(!clinicActive)}
+              onClick={() => {
+                if (roomOccupantConflict) {
+                  setNotification(`⛔ ${roomOccupantConflict}`);
+                  return;
+                }
+                setClinicActive(!clinicActive);
+              }}
               className={`px-3.5 py-2.5 rounded-xl font-bold text-xs transition cursor-pointer flex items-center gap-2 border shadow-xs ${
-                clinicActive
-                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
-                  : 'bg-red-50 text-red-800 border-red-300 hover:bg-red-100'
+                roomOccupantConflict
+                  ? 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100'
+                  : clinicActive
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                    : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
               }`}
               title="Mở hoặc tạm dừng tiếp nhận lượt khám mới"
             >
-              <span className={`w-2.5 h-2.5 rounded-full ${clinicActive ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
-              <span>{clinicActive ? 'Đang Mở Khám' : 'Tạm Dừng Khám'}</span>
+              <span className={`w-2.5 h-2.5 rounded-full ${
+                roomOccupantConflict ? 'bg-rose-500' : clinicActive ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'
+              }`} />
+              <span>{
+                roomOccupantConflict
+                  ? 'Buồng Trùng Lịch'
+                  : clinicActive
+                    ? 'Đang Mở Khám'
+                    : todayShift?.hasShift === false
+                      ? 'Chưa Có Ca Trực'
+                      : 'Tạm Dừng Khám'
+              }</span>
             </button>
           </div>
         </div>
@@ -1336,14 +1471,6 @@ export default function DoctorClinicView() {
         <div className="border-t border-slate-100 bg-slate-50/70 px-5 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
           {/* Nhóm thao tác vận hành an toàn */}
           <div className="flex items-center gap-2">
-            <Link
-              href="/doctor/history"
-              className="px-3 py-1.5 rounded-lg font-semibold text-xs bg-white text-teal-800 hover:bg-teal-50 border border-teal-200 transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
-              title="Tra cứu lịch sử bệnh nhân đã khám và xem lại các đơn thuốc đã kê"
-            >
-              <FileText size={13} className="text-teal-700" />
-              <span>Lịch Sử Khám &amp; Đơn Thuốc</span>
-            </Link>
             <button
               type="button"
               onClick={() => setIsScreenLocked(true)}
@@ -1351,14 +1478,44 @@ export default function DoctorClinicView() {
               title="Khóa bảo vệ màn hình buồng khám khi bác sĩ tạm rời vị trí"
             >
               <Lock size={13} className="text-teal-700" />
-              <span>Khóa Màn Hình</span>
+              <span>Khóa Màn Hình Buồng Khám</span>
             </button>
+          </div>
+          <div className="text-[11px] text-slate-500 font-medium hidden sm:flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-teal-600"></span>
+            <span>Hệ thống tự động đồng bộ hàng đợi với Quầy tiếp đón theo thời gian thực</span>
           </div>
         </div>
       </div>
 
       {notification && (
         <AlertMessage type="info" message={notification} onClose={() => setNotification(null)} />
+      )}
+
+      {/* Cảnh báo xung đột buồng khám nếu có bác sĩ khác trực */}
+      {roomOccupantConflict && (
+        <div className="p-3.5 bg-rose-50 border-2 border-rose-300 rounded-2xl text-xs text-rose-900 shadow-2xs flex items-start gap-2.5 animate-in fade-in duration-150">
+          <AlertCircle size={17} className="text-rose-600 shrink-0 mt-0.5" />
+          <div className="space-y-0.5">
+            <span className="font-extrabold text-rose-900">Cảnh Báo Xung Đột Buồng Khám Trực:</span>
+            <p className="text-[11px] text-rose-800 leading-relaxed">
+              {roomOccupantConflict} Vui lòng bấm <strong>[Đổi phòng]</strong> để chuyển sang buồng khám chuyên môn của bạn hoặc liên hệ Quản Trị Viên!
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Thông báo hướng dẫn nếu hôm nay bác sĩ chưa có ca trực */}
+      {todayShift?.hasShift === false && !roomOccupantConflict && (
+        <div className="p-3.5 bg-amber-50 border-2 border-amber-300 rounded-2xl text-xs text-amber-900 shadow-2xs flex items-start gap-2.5 animate-in fade-in duration-150">
+          <AlertCircle size={17} className="text-amber-600 shrink-0 mt-0.5" />
+          <div className="space-y-0.5">
+            <span className="font-extrabold text-amber-900">Hôm nay bạn chưa có ca trực được phân công:</span>
+            <p className="text-[11px] text-amber-800 leading-relaxed">
+              Theo hệ thống, bác sĩ chưa có ca trực chính thức trong ngày hôm nay ({todayVietnameseDate}). Vui lòng bấm sang tab <strong>&ldquo;Quản Lý Lịch Trực &amp; Khung Giờ Khám&rdquo;</strong> ở trên để kiểm tra hoặc đăng ký ca trực mới.
+            </p>
+          </div>
+        </div>
       )}
 
       {/* ── Thanh Timer Đếm Ngược Ca Khám Hiện Tại ── */}
@@ -1443,8 +1600,8 @@ export default function DoctorClinicView() {
                   <span>Hàng Đợi Khám Hôm Nay</span>
                 </h3>
                 <p className="text-[11px] text-teal-700 font-semibold flex items-center gap-1.5 mt-0.5">
-                  <Calendar size={12} className="text-teal-600" />
-                  <span>{`${todayVietnameseDate} • Buồng Khám Trực Tiếp`}</span>
+                  <DoorOpen size={12} className="text-blue-600" />
+                  <span>{`${todayVietnameseDate} • Buồng Trực [${activeRoom}]`}</span>
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -1792,9 +1949,11 @@ export default function DoctorClinicView() {
               <div className="w-16 h-16 rounded-2xl bg-teal-50 text-teal-700 flex items-center justify-center mx-auto mb-4 border border-teal-100">
                 <Stethoscope size={32} />
               </div>
-              <h3 className="text-lg font-bold text-slate-800">Buồng Khám Đang Sẵn Sàng Tiếp Nhận</h3>
+              <h3 className="text-lg font-bold text-slate-800">
+                Buồng Khám [{activeRoom}] Đang Sẵn Sàng Tiếp Nhận
+              </h3>
               <p className="text-xs text-slate-500 mt-2 max-w-md mx-auto leading-relaxed">
-                Hiện chưa có bệnh nhân nào trong buồng khám. Khi bệnh nhân được tiếp đón và gọi vào phòng, toàn bộ thông tin bệnh án, triệu chứng phân loại và hồ sơ chẩn đoán sẽ hiển thị tại đây.
+                Bác sĩ <strong>{formatDoctorFullName(currentUser?.academicTitle || 'BS', currentUser?.fullName || 'Bác sĩ')}</strong> đang trực tại <strong>Phòng {activeRoom}</strong> ({currentRoomInfo.floor} - {currentRoomInfo.name}). Khi bệnh nhân được tiếp đón và gọi vào phòng, toàn bộ thông tin bệnh án, triệu chứng phân loại và hồ sơ chẩn đoán sẽ hiển thị tại đây.
               </p>
             </div>
           ) : (
@@ -2769,6 +2928,72 @@ export default function DoctorClinicView() {
         </div>
       )}
         </>
+      )}
+
+      {/* ── Modal Chuyển Đổi Buồng Khám Nhanh ── */}
+      {showChangeRoomModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2 text-teal-800 font-bold text-sm">
+                <DoorOpen size={18} className="text-teal-700" />
+                <span>Chuyển Đổi Buồng Khám Trực</span>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setShowChangeRoomModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500">
+              Chọn buồng khám bạn đang ngồi trực hôm nay để hệ thống và màn hình quầy tiếp đón điều phối người bệnh đến đúng vị trí:
+            </p>
+
+            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+              {availableRooms.map((room) => {
+                const isCurrent = room.code === activeRoom;
+                return (
+                  <button
+                    key={room.code}
+                    type="button"
+                    onClick={() => handleChangeRoom(room.code)}
+                    className={`w-full p-3 rounded-2xl border text-left transition flex items-center justify-between cursor-pointer ${
+                      isCurrent
+                        ? 'bg-blue-50/90 border-blue-400 text-blue-900 shadow-2xs font-bold'
+                        : 'bg-slate-50/70 border-slate-200 hover:bg-slate-100/80 text-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold ${
+                        isCurrent ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700'
+                      }`}>
+                        {room.code}
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-slate-800">{room.name}</div>
+                        <div className="text-[11px] text-slate-500">{room.floor} • {room.medicalCenterName}</div>
+                      </div>
+                    </div>
+                    {isCurrent && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+                        Đang ở đây
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Quy định buồng khám được Admin phê duyệt */}
+            <div className="pt-3 border-t border-slate-100 text-[11px] text-slate-500 flex items-center gap-2">
+              <ShieldCheck size={14} className="text-teal-600 shrink-0" />
+              <span>Danh mục buồng khám được Quản Trị Viên (Admin) phê duyệt để đảm bảo an toàn điều phối tiếp đón.</span>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

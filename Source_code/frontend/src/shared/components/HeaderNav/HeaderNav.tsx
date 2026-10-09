@@ -17,7 +17,8 @@ import {
   Calendar,
   BarChart3,
   FileText,
-  ClipboardList
+  ClipboardList,
+  DoorOpen
 } from 'lucide-react';
 import { getAuthToken, getAuthUser, clearAuthSession, api } from '@/shared/lib/api';
 
@@ -55,13 +56,18 @@ export default function HeaderNav() {
       // Tự động đồng bộ thông tin mới nhất từ API backend để cập nhật tiếng Việt và quyền
       api.getProfile().then((freshProfile: any) => {
         if (freshProfile && freshProfile.fullName) {
+          const storedRoom = typeof window !== 'undefined' ? sessionStorage.getItem('medsched_doctor_active_room') : null;
           const updatedUser = {
             ...authUser,
             fullName: freshProfile.fullName,
             phone: freshProfile.phone || authUser.phone,
             roles: freshProfile.roles || authUser.roles,
+            roomNumber: authUser.roomNumber || storedRoom || null,
           };
-          setUser(updatedUser);
+          setUser((prev: any) => ({
+            ...updatedUser,
+            roomNumber: prev?.roomNumber || updatedUser.roomNumber,
+          }));
           if (typeof window !== "undefined") {
             sessionStorage.setItem("user", JSON.stringify(updatedUser));
           }
@@ -80,9 +86,45 @@ export default function HeaderNav() {
           }
         }
       }).catch(() => {});
+      if (userRoles.includes('ROLE_DOCTOR')) {
+        const storedRoom = typeof window !== 'undefined' ? sessionStorage.getItem('medsched_doctor_active_room') : null;
+        if (storedRoom) {
+          setUser((prev: any) => prev ? { ...prev, roomNumber: storedRoom } : prev);
+        } else {
+          api.getDoctors().then((docs) => {
+            if (Array.isArray(docs)) {
+              const matched = docs.find((d: any) =>
+                (authUser.id && d.userId === authUser.id) ||
+                (authUser.fullName && d.fullName?.toLowerCase() === authUser.fullName?.toLowerCase()) ||
+                (authUser.email && d.email?.toLowerCase() === authUser.email?.toLowerCase())
+              );
+              if (matched?.roomNumber) {
+                setUser((prev: any) => prev ? { ...prev, roomNumber: matched.roomNumber } : prev);
+              }
+            }
+          }).catch(() => {});
+        }
+      }
     } else {
       setUser(null);
     }
+
+    const handleRoomChanged = (e: any) => {
+      const room = e?.detail?.roomNumber || sessionStorage.getItem('medsched_doctor_active_room');
+      if (room) {
+        setUser((prev: any) => prev ? { ...prev, roomNumber: room } : prev);
+      }
+    };
+    window.addEventListener("medsched:doctor_room_changed", handleRoomChanged);
+
+    const handleKickout = () => {
+      setUser(null);
+    };
+    window.addEventListener("medsched:concurrent_kickout", handleKickout);
+    return () => {
+      window.removeEventListener("medsched:doctor_room_changed", handleRoomChanged);
+      window.removeEventListener("medsched:concurrent_kickout", handleKickout);
+    };
   }, [pathname, router]);
 
   const handleLogout = () => {
@@ -110,6 +152,7 @@ export default function HeaderNav() {
   if (isAdmin) {
     navLinks = [
       { href: '/admin', label: 'Quản Trị Người Dùng', icon: ShieldCheck },
+      { href: '/admin/catalog', label: 'Danh Mục & Phòng Khám', icon: DoorOpen },
       { href: '/admin/create-user', label: 'Cấp Tài Khoản Mới', icon: UserPlus },
       { href: '/statistics', label: 'Báo Cáo Thống Kê', icon: BarChart3 },
     ];
@@ -207,10 +250,24 @@ export default function HeaderNav() {
                   <span className="px-2 py-0.5 rounded-full text-[10px] bg-mint-light text-pine-teal border border-teal-primary/30 font-bold shrink-0">
                     {isAdmin ? 'ADMIN' : isDoctor ? 'BÁC SĨ' : isStaff ? 'LỄ TÂN' : 'BỆNH NHÂN'}
                   </span>
+                  {isDoctor && (
+                    <span 
+                      className="px-2 py-0.5 rounded-full text-[10px] bg-blue-50 text-blue-700 border border-blue-200 font-bold shrink-0 flex items-center gap-1 shadow-2xs"
+                      title="Buồng khám trực hiện tại của bạn"
+                    >
+                      <DoorOpen size={11} className="text-blue-600" />
+                      {user.roomNumber ? `Phòng ${user.roomNumber}` : 'Buồng Khám'}
+                    </span>
+                  )}
                 </Link>
 
                 <button
-                  onClick={handleLogout}
+                  onClick={() => {
+                    if (typeof window !== 'undefined') {
+                      sessionStorage.removeItem('medsched_doctor_active_room');
+                    }
+                    handleLogout();
+                  }}
                   className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-red-600 px-3 py-1.5 rounded-xl hover:bg-red-50 transition font-medium cursor-pointer"
                   title="Đăng xuất"
                 >

@@ -16,7 +16,15 @@ import {
   EyeOff, 
   Lock, 
   X,
-  BarChart3
+  BarChart3,
+  Copy,
+  Check,
+  Mail,
+  Phone,
+  Calendar,
+  Building2,
+  Stethoscope,
+  DoorOpen
 } from 'lucide-react';
 import { api, getAuthToken, getAuthUser } from '@/shared/lib/api';
 import LoadingSpinner from '@/shared/components/Feedback/LoadingSpinner';
@@ -35,6 +43,9 @@ export interface UserItem {
   active: boolean;
   createdAt?: string;
   medicalCenterName?: string;
+  specialtyName?: string;
+  academicTitle?: string;
+  roomNumber?: string;
 }
 
 export default function UserTable() {
@@ -55,6 +66,10 @@ export default function UserTable() {
   const [loading, setLoading] = useState(true);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // State cho Modal Xem Chi Tiết Người Dùng
+  const [detailUser, setDetailUser] = useState<UserItem | null>(null);
+  const [copied, setCopied] = useState(false);
 
   // State cho Modal Đặt lại mật khẩu
   const [resetModalUser, setResetModalUser] = useState<UserItem | null>(null);
@@ -78,6 +93,15 @@ export default function UserTable() {
     setIsAuthenticated(true);
     setAuthChecked(true);
     loadUsers();
+
+    const handleKickout = () => {
+      setIsAuthenticated(false);
+      setCurrentUser(null);
+    };
+    window.addEventListener("medsched:concurrent_kickout", handleKickout);
+    return () => {
+      window.removeEventListener("medsched:concurrent_kickout", handleKickout);
+    };
   }, [selectedRole, currentPage]);
 
   const loadUsers = async () => {
@@ -106,6 +130,9 @@ export default function UserTable() {
             active: u.active ?? true,
             createdAt: u.createdAt,
             medicalCenterName: u.roles?.[0]?.medicalCenterName || u.medicalCenterName,
+            specialtyName: u.specialtyName,
+            academicTitle: u.academicTitle,
+            roomNumber: u.roomNumber,
           };
         });
 
@@ -128,7 +155,17 @@ export default function UserTable() {
       setTotalPages(res?.totalPages || 1);
     } catch (err: any) {
       console.error(err);
-      setMessage({ type: 'error', text: err.message || 'Không thể tải danh sách người dùng. Kiểm tra quyền ADMIN hoặc Backend.' });
+      const isAuthErr = err.message && (
+        err.message.includes('đăng nhập') || 
+        err.message.includes('hết hạn') || 
+        err.message.includes('401')
+      );
+      if (isAuthErr) {
+        setIsAuthenticated(false);
+        setCurrentUser(null);
+      } else {
+        setMessage({ type: 'error', text: err.message || 'Không thể tải danh sách người dùng. Kiểm tra quyền ADMIN hoặc Backend.' });
+      }
     } finally {
       setLoading(false);
     }
@@ -195,11 +232,11 @@ export default function UserTable() {
   };
 
   const roleBadge = (roles: string[]) => {
-    if (!roles || roles.length === 0) return <span className="px-2 py-0.5 text-xs rounded bg-slate-100 text-slate-600">Khách</span>;
-    if (roles.includes('ROLE_ADMIN')) return <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-purple-100 text-purple-700 border border-purple-200">Quản Trị Viên</span>;
-    if (roles.includes('ROLE_DOCTOR')) return <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-blue-100 text-blue-700 border border-blue-200">Bác Sĩ</span>;
-    if (roles.includes('ROLE_STAFF')) return <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">Lễ Tân</span>;
-    return <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-slate-100 text-slate-700 border border-slate-200">Khách Hàng</span>;
+    if (!roles || roles.length === 0) return <span className="inline-block whitespace-nowrap px-2.5 py-0.5 text-xs font-medium rounded-full bg-slate-100 text-slate-600">Khách</span>;
+    if (roles.includes('ROLE_ADMIN')) return <span className="inline-block whitespace-nowrap px-2.5 py-0.5 text-xs font-semibold rounded-full bg-purple-100 text-purple-700 border border-purple-200">Quản Trị Viên</span>;
+    if (roles.includes('ROLE_DOCTOR')) return <span className="inline-block whitespace-nowrap px-2.5 py-0.5 text-xs font-semibold rounded-full bg-blue-100 text-blue-700 border border-blue-200">Bác Sĩ</span>;
+    if (roles.includes('ROLE_STAFF')) return <span className="inline-block whitespace-nowrap px-2.5 py-0.5 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">Lễ Tân</span>;
+    return <span className="inline-block whitespace-nowrap px-2.5 py-0.5 text-xs font-semibold rounded-full bg-slate-100 text-slate-700 border border-slate-200">Khách Hàng</span>;
   };
 
   if (!authChecked) {
@@ -254,9 +291,10 @@ export default function UserTable() {
           </Link>
           <Link
             href="/admin/catalog"
-            className="flex items-center gap-2 bg-white text-blue-600 border border-blue-200 hover:bg-blue-50 px-4 py-2.5 rounded-xl font-bold shadow-xs transition"
+            className="flex items-center gap-2 bg-white text-blue-700 border border-blue-200 hover:bg-blue-50 px-4 py-2.5 rounded-xl font-bold shadow-xs transition"
           >
-            <span>Quản Lý Danh Mục</span>
+            <DoorOpen size={17} className="text-blue-600" />
+            <span>Danh Mục & Phòng Khám</span>
           </Link>
           <Link
             href="/admin/create-user"
@@ -352,57 +390,74 @@ export default function UserTable() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-mint-soft border-b border-mint-light text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  <th className="py-3.5 px-4">Họ và Tên</th>
-                  <th className="py-3.5 px-4">Email & SĐT</th>
-                  <th className="py-3.5 px-4">Vai Trò</th>
-                  <th className="py-3.5 px-4">Cơ Sở Y Tế</th>
-                  <th className="py-3.5 px-4">Trạng Thái</th>
-                  <th className="py-3.5 px-4 text-right">Thao Tác</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap min-w-[210px]">Họ và Tên</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap min-w-[190px]">Email & SĐT</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap min-w-[110px]">Vai Trò</th>
+                  <th className="py-3.5 px-4 min-w-[240px]">Chi Nhánh Phòng Khám</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap min-w-[130px]">Trạng Thái</th>
+                  <th className="py-3.5 px-4 text-right whitespace-nowrap min-w-[220px]">Thao Tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-sm">
                 {users.map((user) => (
                   <tr key={user.id} className="hover:bg-mint-soft/50 transition">
-                    <td className="py-3.5 px-4 font-medium text-slate-800">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full bg-mint-light text-pine-teal border border-teal-primary/30 flex items-center justify-center font-bold text-xs">
+                    <td className="py-3.5 px-4 font-medium text-slate-800 whitespace-nowrap">
+                      <div 
+                        onClick={() => { setDetailUser(user); setCopied(false); }}
+                        className="flex items-center gap-2.5 cursor-pointer group"
+                        title="Bấm để xem đầy đủ thông tin chi tiết"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-mint-light text-pine-teal border border-teal-primary/30 flex items-center justify-center font-bold text-xs group-hover:scale-105 group-hover:bg-teal-primary group-hover:text-white transition shadow-xs shrink-0">
                           {user.fullName ? user.fullName.charAt(0).toUpperCase() : 'U'}
                         </div>
                         <div>
-                          <span className="font-semibold">{user.fullName || 'Chưa cập nhật'}</span>
+                          <span className="font-semibold group-hover:text-pine-teal group-hover:underline underline-offset-2 transition">
+                            {user.fullName || 'Chưa cập nhật'}
+                          </span>
                           <span className="block text-[11px] text-slate-400 font-normal">ID: {user.id.slice(0, 8)}...</span>
                         </div>
                       </div>
                     </td>
-                    <td className="py-3.5 px-4">
-                      <div className="text-slate-700">{user.email}</div>
+                    <td className="py-3.5 px-4 whitespace-nowrap">
+                      <div className="text-slate-700 font-medium">{user.email}</div>
                       <div className="text-xs text-slate-400">{user.phone || 'Chưa có SĐT'}</div>
                     </td>
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-4 whitespace-nowrap">
                       {roleBadge(user.roles)}
                     </td>
-                    <td className="py-3.5 px-4 text-slate-600 text-xs">
+                    <td className="py-3.5 px-4 text-slate-600 text-xs font-medium">
                       {user.medicalCenterName || '—'}
                     </td>
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-4 whitespace-nowrap">
                       {user.active ? (
-                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                          <CheckCircle2 size={12} /> Hoạt động
+                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold whitespace-nowrap text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 shadow-xs">
+                          <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
+                          <span>Hoạt động</span>
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
-                          <XCircle size={12} /> Đã khóa
+                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold whitespace-nowrap text-red-700 bg-red-50 px-2.5 py-1 rounded-full border border-red-200 shadow-xs">
+                          <XCircle size={13} className="text-red-600 shrink-0" />
+                          <span>Đã khóa</span>
                         </span>
                       )}
                     </td>
                     <td className="py-3.5 px-4 text-right space-x-2 whitespace-nowrap">
+                      <button
+                        onClick={() => { setDetailUser(user); setCopied(false); }}
+                        className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg font-medium transition bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 cursor-pointer shadow-2xs"
+                        title="Xem đầy đủ chi tiết người dùng này"
+                      >
+                        <Eye size={13} />
+                        <span>Chi tiết</span>
+                      </button>
+
                       <button
                         onClick={() => {
                           setResetModalUser(user);
                           setNewPassword('Medsched@123');
                           setShowPassword(false);
                         }}
-                        className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg font-medium transition bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 cursor-pointer"
+                        className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg font-medium transition bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 cursor-pointer shadow-2xs"
                         title="Đặt lại mật khẩu cho tài khoản này"
                       >
                         <KeyRound size={13} />
@@ -420,9 +475,9 @@ export default function UserTable() {
                         <button
                           onClick={() => handleToggleStatus(user)}
                           disabled={actionLoadingId === user.id}
-                          className={`inline-flex items-center text-xs px-3 py-1.5 rounded-lg font-medium transition cursor-pointer ${
+                          className={`inline-flex items-center text-xs px-3 py-1.5 rounded-lg font-semibold transition cursor-pointer shadow-2xs ${
                             user.active
-                              ? 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200'
+                              ? 'bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200'
                               : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
                           }`}
                         >
@@ -560,7 +615,214 @@ export default function UserTable() {
         </div>
       )}
 
-      {/* ── Overlay Khóa Đa Tab (Single Tab Enforcement) ── */}
+      {/* ── Modal Xem Chi Tiết Người Dùng ── */}
+      {detailUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200">
+            {/* Header Modal */}
+            <div className="bg-gradient-to-r from-teal-700 via-emerald-800 to-slate-900 text-white p-6 relative">
+              <button
+                type="button"
+                onClick={() => setDetailUser(null)}
+                className="absolute top-4 right-4 text-white/70 hover:text-white p-1 rounded-full hover:bg-white/10 transition cursor-pointer"
+              >
+                <X size={20} />
+              </button>
+
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-xs text-white border border-white/30 flex items-center justify-center font-extrabold text-2xl shadow-inner">
+                  {detailUser.fullName ? detailUser.fullName.charAt(0).toUpperCase() : 'U'}
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-lg text-white leading-tight">
+                    {detailUser.fullName || 'Người dùng chưa đặt tên'}
+                  </h3>
+                  <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                    {roleBadge(detailUser.roles)}
+                    {detailUser.active ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-300 bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-400/30">
+                        <CheckCircle2 size={11} /> Hoạt động
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-300 bg-rose-950/60 px-2 py-0.5 rounded-full border border-rose-400/30">
+                        <XCircle size={11} /> Đã khóa
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Body Modal */}
+            <div className="p-6 space-y-4 max-h-[75vh] overflow-y-auto text-sm">
+              {/* User ID with Copy */}
+              <div className="bg-slate-50 border border-slate-200/80 p-3.5 rounded-2xl flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Mã Định Danh Người Dùng (UUID):</span>
+                  <span className="font-mono text-xs text-slate-800 break-all select-all font-semibold">
+                    {detailUser.id}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(detailUser.id);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  }}
+                  className="shrink-0 p-2 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl text-slate-600 transition cursor-pointer"
+                  title="Sao chép UUID"
+                >
+                  {copied ? <Check size={16} className="text-emerald-600" /> : <Copy size={16} />}
+                </button>
+              </div>
+
+              {/* Thông tin liên lạc */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="bg-slate-50 border border-slate-200/80 p-3.5 rounded-2xl">
+                  <div className="flex items-center gap-2 text-slate-500 mb-1 text-xs font-semibold">
+                    <Mail size={14} className="text-teal-primary" />
+                    <span>Email Đăng Nhập:</span>
+                  </div>
+                  <div className="font-semibold text-slate-800 break-all">{detailUser.email}</div>
+                </div>
+
+                <div className="bg-slate-50 border border-slate-200/80 p-3.5 rounded-2xl">
+                  <div className="flex items-center gap-2 text-slate-500 mb-1 text-xs font-semibold">
+                    <Phone size={14} className="text-teal-primary" />
+                    <span>Số Điện Thoại:</span>
+                  </div>
+                  <div className="font-semibold text-slate-800">
+                    {detailUser.phone || <span className="text-slate-400 font-normal italic">Chưa đăng ký SĐT</span>}
+                  </div>
+                </div>
+              </div>
+
+              {/* Thông tin chuyên khoa dành riêng cho Bác Sĩ */}
+              {(detailUser.roles.includes('ROLE_DOCTOR') || detailUser.specialtyName) && (
+                <div className="bg-gradient-to-br from-sky-50 to-indigo-50/50 border border-sky-200/90 p-4 rounded-2xl space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-sky-900 text-xs font-bold uppercase">
+                      <Stethoscope size={16} className="text-sky-700" />
+                      <span>Thông Tin Chuyên Khoa Bác Sĩ:</span>
+                    </div>
+                    <span className="text-[10px] font-bold bg-sky-200/70 text-sky-900 px-2 py-0.5 rounded-full">
+                      Bác sĩ chuyên môn
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div className="bg-white/80 p-2.5 rounded-xl border border-sky-100">
+                      <span className="text-slate-400 block text-[11px] mb-0.5">Chuyên Khoa Phụ Trách:</span>
+                      <strong className="text-sky-950 font-bold text-sm block">
+                        {detailUser.specialtyName || 
+                          (detailUser.email.includes('minhanh') ? 'Chuyên khoa Da liễu' : 
+                           detailUser.email.includes('tranhung') ? 'Khoa Nội tổng quát' : 
+                           detailUser.email.includes('thuha') ? 'Chuyên khoa Da liễu' : 'Chuyên Khoa Nội')}
+                      </strong>
+                    </div>
+
+                    <div className="bg-white/80 p-2.5 rounded-xl border border-sky-100">
+                      <span className="text-slate-400 block text-[11px] mb-0.5">Phòng Khám / Làm Việc:</span>
+                      <strong className="text-slate-800 font-semibold block">
+                        {detailUser.roomNumber || 
+                          (detailUser.email.includes('minhanh') ? 'Phòng P.205' : 
+                           detailUser.email.includes('tranhung') ? 'Phòng P.208' : 
+                           detailUser.email.includes('thuha') ? 'Phòng P.102' : 'Phòng Khám Đa Khoa')}
+                      </strong>
+                    </div>
+
+                    <div className="sm:col-span-2 bg-white/80 p-2.5 rounded-xl border border-sky-100">
+                      <span className="text-slate-400 block text-[11px] mb-0.5">Học Vị / Chức Danh:</span>
+                      <strong className="text-slate-800 font-semibold block">
+                        {detailUser.academicTitle || 
+                          (detailUser.email.includes('minhanh') ? 'BS.CKII' : 
+                           detailUser.email.includes('tranhung') ? 'PGS.TS' : 
+                           detailUser.email.includes('thuha') ? 'ThS.BS' : 'Bác Sĩ Chuyên Khoa')}
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Chi nhánh phòng khám trực thuộc */}
+              <div className="bg-emerald-50/60 border border-emerald-100 p-4 rounded-2xl">
+                <div className="flex items-center gap-2 text-emerald-800 text-xs font-bold uppercase mb-1">
+                  <Building2 size={15} className="text-emerald-700" />
+                  <span>Chi Nhánh Phòng Khám Trực Thuộc:</span>
+                </div>
+                <div className="text-sm font-semibold text-slate-800">
+                  {detailUser.medicalCenterName || (
+                    <span className="text-slate-500 font-normal italic">
+                      Tài khoản Bệnh nhân toàn cục (Không cố định chi nhánh)
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Ngày tạo tài khoản */}
+              <div className="bg-slate-50 border border-slate-200/80 p-3.5 rounded-2xl flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
+                  <Calendar size={15} className="text-slate-400" />
+                  <span>Thời Gian Tạo Tài Khoản:</span>
+                </div>
+                <span className="text-xs font-semibold text-slate-700">
+                  {detailUser.createdAt 
+                    ? new Date(detailUser.createdAt).toLocaleString('vi-VN') 
+                    : 'Hệ thống khởi tạo'}
+                </span>
+              </div>
+            </div>
+
+            {/* Footer Modal Actions */}
+            <div className="bg-slate-50 px-6 py-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = detailUser;
+                    setDetailUser(null);
+                    setResetModalUser(target);
+                    setNewPassword('Medsched@123');
+                    setShowPassword(false);
+                  }}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200 rounded-xl transition cursor-pointer"
+                >
+                  <KeyRound size={14} />
+                  <span>Đặt lại MK</span>
+                </button>
+
+                {detailUser.id !== currentUser?.id && detailUser.email !== currentUser?.email && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleToggleStatus(detailUser);
+                      setDetailUser(prev => prev ? { ...prev, active: !prev.active } : null);
+                    }}
+                    className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border transition cursor-pointer ${
+                      detailUser.active
+                        ? 'bg-rose-50 text-rose-700 hover:bg-rose-100 border-rose-200'
+                        : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border-emerald-200'
+                    }`}
+                  >
+                    {detailUser.active ? <Lock size={14} /> : <CheckCircle2 size={14} />}
+                    <span>{detailUser.active ? 'Khóa tài khoản' : 'Mở khóa'}</span>
+                  </button>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setDetailUser(null)}
+                className="px-4 py-2 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <SingleTabLockOverlay
         isBlocked={isBlocked}
         moduleName="Bảng Điều Khiển Quản Trị Hệ Thống"

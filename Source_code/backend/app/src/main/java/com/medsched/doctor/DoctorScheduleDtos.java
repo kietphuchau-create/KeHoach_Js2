@@ -12,7 +12,8 @@ public class DoctorScheduleDtos {
             @NotNull(message = "Ngày trực không được để trống") LocalDate workDate,
             @NotNull(message = "Giờ bắt đầu không được để trống") LocalTime startTime,
             @NotNull(message = "Giờ kết thúc không được để trống") LocalTime endTime,
-            Integer slotDurationMinutes
+            Integer slotDurationMinutes,
+            String roomNumber
     ) {}
 
     public record TimeSlotDto(
@@ -35,6 +36,16 @@ public class DoctorScheduleDtos {
             int totalSlots,
             int availableSlots,
             int bookedSlots,
-            List<TimeSlotDto> slots
+            List<TimeSlotDto> slots,
+            String roomNumber
+    ) {}
+
+    public record RoomOccupancyDto(
+            String roomNumber,
+            String doctorId,
+            String doctorName,
+            String startTime,
+            String endTime,
+            boolean isOccupied
     ) {}
 }

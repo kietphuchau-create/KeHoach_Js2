@@ -26,7 +26,10 @@ public final class AdminDtos {
                               String phone,
                               boolean active,
                               List<RoleAssignment> roles,
-                              Instant createdAt) {
+                              Instant createdAt,
+                              String specialtyName,
+                              String academicTitle,
+                              String roomNumber) {
     }
 
     /** A staff role granted at one specific branch. */

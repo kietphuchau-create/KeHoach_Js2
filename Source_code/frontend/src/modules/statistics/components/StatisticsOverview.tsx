@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { 
@@ -15,9 +15,11 @@ import {
   RefreshCw, 
   Layers, 
   HelpCircle,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Lock
 } from 'lucide-react';
 import { getAuthUser, getAuthToken } from '@/shared/lib/api';
+import LoginForm from '@/modules/auth/components/LoginForm';
 import { TimeGranularity, UserRoleScope } from '../types';
 import { getStatisticsData, fetchStatisticsDataAsync, exportStatisticsCSV } from '../services/statisticsService';
 import AnalyticsLineChart from './AnalyticsLineChart';
@@ -33,6 +35,7 @@ export default function StatisticsOverview() {
   const [activeRole, setActiveRole] = useState<UserRoleScope>('ROLE_ADMIN');
   const [userRoles, setUserRoles] = useState<string[]>([]);
   const isAdmin = userRoles.includes('ROLE_ADMIN');
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
 
   // Bộ lọc thời gian & tham số
@@ -56,29 +59,44 @@ export default function StatisticsOverview() {
   useEffect(() => {
     const token = getAuthToken();
     const user = getAuthUser();
-    setCurrentUser(user);
+    const roles: string[] = user?.roles || [];
+    
+    // Auth Guard: Chỉ cho phép Quản trị viên, Bác sĩ hoặc Lễ tân xem báo cáo vận hành
+    const hasPrivilege = Boolean(
+      token && user && (
+        roles.includes('ROLE_ADMIN') || 
+        roles.includes('ROLE_DOCTOR') || 
+        roles.includes('ROLE_STAFF')
+      )
+    );
 
-    if (user && user.roles) {
-      setUserRoles(user.roles);
-      if (user.roles.includes('ROLE_ADMIN')) {
-        setActiveRole('ROLE_ADMIN');
-        setSelectedMetricId('visits');
-      } else if (user.roles.includes('ROLE_DOCTOR')) {
-        setActiveRole('ROLE_DOCTOR');
-        setSelectedMetricId('doctor_visits');
-      } else if (user.roles.includes('ROLE_STAFF')) {
-        setActiveRole('ROLE_STAFF');
-        setSelectedMetricId('checkins');
-      }
-    } else {
+    if (!hasPrivilege) {
+      setIsAuthenticated(false);
+      setAuthChecked(true);
+      return;
+    }
+
+    setIsAuthenticated(true);
+    setCurrentUser(user);
+    setUserRoles(roles);
+
+    if (roles.includes('ROLE_ADMIN')) {
       setActiveRole('ROLE_ADMIN');
       setSelectedMetricId('visits');
+    } else if (roles.includes('ROLE_DOCTOR')) {
+      setActiveRole('ROLE_DOCTOR');
+      setSelectedMetricId('doctor_visits');
+    } else if (roles.includes('ROLE_STAFF')) {
+      setActiveRole('ROLE_STAFF');
+      setSelectedMetricId('checkins');
     }
     setAuthChecked(true);
   }, []);
 
-  // Tải dữ liệu thật từ Backend (hoặc fallback thông minh) mỗi khi đổi bộ lọc
+  // Tải dữ liệu thật từ Backend mỗi khi đổi bộ lọc (CHỈ fetch khi đã đăng nhập hợp lệ)
   useEffect(() => {
+    if (!isAuthenticated) return;
+
     let isCancelled = false;
     setIsLoading(true);
 
@@ -109,7 +127,7 @@ export default function StatisticsOverview() {
     return () => {
       isCancelled = true;
     };
-  }, [activeRole, granularity, presetRange, selectedMetricId, selectedDoctorId, isAdmin]);
+  }, [isAuthenticated, activeRole, granularity, presetRange, selectedMetricId, selectedDoctorId, isAdmin]);
 
   const handleMetricCardClick = (metricId: string) => {
     // Nếu metric này có trong danh sách đồ thị thì đổi
@@ -128,15 +146,46 @@ export default function StatisticsOverview() {
     }
   };
 
+  if (!authChecked) {
+    return (
+      <div className="flex-1 flex items-center justify-center py-24">
+        <div className="text-center text-xs text-slate-500 flex items-center justify-center gap-2">
+          <RefreshCw size={15} className="animate-spin text-pine-teal" />
+          <span>Đang kiểm tra quyền truy cập báo cáo y tế...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center py-10 sm:py-16 animate-in fade-in duration-200 max-w-md mx-auto px-4">
+        <div className="mb-6 text-center">
+          <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-200 mb-3 shadow-xs">
+            <Lock size={13} />
+            <span>Yêu Cầu Đăng Nhập Quản Trị / Nhân Sự</span>
+          </span>
+          <h1 className="text-2xl font-black text-slate-800 tracking-tight">Báo Cáo Thống Kê & Vận Hành</h1>
+          <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+            Dữ liệu doanh thu viện phí, lưu lượng khám và năng suất nhân sự chỉ dành riêng cho Quản trị viên (Admin) và Nhân viên y tế. Vui lòng đăng nhập tài khoản có thẩm quyền để truy cập.
+          </p>
+        </div>
+        <Suspense fallback={<div className="text-center py-10 text-xs text-slate-400">Đang nạp biểu mẫu đăng nhập...</div>}>
+          <LoginForm />
+        </Suspense>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-in fade-in duration-150">
       {/* ── Thanh Context Bar kiểu Google Analytics (Màu Cam / Header Tối Giản) ── */}
       <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 mb-1">
-            <span className="text-amber-600 font-bold">medsched.hospital.vn</span>
+            <span className="text-amber-600 font-bold">medsched.clinic.vn</span>
             <span>&rsaquo;</span>
-            <span className="text-slate-700">Phân Hệ Thống Kê &amp; Báo Cáo</span>
+            <span className="text-slate-700">Phân Hệ Thống Kê &amp; Báo Cáo Phòng Khám</span>
             <span>&rsaquo;</span>
             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
               AUDIENCE OVERVIEW

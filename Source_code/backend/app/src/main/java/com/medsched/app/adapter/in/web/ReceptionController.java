@@ -37,6 +37,8 @@ import java.util.UUID;
 @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
 public class ReceptionController {
 
+    public static final int MAX_DAILY_WALKIN_PER_DOCTOR = 30;
+
     private final CheckinUseCase checkinUseCase;
     private final BillingService billingService;
     private final AppointmentJpaRepository appointmentJpaRepository;
@@ -99,9 +101,7 @@ public class ReceptionController {
         String code = req.bookingCode() != null ? req.bookingCode().trim() : "";
         Optional<AppointmentEntity> appOpt = appointmentJpaRepository.findByBookingCode(code);
         if (appOpt.isEmpty()) {
-            appOpt = appointmentJpaRepository.findAll().stream()
-                    .filter(a -> code.equalsIgnoreCase(a.getQueueNumber()) || code.equalsIgnoreCase(a.getBookingCode()))
-                    .findFirst();
+            appOpt = appointmentJpaRepository.findByQueueNumber(code);
         }
 
         if (appOpt.isPresent()) {
@@ -141,9 +141,9 @@ public class ReceptionController {
         String fullName = req.fullName() != null && !req.fullName().isBlank() ? req.fullName().trim() : "Bệnh nhân CCCD";
 
         if (!cccd.isBlank()) {
-            List<PatientProfileEntity> profiles = patientProfileJpaRepository.findAll().stream()
-                    .filter(p -> cccd.equalsIgnoreCase(p.getCccdNumber()))
-                    .toList();
+            List<PatientProfileEntity> profiles = patientProfileJpaRepository.findByCccdNumber(cccd)
+                    .map(List::of)
+                    .orElseGet(java.util.Collections::emptyList);
 
             for (PatientProfileEntity profile : profiles) {
                 List<AppointmentEntity> appointments = appointmentJpaRepository.findByPatientProfileIdOrderByCreatedAtDesc(profile.getId());
@@ -224,11 +224,22 @@ public class ReceptionController {
 
             String docId = targetDoctor != null ? targetDoctor.getId() : "10b2c3d4-0001-4000-8000-000000000001";
             LocalDate today = LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh"));
-            long count = appointmentJpaRepository.findAll().stream()
-                    .filter(a -> docId.equals(a.getDoctorId()))
-                    .filter(a -> (a.getCheckInTime() != null && a.getCheckInTime().atZone(ZoneId.of("Asia/Ho_Chi_Minh")).toLocalDate().equals(today))
-                            || (a.getCreatedAt() != null && a.getCreatedAt().atZone(ZoneId.of("Asia/Ho_Chi_Minh")).toLocalDate().equals(today)))
-                    .count();
+            Instant startOfDay = today.atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh")).toInstant();
+            Instant endOfDay = today.plusDays(1).atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh")).toInstant();
+
+            // Kiểm soát hạn ngạch tiếp nhận vãng lai tránh quá tải phòng khám
+            long walkinCount = appointmentJpaRepository.countByDoctorIdAndQueueTypeAndCreatedAtBetween(
+                    docId, QueueType.WALKIN, startOfDay, endOfDay);
+            if (walkinCount >= MAX_DAILY_WALKIN_PER_DOCTOR) {
+                return ResponseEntity.badRequest().body(new CheckinUseCase.CheckinResult(
+                        null,
+                        null,
+                        "Bác sĩ đã tiếp nhận đủ chỉ tiêu tối đa (" + MAX_DAILY_WALKIN_PER_DOCTOR
+                        + " ca) bệnh nhân vãng lai hôm nay. Vui lòng chọn bác sĩ khác hoặc hẹn ngày mai!"
+                ));
+            }
+
+            long count = appointmentJpaRepository.countByDoctorIdAndCreatedAtBetween(docId, startOfDay, endOfDay);
             String queueNum = "W-" + String.format("%02d", count + 1);
             String bookingCode = "CCCD-" + (100000 + new Random().nextInt(900000));
 
@@ -349,13 +360,21 @@ public class ReceptionController {
             }
         }
 
-        // 4. Tính STT hôm nay của Bác sĩ này
+        // 4. Kiểm soát hạn ngạch vãng lai & tính STT hôm nay của Bác sĩ (truy vấn SQL B-tree trực tiếp)
         LocalDate today = LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh"));
-        long count = appointmentJpaRepository.findAll().stream()
-                .filter(a -> doctorId.equals(a.getDoctorId()))
-                .filter(a -> (a.getCheckInTime() != null && a.getCheckInTime().atZone(ZoneId.of("Asia/Ho_Chi_Minh")).toLocalDate().equals(today))
-                        || (a.getCreatedAt() != null && a.getCreatedAt().atZone(ZoneId.of("Asia/Ho_Chi_Minh")).toLocalDate().equals(today)))
-                .count();
+        Instant startOfDay = today.atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh")).toInstant();
+        Instant endOfDay = today.plusDays(1).atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh")).toInstant();
+
+        long walkinCount = appointmentJpaRepository.countByDoctorIdAndQueueTypeAndCreatedAtBetween(
+                doctorId, QueueType.WALKIN, startOfDay, endOfDay);
+        if (walkinCount >= MAX_DAILY_WALKIN_PER_DOCTOR) {
+            throw new IllegalArgumentException(
+                    "Bác sĩ " + doctorName + " đã tiếp nhận đủ chỉ tiêu tối đa ("
+                    + MAX_DAILY_WALKIN_PER_DOCTOR
+                    + " ca) bệnh nhân vãng lai trong ngày hôm nay. Vui lòng phân bổ sang bác sĩ khác hoặc đặt lịch hẹn ngày mai!");
+        }
+
+        long count = appointmentJpaRepository.countByDoctorIdAndCreatedAtBetween(doctorId, startOfDay, endOfDay);
 
         String queueNumber = "W-" + String.format("%02d", count + 1);
         String bookingCode = "WALK-" + (100000 + new Random().nextInt(900000));

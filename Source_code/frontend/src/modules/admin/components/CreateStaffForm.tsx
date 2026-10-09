@@ -141,7 +141,7 @@ export default function CreateStaffForm({ medicalCenters, onSuccess }: CreateSta
 
       <div>
         <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
-          Cơ Sở Y Tế Tiếp Đón Làm Việc <span className="text-red-500">*</span>
+          Chi Nhánh Phòng Khám Tiếp Đón <span className="text-red-500">*</span>
         </label>
         <div className="relative">
           <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
@@ -152,7 +152,7 @@ export default function CreateStaffForm({ medicalCenters, onSuccess }: CreateSta
             className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm"
           >
             {medicalCenters.length === 0 ? (
-              <option value="">Không có cơ sở y tế nào</option>
+              <option value="">Không có chi nhánh phòng khám nào</option>
             ) : (
               medicalCenters.map(center => (
                 <option key={center.id} value={center.id}>

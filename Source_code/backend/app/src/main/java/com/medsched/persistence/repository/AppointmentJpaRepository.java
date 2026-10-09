@@ -35,4 +35,11 @@ public interface AppointmentJpaRepository extends JpaRepository<AppointmentEntit
 
     List<AppointmentEntity> findByDoctorId(String doctorId);
 
+    Optional<AppointmentEntity> findByQueueNumber(String queueNumber);
+
+    List<AppointmentEntity> findByStatus(AppointmentStatus status);
+
+    long countByDoctorIdAndCreatedAtBetween(String doctorId, java.time.Instant start, java.time.Instant end);
+
+    long countByDoctorIdAndQueueTypeAndCreatedAtBetween(String doctorId, com.medsched.persistence.enums.QueueType queueType, java.time.Instant start, java.time.Instant end);
 }

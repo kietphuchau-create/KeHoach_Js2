@@ -488,9 +488,7 @@ public class DoctorPrescriptionService {
         if (targetDoctorId != null && !targetDoctorId.isBlank()) {
             completedList = appointmentRepository.findByDoctorIdAndStatus(targetDoctorId, AppointmentStatus.COMPLETED);
         } else {
-            completedList = appointmentRepository.findAll().stream()
-                    .filter(a -> a.getStatus() == AppointmentStatus.COMPLETED)
-                    .toList();
+            completedList = appointmentRepository.findByStatus(AppointmentStatus.COMPLETED);
         }
 
         ZoneId vnZone = ZoneId.of("Asia/Ho_Chi_Minh");

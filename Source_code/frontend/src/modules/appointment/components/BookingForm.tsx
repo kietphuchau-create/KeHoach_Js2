@@ -402,7 +402,7 @@ export default function BookingForm() {
           <div className="mt-6 space-y-6">
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase mb-2">
-                1. Chọn Cơ Sở Y Tế Tiếp Nhận:
+                1. Chọn Chi Nhánh Phòng Khám:
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {centers.map((center) => (
@@ -480,7 +480,7 @@ export default function BookingForm() {
                   <div className="py-8 px-4 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
                     <Stethoscope size={32} className="mx-auto text-slate-400 mb-2" />
                     <p className="text-sm font-semibold text-slate-600">Chưa có bác sĩ khả dụng cho chuyên khoa này</p>
-                    <p className="text-xs text-slate-400 mt-1">Vui lòng quay lại bước trước để chọn chuyên khoa hoặc cơ sở y tế khác.</p>
+                    <p className="text-xs text-slate-400 mt-1">Vui lòng quay lại bước trước để chọn chuyên khoa hoặc chi nhánh phòng khám khác.</p>
                   </div>
                 ) : (
                   doctorList.map((doc) => (
@@ -618,12 +618,11 @@ export default function BookingForm() {
                   type="button"
                   onClick={handleAnalyzeSymptoms}
                   disabled={analyzingAi || !symptoms.trim()}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-purple-700 hover:text-purple-800 bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-200 transition cursor-pointer"
-                  title="Tính năng AI đang trong quá trình phát triển"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 px-3 py-1.5 rounded-lg shadow-xs transition cursor-pointer disabled:opacity-50"
+                  title="Nhận tư vấn chuyên khoa và gói khám phù hợp từ AI"
                 >
-                  <Sparkles size={13} className="text-purple-600" />
-                  <span>{analyzingAi ? 'Đang phân tích...' : 'Thử phân tích AI'}</span>
-                  <span className="text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded font-medium border border-amber-300">Đang phát triển</span>
+                  <Sparkles size={13} className={analyzingAi ? "animate-spin" : ""} />
+                  <span>{analyzingAi ? 'AI Đang Phân Tích...' : 'Trợ Lý AI Tư Vấn Gói Khám'}</span>
                 </button>
               </div>
               <textarea
@@ -631,35 +630,90 @@ export default function BookingForm() {
                 required
                 value={symptoms}
                 onChange={(e) => setSymptoms(e.target.value)}
-                placeholder="Ví dụ: Đau tức vùng ngực trái, hồi hộp đánh trống ngực vào ban đêm, thỉnh thoảng choáng nhẹ..."
+                placeholder="Ví dụ: Nổi mẩn ngứa vùng cổ 2 ngày nay / Đau nhức răng hàm dưới / Bé 3 tuổi bị sốt nhẹ và biếng ăn..."
                 className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm text-slate-800"
               />
-              <div className="flex items-center gap-1.5 text-xs text-amber-800 bg-amber-50 px-3 py-2 rounded-xl border border-amber-200 mt-2">
-                <AlertCircle size={14} className="text-amber-600 shrink-0" />
-                <span><strong>Thông báo:</strong> Tính năng trợ lý Spring AI phân loại &amp; tóm tắt bệnh án hiện đang trong quá trình phát triển &amp; thử nghiệm.</span>
+              <div className="flex items-center gap-1.5 text-xs text-slate-600 bg-slate-100 px-3 py-2 rounded-xl border border-slate-200 mt-2">
+                <Sparkles size={14} className="text-purple-600 shrink-0" />
+                <span>Trợ lý AI MedSched tự động phân tích triệu chứng để gợi ý đúng chuyên khoa, dịch vụ và lời dặn chuẩn bị trước khi đến khám.</span>
               </div>
             </div>
 
             {/* AI Summary Preview Card */}
             {aiPreview && (
-              <div className="bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-200 rounded-2xl p-4 space-y-2.5">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 text-purple-800 font-bold text-xs">
-                    <Sparkles size={16} className="text-purple-600 shrink-0" />
-                    <span>KẾT QUẢ ĐÁNH GIÁ TỰ ĐỘNG TỪ SPRING AI:</span>
+              <div className={`border rounded-2xl p-4 space-y-3 ${
+                (aiPreview as any).isEmergency 
+                  ? 'bg-rose-50 border-rose-300' 
+                  : 'bg-gradient-to-br from-purple-50 to-indigo-50 border-purple-200'
+              }`}>
+                {(aiPreview as any).isEmergency ? (
+                  /* Emergency Warning Box */
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-rose-700 font-bold text-sm">
+                      <AlertCircle size={18} className="text-rose-600 shrink-0" />
+                      <span>CẢNH BÁO AN TOÀN Y TẾ TỪ HỆ THỐNG PHÒNG KHÁM:</span>
+                    </div>
+                    <div className="bg-white p-3.5 rounded-xl border border-rose-200 text-xs text-rose-800 space-y-2">
+                      <p className="font-semibold text-rose-900 leading-relaxed">
+                        {(aiPreview as any).emergencyWarning || 'Phát hiện dấu hiệu cấp cứu đe dọa tính mạng! Phòng khám tư chỉ tiếp nhận ngoại trú. Vui lòng gọi 115 hoặc đến Bệnh viện Đa khoa gần nhất ngay lập tức.'}
+                      </p>
+                      <p className="text-[11px] text-slate-600 border-t border-rose-100 pt-1.5">
+                        * Lời dặn sơ cứu: Giữ bệnh nhân ở tư thế an toàn, thông thoáng đường thở và không tự ý cho uống thuốc lạ.
+                      </p>
+                    </div>
                   </div>
-                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-300">
-                    <Clock size={11} className="text-amber-600" />
-                    Đang Trong Quá Trình Phát Triển
-                  </span>
-                </div>
-                <div className="bg-white/80 backdrop-blur-xs p-3 rounded-xl text-xs text-slate-700 border border-purple-100 space-y-1">
-                  <div className="font-semibold text-purple-900 mb-0.5">Gợi ý chuyên khoa: {aiPreview.specialty}</div>
-                  <p className="italic text-slate-600">{aiPreview.summary}</p>
-                  <p className="text-[11px] text-amber-700 font-medium pt-1">
-                    * Kết quả do mô hình AI thử nghiệm phân tích, mang tính chất tham khảo kỹ thuật.
-                  </p>
-                </div>
+                ) : (
+                  /* Normal Clinical Triage Evaluation */
+                  <>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 text-purple-900 font-bold text-xs">
+                        <Sparkles size={16} className="text-purple-600 shrink-0" />
+                        <span>KẾT QUẢ TƯ VẤN TỪ TRỢ LÝ AI PHÒNG KHÁM MEDSCHED:</span>
+                      </div>
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full border border-emerald-300">
+                        <CheckCircle2 size={11} className="text-emerald-600" />
+                        Đã Phân Tích Xong
+                      </span>
+                    </div>
+                    <div className="bg-white/90 backdrop-blur-xs p-3.5 rounded-xl text-xs text-slate-700 border border-purple-100 space-y-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2 pb-1.5 border-b border-slate-100">
+                        <div>
+                          <span className="text-slate-500">Chuyên khoa phù hợp: </span>
+                          <strong className="text-purple-900 font-bold">
+                            {(aiPreview as any).specialtyName || (aiPreview as any).specialty || 'Nội Khoa Tổng Quát'}
+                          </strong>
+                        </div>
+                        {(aiPreview as any).estimatedFee && (
+                          <div className="bg-purple-100 text-purple-800 text-[11px] font-bold px-2 py-0.5 rounded-md">
+                            Phí khám: {(aiPreview as any).estimatedFee}
+                          </div>
+                        )}
+                      </div>
+
+                      {(aiPreview as any).recommendedService && (
+                        <div>
+                          <span className="text-slate-500">Gói khám đề xuất: </span>
+                          <strong className="text-indigo-800 font-semibold">{(aiPreview as any).recommendedService}</strong>
+                        </div>
+                      )}
+
+                      {(aiPreview as any).preparationAdvice && (
+                        <div className="bg-blue-50 border border-blue-200 text-blue-900 p-2.5 rounded-lg text-[11px] space-y-0.5">
+                          <span className="font-bold block text-blue-950">📋 Dặn dò chuẩn bị trước khi đến khám:</span>
+                          <p>{(aiPreview as any).preparationAdvice}</p>
+                        </div>
+                      )}
+
+                      <div className="text-slate-600 italic text-[11px]">
+                        <strong>Tóm tắt bệnh sử (gửi Bác sĩ):</strong> {(aiPreview as any).clinicalSummary || aiPreview.summary}
+                      </div>
+
+                      <p className="text-[10px] text-slate-500 pt-1">
+                        * {(aiPreview as any).disclaimer || 'Kết quả tư vấn mang tính chất tham khảo dịch vụ, vui lòng trao đổi trực tiếp với bác sĩ khi thăm khám.'}
+                      </p>
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
@@ -710,7 +764,7 @@ export default function BookingForm() {
               <div className="flex items-center justify-between relative z-10">
                 <div className="flex items-center gap-2">
                   <ShieldCheck size={24} className="text-cyan-300" />
-                  <span className="font-bold tracking-wider text-sm uppercase">Bệnh Viện Đa Khoa MedSched</span>
+                  <span className="font-bold tracking-wider text-sm uppercase">Phòng Khám Đa Khoa MedSched</span>
                 </div>
                 <span className="text-xs bg-white/20 px-2.5 py-1 rounded-full font-mono font-bold">VÉ KHÁM ĐIỆN TỬ</span>
               </div>
@@ -764,7 +818,7 @@ export default function BookingForm() {
                   </div>
                   <p className="text-xs text-slate-600 mt-0.5">
                     {isPaidOnline
-                      ? '✓ Quý khách đã xác nhận chuyển khoản viện phí thành công.'
+                      ? '✓ Quý khách đã xác nhận chuyển khoản chi phí khám thành công.'
                       : 'Thanh toán tiền khám trước (200.000đ) để nhận số khám ưu tiên không cần chờ quầy thu ngân.'}
                   </p>
                 </div>

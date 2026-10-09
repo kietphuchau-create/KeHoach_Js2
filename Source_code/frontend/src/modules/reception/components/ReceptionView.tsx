@@ -1148,7 +1148,7 @@ export default function ReceptionView() {
                 </div>
                 <div>
                   <h3 className="font-bold text-base">Phiếu Tiếp Đón &amp; Cấp Tài Khoản</h3>
-                  <p className="text-[11px] text-emerald-100">Bệnh viện Đa khoa MedSched</p>
+                  <p className="text-[11px] text-emerald-100">Phòng khám Đa khoa MedSched</p>
                 </div>
               </div>
               <button

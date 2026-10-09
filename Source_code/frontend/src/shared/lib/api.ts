@@ -91,18 +91,22 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    if (
-      response.status === 401 &&
-      (errorData.error === "CONCURRENT_SESSION_EXPIRED" || errorData.code === "CONCURRENT_SESSION_EXPIRED")
-    ) {
+    if (response.status === 401) {
       clearAuthSession();
       if (typeof window !== "undefined") {
+        let kickoutMsg = "Tài khoản của bạn vừa được đăng nhập trên một trình duyệt hoặc thiết bị khác. Phiên làm việc tại đây đã kết thúc.";
+        if (errorData.message && (errorData.message.includes("thiết bị khác") || errorData.message.includes("trình duyệt khác"))) {
+          kickoutMsg = errorData.message;
+        } else if (errorData.error === "CONCURRENT_SESSION_EXPIRED" || errorData.code === "CONCURRENT_SESSION_EXPIRED") {
+          kickoutMsg = errorData.message || kickoutMsg;
+        } else {
+          kickoutMsg = "Phiên làm việc của bạn đã hết hạn (hoặc tài khoản vừa đăng nhập ở một tab/thiết bị khác). Vui lòng đăng nhập lại để tiếp tục.";
+        }
+
         window.dispatchEvent(
           new CustomEvent("medsched:concurrent_kickout", {
             detail: {
-              message:
-                errorData.message ||
-                "Tài khoản của bạn đã được đăng nhập trên một trình duyệt/thiết bị khác. Phiên làm việc tại đây đã kết thúc.",
+              message: kickoutMsg,
             },
           })
         );
@@ -372,22 +376,76 @@ export const api = {
 
   async triageSymptoms(symptoms: string) {
     try {
-      return await request<{ specialty: string; summary: string }>("/ai/triage", {
+      return await request<{
+        specialtyCode?: string;
+        specialtyName?: string;
+        specialty: string;
+        recommendedService?: string;
+        estimatedFee?: string;
+        clinicalSummary?: string;
+        summary: string;
+        preparationAdvice?: string;
+        isEmergency?: boolean;
+        emergencyWarning?: string | null;
+        disclaimer?: string;
+      }>("/ai/triage", {
         method: "POST",
         body: JSON.stringify({ symptoms }),
       });
     } catch {
-      // Fallback rule-based nếu chưa bật endpoint AI
-      let specialty = "Nội Khoa Tổng Quát";
+      // Fallback cục bộ nếu chưa có kết nối mạng tới Backend
       const s = symptoms.toLowerCase();
-      if (s.includes("tim") || s.includes("ngực") || s.includes("khó thở")) specialty = "Khoa Nội Tim Mạch";
-      else if (s.includes("da") || s.includes("ngứa") || s.includes("mụn")) specialty = "Khoa Da Liễu";
-      else if (s.includes("răng") || s.includes("nướu")) specialty = "Khoa Răng Hàm Mặt";
-      else if (s.includes("mắt") || s.includes("nhìn mờ")) specialty = "Khoa Mắt";
+      let specialtyCode = "INTERNAL_MEDICINE";
+      let specialtyName = "Khoa Nội Tổng Quát";
+      let recommendedService = "Gói Khám Nội Tổng Quát";
+      let estimatedFee = "200.000 VNĐ";
+      let advice = "Nên nhịn ăn sáng trước 6-8 tiếng nếu cần xét nghiệm máu.";
+      let isEmergency = false;
+      let emergencyWarning: string | null = null;
+
+      if (s.includes("ngực") || s.includes("khó thở") || s.includes("ngất") || s.includes("đột quỵ")) {
+        isEmergency = true;
+        specialtyCode = "EMERGENCY";
+        specialtyName = "Cấp Cứu Khẩn Cấp";
+        emergencyWarning = "🚨 CẢNH BÁO NGUY HIỂM: Triệu chứng có dấu hiệu cấp cứu! Vui lòng gọi ngay 115 hoặc di chuyển đến Bệnh viện Đa khoa gần nhất!";
+      } else if (s.includes("da") || s.includes("ngứa") || s.includes("mụn") || s.includes("mề đay")) {
+        specialtyCode = "DERMATOLOGY";
+        specialtyName = "Chuyên Khoa Da Liễu";
+        recommendedService = "Gói Khám & Soi Da Kỹ Thuật Số";
+        estimatedFee = "250.000 VNĐ";
+        advice = "Tránh gãi mạnh gây trầy xước và không bôi mỹ phẩm lạ lên da trước khi khám.";
+      } else if (s.includes("răng") || s.includes("nướu") || s.includes("lợi") || s.includes("sâu răng")) {
+        specialtyCode = "ODONTO_STOMATOLOGY";
+        specialtyName = "Chuyên Khoa Răng Hàm Mặt";
+        recommendedService = "Gói Khám Răng Toàn Diện";
+        estimatedFee = "150.000 VNĐ";
+        advice = "Đánh răng sạch sẽ trước khi đến phòng khám.";
+      } else if (s.includes("mắt") || s.includes("mờ") || s.includes("nhức mắt")) {
+        specialtyCode = "OPHTHALMOLOGY";
+        specialtyName = "Chuyên Khoa Mắt";
+        recommendedService = "Đo Khúc Xạ & Khám Mắt Chuyên Sâu";
+        estimatedFee = "200.000 VNĐ";
+        advice = "Tháo kính áp tròng ít nhất 2 giờ trước khi đo thị lực.";
+      } else if (s.includes("bé") || s.includes("trẻ") || s.includes("con")) {
+        specialtyCode = "PEDIATRICS";
+        specialtyName = "Chuyên Khoa Nhi";
+        recommendedService = "Khám Nhi & Tư Vấn Dinh Dưỡng";
+        estimatedFee = "200.000 VNĐ";
+        advice = "Mang theo sổ tiêm chủng của bé và giữ ấm khi di chuyển.";
+      }
 
       return {
-        specialty,
-        summary: `Triệu chứng: ${symptoms.slice(0, 100)}... | Định hướng chuyên khoa: ${specialty}`,
+        specialtyCode,
+        specialtyName,
+        specialty: specialtyName,
+        recommendedService,
+        estimatedFee,
+        clinicalSummary: `Triệu chứng: ${symptoms.slice(0, 100)}... | Định hướng: ${specialtyName}`,
+        summary: `Triệu chứng: ${symptoms.slice(0, 100)}... | Định hướng: ${specialtyName}`,
+        preparationAdvice: advice,
+        isEmergency,
+        emergencyWarning,
+        disclaimer: "Lưu ý: Kết quả phân tích mang tính chất tham khảo dịch vụ phòng khám.",
       };
     }
   },
@@ -585,11 +643,26 @@ export const api = {
     return request<any[]>(`/doctor/schedules${qs}`);
   },
 
+  async getRoomOccupancy(workDate: string, startTime?: string, endTime?: string) {
+    const query = new URLSearchParams({ workDate });
+    if (startTime) query.append("startTime", startTime);
+    if (endTime) query.append("endTime", endTime);
+    return request<Array<{
+      roomNumber: string;
+      doctorId: string;
+      doctorName: string;
+      startTime: string;
+      endTime: string;
+      isOccupied: boolean;
+    }>>(`/doctor/schedules/room-occupancy?${query.toString()}`);
+  },
+
   async createDoctorSchedule(payload: {
     workDate: string;
     startTime: string;
     endTime: string;
     slotDurationMinutes?: number;
+    roomNumber?: string;
   }) {
     return request<any>("/doctor/schedules", {
       method: "POST",
