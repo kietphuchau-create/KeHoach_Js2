@@ -110,6 +110,10 @@ public class PaymentEntity {
         return amount;
     }
 
+    public void setAmount(BigDecimal amount) {
+        this.amount = amount;
+    }
+
     public PaymentMethod getMethod() {
         return method;
     }

@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -48,8 +49,8 @@ public class SecurityConfig {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
         provider.setUserDetailsService(userDetailsService);
         provider.setPasswordEncoder(passwordEncoder);
-        // Email không tồn tại cũng báo lỗi giống sai mật khẩu -> kẻ tấn công
-        // không dò được email nào đã đăng ký trong hệ thống.
+        // An unknown email fails exactly like a wrong password, so an attacker
+        // cannot probe which emails are registered.
         provider.setHideUserNotFoundExceptions(true);
         return new ProviderManager(provider);
     }
@@ -57,24 +58,56 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http, JwtAuthenticationFilter jwtFilter) throws Exception {
         return http
-                // API không dùng cookie/session nên không có nguy cơ CSRF cổ điển.
+                // Stateless API with no cookies/session, so classic CSRF does not apply.
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // 1. Endpoints công khai hoàn toàn: Auth, tài liệu Swagger / OpenAPI
                         .requestMatchers(
                                 "/error",
                                 "/api/v1/auth/**",
-                                "/api/v1/medical-centers",
-                                "/api/v1/specialties",
-                                "/api/v1/services",
-                                "/api/appointments/**",
-                                "/api/v1/appointments/**",
-                                "/api/reception/**",
-                                "/api/v1/reception/**",
-                                "/api/ai/**",
-                                "/api/v1/ai/**"
+                                "/v3/api-docs/**",
+                                "/swagger-ui/**",
+                                "/swagger-ui.html"
                         ).permitAll()
+
+                        // 2. Cho phép GET public danh mục y tế để người bệnh xem thông tin phòng khám/dịch vụ
+                        .requestMatchers(HttpMethod.GET,
+                                "/api/v1/medical-centers/**",
+                                "/api/v1/specialties/**",
+                                "/api/v1/services/**"
+                        ).permitAll()
+
+                        // 3. Khách xem danh sách slot giờ khám, tra cứu mã booking và check-in tự phục vụ qua mã QR
+                        .requestMatchers(HttpMethod.GET,
+                                "/api/appointments/doctors/*/slots",
+                                "/api/v1/appointments/doctors/*/slots",
+                                "/api/appointments/booking-code/*",
+                                "/api/v1/appointments/booking-code/*"
+                        ).permitAll()
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/appointments/checkin/qr",
+                                "/api/v1/appointments/checkin/qr",
+                                "/api/checkin/qr",
+                                "/api/v1/checkin/qr"
+                        ).permitAll()
+
+                        // 4. Thanh toán trực tuyến & Webhook cổng thanh toán (PayOS / VietQR)
+                        .requestMatchers(
+                                "/api/payments/**",
+                                "/api/v1/payments/**"
+                        ).permitAll()
+
+                        // 5. AI Triage định hướng chuyên khoa ban đầu
+                        .requestMatchers("/api/ai/**", "/api/v1/ai/**").permitAll()
+
+                        // 5. Phân quyền theo vai trò cụ thể
+                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/v1/doctor/**", "/api/doctor/**").hasAnyRole("DOCTOR", "ADMIN")
+                        .requestMatchers("/api/v1/reception/**", "/api/reception/**").hasAnyRole("STAFF", "ADMIN")
+
+                        // 6. Toàn bộ các API còn lại (bao gồm /api/v1/appointments/**, /api/v1/me/**) BẮT BUỘC ĐĂNG NHẬP
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((req, res, e) -> write(res, HttpStatus.UNAUTHORIZED,

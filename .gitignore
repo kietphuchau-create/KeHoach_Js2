@@ -19,6 +19,7 @@ yarn-error.log*
 .env.development.local
 .env.test.local
 .env.production.local
+*.tsbuildinfo
 
 # --- Java & Gradle (Backend) ---
 .gradle/
