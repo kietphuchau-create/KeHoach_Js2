@@ -16,8 +16,8 @@ import java.util.List;
 
 /**
  * Task 1 - Update Profile & Change Password.
- * Dùng chung cho Customer / Doctor / Staff / Admin: mọi tài khoản đăng nhập đều
- * gọi được, nên không cần 4 bộ endpoint riêng cho 4 vai trò.
+ * Shared by Customer / Doctor / Staff / Admin: any signed-in account may call
+ * these, so there is no need for four separate sets of endpoints.
  */
 @RestController
 @RequestMapping("/api/v1/me")
@@ -47,7 +47,7 @@ public class MeController {
         return ResponseEntity.noContent().build();
     }
 
-    /** Chỉ bác sĩ mới sửa được phần hồ sơ chuyên môn. */
+    /** Only a doctor may edit the professional part of the profile. */
     @PutMapping("/doctor-profile")
     @PreAuthorize("hasRole('DOCTOR')")
     public List<AccountDtos.DoctorProfileView> updateDoctorProfile(
@@ -56,7 +56,7 @@ public class MeController {
         return accountService.updateDoctorProfile(principal, request);
     }
 
-    /** Hồ sơ y tế của chính chủ tài khoản (mọi vai trò đều có thể là bệnh nhân). */
+    /** The account owner own medical profile (every role can also be a patient). */
     @PutMapping("/patient-profile")
     public AccountDtos.PatientProfileView updatePatientProfile(
             @AuthenticationPrincipal AppUserDetails principal,

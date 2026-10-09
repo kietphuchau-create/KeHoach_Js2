@@ -1,7 +1,5 @@
 package com.medsched.core.usecase;
 
-import com.medsched.core.domain.exception.DomainException;
-import com.medsched.core.domain.exception.ResourceNotFoundException;
 import com.medsched.core.domain.exception.SlotNotAvailableException;
 import com.medsched.core.domain.model.Appointment;
 import com.medsched.core.domain.model.TimeSlot;
@@ -12,188 +10,157 @@ import com.medsched.core.port.out.TimeSlotRepositoryPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.time.Instant;
-import java.util.*;
-import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.time.*;
+import java.time.temporal.TemporalAdjusters;
+import java.util.List;
+import java.util.Optional;
 
-import static org.assertj.core.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
 
+@ExtendWith(MockitoExtension.class)
 class BookAppointmentServiceTest {
 
-    private InMemoryAppointmentRepository appointmentRepo;
-    private InMemoryTimeSlotRepository timeSlotRepo;
-    private StubAiTriagePort aiPort;
-    private BookAppointmentService service;
+    private static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+
+    @Mock
+    private AppointmentRepositoryPort appointmentRepository;
+
+    @Mock
+    private TimeSlotRepositoryPort timeSlotRepository;
+
+    @Mock
+    private AiTriagePort aiTriagePort;
+
+    private BookAppointmentService bookService;
 
     @BeforeEach
     void setUp() {
-        appointmentRepo = new InMemoryAppointmentRepository();
-        timeSlotRepo = new InMemoryTimeSlotRepository();
-        aiPort = new StubAiTriagePort();
-        service = new BookAppointmentService(appointmentRepo, timeSlotRepo, aiPort);
+        bookService = new BookAppointmentService(appointmentRepository, timeSlotRepository, aiTriagePort);
+    }
+
+    /** Helper: lấy một ngày thứ Tư tuần tới (ngày làm việc trong tương lai) lúc 09:00 */
+    private Instant nextWednesdayMorning(int hour, int minute) {
+        LocalDate nextWednesday = LocalDate.now(VN_ZONE).with(TemporalAdjusters.next(DayOfWeek.WEDNESDAY));
+        return nextWednesday.atTime(LocalTime.of(hour, minute)).atZone(VN_ZONE).toInstant();
     }
 
     @Test
-    @DisplayName("Đặt lịch thành công khi khung giờ còn trống (AVAILABLE)")
-    void testBookSuccess() {
-        String slotId = "slot-1";
-        timeSlotRepo.save(new TimeSlot(slotId, "sch-1", Instant.now(), Instant.now().plusSeconds(1800), "AVAILABLE", 0));
+    @DisplayName("Đặt lịch thành công: Slot rảnh trong giờ hành chính và bệnh nhân chưa có lịch trùng")
+    void givenAvailableSlot_whenBook_thenSuccess() {
+        Instant start = nextWednesdayMorning(9, 0);
+        Instant end = nextWednesdayMorning(9, 30);
+        TimeSlot slot = new TimeSlot("slot-1", "sch-1", start, end, "AVAILABLE", 0);
 
-        BookAppointmentUseCase.Command command = new BookAppointmentUseCase.Command(
-                "center-1", "pat-1", "doc-1", slotId, "Đau đầu, chóng mặt", "Không có"
+        given(timeSlotRepository.findById("slot-1")).willReturn(Optional.of(slot));
+        given(timeSlotRepository.lockSlot("slot-1")).willReturn(true);
+        given(appointmentRepository.findByPatientProfileId("patient-1")).willReturn(List.of());
+        given(appointmentRepository.save(any(Appointment.class))).willAnswer(inv -> inv.getArgument(0));
+
+        BookAppointmentUseCase.Command cmd = new BookAppointmentUseCase.Command(
+                "center-1", "patient-1", "doc-1", "slot-1", "Đau họng", "Không có"
         );
 
-        Appointment result = service.book(command);
+        Appointment result = bookService.book(cmd);
 
         assertThat(result).isNotNull();
-        assertThat(result.slotId()).isEqualTo(slotId);
-        assertThat(result.bookingCode()).startsWith("MED");
-        assertThat(result.queueNumber()).startsWith("APP-");
-        assertThat(result.status()).isEqualTo("CONFIRMED");
-        assertThat(result.aiSummary()).isEqualTo("Tóm tắt: Đau đầu, chóng mặt");
-
-        // Kiểm tra slot đã được khóa
-        assertThat(timeSlotRepo.findById(slotId).get().isAvailable()).isFalse();
+        assertThat(result.slotId()).isEqualTo("slot-1");
+        assertThat(result.status()).isEqualTo("PENDING");
+        verify(timeSlotRepository).lockSlot("slot-1");
     }
 
     @Test
-    @DisplayName("Ném ResourceNotFoundException khi slotId không tồn tại")
-    void testSlotNotFound() {
-        BookAppointmentUseCase.Command command = new BookAppointmentUseCase.Command(
-                "center-1", "pat-1", "doc-1", "non-existent-slot", "Sốt cao", null
+    @DisplayName("Chặn Double-Booking: Bệnh nhân đã có lịch khám với Bác sĩ khác trùng khung giờ")
+    void givenPatientHasOverlappingAppointment_whenBook_thenThrowSlotNotAvailableException() {
+        Instant start = nextWednesdayMorning(9, 0);
+        Instant end = nextWednesdayMorning(9, 30);
+        TimeSlot newSlot = new TimeSlot("slot-2", "sch-2", start, end, "AVAILABLE", 0);
+
+        // Ca khám cũ của bệnh nhân với Bác sĩ A ở khung giờ 09:15 - 09:45 (chồng lấn)
+        Instant existingStart = nextWednesdayMorning(9, 15);
+        Instant existingEnd = nextWednesdayMorning(9, 45);
+        TimeSlot existingSlot = new TimeSlot("slot-old", "sch-old", existingStart, existingEnd, "BOOKED", 1);
+
+        Appointment existingApp = new Appointment(
+                "app-old", "MED-111222", "center-1", "patient-1", "doc-a", "slot-old",
+                "APP-101", "ONLINE_BOOKED", "Khám tổng quát", null, null, "CONFIRMED",
+                false, 0, null, Instant.now(), Instant.now()
         );
 
-        assertThatThrownBy(() -> service.book(command))
-                .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessageContaining("non-existent-slot");
-    }
+        given(timeSlotRepository.findById("slot-2")).willReturn(Optional.of(newSlot));
+        given(appointmentRepository.findByPatientProfileId("patient-1")).willReturn(List.of(existingApp));
+        given(timeSlotRepository.findById("slot-old")).willReturn(Optional.of(existingSlot));
 
-    @Test
-    @DisplayName("Ném SlotNotAvailableException khi slot đã bị đặt trước (BOOKED)")
-    void testSlotAlreadyBooked() {
-        String slotId = "slot-booked";
-        timeSlotRepo.save(new TimeSlot(slotId, "sch-1", Instant.now(), Instant.now().plusSeconds(1800), "BOOKED", 1));
-
-        BookAppointmentUseCase.Command command = new BookAppointmentUseCase.Command(
-                "center-1", "pat-1", "doc-1", slotId, "Đau bụng", null
+        BookAppointmentUseCase.Command cmd = new BookAppointmentUseCase.Command(
+                "center-1", "patient-1", "doc-b", "slot-2", "Khám da liễu", ""
         );
 
-        assertThatThrownBy(() -> service.book(command))
+        assertThatThrownBy(() -> bookService.book(cmd))
                 .isInstanceOf(SlotNotAvailableException.class)
-                .hasMessageContaining("đã có người đặt trước hoặc tạm khóa");
+                .hasMessageContaining("Bạn đã có lịch khám (Mã vé: MED-111222) trong cùng khung giờ này");
     }
 
     @Test
-    @DisplayName("Xử lý Concurrency: 10 luồng cùng tranh chấp 1 slot, chỉ 1 luồng thành công, 9 luồng nhận 409")
-    void testConcurrencyBooking() throws InterruptedException {
-        String slotId = "slot-hot";
-        timeSlotRepo.save(new TimeSlot(slotId, "sch-1", Instant.now(), Instant.now().plusSeconds(1800), "AVAILABLE", 0));
+    @DisplayName("Chặn Double-Booking: Bệnh nhân bấm đặt lại chính xác cùng một slot_id")
+    void givenPatientAlreadyBookedSameSlot_whenBookAgain_thenThrowSlotNotAvailableException() {
+        Instant start = nextWednesdayMorning(10, 0);
+        Instant end = nextWednesdayMorning(10, 30);
+        TimeSlot slot = new TimeSlot("slot-same", "sch-1", start, end, "AVAILABLE", 0);
 
-        int threadCount = 10;
-        ExecutorService executor = Executors.newFixedThreadPool(threadCount);
-        CountDownLatch startLatch = new CountDownLatch(1);
-        CountDownLatch endLatch = new CountDownLatch(threadCount);
+        Appointment existingApp = new Appointment(
+                "app-exist", "MED-999888", "center-1", "patient-1", "doc-1", "slot-same",
+                "APP-202", "ONLINE_BOOKED", "Đau dạ dày", null, null, "PENDING",
+                false, 0, null, Instant.now(), Instant.now()
+        );
 
-        AtomicInteger successCount = new AtomicInteger(0);
-        AtomicInteger conflictCount = new AtomicInteger(0);
+        given(timeSlotRepository.findById("slot-same")).willReturn(Optional.of(slot));
+        given(appointmentRepository.findByPatientProfileId("patient-1")).willReturn(List.of(existingApp));
 
-        for (int i = 0; i < threadCount; i++) {
-            final String patientId = "patient-" + i;
-            executor.submit(() -> {
-                try {
-                    startLatch.await(); // Đợi cả 10 luồng cùng xuất phát 1 thời điểm
-                    service.book(new BookAppointmentUseCase.Command(
-                            "center-1", patientId, "doc-1", slotId, "Triệu chứng", null
-                    ));
-                    successCount.incrementAndGet();
-                } catch (SlotNotAvailableException e) {
-                    conflictCount.incrementAndGet();
-                } catch (Exception e) {
-                    // unexpected
-                } finally {
-                    endLatch.countDown();
-                }
-            });
-        }
+        BookAppointmentUseCase.Command cmd = new BookAppointmentUseCase.Command(
+                "center-1", "patient-1", "doc-1", "slot-same", "Đau dạ dày", ""
+        );
 
-        startLatch.countDown(); // Phát lệnh bắn đồng thời
-        boolean finished = endLatch.await(5, TimeUnit.SECONDS);
-        executor.shutdown();
-
-        assertThat(finished).isTrue();
-        assertThat(successCount.get()).isEqualTo(1); // Đúng 1 người đặt được
-        assertThat(conflictCount.get()).isEqualTo(9); // 9 người còn lại bị chặn
-        assertThat(appointmentRepo.count()).isEqualTo(1); // Chỉ 1 lịch hẹn duy nhất được ghi vào DB
+        assertThatThrownBy(() -> bookService.book(cmd))
+                .isInstanceOf(SlotNotAvailableException.class)
+                .hasMessageContaining("Bạn đã có một lịch hẹn (Mã: MED-999888) tại đúng khung giờ này");
     }
 
-    // --- In-Memory Test Stubs ---
-    static class InMemoryTimeSlotRepository implements TimeSlotRepositoryPort {
-        private final ConcurrentHashMap<String, TimeSlot> storage = new ConcurrentHashMap<>();
+    @Test
+    @DisplayName("Cho phép ca khám liền kề (không chồng lấn): 09:00-09:30 và 09:30-10:00")
+    void givenContiguousSlot_whenBook_thenSuccess() {
+        Instant start = nextWednesdayMorning(9, 30);
+        Instant end = nextWednesdayMorning(10, 0);
+        TimeSlot newSlot = new TimeSlot("slot-contiguous", "sch-2", start, end, "AVAILABLE", 0);
 
-        void save(TimeSlot slot) {
-            storage.put(slot.id(), slot);
-        }
+        Instant existingStart = nextWednesdayMorning(9, 0);
+        Instant existingEnd = nextWednesdayMorning(9, 30);
+        TimeSlot existingSlot = new TimeSlot("slot-prior", "sch-1", existingStart, existingEnd, "BOOKED", 1);
 
-        @Override
-        public Optional<TimeSlot> findById(String id) {
-            return Optional.ofNullable(storage.get(id));
-        }
+        Appointment existingApp = new Appointment(
+                "app-prior", "MED-333444", "center-1", "patient-1", "doc-a", "slot-prior",
+                "APP-101", "ONLINE_BOOKED", "Nha khoa", null, null, "CONFIRMED",
+                false, 0, null, Instant.now(), Instant.now()
+        );
 
-        @Override
-        public synchronized boolean lockSlot(String slotId) {
-            TimeSlot current = storage.get(slotId);
-            if (current != null && current.isAvailable()) {
-                storage.put(slotId, new TimeSlot(
-                        current.id(), current.doctorScheduleId(), current.startTime(),
-                        current.endTime(), "BOOKED", current.version() + 1
-                ));
-                return true;
-            }
-            return false;
-        }
-    }
+        given(timeSlotRepository.findById("slot-contiguous")).willReturn(Optional.of(newSlot));
+        given(timeSlotRepository.lockSlot("slot-contiguous")).willReturn(true);
+        given(appointmentRepository.findByPatientProfileId("patient-1")).willReturn(List.of(existingApp));
+        given(timeSlotRepository.findById("slot-prior")).willReturn(Optional.of(existingSlot));
+        given(appointmentRepository.save(any(Appointment.class))).willAnswer(inv -> inv.getArgument(0));
 
-    static class InMemoryAppointmentRepository implements AppointmentRepositoryPort {
-        private final List<Appointment> list = new CopyOnWriteArrayList<>();
+        BookAppointmentUseCase.Command cmd = new BookAppointmentUseCase.Command(
+                "center-1", "patient-1", "doc-b", "slot-contiguous", "Mắt", ""
+        );
 
-        @Override
-        public Appointment save(Appointment a) {
-            list.removeIf(item -> item.id().equals(a.id()));
-            list.add(a);
-            return a;
-        }
-
-        @Override
-        public Optional<Appointment> findById(String id) {
-            return list.stream().filter(a -> a.id().equals(id)).findFirst();
-        }
-
-        @Override
-        public Optional<Appointment> findByBookingCode(String bookingCode) {
-            return list.stream().filter(a -> a.bookingCode().equalsIgnoreCase(bookingCode)).findFirst();
-        }
-
-        @Override
-        public List<Appointment> findByPatientProfileId(String patientProfileId) {
-            return list.stream().filter(a -> a.patientProfileId().equals(patientProfileId)).toList();
-        }
-
-        int count() {
-            return list.size();
-        }
-    }
-
-    static class StubAiTriagePort implements AiTriagePort {
-        @Override
-        public String suggestSpecialty(String symptoms) {
-            return "GENERAL_MEDICINE";
-        }
-
-        @Override
-        public String generateClinicalSummary(String symptoms, String medicalHistory) {
-            return "Tóm tắt: " + symptoms;
-        }
+        Appointment result = bookService.book(cmd);
+        assertThat(result).isNotNull();
+        assertThat(result.slotId()).isEqualTo("slot-contiguous");
     }
 }

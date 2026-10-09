@@ -21,4 +21,12 @@ public interface TimeSlotRepositoryPort {
      *         xung đột cho người dùng thay vì thử lại vô hạn.
      */
     boolean lockSlot(String slotId);
+
+    /**
+     * Giải phóng khung giờ khám trở về trạng thái AVAILABLE khi ca khám bị hủy,
+     * để bệnh nhân khác có thể đặt được ngay.
+     *
+     * @return true nếu giải phóng thành công
+     */
+    boolean releaseSlot(String slotId);
 }

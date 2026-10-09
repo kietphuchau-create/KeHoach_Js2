@@ -16,6 +16,30 @@ public interface AppointmentJpaRepository extends JpaRepository<AppointmentEntit
     List<AppointmentEntity> findByDoctorIdAndStatusInOrderByQueueNumberAsc(String doctorId,
                                                                            Collection<AppointmentStatus> statuses);
 
+    /** Toàn bộ hàng đợi điều phối phòng khám không phân biệt bác sĩ (cho quầy Tiếp đón) */
+    List<AppointmentEntity> findByStatusInOrderByQueueNumberAsc(Collection<AppointmentStatus> statuses);
+
+    List<AppointmentEntity> findByDoctorIdAndStatus(String doctorId, AppointmentStatus status);
+
     List<AppointmentEntity> findByPatientProfileIdOrderByCreatedAtDesc(String patientProfileId);
 
+    long countByStatus(AppointmentStatus status);
+
+    long countByDoctorIdAndStatus(String doctorId, AppointmentStatus status);
+
+    long countByQueueType(com.medsched.persistence.enums.QueueType queueType);
+
+    List<AppointmentEntity> findByCreatedAtBetweenOrderByCreatedAtAsc(java.time.Instant start, java.time.Instant end);
+
+    List<AppointmentEntity> findByDoctorIdAndCreatedAtBetweenOrderByCreatedAtAsc(String doctorId, java.time.Instant start, java.time.Instant end);
+
+    List<AppointmentEntity> findByDoctorId(String doctorId);
+
+    Optional<AppointmentEntity> findByQueueNumber(String queueNumber);
+
+    List<AppointmentEntity> findByStatus(AppointmentStatus status);
+
+    long countByDoctorIdAndCreatedAtBetween(String doctorId, java.time.Instant start, java.time.Instant end);
+
+    long countByDoctorIdAndQueueTypeAndCreatedAtBetween(String doctorId, com.medsched.persistence.enums.QueueType queueType, java.time.Instant start, java.time.Instant end);
 }

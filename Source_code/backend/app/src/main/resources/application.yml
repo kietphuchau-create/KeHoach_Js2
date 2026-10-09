@@ -1,5 +1,5 @@
 server:
-  port: ${PORT:8080}
+  port: 8080
 
 spring:
   application:
@@ -8,13 +8,22 @@ spring:
     active: mysql-xampp
   jpa:
     hibernate:
-      ddl-auto: none
+      # database/medsched_db.sql is the single source of truth for the schema.
+      # "validate" means Hibernate only checks it and is never allowed to ALTER
+      # tables. ("update" used to stop the application from starting because
+      # Hibernate tried to change columns referenced by foreign keys.)
+      ddl-auto: validate
     open-in-view: false
   flyway:
     enabled: false
   ai:
     openai:
-      api-key: ${OPENAI_API_KEY:demo-dummy-key-medsched}
+      api-key: ${OPENAI_API_KEY:demo-medsched-local-api-key}
+
+# Spring AI: without the OPENAI_API_KEY environment variable the application
+# still starts; only the AI endpoints fail. Previously a missing key stopped the
+# WHOLE backend, blocking everyone working on Auth / Booking / Frontend.
+spring.ai.openai.api-key: ${OPENAI_API_KEY:chua-cau-hinh}
 
 medsched:
   jwt:
@@ -22,7 +31,7 @@ medsched:
     access-token-duration: 3600s
     refresh-token-duration: 604800s
   cors:
-    allowed-origins: http://localhost:3000
+    allowed-origins: ${CORS_ORIGINS:http://localhost:3000,http://localhost:3001}
 
 app:
   jwt:
@@ -30,7 +39,7 @@ app:
     expiration: 86400
 
 ---
-# Cấu hình kết nối MySQL trong XAMPP (Mặc định cho toàn bộ thành viên trong nhóm)
+# MySQL connection for XAMPP (the default every team member uses)
 spring:
   config:
     activate:
@@ -39,4 +48,21 @@ spring:
     url: ${DB_URL:jdbc:mysql://localhost:3306/medsched_db?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Ho_Chi_Minh}
     username: ${DB_USER:root}
     password: ${DB_PASSWORD:}
+
+---
+# Production profile for Cloud (Render + Aiven MySQL)
+server:
+  port: ${PORT:8080}
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}?useSSL=true&requireSSL=true&useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Ho_Chi_Minh
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
 

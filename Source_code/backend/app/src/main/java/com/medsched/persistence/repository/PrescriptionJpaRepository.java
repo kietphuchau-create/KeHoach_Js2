@@ -9,4 +9,8 @@ public interface PrescriptionJpaRepository extends JpaRepository<PrescriptionEnt
 
     Optional<PrescriptionEntity> findByAppointmentId(String appointmentId);
 
+    java.util.List<PrescriptionEntity> findByDoctorId(String doctorId);
+
+    long countByDoctorId(String doctorId);
+
 }

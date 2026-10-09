@@ -19,10 +19,10 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * Task 1 (phần mở rộng) - CRUD danh mục: cơ sở y tế, chuyên khoa, dịch vụ khám.
+ * Task 1 (extension) - catalog CRUD: medical centers, specialties, services.
  * <p>
- * Xem danh sách: mọi tài khoản đã đăng nhập (bệnh nhân cần xem để chọn nơi khám).
- * Thêm/sửa/xóa: chỉ ROLE_ADMIN.
+ * Reading the lists: any signed-in account (patients need them to pick where to
+ * book). Create/update/delete: ROLE_ADMIN only.
  */
 @RestController
 @RequestMapping("/api/v1")
@@ -61,6 +61,14 @@ public class CatalogController {
     public ResponseEntity<Void> deactivateCenter(@AuthenticationPrincipal AppUserDetails principal,
                                                  @PathVariable String id) {
         catalogService.deactivateCenter(id, principal.getUserId());
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/admin/medical-centers/{id}/reactivate")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> reactivateCenter(@AuthenticationPrincipal AppUserDetails principal,
+                                                 @PathVariable String id) {
+        catalogService.reactivateCenter(id, principal.getUserId());
         return ResponseEntity.noContent().build();
     }
 
@@ -121,6 +129,13 @@ public class CatalogController {
                                                   @PathVariable String id) {
         catalogService.deactivateService(id, principal.getUserId());
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/doctors")
+    public List<CatalogDtos.DoctorSummaryResponse> listDoctors(
+            @RequestParam(required = false) String specialtyId,
+            @RequestParam(required = false) String centerId) {
+        return catalogService.listDoctors(specialtyId, centerId);
     }
 
 }

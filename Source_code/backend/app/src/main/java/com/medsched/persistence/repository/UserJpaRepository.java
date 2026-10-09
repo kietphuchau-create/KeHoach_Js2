@@ -14,6 +14,8 @@ public interface UserJpaRepository extends JpaRepository<UserEntity, String> {
 
     Optional<UserEntity> findByEmail(String email);
 
+    Optional<UserEntity> findByPhone(String phone);
+
     boolean existsByEmail(String email);
 
     /** Tìm theo email/họ tên, không lọc vai trò. Tham số q đã ở dạng %tu-khoa%. */

@@ -79,27 +79,15 @@ public class SecurityConfig {
                                 "/api/v1/services/**"
                         ).permitAll()
 
-                        // 3. Khách xem danh sách slot giờ khám, tra cứu mã booking và check-in tự phục vụ qua mã QR
+                        // 3. Khách xem danh sách slot giờ khám và tra cứu mã booking
                         .requestMatchers(HttpMethod.GET,
                                 "/api/appointments/doctors/*/slots",
                                 "/api/v1/appointments/doctors/*/slots",
                                 "/api/appointments/booking-code/*",
                                 "/api/v1/appointments/booking-code/*"
                         ).permitAll()
-                        .requestMatchers(HttpMethod.POST,
-                                "/api/appointments/checkin/qr",
-                                "/api/v1/appointments/checkin/qr",
-                                "/api/checkin/qr",
-                                "/api/v1/checkin/qr"
-                        ).permitAll()
 
-                        // 4. Thanh toán trực tuyến & Webhook cổng thanh toán (PayOS / VietQR)
-                        .requestMatchers(
-                                "/api/payments/**",
-                                "/api/v1/payments/**"
-                        ).permitAll()
-
-                        // 5. AI Triage định hướng chuyên khoa ban đầu
+                        // 4. AI Triage định hướng chuyên khoa ban đầu
                         .requestMatchers("/api/ai/**", "/api/v1/ai/**").permitAll()
 
                         // 5. Phân quyền theo vai trò cụ thể

@@ -94,39 +94,11 @@ public class ReceptionController {
             String status
     ) {}
 
-    public record QrCheckinResponse(
-            Appointment appointment,
-            String queueNumber,
-            String message,
-            String patientName,
-            String doctorName,
-            String roomNumber,
-            String specialtyName
-    ) {}
-
-    private String extractBookingCode(String input) {
-        if (input == null) return "";
-        String s = input.trim();
-        if (s.contains("code=")) {
-            int idx = s.indexOf("code=");
-            String sub = s.substring(idx + 5);
-            int amp = sub.indexOf('&');
-            if (amp != -1) sub = sub.substring(0, amp);
-            return sub.trim();
-        }
-        if (s.contains("/")) {
-            String[] parts = s.split("/");
-            String last = parts[parts.length - 1];
-            if (!last.isBlank() && !last.contains("?")) return last.trim();
-        }
-        return s;
-    }
-
     @PostMapping("/checkin/qr")
     @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
     @Transactional
-    public ResponseEntity<QrCheckinResponse> checkinByQr(@RequestBody QrCheckinRequest req) {
-        String code = extractBookingCode(req != null ? req.bookingCode() : "");
+    public ResponseEntity<CheckinUseCase.CheckinResult> checkinByQr(@RequestBody QrCheckinRequest req) {
+        String code = req.bookingCode() != null ? req.bookingCode().trim() : "";
         Optional<AppointmentEntity> appOpt = appointmentJpaRepository.findByBookingCode(code);
         if (appOpt.isEmpty()) {
             appOpt = appointmentJpaRepository.findByQueueNumber(code);
@@ -134,11 +106,8 @@ public class ReceptionController {
 
         if (appOpt.isPresent()) {
             AppointmentEntity app = appOpt.get();
-            boolean wasAlreadyCheckedIn = app.getStatus() == AppointmentStatus.CHECKED_IN;
             app.setStatus(AppointmentStatus.CHECKED_IN);
-            if (app.getCheckInTime() == null) {
-                app.setCheckInTime(Instant.now());
-            }
+            app.setCheckInTime(Instant.now());
             app.setCheckinMethod(CheckinMethod.QR_CODE);
             String qNum = app.getQueueNumber();
             if (qNum != null && !qNum.startsWith("A-") && !qNum.startsWith("W-")) {
@@ -153,60 +122,15 @@ public class ReceptionController {
             appointmentJpaRepository.save(app);
 
             Appointment domain = appointmentRepositoryPort.findById(app.getId()).orElse(null);
-
-            String patientName = "Bệnh nhân tiếp đón";
-            if (app.getPatientProfileId() != null) {
-                PatientProfileEntity profile = patientProfileJpaRepository.findById(app.getPatientProfileId()).orElse(null);
-                if (profile != null && profile.getFullName() != null) {
-                    patientName = profile.getFullName();
-                }
-            }
-
-            String doctorName = "BS. Chuyên khoa tiếp nhận";
-            String roomNumber = "Phòng khám chuyên khoa";
-            String specialtyName = "Đa khoa";
-            if (app.getDoctorId() != null) {
-                DoctorEntity doc = doctorJpaRepository.findById(app.getDoctorId()).orElse(null);
-                if (doc != null) {
-                    if (doc.getRoomNumber() != null) {
-                        roomNumber = doc.getRoomNumber();
-                    }
-                    UserEntity user = doc.getUserId() != null ? userJpaRepository.findById(doc.getUserId()).orElse(null) : null;
-                    String userFullName = user != null ? user.getFullName() : "Bác sĩ";
-                    String title = doc.getAcademicTitle() != null ? doc.getAcademicTitle().trim() : "";
-                    if (!title.isEmpty() && !userFullName.toLowerCase().startsWith(title.toLowerCase())) {
-                        doctorName = title + " " + userFullName;
-                    } else {
-                        doctorName = userFullName;
-                    }
-                }
-            }
-
-            String checkinMsg = wasAlreadyCheckedIn
-                    ? "Lịch hẹn này đã được tiếp đón trước đó (STT: " + app.getQueueNumber() + ")! Bệnh nhân đã có trong hàng đợi."
-                    : "Tiếp đón thành công qua mã QR vé hẹn! Mời bệnh nhân vào phòng chờ.";
-
-            return ResponseEntity.ok(new QrCheckinResponse(
+            return ResponseEntity.ok(new CheckinUseCase.CheckinResult(
                     domain,
                     app.getQueueNumber(),
-                    checkinMsg,
-                    patientName,
-                    doctorName,
-                    roomNumber,
-                    specialtyName
+                    "Tiếp đón thành công qua mã QR vé hẹn! Mời bệnh nhân vào phòng chờ."
             ));
         }
 
         CheckinUseCase.CheckinResult result = checkinUseCase.checkinByQrCode(code);
-        return ResponseEntity.ok(new QrCheckinResponse(
-                result.appointment(),
-                result.queueNumber(),
-                result.message(),
-                "Bệnh nhân tiếp đón",
-                "BS. Chuyên khoa tiếp nhận",
-                "Phòng khám chuyên khoa",
-                "Đa khoa"
-        ));
+        return ResponseEntity.ok(result);
     }
 
     @PostMapping("/checkin/cccd")

@@ -11,13 +11,13 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
-/** Hợp đồng dữ liệu cho nhóm endpoint "/api/v1/me" - dùng chung cho cả 4 vai trò. */
+/** Contracts for the "/api/v1/me" endpoints - shared by all four roles. */
 public final class AccountDtos {
 
     private AccountDtos() {
     }
 
-    /** Thông tin tài khoản đang đăng nhập. */
+    /** Details of the currently signed-in account. */
     public record MeResponse(String userId,
                              String email,
                              String fullName,
@@ -29,8 +29,8 @@ public final class AccountDtos {
     }
 
     /**
-     * Một hồ sơ hành nghề của bác sĩ. Bác sĩ trực ở 2 chi nhánh sẽ có 2 phần tử
-     * (đúng thiết kế UNIQUE(user_id, specialty_id) của bản 3.0).
+     * One practising profile of a doctor. A doctor working at two branches has
+     * two entries, per the v3.0 UNIQUE(user_id, specialty_id) design.
      */
     public record DoctorProfileView(String doctorId,
                                     String specialtyId,
@@ -38,14 +38,13 @@ public final class AccountDtos {
                                     String medicalCenterId,
                                     String medicalCenterName,
                                     String academicTitle,
-                                    int experienceYears,
                                     BigDecimal consultationFee,
                                     String roomNumber,
                                     String bio,
                                     String avatarUrl) {
     }
 
-    /** Hồ sơ người khám của chính chủ tài khoản (relationship = SELF). */
+    /** The account owner own patient profile (relationship = SELF). */
     public record PatientProfileView(String profileId,
                                      String fullName,
                                      String cccdNumber,
@@ -57,7 +56,7 @@ public final class AccountDtos {
                                      String medicalHistory) {
     }
 
-    /** Update Profile - phần thông tin tài khoản, dùng chung cho mọi vai trò. */
+    /** Update Profile - account details, shared by every role. */
     public record UpdateProfileRequest(
             @NotBlank(message = "Họ tên không được để trống")
             @Size(max = 255, message = "Họ tên tối đa 255 ký tự")
@@ -67,7 +66,7 @@ public final class AccountDtos {
             String phone) {
     }
 
-    /** Change Password - dùng chung cho mọi vai trò. */
+    /** Change Password - shared by every role. */
     public record ChangePasswordRequest(
             @NotBlank(message = "Mật khẩu hiện tại không được để trống")
             String currentPassword,
@@ -78,17 +77,13 @@ public final class AccountDtos {
     }
 
     /**
-     * Doctor - Update Profile (phần chuyên môn). Cố ý KHÔNG cho bác sĩ tự sửa
-     * {@code consultationFee} và {@code roomNumber}: giá khám và phòng khám do
-     * phòng khám quyết định, thuộc quyền Admin.
+     * Doctor - Update Profile (professional details). Doctors deliberately
+     * CANNOT edit {@code consultationFee} or {@code roomNumber}: the fee and the
+     * room are decided by the clinic and belong to the admin.
      */
     public record UpdateDoctorProfileRequest(
             @Size(max = 100, message = "Học hàm/học vị tối đa 100 ký tự")
             String academicTitle,
-
-            @Min(value = 0, message = "Số năm kinh nghiệm không được âm")
-            @Max(value = 70, message = "Số năm kinh nghiệm không hợp lệ")
-            int experienceYears,
 
             String bio,
 
@@ -96,7 +91,7 @@ public final class AccountDtos {
             String avatarUrl) {
     }
 
-    /** Customer - Update Profile (phần hồ sơ y tế của chính chủ). */
+    /** Customer - Update Profile (the account owner own medical profile). */
     public record UpdatePatientProfileRequest(
             @NotBlank(message = "Họ tên người khám không được để trống")
             @Size(max = 255, message = "Họ tên tối đa 255 ký tự")

@@ -13,23 +13,26 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 
-/** Hợp đồng dữ liệu cho phân hệ quản trị người dùng (chỉ Admin gọi được). */
+/** Contracts for the user-administration module (admin only). */
 public final class AdminDtos {
 
     private AdminDtos() {
     }
 
-    /** Một dòng trong danh sách người dùng. */
+    /** One row of the user list. */
     public record UserSummary(String userId,
                               String email,
                               String fullName,
                               String phone,
                               boolean active,
                               List<RoleAssignment> roles,
-                              Instant createdAt) {
+                              Instant createdAt,
+                              String specialtyName,
+                              String academicTitle,
+                              String roomNumber) {
     }
 
-    /** Quyền nhân sự đã cấp tại một chi nhánh cụ thể. */
+    /** A staff role granted at one specific branch. */
     public record RoleAssignment(String assignmentId,
                                  UserRole role,
                                  String medicalCenterId,
@@ -40,7 +43,7 @@ public final class AdminDtos {
     public record PageResponse<T>(List<T> items, int page, int size, long totalItems, int totalPages) {
     }
 
-    /** Admin tạo tài khoản Lễ tân. */
+    /** Admin creates a receptionist account. */
     public record CreateStaffRequest(
             @NotBlank(message = "Email không được để trống")
             @Email(message = "Email không đúng định dạng")
@@ -61,8 +64,8 @@ public final class AdminDtos {
     }
 
     /**
-     * Admin tạo tài khoản Bác sĩ. Không cần truyền chi nhánh: chi nhánh được suy
-     * ra từ chuyên khoa, vì mỗi chuyên khoa đã thuộc đúng một cơ sở y tế.
+     * Admin creates a doctor account. No branch is passed in: it is derived from
+     * the specialty, since every specialty already belongs to exactly one center.
      */
     public record CreateDoctorRequest(
             @NotBlank(message = "Email không được để trống")
@@ -85,15 +88,15 @@ public final class AdminDtos {
             @Size(max = 100, message = "Học hàm/học vị tối đa 100 ký tự")
             String academicTitle,
 
-            @Min(value = 0, message = "Số năm kinh nghiệm không được âm")
-            int experienceYears,
-
             @NotNull(message = "Phải nhập giá khám")
             @DecimalMin(value = "0.0", message = "Giá khám không được âm")
             BigDecimal consultationFee,
 
             @Size(max = 50, message = "Số phòng tối đa 50 ký tự")
-            String roomNumber) {
+            String roomNumber,
+
+            @Size(max = 500, message = "Tiểu sử tối đa 500 ký tự")
+            String bio) {
     }
 
     public record UpdateStatusRequest(@NotNull(message = "Phải chỉ định trạng thái") Boolean active) {
@@ -105,6 +108,12 @@ public final class AdminDtos {
 
             @NotBlank(message = "Phải chọn chi nhánh")
             String medicalCenterId) {
+    }
+
+    public record ResetPasswordRequest(
+            @NotBlank(message = "Mật khẩu mới không được để trống")
+            @Size(min = 6, max = 72, message = "Mật khẩu phải từ 6 đến 72 ký tự")
+            String newPassword) {
     }
 
 }

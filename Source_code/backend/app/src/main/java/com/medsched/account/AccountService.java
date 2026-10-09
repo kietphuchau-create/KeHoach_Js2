@@ -21,7 +21,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-/** Nghiệp vụ tài khoản cá nhân: xem hồ sơ, cập nhật hồ sơ, đổi mật khẩu. */
+import com.medsched.core.port.in.ChangePasswordUseCase;
+import com.medsched.core.port.in.UpdateProfileUseCase;
+
+/** Personal account operations: view profile, update profile, change password. */
 @Service
 public class AccountService {
 
@@ -31,19 +34,25 @@ public class AccountService {
     private final SpecialtyJpaRepository specialties;
     private final MedicalCenterJpaRepository medicalCenters;
     private final PasswordEncoder passwordEncoder;
+    private final UpdateProfileUseCase updateProfileUseCase;
+    private final ChangePasswordUseCase changePasswordUseCase;
 
     public AccountService(UserJpaRepository users,
                           PatientProfileJpaRepository patientProfiles,
                           DoctorJpaRepository doctors,
                           SpecialtyJpaRepository specialties,
                           MedicalCenterJpaRepository medicalCenters,
-                          PasswordEncoder passwordEncoder) {
+                          PasswordEncoder passwordEncoder,
+                          UpdateProfileUseCase updateProfileUseCase,
+                          ChangePasswordUseCase changePasswordUseCase) {
         this.users = users;
         this.patientProfiles = patientProfiles;
         this.doctors = doctors;
         this.specialties = specialties;
         this.medicalCenters = medicalCenters;
         this.passwordEncoder = passwordEncoder;
+        this.updateProfileUseCase = updateProfileUseCase;
+        this.changePasswordUseCase = changePasswordUseCase;
     }
 
     @Transactional(readOnly = true)
@@ -56,32 +65,31 @@ public class AccountService {
 
     @Transactional
     public AccountDtos.MeResponse updateProfile(AppUserDetails principal, AccountDtos.UpdateProfileRequest request) {
-        UserEntity user = requireUser(principal.getUserId());
-        user.setFullName(request.fullName().trim());
-        user.setPhone(blankToNull(request.phone()));
-        touch(user, principal.getUserId());
-        users.save(user);
+        updateProfileUseCase.updateProfile(new UpdateProfileUseCase.Command(
+                principal.getUserId(),
+                request.fullName(),
+                request.phone()
+        ));
         return me(principal);
     }
 
     @Transactional
     public void changePassword(AppUserDetails principal, AccountDtos.ChangePasswordRequest request) {
-        UserEntity user = requireUser(principal.getUserId());
-        if (!passwordEncoder.matches(request.currentPassword(), user.getPasswordHash())) {
-            throw new AppExceptions.BadRequestException("Mật khẩu hiện tại không đúng");
+        try {
+            changePasswordUseCase.changePassword(new ChangePasswordUseCase.Command(
+                    principal.getUserId(),
+                    request.currentPassword(),
+                    request.newPassword()
+            ));
+        } catch (IllegalArgumentException e) {
+            throw new AppExceptions.BadRequestException(e.getMessage());
         }
-        if (passwordEncoder.matches(request.newPassword(), user.getPasswordHash())) {
-            throw new AppExceptions.BadRequestException("Mật khẩu mới phải khác mật khẩu hiện tại");
-        }
-        user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
-        touch(user, principal.getUserId());
-        users.save(user);
     }
 
     /**
-     * Doctor - Update Profile. Học vị/kinh nghiệm/tiểu sử là thông tin của con
-     * người nên áp dụng cho TẤT CẢ hồ sơ hành nghề của tài khoản này (bác sĩ
-     * trực 2 chi nhánh thì cả 2 hồ sơ cùng được cập nhật).
+     * Doctor - Update Profile. Academic title, years of experience and bio
+     * describe the person, so they apply to ALL practising profiles of this
+     * account (a doctor at two branches sees both profiles updated).
      */
     @Transactional
     public List<AccountDtos.DoctorProfileView> updateDoctorProfile(AppUserDetails principal,
@@ -92,7 +100,6 @@ public class AccountService {
         }
         for (DoctorEntity doctor : profiles) {
             doctor.setAcademicTitle(blankToNull(request.academicTitle()));
-            doctor.setExperienceYears(request.experienceYears());
             doctor.setBio(blankToNull(request.bio()));
             doctor.setAvatarUrl(blankToNull(request.avatarUrl()));
             doctor.setUpdatedAt(Instant.now());
@@ -102,7 +109,7 @@ public class AccountService {
         return doctorProfilesOf(principal.getUserId());
     }
 
-    /** Customer - Update Profile (hồ sơ y tế của chính chủ, tạo mới nếu chưa có). */
+    /** Customer - Update Profile (own medical profile, created if missing). */
     @Transactional
     public AccountDtos.PatientProfileView updatePatientProfile(AppUserDetails principal,
                                                                AccountDtos.UpdatePatientProfileRequest request) {
@@ -138,7 +145,7 @@ public class AccountService {
                     doctor.getId(), doctor.getSpecialtyId(),
                     specialty == null ? null : specialty.getName(),
                     centerId, centerName,
-                    doctor.getAcademicTitle(), doctor.getExperienceYears(), doctor.getConsultationFee(),
+                    doctor.getAcademicTitle(), doctor.getConsultationFee(),
                     doctor.getRoomNumber(), doctor.getBio(), doctor.getAvatarUrl()));
         }
         return views;

@@ -1,9 +1,9 @@
 package com.medsched.core.port.out;
 
 /**
- * Cổng ra cho phần Trí tuệ nhân tạo.
- * Tầng nghiệp vụ chỉ biết đến giao diện này, nên có thể thay bản cài đặt
- * (quy tắc từ khóa / Spring AI / mô hình khác) mà không sửa use case.
+ * Cổng ra (Outbound Port) cho phần Trợ lý Trí tuệ Nhân tạo (AI Clinic Assistant).
+ * Áp dụng kiến trúc Lục giác (Hexagonal Architecture):
+ * Tầng Core chỉ giao tiếp qua Port này, không phụ thuộc vào Framework hay SDK bên ngoài.
  */
 public interface AiTriagePort {
 
@@ -12,4 +12,7 @@ public interface AiTriagePort {
 
     /** Tóm tắt ngắn gọn bệnh sử để bác sĩ đọc nhanh trước khi khám. */
     String generateClinicalSummary(String symptoms, String medicalHistory);
+
+    /** Đánh giá toàn diện triệu chứng, tư vấn dịch vụ phòng khám và cảnh báo an toàn cấp cứu 115. */
+    TriageEvaluation evaluateSymptoms(String symptoms, String medicalHistory);
 }

@@ -45,7 +45,7 @@ public record Appointment(
                 patientSymptoms,
                 aiSummary,
                 null,
-                "CONFIRMED",
+                "PENDING",
                 false,
                 0,
                 null,
@@ -68,6 +68,28 @@ public record Appointment(
                 aiSummary,
                 method,
                 "CHECKED_IN",
+                isDelayed,
+                delayMinutes,
+                checkInTime,
+                createdAt,
+                Instant.now()
+        );
+    }
+
+    public Appointment cancel() {
+        return new Appointment(
+                id,
+                bookingCode,
+                medicalCenterId,
+                patientProfileId,
+                doctorId,
+                slotId,
+                queueNumber,
+                queueType,
+                patientSymptoms,
+                aiSummary,
+                checkinMethod,
+                "CANCELLED",
                 isDelayed,
                 delayMinutes,
                 checkInTime,

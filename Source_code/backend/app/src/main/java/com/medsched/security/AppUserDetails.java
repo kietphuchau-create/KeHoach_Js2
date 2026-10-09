@@ -6,20 +6,20 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
 /**
- * Người dùng đã xác thực. Quyền được dựng theo đúng thiết kế CSDL bản 3.0:
+ * An authenticated user. Authorities follow the v3.0 database design:
  * <ul>
- *   <li>{@code ROLE_PATIENT} luôn được cấp cho MỌI tài khoản — vì "bệnh nhân"
- *       là quyền mặc định, không lưu trong bảng quyền nhân sự.</li>
- *   <li>Mỗi dòng {@code user_medical_center_roles} đang hoạt động sinh ra 2
- *       quyền: quyền trơn ({@code ROLE_STAFF}) để kiểm tra nhanh, và quyền có
- *       phạm vi chi nhánh ({@code ROLE_STAFF@<centerId>}) để về sau chặn đúng
- *       việc "lễ tân chi nhánh Q1 không được sửa dữ liệu chi nhánh Q7".</li>
+ *   <li>{@code ROLE_PATIENT} is granted to EVERY account, because being a
+ *       patient is the default capability and is not stored in the staff
+ *       role table.</li>
+ *   <li>Each active {@code user_medical_center_roles} row yields two
+ *       authorities: the plain one ({@code ROLE_STAFF}) for quick checks, and a
+ *       branch-scoped one ({@code ROLE_STAFF@<centerId>}) so that later we can
+ *       stop a receptionist of branch Q1 from touching branch Q7 data.</li>
  * </ul>
  */
 public class AppUserDetails implements UserDetails {
@@ -30,7 +30,7 @@ public class AppUserDetails implements UserDetails {
     private final String email;
     private final String passwordHash;
     private final boolean active;
-    private final Instant tokenInvalidBefore;
+    private final String currentSessionId;
     private final List<GrantedAuthority> authorities;
     private final List<String> roleNames;
 
@@ -39,7 +39,7 @@ public class AppUserDetails implements UserDetails {
         this.email = user.getEmail();
         this.passwordHash = user.getPasswordHash();
         this.active = user.isActive();
-        this.tokenInvalidBefore = user.getTokenInvalidBefore();
+        this.currentSessionId = user.getCurrentSessionId();
 
         List<GrantedAuthority> granted = new ArrayList<>();
         List<String> names = new ArrayList<>();
@@ -67,11 +67,11 @@ public class AppUserDetails implements UserDetails {
         return email;
     }
 
-    public Instant getTokenInvalidBefore() {
-        return tokenInvalidBefore;
+    public String getCurrentSessionId() {
+        return currentSessionId;
     }
 
-    /** Danh sách quyền dạng chuỗi để nhúng vào JWT và trả về cho client. */
+    /** Authorities as plain strings, embedded in the JWT and returned to the client. */
     public List<String> getRoleNames() {
         return roleNames;
     }

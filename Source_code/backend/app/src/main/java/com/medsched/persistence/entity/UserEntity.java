@@ -30,8 +30,8 @@ public class UserEntity {
     @Column(name = "is_active", nullable = false)
     private boolean active;
 
-    @Column(name = "token_invalid_before")
-    private Instant tokenInvalidBefore;
+    @Column(name = "current_session_id", length = 64)
+    private String currentSessionId;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
@@ -88,14 +88,6 @@ public class UserEntity {
         this.active = active;
     }
 
-    public Instant getTokenInvalidBefore() {
-        return tokenInvalidBefore;
-    }
-
-    public void setTokenInvalidBefore(Instant tokenInvalidBefore) {
-        this.tokenInvalidBefore = tokenInvalidBefore;
-    }
-
     public Instant getCreatedAt() {
         return createdAt;
     }
@@ -137,6 +129,14 @@ public class UserEntity {
 
     public void setPhone(String phone) {
         this.phone = phone;
+    }
+
+    public String getCurrentSessionId() {
+        return currentSessionId;
+    }
+
+    public void setCurrentSessionId(String currentSessionId) {
+        this.currentSessionId = currentSessionId;
     }
 
 }

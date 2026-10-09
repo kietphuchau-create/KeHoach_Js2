@@ -33,4 +33,64 @@ public class DoctorPrescriptionDtos {
             String status,
             Instant createdAt
     ) {}
+
+    public record PrescriptionDetailDto(
+            String prescriptionId,
+            String appointmentId,
+            String doctorName,
+            String diagnosis,
+            String doctorAdvice,
+            BigDecimal totalMedicineAmount,
+            String status,
+            Instant createdAt,
+            List<PrescriptionItemDetailDto> items
+    ) {}
+
+    public record PrescriptionItemDetailDto(
+            String id,
+            String medicineName,
+            String unit,
+            BigDecimal quantity,
+            String dosage,
+            BigDecimal unitPrice,
+            BigDecimal totalPrice
+    ) {}
+
+    public record QueuePatientDto(
+            String id,
+            String queueNumber,
+            String bookingCode,
+            String patientName,
+            String gender,
+            int birthYear,
+            String phone,
+            String cccd,
+            String symptoms,
+            String aiSummary,
+            String status,
+            String checkInTime,
+            String appointmentTime,
+            String doctorId,
+            String doctorName,
+            String roomNumber
+    ) {}
+
+    public record ConsultationHistoryItemDto(
+            String appointmentId,
+            String bookingCode,
+            String queueNumber,
+            String queueType,
+            String patientName,
+            String gender,
+            int birthYear,
+            String phone,
+            String symptoms,
+            String diagnosis,
+            String doctorAdvice,
+            String prescriptionId,
+            BigDecimal totalMedicineAmount,
+            int medicineCount,
+            Instant consultationTime,
+            String formattedDate
+    ) {}
 }

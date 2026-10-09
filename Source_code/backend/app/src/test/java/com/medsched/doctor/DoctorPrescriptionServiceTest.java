@@ -5,14 +5,17 @@ import com.medsched.persistence.entity.AppointmentEntity;
 import com.medsched.persistence.entity.DoctorEntity;
 import com.medsched.persistence.entity.MedicalRecordEntity;
 import com.medsched.persistence.entity.PrescriptionEntity;
+import com.medsched.persistence.entity.PrescriptionItemEntity;
 import com.medsched.persistence.entity.UserEntity;
 import com.medsched.persistence.enums.AppointmentStatus;
 import com.medsched.persistence.enums.QueueType;
 import com.medsched.persistence.repository.AppointmentJpaRepository;
 import com.medsched.persistence.repository.DoctorJpaRepository;
 import com.medsched.persistence.repository.MedicalRecordJpaRepository;
+import com.medsched.persistence.repository.PatientProfileJpaRepository;
 import com.medsched.persistence.repository.PrescriptionItemJpaRepository;
 import com.medsched.persistence.repository.PrescriptionJpaRepository;
+import com.medsched.persistence.repository.TimeSlotJpaRepository;
 import com.medsched.persistence.repository.UserJpaRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -53,6 +56,12 @@ class DoctorPrescriptionServiceTest {
     @Mock
     private UserJpaRepository userRepository;
 
+    @Mock
+    private PatientProfileJpaRepository patientProfileRepository;
+
+    @Mock
+    private TimeSlotJpaRepository timeSlotRepository;
+
     @InjectMocks
     private DoctorPrescriptionService doctorPrescriptionService;
 
@@ -82,7 +91,6 @@ class DoctorPrescriptionServiceTest {
                 "user-doc-1",
                 "spec-1",
                 "PGS.TS.BS",
-                15,
                 new BigDecimal("300000"),
                 "101",
                 "Chuyên gia đầu ngành Tai Mũi Họng",
@@ -180,5 +188,63 @@ class DoctorPrescriptionServiceTest {
 
         assertThrows(IllegalArgumentException.class, () ->
                 doctorPrescriptionService.completeConsultation("ap000001-xxxx", request));
+    }
+
+    @Test
+    @DisplayName("Lấy chi tiết đơn thuốc và hồ sơ bệnh án thành công")
+    void getPrescriptionDetailsByAppointmentId_success() {
+        when(appointmentRepository.findById("ap000001-xxxx")).thenReturn(Optional.of(sampleAppointment));
+
+        MedicalRecordEntity record = new MedicalRecordEntity(
+                "mr000001",
+                "ap000001-xxxx",
+                "Viêm phế quản cấp",
+                "Uống nhiều nước ấm",
+                Instant.now(),
+                Instant.now()
+        );
+        when(medicalRecordRepository.findByAppointmentId("ap000001-xxxx")).thenReturn(Optional.of(record));
+
+        PrescriptionEntity prescription = new PrescriptionEntity(
+                "pr000001",
+                "ap000001-xxxx",
+                "mr000001",
+                "doc000001-xxxx",
+                "BS. Nguyễn Văn A",
+                new BigDecimal("50000"),
+                "COMPLETED",
+                Instant.now(),
+                Instant.now()
+        );
+        when(prescriptionRepository.findByAppointmentId("ap000001-xxxx")).thenReturn(Optional.of(prescription));
+
+        PrescriptionItemEntity item = new PrescriptionItemEntity(
+                "item001",
+                "mr000001",
+                null,
+                "Augmentin 1g",
+                "Viên",
+                "1 viên",
+                "2 lần/ngày",
+                5,
+                new BigDecimal("10"),
+                "Uống sau ăn no",
+                Instant.now(),
+                Instant.now()
+        );
+        item.setUnitPrice(new BigDecimal("5000"));
+        when(prescriptionItemRepository.findByMedicalRecordId("mr000001")).thenReturn(List.of(item));
+
+        DoctorPrescriptionDtos.PrescriptionDetailDto detail =
+                doctorPrescriptionService.getPrescriptionDetailsByAppointmentId("ap000001-xxxx");
+
+        assertThat(detail).isNotNull();
+        assertThat(detail.prescriptionId()).isEqualTo("pr000001");
+        assertThat(detail.diagnosis()).isEqualTo("Viêm phế quản cấp");
+        assertThat(detail.doctorAdvice()).isEqualTo("Uống nhiều nước ấm");
+        assertThat(detail.doctorName()).isEqualTo("BS. Nguyễn Văn A");
+        assertThat(detail.items()).hasSize(1);
+        assertThat(detail.items().get(0).medicineName()).isEqualTo("Augmentin 1g");
+        assertThat(detail.items().get(0).totalPrice()).isEqualByComparingTo("50000");
     }
 }

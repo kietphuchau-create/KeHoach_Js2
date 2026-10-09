@@ -11,17 +11,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Optional;
-
-import com.medsched.persistence.entity.PatientProfileEntity;
 
 import com.medsched.doctor.DoctorPrescriptionDtos;
 import com.medsched.doctor.DoctorPrescriptionService;
 import com.medsched.persistence.entity.AppointmentEntity;
 import com.medsched.persistence.entity.TimeSlotEntity;
 import com.medsched.persistence.enums.AppointmentStatus;
-import com.medsched.persistence.enums.CheckinMethod;
-import com.medsched.persistence.enums.QueueType;
 import com.medsched.persistence.enums.RelationshipType;
 import com.medsched.persistence.enums.SlotStatus;
 import com.medsched.persistence.repository.AppointmentJpaRepository;
@@ -151,7 +146,12 @@ public class AppointmentController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    public record QrCheckinRequest(String bookingCode) {}
+    @GetMapping("/booking-code/{code}")
+    public ResponseEntity<Appointment> getByBookingCode(@PathVariable String code) {
+        return appointmentRepositoryPort.findByBookingCode(code)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
 
     public record DoctorSlotDto(
             String id,
@@ -168,7 +168,6 @@ public class AppointmentController {
             String medicalCenterId,
             String medicalCenterName,
             String patientProfileId,
-            String patientName,
             String doctorId,
             String doctorName,
             String specialtyName,
@@ -185,174 +184,6 @@ public class AppointmentController {
             Instant createdAt,
             Instant updatedAt
     ) {}
-
-    private String extractBookingCode(String input) {
-        if (input == null) return "";
-        String s = input.trim();
-        if (s.contains("code=")) {
-            int idx = s.indexOf("code=");
-            String sub = s.substring(idx + 5);
-            int amp = sub.indexOf('&');
-            if (amp != -1) sub = sub.substring(0, amp);
-            return sub.trim();
-        }
-        if (s.contains("/")) {
-            String[] parts = s.split("/");
-            String last = parts[parts.length - 1];
-            if (!last.isBlank() && !last.contains("?")) return last.trim();
-        }
-        return s;
-    }
-
-    private AppointmentDetailDto mapToDetailDto(AppointmentEntity e) {
-        ZoneId vnZone = ZoneId.of("Asia/Ho_Chi_Minh");
-        DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm").withZone(vnZone);
-        DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(vnZone);
-
-        String patientName = "Bệnh nhân";
-        if (e.getPatientProfileId() != null) {
-            PatientProfileEntity profile = patientProfiles.findById(e.getPatientProfileId()).orElse(null);
-            if (profile != null && profile.getFullName() != null) {
-                patientName = profile.getFullName();
-            }
-        }
-
-        String doctorName = "Bác sĩ phụ trách";
-        String specialtyName = null;
-        String roomNumber = null;
-        if (e.getDoctorId() != null) {
-            DoctorEntity doc = doctors.findById(e.getDoctorId()).orElse(null);
-            if (doc != null) {
-                if (doc.getRoomNumber() != null) {
-                    roomNumber = doc.getRoomNumber();
-                }
-                if (doc.getSpecialtyId() != null) {
-                    SpecialtyEntity spec = specialties.findById(doc.getSpecialtyId()).orElse(null);
-                    if (spec != null) {
-                        specialtyName = spec.getName();
-                    }
-                }
-                UserEntity user = doc.getUserId() != null ? users.findById(doc.getUserId()).orElse(null) : null;
-                String userFullName = user != null ? user.getFullName() : "Bác sĩ";
-                String title = doc.getAcademicTitle() != null ? doc.getAcademicTitle().trim() : "";
-                if (!title.isEmpty() && !userFullName.toLowerCase().startsWith(title.toLowerCase())) {
-                    doctorName = title + " " + userFullName;
-                } else {
-                    doctorName = userFullName;
-                }
-            }
-        }
-
-        String medicalCenterName = null;
-        if (e.getMedicalCenterId() != null) {
-            MedicalCenterEntity center = medicalCenters.findById(e.getMedicalCenterId()).orElse(null);
-            if (center != null) {
-                medicalCenterName = center.getName();
-            }
-        }
-
-        String slotTime = null;
-        String appointmentDate = null;
-        if (e.getSlotId() != null) {
-            TimeSlotEntity slot = timeSlotJpaRepository.findById(e.getSlotId()).orElse(null);
-            if (slot != null && slot.getStartTime() != null) {
-                slotTime = timeFormatter.format(slot.getStartTime()) + " - " + timeFormatter.format(slot.getEndTime());
-                appointmentDate = dateFormatter.format(slot.getStartTime());
-            }
-        }
-
-        String formattedQueueNum = e.getQueueNumber() != null ? e.getQueueNumber() : "";
-        if (formattedQueueNum.startsWith("APP-")) {
-            formattedQueueNum = "A-" + formattedQueueNum.substring(4);
-        } else if (formattedQueueNum.startsWith("WALK-")) {
-            formattedQueueNum = "W-" + formattedQueueNum.substring(5);
-        } else if (!formattedQueueNum.isBlank() && !formattedQueueNum.startsWith("A-") && !formattedQueueNum.startsWith("W-")) {
-            if (e.getQueueType() == com.medsched.persistence.enums.QueueType.WALKIN) {
-                formattedQueueNum = "W-" + formattedQueueNum;
-            } else {
-                formattedQueueNum = "A-" + formattedQueueNum;
-            }
-        }
-
-        return new AppointmentDetailDto(
-                e.getId(),
-                e.getBookingCode(),
-                e.getMedicalCenterId(),
-                medicalCenterName,
-                e.getPatientProfileId(),
-                patientName,
-                e.getDoctorId(),
-                doctorName,
-                specialtyName,
-                roomNumber,
-                e.getSlotId(),
-                slotTime,
-                appointmentDate,
-                formattedQueueNum,
-                e.getQueueType() != null ? e.getQueueType().name() : null,
-                e.getPatientSymptoms(),
-                e.getAiSummary(),
-                e.getStatus() != null ? e.getStatus().name() : null,
-                e.getCheckInTime(),
-                e.getCreatedAt(),
-                e.getUpdatedAt()
-        );
-    }
-
-    @GetMapping("/booking-code/{code}")
-    public ResponseEntity<AppointmentDetailDto> getByBookingCode(@PathVariable String code) {
-        String cleanCode = extractBookingCode(code);
-        Optional<AppointmentEntity> appOpt = appointmentJpaRepository.findByBookingCode(cleanCode);
-        if (appOpt.isEmpty()) {
-            appOpt = appointmentJpaRepository.findByQueueNumber(cleanCode);
-        }
-        return appOpt.map(this::mapToDetailDto)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
-    }
-
-    @PostMapping("/checkin/qr")
-    @Transactional
-    public ResponseEntity<AppointmentDetailDto> checkinByQr(@RequestBody QrCheckinRequest req) {
-        String code = extractBookingCode(req != null ? req.bookingCode() : "");
-        if (code.isBlank()) {
-            return ResponseEntity.badRequest().build();
-        }
-
-        Optional<AppointmentEntity> appOpt = appointmentJpaRepository.findByBookingCode(code);
-        if (appOpt.isEmpty()) {
-            appOpt = appointmentJpaRepository.findByQueueNumber(code);
-        }
-
-        if (appOpt.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-        }
-
-        AppointmentEntity app = appOpt.get();
-        if (app.getStatus() == AppointmentStatus.CANCELLED) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
-        }
-
-        if (app.getStatus() != AppointmentStatus.CHECKED_IN && app.getStatus() != AppointmentStatus.IN_PROGRESS && app.getStatus() != AppointmentStatus.COMPLETED) {
-            app.setStatus(AppointmentStatus.CHECKED_IN);
-            app.setCheckInTime(Instant.now());
-            app.setCheckinMethod(CheckinMethod.QR_CODE);
-
-            String qNum = app.getQueueNumber();
-            if (qNum != null && !qNum.startsWith("A-") && !qNum.startsWith("W-")) {
-                if (app.getQueueType() == QueueType.WALKIN) {
-                    qNum = "W-" + qNum;
-                } else {
-                    qNum = "A-" + qNum;
-                }
-                app.setQueueNumber(qNum);
-            }
-            app.setUpdatedAt(Instant.now());
-            appointmentJpaRepository.save(app);
-        }
-
-        return ResponseEntity.ok(mapToDetailDto(app));
-    }
 
     /**
      * Lấy danh sách khung giờ khám (TimeSlots) của bác sĩ theo ngày (phục vụ BookingForm).
@@ -465,7 +296,87 @@ public class AppointmentController {
     @GetMapping("/patient/{patientProfileId}")
     public ResponseEntity<List<AppointmentDetailDto>> getByPatient(@PathVariable String patientProfileId) {
         List<AppointmentEntity> entities = appointmentJpaRepository.findByPatientProfileIdOrderByCreatedAtDesc(patientProfileId);
-        List<AppointmentDetailDto> result = entities.stream().map(this::mapToDetailDto).toList();
+        ZoneId vnZone = ZoneId.of("Asia/Ho_Chi_Minh");
+        DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm").withZone(vnZone);
+        DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(vnZone);
+
+        List<AppointmentDetailDto> result = entities.stream().map(e -> {
+            String doctorName = "Bác sĩ phụ trách";
+            String specialtyName = null;
+            String roomNumber = null;
+            if (e.getDoctorId() != null) {
+                DoctorEntity doc = doctors.findById(e.getDoctorId()).orElse(null);
+                if (doc != null) {
+                    if (doc.getRoomNumber() != null) {
+                        roomNumber = doc.getRoomNumber();
+                    }
+                    if (doc.getSpecialtyId() != null) {
+                        SpecialtyEntity spec = specialties.findById(doc.getSpecialtyId()).orElse(null);
+                        if (spec != null) {
+                            specialtyName = spec.getName();
+                        }
+                    }
+                    UserEntity user = doc.getUserId() != null ? users.findById(doc.getUserId()).orElse(null) : null;
+                    String userFullName = user != null ? user.getFullName() : "Bác sĩ";
+                    doctorName = (doc.getAcademicTitle() != null ? doc.getAcademicTitle() + " " : "") + userFullName;
+                }
+            }
+
+            String medicalCenterName = null;
+            if (e.getMedicalCenterId() != null) {
+                MedicalCenterEntity center = medicalCenters.findById(e.getMedicalCenterId()).orElse(null);
+                if (center != null) {
+                    medicalCenterName = center.getName();
+                }
+            }
+
+            String slotTime = null;
+            String appointmentDate = null;
+            if (e.getSlotId() != null) {
+                TimeSlotEntity slot = timeSlotJpaRepository.findById(e.getSlotId()).orElse(null);
+                if (slot != null && slot.getStartTime() != null) {
+                    slotTime = timeFormatter.format(slot.getStartTime()) + " - " + timeFormatter.format(slot.getEndTime());
+                    appointmentDate = dateFormatter.format(slot.getStartTime());
+                }
+            }
+
+            String formattedQueueNum = e.getQueueNumber() != null ? e.getQueueNumber() : "";
+            if (formattedQueueNum.startsWith("APP-")) {
+                formattedQueueNum = "A-" + formattedQueueNum.substring(4);
+            } else if (formattedQueueNum.startsWith("WALK-")) {
+                formattedQueueNum = "W-" + formattedQueueNum.substring(5);
+            } else if (!formattedQueueNum.isBlank() && !formattedQueueNum.startsWith("A-") && !formattedQueueNum.startsWith("W-")) {
+                if (e.getQueueType() == com.medsched.persistence.enums.QueueType.WALKIN) {
+                    formattedQueueNum = "W-" + formattedQueueNum;
+                } else {
+                    formattedQueueNum = "A-" + formattedQueueNum;
+                }
+            }
+
+            return new AppointmentDetailDto(
+                    e.getId(),
+                    e.getBookingCode(),
+                    e.getMedicalCenterId(),
+                    medicalCenterName,
+                    e.getPatientProfileId(),
+                    e.getDoctorId(),
+                    doctorName,
+                    specialtyName,
+                    roomNumber,
+                    e.getSlotId(),
+                    slotTime,
+                    appointmentDate,
+                    formattedQueueNum,
+                    e.getQueueType() != null ? e.getQueueType().name() : null,
+                    e.getPatientSymptoms(),
+                    e.getAiSummary(),
+                    e.getStatus() != null ? e.getStatus().name() : null,
+                    e.getCheckInTime(),
+                    e.getCreatedAt(),
+                    e.getUpdatedAt()
+            );
+        }).toList();
+
         return ResponseEntity.ok(result);
     }
 
