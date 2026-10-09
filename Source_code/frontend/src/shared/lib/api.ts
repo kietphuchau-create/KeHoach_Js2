@@ -145,6 +145,20 @@ export const api = {
     });
   },
 
+  async forgotPassword(email: string) {
+    return request<{ message: string }>("/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+  },
+
+  async resetPassword(payload: { token: string; newPassword: string }) {
+    return request<{ message: string }>("/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
   // --- 2. HỒ SƠ CÁ NHÂN (/ME) ---
   async getProfile() {
     return request<any>("/me");
