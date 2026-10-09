@@ -67,7 +67,31 @@ export const parseQrContent = (text: string): QrScanResult => {
     };
   }
 
-  // Nếu là mã vé hẹn MedSched (MED-XXXXXX hoặc WALK-XXXXXX hoặc bất kỳ mã booking)
+  // Nếu là URL chứa tham số code= (ví dụ: http://localhost:3000/checkin?code=MED478011)
+  if (trimmed.includes('code=')) {
+    const match = trimmed.match(/[?&]code=([^&]+)/);
+    if (match && match[1]) {
+      return {
+        raw: trimmed,
+        type: 'BOOKING_CODE',
+        bookingCode: decodeURIComponent(match[1]).trim(),
+      };
+    }
+  }
+
+  // Nếu là URL dạng .../checkin/MED123
+  if (trimmed.includes('/checkin/')) {
+    const parts = trimmed.split('/checkin/');
+    if (parts[1]) {
+      return {
+        raw: trimmed,
+        type: 'BOOKING_CODE',
+        bookingCode: decodeURIComponent(parts[1].split('?')[0]).trim(),
+      };
+    }
+  }
+
+  // Nếu là mã vé hẹn MedSched (MED-XXXXXX hoặc WALK-XXXXXX hoặc bất kỳ mã booking thuần túy)
   return {
     raw: trimmed,
     type: 'BOOKING_CODE',

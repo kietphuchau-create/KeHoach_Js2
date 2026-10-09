@@ -21,10 +21,11 @@ import {
   AlertCircle,
   Pill,
   FileText,
-  CreditCard
+  CreditCard,
+  ExternalLink
 } from 'lucide-react';
 import { api, getAuthToken, AppointmentResponse, PrescriptionDetail } from '@/shared/lib/api';
-import { formatDoctorFullName } from '@/shared/lib/formatters';
+import { formatDoctorFullName, cleanDoctorFullName } from '@/shared/lib/formatters';
 import AlertMessage from '@/shared/components/Feedback/AlertMessage';
 import LoadingSpinner from '@/shared/components/Feedback/LoadingSpinner';
 import { QrCodeImage } from '@/shared/components/QrCodeImage';
@@ -837,16 +838,27 @@ export default function MyAppointmentsView() {
                 </div>
               </div>
 
-              {/* High-res Scannable Offline QR Code */}
-              <div className="p-4 bg-white border-2 border-dashed border-teal-primary/30 rounded-2xl inline-block shadow-inner">
+              {/* High-res Scannable Smart QR Code */}
+              <div className="p-4 bg-white border-2 border-dashed border-teal-primary/30 rounded-2xl inline-block shadow-inner space-y-2">
                 <QrCodeImage
-                  value={selectedAppointment.bookingCode}
+                  value={typeof window !== 'undefined' ? `${window.location.origin}/checkin?code=${encodeURIComponent(selectedAppointment.bookingCode)}` : `/checkin?code=${encodeURIComponent(selectedAppointment.bookingCode)}`}
                   size={192}
                   className="mx-auto rounded-lg shadow-xs"
                 />
-                <span className="text-[10px] text-emerald-600 font-bold mt-1.5 block">
-                  ✓ Mã QR chuẩn (quét bằng camera điện thoại/máy quét quầy)
+                <span className="text-[10px] text-emerald-600 font-bold block">
+                  ✓ Mã QR chuẩn thông minh (quét bằng camera điện thoại để check-in tức thì)
                 </span>
+                <div className="pt-1 flex items-center justify-center gap-2">
+                  <a
+                    href={`/checkin?code=${encodeURIComponent(selectedAppointment.bookingCode)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg text-[11px] font-bold border border-emerald-200 transition"
+                  >
+                    <ExternalLink size={12} />
+                    <span>Mở trang Tiếp Đón (Test ngay)</span>
+                  </a>
+                </div>
               </div>
 
               {/* VietQR Payment Button */}
@@ -876,7 +888,7 @@ export default function MyAppointmentsView() {
               <div className="text-xs text-slate-600 space-y-1 border-t border-slate-100 pt-3">
                 <div className="flex justify-between">
                   <span className="text-slate-400">Bác sĩ phụ trách:</span>
-                  <strong className="text-slate-800">{selectedAppointment.doctorName || 'Bác sĩ chuyên khoa'}</strong>
+                  <strong className="text-slate-800">{cleanDoctorFullName(selectedAppointment.doctorName) || 'Bác sĩ chuyên khoa'}</strong>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-400">Buồng khám:</span>
@@ -1280,13 +1292,14 @@ export default function MyAppointmentsView() {
         <VietQrModal
           isOpen={!!payingApt}
           onClose={() => setPayingApt(null)}
-          amount={200000}
+          amount={(payingApt as any).consultationFee || 200000}
+          appointmentId={payingApt.id}
           bookingCode={payingApt.bookingCode}
           patientName={payingApt.patientName || 'Bệnh nhân'}
           description={`Thanh toán viện phí phiếu hẹn ${payingApt.bookingCode}`}
           onConfirmSuccess={() => {
-            alert(`Đã ghi nhận yêu cầu thanh toán chuyển khoản cho phiếu ${payingApt.bookingCode}!`);
             setPayingApt(null);
+            fetchAppointments();
           }}
         />
       )}

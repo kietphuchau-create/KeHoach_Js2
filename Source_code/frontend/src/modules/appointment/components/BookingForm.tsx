@@ -197,21 +197,10 @@ export default function BookingForm() {
         symptoms: symptoms.trim() || 'Khám kiểm tra sức khỏe định kỳ',
         medicalHistory: '',
       });
-      
-      try {
-        if (res.id) {
-          const paymentRes = await api.createPaymentUrl(res.id);
-          if (paymentRes.url) {
-            window.location.href = paymentRes.url;
-            return;
-          }
-        }
-      } catch (paymentErr) {
-        console.warn("Could not generate payment URL, falling back to direct success", paymentErr);
-      }
-
       setResult(res);
       setStep(4);
+      // Tự động mở Modal thanh toán thực tế (VietQR / MoMo) với 2 tùy chọn: Đặt cọc giữ chỗ hoặc Trọn gói
+      setShowPaymentModal(true);
     } catch (err: any) {
       setError(err.message || 'Đặt lịch thất bại. Vui lòng thử lại.');
     } finally {
@@ -795,17 +784,26 @@ export default function BookingForm() {
                   </div>
                 </div>
 
-                {/* Real Scannable Offline QR Code */}
+                {/* Real Scannable Smart QR Code */}
                 <div className="flex flex-col items-center bg-slate-50 p-4 rounded-2xl border border-slate-200">
                   <div className="w-28 h-28 bg-white border border-slate-300 rounded-xl p-1.5 flex items-center justify-center shadow-inner">
-                    <QrCodeImage value={result.bookingCode} size={96} className="rounded-lg" />
+                    <QrCodeImage
+                      value={typeof window !== 'undefined' ? `${window.location.origin}/checkin?code=${encodeURIComponent(result.bookingCode)}` : `/checkin?code=${encodeURIComponent(result.bookingCode)}`}
+                      size={96}
+                      className="rounded-lg"
+                    />
                   </div>
                   <span className="text-[10px] font-mono font-bold text-slate-700 mt-2 bg-slate-200/80 px-2.5 py-0.5 rounded">
                     {result.bookingCode}
                   </span>
-                  <span className="text-[9px] text-emerald-600 font-bold mt-1">
-                    ✓ Quét được bằng Camera
-                  </span>
+                  <a
+                    href={`/checkin?code=${encodeURIComponent(result.bookingCode)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[10px] text-emerald-700 hover:text-emerald-800 font-bold mt-1 hover:underline"
+                  >
+                    ✓ Quét Camera hoặc bấm mở tiếp đón
+                  </a>
                 </div>
               </div>
 
@@ -814,12 +812,12 @@ export default function BookingForm() {
                 <div>
                   <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-800">
                     <CreditCard size={15} />
-                    <span>Thanh Toán Trực Tuyến Qua VietQR (Napas 247):</span>
+                    <span>Thanh Toán Trực Tuyến Qua VietQR & Ví MoMo (Napas 247):</span>
                   </div>
                   <p className="text-xs text-slate-600 mt-0.5">
                     {isPaidOnline
-                      ? '✓ Quý khách đã xác nhận chuyển khoản chi phí khám thành công.'
-                      : 'Thanh toán tiền khám trước (200.000đ) để nhận số khám ưu tiên không cần chờ quầy thu ngân.'}
+                      ? '✓ Quý khách đã xác nhận thanh toán thành công.'
+                      : 'Hỗ trợ Đặt cọc giữ chỗ (2.000đ) hoặc Thanh toán trọn gói 100% để nhận số thứ tự ưu tiên.'}
                   </p>
                 </div>
                 {isPaidOnline ? (
@@ -833,7 +831,7 @@ export default function BookingForm() {
                     className="w-full sm:w-auto px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-700/20 transition cursor-pointer flex items-center justify-center gap-2 whitespace-nowrap"
                   >
                     <QrCode size={15} />
-                    <span>Quét Mã VietQR (200.000đ)</span>
+                    <span>Quét Mã VietQR / MoMo</span>
                   </button>
                 )}
               </div>
@@ -901,7 +899,8 @@ export default function BookingForm() {
           isOpen={showPaymentModal}
           onClose={() => setShowPaymentModal(false)}
           onConfirmSuccess={() => setIsPaidOnline(true)}
-          amount={200000}
+          amount={Number(selectedDoctor?.fee) || 200000}
+          appointmentId={result.id}
           bookingCode={result.bookingCode}
           patientName={result.patientName || 'Bệnh nhân'}
           description={`Thanh toán tiền khám bệnh phiếu ${result.bookingCode}`}

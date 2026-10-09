@@ -349,7 +349,73 @@ export const api = {
   },
 
   async createPaymentUrl(appointmentId: string) {
-    return request<{ url: string }>(`/payments/vnpay/create-url?appointmentId=${appointmentId}`);
+    return request<{ url: string }>(`/payments/create-url?appointmentId=${appointmentId}`);
+  },
+
+  async createRealPayment(payload: {
+    appointmentId?: string;
+    bookingCode?: string;
+    paymentType?: 'DEPOSIT' | 'FULL' | string;
+    amount?: number;
+    method?: string;
+  }) {
+    return request<{
+      transactionRef: string;
+      appointmentId: string;
+      bookingCode: string;
+      amount: number;
+      paymentType: string;
+      transferContent: string;
+      status: string;
+    }>('/payments/create', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async checkRealPaymentStatus(params: {
+    appointmentId?: string;
+    bookingCode?: string;
+    transactionRef?: string;
+  }) {
+    const q = new URLSearchParams();
+    if (params.appointmentId) q.set('appointmentId', params.appointmentId);
+    if (params.bookingCode) q.set('bookingCode', params.bookingCode);
+    if (params.transactionRef) q.set('transactionRef', params.transactionRef);
+    return request<{
+      success: boolean;
+      status: string;
+      amountPaid: number;
+      paymentType?: string;
+      transactionRef?: string;
+    }>(`/payments/check-status?${q.toString()}`);
+  },
+
+  async confirmRealPayment(payload: {
+    appointmentId?: string;
+    bookingCode?: string;
+    transactionRef?: string;
+    amount?: number;
+    paymentType?: 'DEPOSIT' | 'FULL' | string;
+  }) {
+    return request<{
+      success: boolean;
+      message: string;
+      appointmentId: string;
+      bookingCode: string;
+      amountPaid: number;
+      paymentType: string;
+    }>('/payments/confirm', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async simulateBankWebhook(payload: { bookingCode: string; amount: number; paymentType?: string }) {
+    return request<any>('/payments/webhook/simulate', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   },
 
   async getAppointmentByCode(bookingCode: string) {
@@ -450,20 +516,56 @@ export const api = {
     }
   },
 
-  // --- 6. QUẦY TIẾP ĐÓN LỄ TÂN (RECEPTION CHECK-IN) ---
+  // --- 6. QUẦY TIẾP ĐÓN LỄ TÂN & KIOSK TỰ PHỤC VỤ (RECEPTION & KIOSK CHECK-IN) ---
   async checkInQr(bookingCode: string) {
-    const res = await request<any>("/reception/checkin/qr", {
+    let cleanCode = bookingCode.trim();
+    if (cleanCode.includes('code=')) {
+      const match = cleanCode.match(/[?&]code=([^&]+)/);
+      if (match && match[1]) cleanCode = decodeURIComponent(match[1]).trim();
+    }
+
+    try {
+      const res = await request<any>("/reception/checkin/qr", {
+        method: "POST",
+        body: JSON.stringify({ bookingCode: cleanCode }),
+      });
+      // Chuẩn hóa response về dạng AppointmentResponse
+      return {
+        ...(res.appointment || {}),
+        id: res.appointmentId || res.appointment?.id,
+        patientName: res.patientName || res.appointment?.patientName,
+        doctorName: res.doctorName || res.appointment?.doctorName,
+        roomNumber: res.roomNumber || res.appointment?.roomNumber,
+        specialtyName: res.specialtyName || res.appointment?.specialtyName,
+        bookingCode: res.bookingCode || res.appointment?.bookingCode || cleanCode,
+        queueNumber: res.queueNumber || res.appointment?.queueNumber || "STT-01",
+        status: res.status || res.appointment?.status || "CHECKED_IN",
+        checkInTime: res.checkInTime || res.appointment?.checkInTime || new Date().toISOString(),
+        message: res.message || "Tiếp đón thành công qua mã QR vé hẹn!",
+      };
+    } catch {
+      // Fallback sang endpoint công khai cho bệnh nhân hoặc kiosk
+      return this.publicCheckInQr(cleanCode);
+    }
+  },
+
+  async publicCheckInQr(bookingCode: string) {
+    let cleanCode = bookingCode.trim();
+    if (cleanCode.includes('code=')) {
+      const match = cleanCode.match(/[?&]code=([^&]+)/);
+      if (match && match[1]) cleanCode = decodeURIComponent(match[1]).trim();
+    }
+    const res = await request<any>("/appointments/checkin/qr", {
       method: "POST",
-      body: JSON.stringify({ bookingCode: bookingCode.trim() }),
+      body: JSON.stringify({ bookingCode: cleanCode }),
     });
-    // Chuẩn hóa response về dạng AppointmentResponse
     return {
-      ...(res.appointment || {}),
-      bookingCode: res.appointment?.bookingCode || bookingCode,
-      queueNumber: res.queueNumber || res.appointment?.queueNumber || "STT-01",
-      status: res.appointment?.status || "CHECKED_IN",
-      checkInTime: res.appointment?.checkInTime || new Date().toISOString(),
-      message: res.message || "Tiếp đón thành công",
+      ...res,
+      bookingCode: res.bookingCode || cleanCode,
+      queueNumber: res.queueNumber || "STT-01",
+      status: res.status || "CHECKED_IN",
+      checkInTime: res.checkInTime || new Date().toISOString(),
+      message: "Tiếp đón thành công qua mã QR!",
     };
   },
 

@@ -167,13 +167,38 @@ export default function ReceptionView() {
             };
           });
         if (mapped.length > 0) {
-          setHistory(mapped);
+          const uniqueMapped = mapped.filter((item: any, idx: number, arr: any[]) => 
+            idx === arr.findIndex((t: any) => 
+              (t.bookingCode && t.bookingCode === item.bookingCode) ||
+              (t.appointmentId && t.appointmentId === item.appointmentId)
+            )
+          );
+          setHistory(uniqueMapped);
         }
       }
     } catch (err: any) {
       console.warn('Could not load reception feed:', err?.message);
     }
   }, [doctors]);
+
+  // Hàm thêm hoặc cập nhật bản ghi lịch sử tiếp đón, chống nhân bản tuyệt đối (De-duplicate)
+  const upsertHistoryEntry = useCallback((newEntry: any) => {
+    setHistory((prev) => {
+      const existing = prev.find((p) => 
+        (newEntry.bookingCode && p.bookingCode === newEntry.bookingCode) ||
+        (newEntry.appointmentId && p.appointmentId === newEntry.appointmentId)
+      );
+      const filtered = prev.filter((p) => 
+        (newEntry.bookingCode ? p.bookingCode !== newEntry.bookingCode : true) &&
+        (newEntry.appointmentId ? p.appointmentId !== newEntry.appointmentId : true)
+      );
+      // Nếu đã có sẵn thì giữ nguyên checkInTime gốc của lần tiếp đón đầu tiên
+      const entryToSave = existing 
+        ? { ...newEntry, checkInTime: existing.checkInTime || newEntry.checkInTime }
+        : newEntry;
+      return [entryToSave, ...filtered];
+    });
+  }, []);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -203,16 +228,23 @@ export default function ReceptionView() {
 
   // Filter and statistics for Live Feed
   const statusCounts = useMemo(() => {
+    // Đảm bảo đếm trên danh sách đã lọc trùng
+    const uniqueHistory = history.filter((item, index, self) => 
+      index === self.findIndex((t) => 
+        (t.bookingCode && t.bookingCode === item.bookingCode) ||
+        (t.appointmentId && t.appointmentId === item.appointmentId)
+      )
+    );
     return {
-      all: history.length,
-      waiting: history.filter(item => item.status === 'ĐÃ TIẾP ĐÓN').length,
-      inConsultation: history.filter(item => item.status === 'ĐANG KHÁM').length,
-      completed: history.filter(item => item.status === 'ĐÃ KHÁM').length,
+      all: uniqueHistory.length,
+      waiting: uniqueHistory.filter(item => item.status === 'ĐÃ TIẾP ĐÓN').length,
+      inConsultation: uniqueHistory.filter(item => item.status === 'ĐANG KHÁM').length,
+      completed: uniqueHistory.filter(item => item.status === 'ĐÃ KHÁM').length,
     };
   }, [history]);
 
   const filteredHistory = useMemo(() => {
-    return history.filter(item => {
+    const list = history.filter(item => {
       const matchStatus = filterStatus === 'ALL' || item.status === filterStatus;
       const term = searchTerm.trim().toLowerCase();
       const matchSearch = !term || 
@@ -222,6 +254,14 @@ export default function ReceptionView() {
         (item.doctor && item.doctor.toLowerCase().includes(term));
       return matchStatus && matchSearch;
     });
+
+    // Tuyệt đối không cho phép render trùng lặp cùng 1 ca khám / số vé
+    return list.filter((item, index, self) => 
+      index === self.findIndex((t) => 
+        (t.bookingCode && t.bookingCode === item.bookingCode) ||
+        (t.appointmentId && t.appointmentId === item.appointmentId)
+      )
+    );
   }, [history, filterStatus, searchTerm]);
 
   const roles: string[] = currentUser?.roles || [];
@@ -290,7 +330,12 @@ export default function ReceptionView() {
         status: 'ĐÃ TIẾP ĐÓN',
       };
 
-      setHistory((prev) => [newEntry, ...prev]);
+      upsertHistoryEntry(newEntry);
+
+      // Xóa form nhập để tránh bấm lặp lại nhiều lần
+      setBookingCode('');
+      setPatientName('');
+      setCccdNumber('');
 
       // Bắn tín hiệu đồng bộ buồng khám Bác sĩ ngay lập tức
       try {
@@ -334,7 +379,7 @@ export default function ReceptionView() {
           checkInTime: timeStr,
           status: 'ĐÃ TIẾP ĐÓN',
         };
-        setHistory((prev) => [newEntry, ...prev]);
+        upsertHistoryEntry(newEntry);
         try {
           const syncChannel = new BroadcastChannel('medsched_queue_sync');
           syncChannel.postMessage({ type: 'QUEUE_UPDATED' });
@@ -368,7 +413,7 @@ export default function ReceptionView() {
           checkInTime: timeStr,
           status: 'ĐÃ TIẾP ĐÓN',
         };
-        setHistory((prev) => [newEntry, ...prev]);
+        upsertHistoryEntry(newEntry);
         try {
           const syncChannel = new BroadcastChannel('medsched_queue_sync');
           syncChannel.postMessage({ type: 'QUEUE_UPDATED' });
@@ -427,7 +472,7 @@ export default function ReceptionView() {
         status: 'ĐÃ TIẾP ĐÓN',
       };
 
-      setHistory((prev) => [newEntry, ...prev.filter(p => p.bookingCode !== bookingCode)]);
+      upsertHistoryEntry(newEntry);
 
       // 2. Phát tín hiệu đồng bộ tức thì qua BroadcastChannel tới Buồng khám Bác sĩ
       try {
@@ -504,8 +549,17 @@ export default function ReceptionView() {
           </p>
         </div>
 
-        {/* Quick Stats Widget & History Button */}
+        {/* Quick Stats Widget & History & Kiosk Button */}
         <div className="flex flex-wrap items-center gap-3">
+          <Link
+            href="/checkin"
+            target="_blank"
+            className="flex items-center gap-2 px-3.5 py-2.5 bg-teal-700 hover:bg-teal-800 text-white rounded-xl text-xs font-bold transition shadow-xs"
+            title="Mở màn hình Kiosk tự phục vụ tiếp đón bệnh nhân"
+          >
+            <QrCode size={16} />
+            <span>Mở Kiosk Tự Check-in</span>
+          </Link>
           <Link
             href="/reception/history"
             className="flex items-center gap-2 px-3.5 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-bold transition shadow-xs"

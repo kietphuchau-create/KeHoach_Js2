@@ -35,13 +35,13 @@ export const QrCodeImage: React.FC<QrCodeImageProps> = ({
       },
       errorCorrectionLevel: 'M',
     })
-      .then((url) => {
+      .then((url: string) => {
         if (isMounted) {
           setDataUrl(url);
           setError(false);
         }
       })
-      .catch((err) => {
+      .catch((err: any) => {
         console.error('Error generating QR code:', err);
         if (isMounted) setError(true);
       });

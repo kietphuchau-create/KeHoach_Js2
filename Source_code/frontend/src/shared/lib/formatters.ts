@@ -46,14 +46,30 @@ export const maskCCCD = (cccd?: string): string => {
   return `${cccd.slice(0, 4)} **** ${cccd.slice(-4)}`;
 };
 
+/** Loại bỏ tiền tố học hàm/học vị bị lặp kép (ví dụ: BS.CKII BS.CKII -> BS.CKII) */
+export const cleanDoctorFullName = (rawName?: string | null): string => {
+  if (!rawName) return '';
+  let str = rawName.trim();
+  const titles = ['BS.CKII', 'BS.CKI', 'BS.CK1', 'BS.CK2', 'ThS.BS', 'TS.BS', 'PGS.TS', 'GS.TS', 'BS', 'ThS', 'TS', 'PGS', 'GS'];
+  for (const t of titles) {
+    const escaped = t.replace(/\./g, '\\.');
+    const doubleRegex = new RegExp(`^(${escaped}\\s*)+`, 'i');
+    if (doubleRegex.test(str)) {
+      str = `${t} ` + str.replace(doubleRegex, '').trim();
+      break;
+    }
+  }
+  return str;
+};
+
 /** Định dạng tên bác sĩ kết hợp học hàm/học vị không bị trùng lặp (ví dụ: BS.CKII Nguyễn Minh Anh) */
 export const formatDoctorFullName = (academicTitle?: string | null, fullName?: string | null): string => {
   const cleanName = (fullName || '').trim();
   const title = (academicTitle || '').trim();
   if (!cleanName) return title;
-  if (!title) return cleanName;
+  if (!title) return cleanDoctorFullName(cleanName);
   if (cleanName.toLowerCase().startsWith(title.toLowerCase())) {
-    return cleanName;
+    return cleanDoctorFullName(cleanName);
   }
-  return `${title} ${cleanName}`;
+  return cleanDoctorFullName(`${title} ${cleanName}`);
 };
