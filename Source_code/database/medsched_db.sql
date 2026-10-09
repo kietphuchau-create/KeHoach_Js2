@@ -105,8 +105,8 @@ CREATE TABLE users (
 
 -- 3b. TOKEN ĐẶT LẠI MẬT KHẨU (FORGOT / RESET PASSWORD - SINGLE USE, 15 PHÚT)
 CREATE TABLE password_reset_tokens (
-    id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
-    user_id CHAR(36) NOT NULL,
+    id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    user_id VARCHAR(36) NOT NULL,
     token_hash VARCHAR(64) NOT NULL UNIQUE,
     expires_at DATETIME NOT NULL,
     used_at DATETIME NULL,
@@ -117,10 +117,10 @@ CREATE TABLE password_reset_tokens (
 
 -- 3c. DANH SÁCH TOKEN BỊ THU HỒI KHI ĐĂNG XUẤT (SERVER-SIDE LOGOUT INVALIDATION)
 CREATE TABLE revoked_tokens (
-    id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
     token_hash VARCHAR(64) NOT NULL UNIQUE,
     token_type VARCHAR(16) NOT NULL,
-    user_id CHAR(36) NOT NULL,
+    user_id VARCHAR(36) NOT NULL,
     expires_at DATETIME NOT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_revoked_hash (token_hash),
