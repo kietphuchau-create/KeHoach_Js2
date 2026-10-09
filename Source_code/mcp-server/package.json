@@ -1,0 +1,26 @@
+{
+  "name": "medsched-mcp-server",
+  "version": "1.0.0",
+  "description": "Model Context Protocol (MCP) Wrapper Server for MedSched Medical System",
+  "main": "server.js",
+  "type": "module",
+  "bin": {
+    "medsched-mcp": "./server.js"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test-tool": "node test-mcp.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.6.1"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "medsched",
+    "ai-agent",
+    "medical"
+  ],
+  "author": "MedSched Team",
+  "license": "MIT"
+}

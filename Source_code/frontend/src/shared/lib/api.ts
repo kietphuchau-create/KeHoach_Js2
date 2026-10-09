@@ -1,0 +1,881 @@
+/**
+ * MedSched API Client - Giao tiếp với Spring Boot 3 Backend
+ * Base URL: http://localhost:8080/api/v1
+ * Chuẩn kiến trúc: Shared API Client (Mục 10 TongHopQuyTacFN.md)
+ */
+
+import { AppointmentResponse } from '@/shared/types';
+export type { AppointmentResponse };
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
+
+export function getAuthToken(): string | null {
+  if (typeof window === "undefined") return null;
+  // Xóa sạch localStorage cũ còn sót lại từ các lần đăng nhập trước
+  if (localStorage.getItem("token")) {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    localStorage.removeItem("role");
+  }
+  return sessionStorage.getItem("token");
+}
+
+export function setAuthSession(token: string, user: any) {
+  if (typeof window === "undefined") return;
+  const safeUser = user || {};
+  // Chỉ lưu vào sessionStorage (tắt tab hoặc trình duyệt là tự mất hoàn toàn)
+  sessionStorage.setItem("token", token);
+  sessionStorage.setItem("user", JSON.stringify(safeUser));
+  sessionStorage.setItem("role", safeUser.roles?.[0] || "CUSTOMER");
+
+  // Dọn sạch localStorage
+  localStorage.removeItem("token");
+  localStorage.removeItem("user");
+  localStorage.removeItem("role");
+}
+
+export function clearAuthSession() {
+  if (typeof window === "undefined") return;
+  sessionStorage.clear();
+  localStorage.removeItem("token");
+  localStorage.removeItem("user");
+  localStorage.removeItem("role");
+}
+
+export function getAuthUser(): any | null {
+  if (typeof window === "undefined") return null;
+  const userStr = sessionStorage.getItem("user");
+  if (!userStr) return null;
+  try {
+    return JSON.parse(userStr);
+  } catch {
+    return null;
+  }
+}
+
+async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  const token = getAuthToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(options.headers as Record<string, string> || {}),
+  };
+
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  // Tự động phân luồng URL tương thích: /api/v1/... hoặc /api/...
+  let targetUrl = `${API_BASE_URL}${endpoint}`;
+  if (endpoint.startsWith("/appointments") || endpoint.startsWith("/reception") || endpoint.startsWith("/ai")) {
+    const rootApiUrl = API_BASE_URL.replace(/\/v1\/?$/, "");
+    targetUrl = `${rootApiUrl}${endpoint}`;
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(targetUrl, {
+      ...options,
+      headers,
+    });
+    // Nếu 404 và targetUrl đã bị sửa, thử lại với API_BASE_URL gốc
+    if (response.status === 404 && targetUrl !== `${API_BASE_URL}${endpoint}`) {
+      response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        ...options,
+        headers,
+      });
+    }
+  } catch (err: any) {
+    // Nếu kết nối tới backend thất bại, ném lỗi rõ ràng
+    throw new Error(err.message || "Không thể kết nối đến máy chủ MedSched (Spring Boot).");
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    if (response.status === 401) {
+      clearAuthSession();
+      if (typeof window !== "undefined") {
+        let kickoutMsg = "Tài khoản của bạn vừa được đăng nhập trên một trình duyệt hoặc thiết bị khác. Phiên làm việc tại đây đã kết thúc.";
+        if (errorData.message && (errorData.message.includes("thiết bị khác") || errorData.message.includes("trình duyệt khác"))) {
+          kickoutMsg = errorData.message;
+        } else if (errorData.error === "CONCURRENT_SESSION_EXPIRED" || errorData.code === "CONCURRENT_SESSION_EXPIRED") {
+          kickoutMsg = errorData.message || kickoutMsg;
+        } else {
+          kickoutMsg = "Phiên làm việc của bạn đã hết hạn (hoặc tài khoản vừa đăng nhập ở một tab/thiết bị khác). Vui lòng đăng nhập lại để tiếp tục.";
+        }
+
+        window.dispatchEvent(
+          new CustomEvent("medsched:concurrent_kickout", {
+            detail: {
+              message: kickoutMsg,
+            },
+          })
+        );
+      }
+    }
+    const message = errorData.detail || errorData.message || `Yêu cầu thất bại (${response.status})`;
+    throw new Error(message);
+  }
+
+  // Nếu HTTP 204 No Content
+  if (response.status === 204) return {} as T;
+  return response.json();
+}
+
+export const api = {
+  // --- 1. XÁC THỰC (AUTH) ---
+  async login(payload: { email: string; password: string }) {
+    const res = await request<any>("/auth/login", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    const user = res.user || {
+      id: res.userId,
+      email: res.email,
+      fullName: res.fullName,
+      roles: res.roles || [],
+    };
+    setAuthSession(res.accessToken, user);
+    return { ...res, user };
+  },
+
+  async register(payload: { fullName: string; email: string; phone: string; password: string }) {
+    return request<any>("/auth/register", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  // --- 2. HỒ SƠ CÁ NHÂN (/ME) ---
+  async getProfile() {
+    return request<any>("/me");
+  },
+
+  async getMe() {
+    return this.getProfile();
+  },
+
+  async updateProfile(payload: { fullName: string; phone: string }) {
+    return request<any>("/me", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async updatePatientProfile(payload: {
+    fullName: string;
+    cccdNumber?: string;
+    healthInsuranceNo?: string;
+    dateOfBirth?: string;
+    gender?: 'MALE' | 'FEMALE' | 'OTHER';
+    phone?: string;
+    address?: string;
+    medicalHistory?: string;
+  }) {
+    return request<any>("/me/patient-profile", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async changePassword(payload: { currentPassword: string; newPassword: string }) {
+    return request<any>("/me/change-password", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async updateDoctorProfile(payload: { academicTitle?: string; roomNumber?: string; bio?: string }) {
+    return request<any>("/me/doctor-profile", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  // --- 3. QUẢN TRỊ VIÊN (ADMIN) ---
+  async getAdminUsers(params?: { role?: string; q?: string; page?: number; size?: number; sort?: string }) {
+    const query = new URLSearchParams();
+    if (params?.role && params.role !== "ALL") query.append("role", params.role);
+    if (params?.q) query.append("q", params.q);
+    if (params?.page !== undefined) query.append("page", String(params.page));
+    if (params?.size !== undefined) query.append("size", String(params.size));
+    if (params?.sort) query.append("sort", params.sort);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    return request<any>(`/admin/users${qs}`);
+  },
+
+  async updateUserStatus(userId: string, isActive: boolean) {
+    return request<any>(`/admin/users/${userId}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ active: isActive }),
+    });
+  },
+
+  async resetUserPassword(userId: string, newPassword: string) {
+    return request<any>(`/admin/users/${userId}/reset-password`, {
+      method: "POST",
+      body: JSON.stringify({ newPassword }),
+    });
+  },
+
+  async createStaff(payload: { email: string; temporaryPassword?: string; password?: string; fullName: string; phone: string; medicalCenterId: string }) {
+    const body = {
+      ...payload,
+      password: payload.password || payload.temporaryPassword || "Medsched@123",
+    };
+    return request<any>("/admin/users/staff", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  async createDoctor(payload: {
+    email: string;
+    temporaryPassword?: string;
+    password?: string;
+    fullName: string;
+    phone: string;
+    specialtyId: string;
+    medicalCenterId: string;
+    academicTitle: string;
+    consultationFee: number;
+    roomNumber?: string;
+    bio: string;
+  }) {
+    const body = {
+      ...payload,
+      password: payload.password || payload.temporaryPassword || "Medsched@123",
+    };
+    return request<any>("/admin/users/doctors", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  // --- 4. DANH MỤC KHÁM (PUBLIC & ADMIN) ---
+  async getMedicalCenters() {
+    return request<any[]>("/medical-centers");
+  },
+
+  async createMedicalCenter(payload: { code: string; name: string; address: string; phone?: string }) {
+    return request<any>("/admin/medical-centers", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async updateMedicalCenter(id: string, payload: { code: string; name: string; address: string; phone?: string }) {
+    return request<any>(`/admin/medical-centers/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async deactivateMedicalCenter(id: string) {
+    return request<void>(`/admin/medical-centers/${id}`, { method: "DELETE" });
+  },
+
+  async reactivateMedicalCenter(id: string) {
+    return request<void>(`/admin/medical-centers/${id}/reactivate`, { method: "POST" });
+  },
+
+  async getSpecialties(centerId?: string) {
+    const qs = centerId ? `?centerId=${centerId}` : "";
+    return request<any[]>(`/specialties${qs}`);
+  },
+
+  async createSpecialty(payload: { medicalCenterId: string; name: string; code: string; description?: string; iconUrl?: string }) {
+    return request<any>("/admin/specialties", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async updateSpecialty(id: string, payload: { medicalCenterId: string; name: string; code: string; description?: string; iconUrl?: string }) {
+    return request<any>(`/admin/specialties/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async deactivateSpecialty(id: string) {
+    return request<void>(`/admin/specialties/${id}`, { method: "DELETE" });
+  },
+
+  async getServices(specialtyId?: string) {
+    const qs = specialtyId ? `?specialtyId=${specialtyId}` : "";
+    return request<any[]>(`/services${qs}`);
+  },
+
+  async createService(payload: { specialtyId: string; name: string; code: string; description?: string; price: number; estimatedDurationMinutes: number }) {
+    return request<any>("/admin/services", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async updateService(id: string, payload: { specialtyId: string; name: string; code: string; description?: string; price: number; estimatedDurationMinutes: number }) {
+    return request<any>(`/admin/services/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async deactivateService(id: string) {
+    return request<void>(`/admin/services/${id}`, { method: "DELETE" });
+  },
+
+
+  async getDoctors(params?: { specialtyId?: string; centerId?: string }) {
+    const query = new URLSearchParams();
+    if (params?.specialtyId) query.append("specialtyId", params.specialtyId);
+    if (params?.centerId) query.append("centerId", params.centerId);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    return request<any[]>(`/doctors${qs}`);
+  },
+
+  // --- 5. ĐẶT LỊCH (APPOINTMENTS) & SPRING AI TRIAGE ---
+  async bookAppointment(payload: {
+    medicalCenterId?: string;
+    patientProfileId: string;
+    doctorId: string;
+    slotId: string;
+    symptoms?: string;
+    medicalHistory?: string;
+  }) {
+    return request<AppointmentResponse>("/appointments", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async createPaymentUrl(appointmentId: string) {
+    return request<{ url: string }>(`/payments/create-url?appointmentId=${appointmentId}`);
+  },
+
+  async createRealPayment(payload: {
+    appointmentId?: string;
+    bookingCode?: string;
+    paymentType?: 'DEPOSIT' | 'FULL' | string;
+    amount?: number;
+    method?: string;
+  }) {
+    return request<{
+      transactionRef: string;
+      appointmentId: string;
+      bookingCode: string;
+      amount: number;
+      paymentType: string;
+      transferContent: string;
+      status: string;
+    }>('/payments/create', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async checkRealPaymentStatus(params: {
+    appointmentId?: string;
+    bookingCode?: string;
+    transactionRef?: string;
+  }) {
+    const q = new URLSearchParams();
+    if (params.appointmentId) q.set('appointmentId', params.appointmentId);
+    if (params.bookingCode) q.set('bookingCode', params.bookingCode);
+    if (params.transactionRef) q.set('transactionRef', params.transactionRef);
+    return request<{
+      success: boolean;
+      status: string;
+      amountPaid: number;
+      paymentType?: string;
+      transactionRef?: string;
+    }>(`/payments/check-status?${q.toString()}`);
+  },
+
+  async confirmRealPayment(payload: {
+    appointmentId?: string;
+    bookingCode?: string;
+    transactionRef?: string;
+    amount?: number;
+    paymentType?: 'DEPOSIT' | 'FULL' | string;
+  }) {
+    return request<{
+      success: boolean;
+      message: string;
+      appointmentId: string;
+      bookingCode: string;
+      amountPaid: number;
+      paymentType: string;
+    }>('/payments/confirm', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async simulateBankWebhook(payload: { bookingCode: string; amount: number; paymentType?: string }) {
+    return request<any>('/payments/webhook/simulate', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async getAppointmentByCode(bookingCode: string) {
+    return request<AppointmentResponse>(`/appointments/booking-code/${bookingCode}`);
+  },
+
+  async getAppointmentsByPatient(patientProfileId: string) {
+    return request<AppointmentResponse[]>(`/appointments/patient/${patientProfileId}`);
+  },
+
+  async cancelAppointment(appointmentId: string, reason?: string) {
+    return request<any>(`/appointments/${appointmentId}/cancel`, {
+      method: "PATCH",
+      body: JSON.stringify({ reason: reason || "Bệnh nhân yêu cầu hủy qua cổng trực tuyến" }),
+    });
+  },
+
+  async rescheduleAppointment(appointmentId: string, payload: { newSlotId: string; symptoms?: string }) {
+    return request<any>(`/appointments/${appointmentId}/reschedule`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async triageSymptoms(symptoms: string) {
+    try {
+      return await request<{
+        specialtyCode?: string;
+        specialtyName?: string;
+        specialty: string;
+        recommendedService?: string;
+        estimatedFee?: string;
+        clinicalSummary?: string;
+        summary: string;
+        preparationAdvice?: string;
+        isEmergency?: boolean;
+        emergencyWarning?: string | null;
+        disclaimer?: string;
+      }>("/ai/triage", {
+        method: "POST",
+        body: JSON.stringify({ symptoms }),
+      });
+    } catch {
+      // Fallback cục bộ nếu chưa có kết nối mạng tới Backend
+      const s = symptoms.toLowerCase();
+      let specialtyCode = "INTERNAL_MEDICINE";
+      let specialtyName = "Khoa Nội Tổng Quát";
+      let recommendedService = "Gói Khám Nội Tổng Quát";
+      let estimatedFee = "200.000 VNĐ";
+      let advice = "Nên nhịn ăn sáng trước 6-8 tiếng nếu cần xét nghiệm máu.";
+      let isEmergency = false;
+      let emergencyWarning: string | null = null;
+
+      if (s.includes("ngực") || s.includes("khó thở") || s.includes("ngất") || s.includes("đột quỵ")) {
+        isEmergency = true;
+        specialtyCode = "EMERGENCY";
+        specialtyName = "Cấp Cứu Khẩn Cấp";
+        emergencyWarning = "🚨 CẢNH BÁO NGUY HIỂM: Triệu chứng có dấu hiệu cấp cứu! Vui lòng gọi ngay 115 hoặc di chuyển đến Bệnh viện Đa khoa gần nhất!";
+      } else if (s.includes("da") || s.includes("ngứa") || s.includes("mụn") || s.includes("mề đay")) {
+        specialtyCode = "DERMATOLOGY";
+        specialtyName = "Chuyên Khoa Da Liễu";
+        recommendedService = "Gói Khám & Soi Da Kỹ Thuật Số";
+        estimatedFee = "250.000 VNĐ";
+        advice = "Tránh gãi mạnh gây trầy xước và không bôi mỹ phẩm lạ lên da trước khi khám.";
+      } else if (s.includes("răng") || s.includes("nướu") || s.includes("lợi") || s.includes("sâu răng")) {
+        specialtyCode = "ODONTO_STOMATOLOGY";
+        specialtyName = "Chuyên Khoa Răng Hàm Mặt";
+        recommendedService = "Gói Khám Răng Toàn Diện";
+        estimatedFee = "150.000 VNĐ";
+        advice = "Đánh răng sạch sẽ trước khi đến phòng khám.";
+      } else if (s.includes("mắt") || s.includes("mờ") || s.includes("nhức mắt")) {
+        specialtyCode = "OPHTHALMOLOGY";
+        specialtyName = "Chuyên Khoa Mắt";
+        recommendedService = "Đo Khúc Xạ & Khám Mắt Chuyên Sâu";
+        estimatedFee = "200.000 VNĐ";
+        advice = "Tháo kính áp tròng ít nhất 2 giờ trước khi đo thị lực.";
+      } else if (s.includes("bé") || s.includes("trẻ") || s.includes("con")) {
+        specialtyCode = "PEDIATRICS";
+        specialtyName = "Chuyên Khoa Nhi";
+        recommendedService = "Khám Nhi & Tư Vấn Dinh Dưỡng";
+        estimatedFee = "200.000 VNĐ";
+        advice = "Mang theo sổ tiêm chủng của bé và giữ ấm khi di chuyển.";
+      }
+
+      return {
+        specialtyCode,
+        specialtyName,
+        specialty: specialtyName,
+        recommendedService,
+        estimatedFee,
+        clinicalSummary: `Triệu chứng: ${symptoms.slice(0, 100)}... | Định hướng: ${specialtyName}`,
+        summary: `Triệu chứng: ${symptoms.slice(0, 100)}... | Định hướng: ${specialtyName}`,
+        preparationAdvice: advice,
+        isEmergency,
+        emergencyWarning,
+        disclaimer: "Lưu ý: Kết quả phân tích mang tính chất tham khảo dịch vụ phòng khám.",
+      };
+    }
+  },
+
+  // --- 6. QUẦY TIẾP ĐÓN LỄ TÂN & KIOSK TỰ PHỤC VỤ (RECEPTION & KIOSK CHECK-IN) ---
+  async checkInQr(bookingCode: string) {
+    let cleanCode = bookingCode.trim();
+    if (cleanCode.includes('code=')) {
+      const match = cleanCode.match(/[?&]code=([^&]+)/);
+      if (match && match[1]) cleanCode = decodeURIComponent(match[1]).trim();
+    }
+
+    try {
+      const res = await request<any>("/reception/checkin/qr", {
+        method: "POST",
+        body: JSON.stringify({ bookingCode: cleanCode }),
+      });
+      // Chuẩn hóa response về dạng AppointmentResponse
+      return {
+        ...(res.appointment || {}),
+        id: res.appointmentId || res.appointment?.id,
+        patientName: res.patientName || res.appointment?.patientName,
+        doctorName: res.doctorName || res.appointment?.doctorName,
+        roomNumber: res.roomNumber || res.appointment?.roomNumber,
+        specialtyName: res.specialtyName || res.appointment?.specialtyName,
+        bookingCode: res.bookingCode || res.appointment?.bookingCode || cleanCode,
+        queueNumber: res.queueNumber || res.appointment?.queueNumber || "STT-01",
+        status: res.status || res.appointment?.status || "CHECKED_IN",
+        checkInTime: res.checkInTime || res.appointment?.checkInTime || new Date().toISOString(),
+        message: res.message || "Tiếp đón thành công qua mã QR vé hẹn!",
+      };
+    } catch {
+      // Fallback sang endpoint công khai cho bệnh nhân hoặc kiosk
+      return this.publicCheckInQr(cleanCode);
+    }
+  },
+
+  async publicCheckInQr(bookingCode: string) {
+    let cleanCode = bookingCode.trim();
+    if (cleanCode.includes('code=')) {
+      const match = cleanCode.match(/[?&]code=([^&]+)/);
+      if (match && match[1]) cleanCode = decodeURIComponent(match[1]).trim();
+    }
+    const res = await request<any>("/appointments/checkin/qr", {
+      method: "POST",
+      body: JSON.stringify({ bookingCode: cleanCode }),
+    });
+    return {
+      ...res,
+      bookingCode: res.bookingCode || cleanCode,
+      queueNumber: res.queueNumber || "STT-01",
+      status: res.status || "CHECKED_IN",
+      checkInTime: res.checkInTime || new Date().toISOString(),
+      message: "Tiếp đón thành công qua mã QR!",
+    };
+  },
+
+  async checkInCccd(cccdNumber: string, fullName: string = "Bệnh nhân", doctorId?: string) {
+    const res = await request<any>("/reception/checkin/cccd", {
+      method: "POST",
+      body: JSON.stringify({ cccdNumber: cccdNumber.trim(), fullName: fullName.trim(), doctorId }),
+    });
+    return {
+      ...(res.appointment || {}),
+      bookingCode: res.appointment?.bookingCode || `MED-${cccdNumber.slice(-4)}`,
+      queueNumber: res.queueNumber || res.appointment?.queueNumber || "STT-01",
+      status: res.appointment?.status || "CHECKED_IN",
+      checkInTime: res.appointment?.checkInTime || new Date().toISOString(),
+      message: res.message || "Tiếp đón thành công",
+    };
+  },
+
+  async checkIn(payload: { bookingCode?: string; cccdNumber?: string; fullName?: string; doctorId?: string; method: "QR_CODE" | "CCCD_QR" }) {
+    if (payload.method === "QR_CODE" && payload.bookingCode) {
+      return this.checkInQr(payload.bookingCode);
+    }
+    if (payload.method === "CCCD_QR" && payload.cccdNumber) {
+      return this.checkInCccd(payload.cccdNumber, payload.fullName, payload.doctorId);
+    }
+    throw new Error("Vui lòng cung cấp mã QR vé hẹn hoặc số CCCD hợp lệ.");
+  },
+
+  async registerWalkinPatient(payload: {
+    fullName: string;
+    phone: string;
+    cccdNumber?: string;
+    doctorId?: string;
+    specialty?: string;
+    password?: string;
+  }) {
+    return request<{
+      appointmentId: string;
+      bookingCode: string;
+      queueNumber: string;
+      patientName: string;
+      doctorId: string;
+      doctorName: string;
+      roomNumber: string;
+      specialtyName: string;
+      checkInTime: string;
+      status: string;
+    }>("/reception/walkin", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async getBillDetail(appointmentId: string) {
+    return request<any>(`/reception/appointments/${appointmentId}/bill`);
+  },
+
+  async payInvoice(invoiceId: string, payload: { amountPaid: number; paymentMethod: string; note?: string }) {
+    return request<any>(`/reception/invoices/${invoiceId}/pay`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async getReceptionHistory(params?: {
+    q?: string;
+    method?: string;
+    status?: string;
+    from?: string;
+    to?: string;
+  }) {
+    const query = new URLSearchParams();
+    if (params?.q) query.append("q", params.q);
+    if (params?.method) query.append("method", params.method);
+    if (params?.status) query.append("status", params.status);
+    if (params?.from) query.append("from", params.from);
+    if (params?.to) query.append("to", params.to);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    return request<ReceptionHistoryResponse>(`/reception/history${qs}`);
+  },
+
+  // --- 7. BUỒNG KHÁM BÁC SĨ (DOCTOR CLINIC & QUEUE) ---
+  async getDoctorQueue(doctorId?: string) {
+    const qs = doctorId ? `?doctorId=${encodeURIComponent(doctorId)}` : "";
+    return request<any[]>(`/doctor/queue${qs}`);
+  },
+
+  async createDoctorPrescription(appointmentId: string, payload: {
+    diagnosis: string;
+    doctorAdvice?: string;
+    items: Array<{
+      medicineName: string;
+      dosage?: string;
+      quantity: number;
+      unit?: string;
+      unitPrice?: number;
+    }>;
+  }) {
+    return request<any>(`/doctor/appointments/${appointmentId}/prescriptions`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async admitDoctorPatient(appointmentId: string) {
+    return request<void>(`/doctor/appointments/${appointmentId}/admit`, {
+      method: "POST",
+    });
+  },
+
+  async callDoctorPatient(appointmentId: string) {
+    return request<void>(`/doctor/appointments/${appointmentId}/call`, {
+      method: "POST",
+    });
+  },
+
+  async deferDoctorPatient(appointmentId: string) {
+    return request<void>(`/doctor/appointments/${appointmentId}/defer`, {
+      method: "POST",
+    });
+  },
+
+  async sendDoctorPatientToLab(appointmentId: string) {
+    return request<void>(`/doctor/appointments/${appointmentId}/lab`, {
+      method: "POST",
+    });
+  },
+
+  async missDoctorPatient(appointmentId: string) {
+    return request<void>(`/doctor/appointments/${appointmentId}/miss`, {
+      method: "POST",
+    });
+  },
+
+  async getAppointmentPrescription(appointmentId: string) {
+    return request<PrescriptionDetail>(`/doctor/appointments/${appointmentId}/prescription`);
+  },
+
+  async getDoctorAppointmentPrescription(appointmentId: string) {
+    return request<PrescriptionDetail>(`/doctor/appointments/${appointmentId}/prescription`);
+  },
+
+  async getDoctorConsultationHistory(params?: {
+    doctorId?: string;
+    q?: string;
+    from?: string;
+    to?: string;
+  }) {
+    const query = new URLSearchParams();
+    if (params?.doctorId) query.append("doctorId", params.doctorId);
+    if (params?.q) query.append("q", params.q);
+    if (params?.from) query.append("from", params.from);
+    if (params?.to) query.append("to", params.to);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    return request<ConsultationHistoryItem[]>(`/doctor/history${qs}`);
+  },
+
+  async getDoctorAvailableSlots(doctorId: string, date?: string) {
+    const qs = date ? `?date=${encodeURIComponent(date)}` : "";
+    return request<Array<{
+      id: string;
+      time: string;
+      startMinutes: number;
+      status: string;
+      label: string;
+      disabled: boolean;
+    }>>(`/appointments/doctors/${doctorId}/slots${qs}`);
+  },
+
+  // --- 8. QUẢN LÝ LỊCH TRỰC BÁC SĨ (DOCTOR SCHEDULE CRUD) ---
+  async getDoctorSchedules(doctorId?: string, from?: string, to?: string) {
+    const query = new URLSearchParams();
+    if (doctorId) query.append("doctorId", doctorId);
+    if (from) query.append("from", from);
+    if (to) query.append("to", to);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    return request<any[]>(`/doctor/schedules${qs}`);
+  },
+
+  async getRoomOccupancy(workDate: string, startTime?: string, endTime?: string) {
+    const query = new URLSearchParams({ workDate });
+    if (startTime) query.append("startTime", startTime);
+    if (endTime) query.append("endTime", endTime);
+    return request<Array<{
+      roomNumber: string;
+      doctorId: string;
+      doctorName: string;
+      startTime: string;
+      endTime: string;
+      isOccupied: boolean;
+    }>>(`/doctor/schedules/room-occupancy?${query.toString()}`);
+  },
+
+  async createDoctorSchedule(payload: {
+    workDate: string;
+    startTime: string;
+    endTime: string;
+    slotDurationMinutes?: number;
+    roomNumber?: string;
+  }) {
+    return request<any>("/doctor/schedules", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async toggleDoctorSlotLock(slotId: string) {
+    return request<any>(`/doctor/slots/${slotId}/toggle-lock`, {
+      method: "PATCH",
+    });
+  },
+
+  async deleteDoctorSchedule(scheduleId: string) {
+    return request<void>(`/doctor/schedules/${scheduleId}`, {
+      method: "DELETE",
+    });
+  },
+
+  async getStatisticsOverview(params?: {
+    role?: string;
+    granularity?: string;
+    range?: string;
+    metricId?: string;
+    doctorId?: string;
+  }) {
+    const searchParams = new URLSearchParams();
+    if (params?.role) searchParams.set("role", params.role);
+    if (params?.granularity) searchParams.set("granularity", params.granularity);
+    if (params?.range) searchParams.set("range", params.range);
+    if (params?.metricId) searchParams.set("metricId", params.metricId);
+    if (params?.doctorId) searchParams.set("doctorId", params.doctorId);
+    const queryString = searchParams.toString() ? `?${searchParams.toString()}` : "";
+    return request<any>(`/statistics/overview${queryString}`);
+  },
+};
+
+export interface PrescriptionItemDetail {
+  id?: string;
+  medicineName: string;
+  unit: string;
+  quantity: number;
+  dosage: string;
+  unitPrice?: number;
+  totalPrice?: number;
+}
+
+export interface PrescriptionDetail {
+  prescriptionId: string;
+  appointmentId: string;
+  doctorName: string;
+  diagnosis: string;
+  doctorAdvice: string;
+  totalMedicineAmount: number;
+  status: string;
+  createdAt: string;
+  items: PrescriptionItemDetail[];
+}
+
+export interface ConsultationHistoryItem {
+  appointmentId: string;
+  bookingCode: string;
+  queueNumber: string;
+  queueType: string;
+  patientName: string;
+  gender: string;
+  birthYear: number;
+  phone: string;
+  symptoms: string;
+  diagnosis: string;
+  doctorAdvice: string;
+  prescriptionId: string;
+  totalMedicineAmount: number;
+  medicineCount: number;
+  consultationTime: string;
+  formattedDate: string;
+}
+
+export interface ReceptionHistoryItem {
+  appointmentId: string;
+  bookingCode: string;
+  queueNumber: string;
+  queueType: string;
+  checkinMethod: string;
+  patientName: string;
+  gender: string;
+  birthYear: number;
+  phone: string;
+  cccdNumber: string;
+  doctorName: string;
+  specialtyName: string;
+  roomNumber: string;
+  symptoms: string;
+  status: string;
+  checkInTime?: string;
+  formattedCheckInTime?: string;
+  createdAt?: string;
+  formattedCreatedAt?: string;
+}
+
+export interface ReceptionHistorySummary {
+  totalCheckins: number;
+  qrCheckins: number;
+  cccdCheckins: number;
+  manualWalkinCheckins: number;
+  completedCount: number;
+  waitingCount: number;
+}
+
+export interface ReceptionHistoryResponse {
+  summary: ReceptionHistorySummary;
+  items: ReceptionHistoryItem[];
+}
+
