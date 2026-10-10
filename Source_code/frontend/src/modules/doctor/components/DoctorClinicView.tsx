@@ -237,6 +237,7 @@ export default function DoctorClinicView() {
   const [activeRoom, setActiveRoom] = useState<string>('P.208');
   const [showChangeRoomModal, setShowChangeRoomModal] = useState<boolean>(false);
   const [availableRooms, setAvailableRooms] = useState<ClinicRoom[]>([]);
+  const [roomOccupancies, setRoomOccupancies] = useState<any[]>([]);
 
   // Trạng thái ca trực hôm nay & kiểm tra chiếm dụng buồng khám
   const [todayShift, setTodayShift] = useState<{ hasShift: boolean; shiftTime?: string } | null>(null);
@@ -266,6 +267,7 @@ export default function DoctorClinicView() {
     try {
       const occupancies = await api.getRoomOccupancy(todayStr);
       if (Array.isArray(occupancies)) {
+        setRoomOccupancies(occupancies);
         const occ = occupancies.find(
           (o: any) => o.roomNumber.toUpperCase() === room.toUpperCase() && (docId ? o.doctorId !== docId : true)
         );
@@ -280,6 +282,23 @@ export default function DoctorClinicView() {
     }
   }, []);
 
+  const openChangeRoomModal = async () => {
+    if (currentPatient) {
+      setNotification('⛔ Không thể đổi buồng khám khi đang có ca khám dở dang trong phòng. Vui lòng hoàn tất hoặc tạm hoãn ca khám trước!');
+      return;
+    }
+    const todayStr = new Date().toISOString().slice(0, 10);
+    try {
+      const occupancies = await api.getRoomOccupancy(todayStr);
+      if (Array.isArray(occupancies)) {
+        setRoomOccupancies(occupancies);
+      }
+    } catch (e) {
+      console.warn('Lỗi tải dữ liệu chiếm dụng phòng:', e);
+    }
+    setShowChangeRoomModal(true);
+  };
+
   const currentRoomInfo = useMemo(() => {
     return availableRooms.find(r => r.code === activeRoom) || {
       code: activeRoom,
@@ -292,11 +311,25 @@ export default function DoctorClinicView() {
   const handleChangeRoom = (roomCode: string) => {
     const code = roomCode.trim().toUpperCase();
     if (!code) return;
+    if (currentPatient) {
+      setNotification('⛔ Không thể đổi buồng khám khi đang có ca khám dở dang trong phòng. Vui lòng hoàn tất ca khám trước!');
+      return;
+    }
     const roomInfo = availableRooms.find(r => r.code === code);
     if (!roomInfo) {
       setNotification(`⚠️ Buồng khám [${code}] không nằm trong danh mục do Quản Trị Viên (Admin) phê duyệt.`);
       return;
     }
+
+    // Chặn nghiêm ngặt: không cho phép tự ý chiếm buồng khám của bác sĩ khác
+    const occ = roomOccupancies.find(
+      (o: any) => o.roomNumber.toUpperCase() === code && (currentUser?.doctorId ? o.doctorId !== currentUser.doctorId : true)
+    );
+    if (occ) {
+      setNotification(`⛔ Buồng khám [${code}] hiện đã có BS. ${occ.doctorName} (${occ.startTime} - ${occ.endTime}) trực. Bạn không thể tự ý chiếm phòng của đồng nghiệp! Vui lòng hoán đổi ca trực hoặc liên hệ Quản Trị Viên.`);
+      return;
+    }
+
     setActiveRoom(code);
     setCurrentUser((prev: any) => ({ ...prev, roomNumber: code }));
     if (typeof window !== 'undefined') {
@@ -304,7 +337,7 @@ export default function DoctorClinicView() {
       window.dispatchEvent(new CustomEvent('medsched:doctor_room_changed', { detail: { roomNumber: code } }));
     }
     setShowChangeRoomModal(false);
-    setNotification(`🚪 Đã chuyển sang trực tại buồng khám [${code}] - ${roomInfo.name}.`);
+    setNotification(`🚪 Đã nhận buồng khám [${code}] - ${roomInfo.name}. Quầy tiếp đón sẽ điều phối người bệnh đến đúng vị trí này.`);
     verifyShiftAndOccupancy(code, currentUser?.doctorId);
   };
 
@@ -1385,11 +1418,27 @@ export default function DoctorClinicView() {
                 </span>
                 <button
                   type="button"
-                  onClick={() => setShowChangeRoomModal(true)}
-                  className="text-xs text-teal-700 hover:text-teal-900 bg-teal-50/80 hover:bg-teal-100 px-3 py-1 rounded-lg border border-teal-200 font-bold transition cursor-pointer shadow-2xs"
-                  title="Bấm để chuyển sang buồng khám trực khác nếu cần"
+                  onClick={openChangeRoomModal}
+                  disabled={Boolean(currentPatient)}
+                  className={`text-xs px-3 py-1 rounded-lg border font-bold transition flex items-center gap-1.5 ${
+                    currentPatient
+                      ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed shadow-none'
+                      : 'text-teal-700 hover:text-teal-900 bg-teal-50/80 hover:bg-teal-100 border-teal-200 cursor-pointer shadow-2xs'
+                  }`}
+                  title={
+                    currentPatient
+                      ? 'Đang có bệnh nhân trong phòng — Vui lòng hoàn tất hoặc tạm hoãn ca khám trước khi đổi phòng'
+                      : 'Bấm để chuyển sang buồng khám trực khác nếu cần'
+                  }
                 >
-                  Đổi phòng
+                  {currentPatient ? (
+                    <>
+                      <Lock size={12} className="text-slate-400" />
+                      <span>Khóa Đổi Phòng</span>
+                    </>
+                  ) : (
+                    <span>Đổi phòng</span>
+                  )}
                 </button>
               </div>
             </div>
@@ -2927,59 +2976,102 @@ export default function DoctorClinicView() {
         </>
       )}
 
-      {/* ── Modal Chuyển Đổi Buồng Khám Nhanh ── */}
+      {/* ── Modal Chuyển Đổi Buồng Khám Nhanh & Kiểm Soát An Toàn ── */}
       {showChangeRoomModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2 text-teal-800 font-bold text-sm">
-                <DoorOpen size={18} className="text-teal-700" />
-                <span>Chuyển Đổi Buồng Khám Trực</span>
+              <div className="flex items-center gap-2 text-teal-800 font-bold text-base">
+                <DoorOpen size={20} className="text-teal-700" />
+                <span>Điều Phối &amp; Chuyển Đổi Buồng Khám</span>
               </div>
               <button 
                 type="button"
                 onClick={() => setShowChangeRoomModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer transition"
               >
                 <X size={18} />
               </button>
             </div>
 
-            <p className="text-xs text-slate-500">
-              Chọn buồng khám bạn đang ngồi trực hôm nay để hệ thống và màn hình quầy tiếp đón điều phối người bệnh đến đúng vị trí:
-            </p>
+            <div className="space-y-1.5">
+              <p className="text-xs text-slate-600 font-medium">
+                Chọn buồng khám bạn đang ngồi trực hôm nay để hệ thống và quầy tiếp đón điều phối người bệnh đến đúng vị trí:
+              </p>
+              <div className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-2.5 flex items-start gap-2">
+                <AlertCircle size={15} className="text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold">Quy định an toàn ca trực:</span> Bác sĩ chỉ được nhận các buồng khám đang <strong>Trống</strong>. Buồng khám đang có bác sĩ khác trực sẽ bị khóa để tránh trùng lịch và xáo trộn hàng đợi.
+                </div>
+              </div>
+            </div>
 
-            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+            <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
               {availableRooms.map((room) => {
-                const isCurrent = room.code === activeRoom;
+                const isCurrent = room.code.toUpperCase() === activeRoom.toUpperCase();
+                const occ = roomOccupancies.find(
+                  (o: any) => o.roomNumber.toUpperCase() === room.code.toUpperCase() && (currentUser?.doctorId ? o.doctorId !== currentUser.doctorId : true)
+                );
+                const isOccupiedByOther = Boolean(occ);
+
                 return (
-                  <button
+                  <div
                     key={room.code}
-                    type="button"
-                    onClick={() => handleChangeRoom(room.code)}
-                    className={`w-full p-3 rounded-2xl border text-left transition flex items-center justify-between cursor-pointer ${
+                    className={`p-3 rounded-2xl border transition flex items-center justify-between gap-3 ${
                       isCurrent
                         ? 'bg-blue-50/90 border-blue-400 text-blue-900 shadow-2xs font-bold'
-                        : 'bg-slate-50/70 border-slate-200 hover:bg-slate-100/80 text-slate-700'
+                        : isOccupiedByOther
+                        ? 'bg-slate-50 border-slate-200 text-slate-500'
+                        : 'bg-emerald-50/30 hover:bg-emerald-50/70 border-emerald-200 text-slate-800 shadow-2xs'
                     }`}
                   >
-                    <div className="flex items-center gap-2.5">
-                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold ${
-                        isCurrent ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700'
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-black shrink-0 ${
+                        isCurrent 
+                          ? 'bg-blue-600 text-white shadow-2xs' 
+                          : isOccupiedByOther
+                          ? 'bg-slate-200 text-slate-500'
+                          : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                       }`}>
                         {room.code}
                       </div>
-                      <div>
-                        <div className="text-xs font-bold text-slate-800">{room.name}</div>
-                        <div className="text-[11px] text-slate-500">{room.floor} • {room.medicalCenterName}</div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold truncate text-slate-800">{room.name}</div>
+                        <div className="text-[11px] text-slate-500 truncate">{room.floor} • {room.medicalCenterName}</div>
+                        {isOccupiedByOther && (
+                          <div className="text-[11px] text-rose-600 font-semibold mt-0.5 flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+                            <span>BS. {occ.doctorName} đang trực ({occ.startTime} - {occ.endTime})</span>
+                          </div>
+                        )}
                       </div>
                     </div>
-                    {isCurrent && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
-                        Đang ở đây
-                      </span>
-                    )}
-                  </button>
+
+                    <div className="shrink-0">
+                      {isCurrent ? (
+                        <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-blue-100 text-blue-800 border border-blue-200">
+                          Đang trực ở đây
+                        </span>
+                      ) : isOccupiedByOther ? (
+                        <span 
+                          className="text-[10px] font-bold px-2.5 py-1 rounded-xl bg-slate-100 text-slate-500 border border-slate-200 flex items-center gap-1 cursor-not-allowed"
+                          title={`Buồng khám này đang do BS. ${occ.doctorName} trực. Bạn không thể nhận đè.`}
+                        >
+                          <Lock size={11} className="text-slate-400" />
+                          <span>Đã có ca trực</span>
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleChangeRoom(room.code)}
+                          className="text-xs font-bold px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition cursor-pointer shadow-xs flex items-center gap-1.5"
+                          title="Buồng khám trống — Bấm để nhận phòng ngay"
+                        >
+                          <span>Nhận phòng</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 );
               })}
             </div>
@@ -2987,7 +3079,7 @@ export default function DoctorClinicView() {
             {/* Quy định buồng khám được Admin phê duyệt */}
             <div className="pt-3 border-t border-slate-100 text-[11px] text-slate-500 flex items-center gap-2">
               <ShieldCheck size={14} className="text-teal-600 shrink-0" />
-              <span>Danh mục buồng khám được Quản Trị Viên (Admin) phê duyệt để đảm bảo an toàn điều phối tiếp đón.</span>
+              <span>Danh mục buồng khám được Quản Trị Viên phê duyệt. Hệ thống kiểm soát chống xung đột ca trực tự động.</span>
             </div>
           </div>
         </div>
