@@ -1365,46 +1365,43 @@ export default function DoctorClinicView() {
           <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden">
         {/* Tầng 1: Thông Tin Bàn Khám & Thống Kê Ca Khám */}
         <div className="p-5 sm:p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 text-teal-700 text-xs font-bold uppercase tracking-wider">
-              <Stethoscope size={15} />
-              <span>Phân Hệ Buồng Khám Chuyên Khoa</span>
-            </div>
+          <div className="space-y-1.5">
             <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">
-                {`Bàn Khám: ${formatDoctorFullName(currentUser?.academicTitle || 'BS.CKII', currentUser?.fullName || 'Nguyễn Minh Anh')}`}
-              </h1>
-              {/* Badge Phòng Khám Nổi Bật Cho Bác Sĩ */}
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-900 border border-blue-200/90 shadow-2xs font-bold text-xs sm:text-sm">
-                <div className="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
-                  <DoorOpen size={13} />
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-teal-50 text-teal-700 border border-teal-200/80 flex items-center justify-center shrink-0 shadow-2xs">
+                  <DoorOpen size={18} />
                 </div>
-                <span>
-                  Phòng Trực: <strong className="text-blue-700 font-extrabold text-sm sm:text-base">{activeRoom}</strong>
-                </span>
-                <span className="hidden sm:inline-block text-[11px] font-semibold text-blue-600 bg-blue-100/70 px-2 py-0.5 rounded-md">
-                  {currentRoomInfo.floor} • {currentRoomInfo.name}
+                <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2 flex-wrap">
+                  <span>Buồng Khám {activeRoom}</span>
+                  <span className="hidden sm:inline text-slate-300 font-normal">•</span>
+                  <span className="text-teal-800 font-bold text-base sm:text-xl">{currentRoomInfo.name}</span>
+                </h1>
+              </div>
+
+              {/* Tag Vị Trí Tầng & Nút Đổi Phòng */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
+                  {currentRoomInfo.floor}
                 </span>
                 <button
                   type="button"
                   onClick={() => setShowChangeRoomModal(true)}
-                  className="ml-1 text-[11px] text-teal-700 hover:text-teal-900 bg-white hover:bg-teal-50 px-2.5 py-1 rounded-lg border border-teal-200 transition font-bold cursor-pointer shadow-2xs"
-                  title="Bấm để chuyển buồng khám trực khác nếu cần"
+                  className="text-xs text-teal-700 hover:text-teal-900 bg-teal-50/80 hover:bg-teal-100 px-3 py-1 rounded-lg border border-teal-200 font-bold transition cursor-pointer shadow-2xs"
+                  title="Bấm để chuyển sang buồng khám trực khác nếu cần"
                 >
                   Đổi phòng
                 </button>
               </div>
             </div>
-            <div className="flex items-center gap-2 text-xs text-slate-500 flex-wrap font-medium">
-              <span>{currentUser?.rolesWithCenter?.[0]?.medicalCenterName || 'Hệ Thống MedSched'}</span>
+
+            {/* Dòng Thông Tin Phụ Gọn Gàng: Bác Sĩ & Ngày Làm Việc */}
+            <div className="flex items-center gap-2 text-xs text-slate-500 flex-wrap font-medium pl-0.5">
+              <span>Bác sĩ phụ trách:</span>
+              <strong className="text-slate-800 font-bold">
+                {formatDoctorFullName(currentUser?.academicTitle || 'BS.CKII', currentUser?.fullName || 'Nguyễn Minh Anh')}
+              </strong>
               <span>•</span>
-              <span className="text-teal-700 font-semibold">Buồng Khám Bác Sĩ</span>
-              <span>•</span>
-              <span className="text-blue-800 font-bold flex items-center gap-1 bg-blue-50/70 px-2 py-0.5 rounded-md border border-blue-100">
-                <DoorOpen size={12} className="text-blue-600" />
-                <span>Buồng Khám {activeRoom} ({currentRoomInfo.floor})</span>
-              </span>
-              <span className="inline-flex items-center gap-1.5 text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-md font-mono text-[11px] ml-0.5">
+              <span className="inline-flex items-center gap-1.5 text-slate-600 font-mono text-[11px]">
                 <Calendar size={12} className="text-teal-600" />
                 <span>{todayVietnameseDate}</span>
               </span>
@@ -1599,9 +1596,9 @@ export default function DoctorClinicView() {
                   <Users size={18} className="text-teal-700" />
                   <span>Hàng Đợi Khám Hôm Nay</span>
                 </h3>
-                <p className="text-[11px] text-teal-700 font-semibold flex items-center gap-1.5 mt-0.5">
-                  <DoorOpen size={12} className="text-blue-600" />
-                  <span>{`${todayVietnameseDate} • Buồng Trực [${activeRoom}]`}</span>
+                <p className="text-[11px] text-slate-500 font-medium flex items-center gap-1.5 mt-0.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>Tự động đồng bộ theo thời gian thực</span>
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -1950,10 +1947,10 @@ export default function DoctorClinicView() {
                 <Stethoscope size={32} />
               </div>
               <h3 className="text-lg font-bold text-slate-800">
-                Buồng Khám [{activeRoom}] Đang Sẵn Sàng Tiếp Nhận
+                Buồng Khám Đang Sẵn Sàng Tiếp Nhận
               </h3>
               <p className="text-xs text-slate-500 mt-2 max-w-md mx-auto leading-relaxed">
-                Bác sĩ <strong>{formatDoctorFullName(currentUser?.academicTitle || 'BS', currentUser?.fullName || 'Bác sĩ')}</strong> đang trực tại <strong>Phòng {activeRoom}</strong> ({currentRoomInfo.floor} - {currentRoomInfo.name}). Khi bệnh nhân được tiếp đón và gọi vào phòng, toàn bộ thông tin bệnh án, triệu chứng phân loại và hồ sơ chẩn đoán sẽ hiển thị tại đây.
+                Hiện chưa có lượt khám nào trong phòng. Bác sĩ vui lòng chọn bệnh nhân trong danh sách hàng đợi bên trái hoặc bấm <strong>&ldquo;Gọi Bệnh Nhân Tiếp Theo&rdquo;</strong> để bắt đầu tiếp nhận ca mới.
               </p>
             </div>
           ) : (
