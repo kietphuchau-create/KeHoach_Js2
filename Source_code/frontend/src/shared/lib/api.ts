@@ -72,19 +72,25 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   }
 
   let response: Response;
+  const timeoutSignal = AbortSignal.timeout(15000);
   try {
     response = await fetch(targetUrl, {
       ...options,
       headers,
+      signal: options.signal || timeoutSignal,
     });
     // Nếu 404 và targetUrl đã bị sửa, thử lại với API_BASE_URL gốc
     if (response.status === 404 && targetUrl !== `${API_BASE_URL}${endpoint}`) {
       response = await fetch(`${API_BASE_URL}${endpoint}`, {
         ...options,
         headers,
+        signal: options.signal || timeoutSignal,
       });
     }
   } catch (err: any) {
+    if (err.name === 'TimeoutError' || err.name === 'AbortError') {
+      throw new Error("Máy chủ backend đang phản hồi chậm hoặc đang khởi động lại (Render Cold Start). Vui lòng thử lại sau vài giây.");
+    }
     // Nếu kết nối tới backend thất bại, ném lỗi rõ ràng
     throw new Error(err.message || "Không thể kết nối đến máy chủ MedSched (Spring Boot).");
   }
