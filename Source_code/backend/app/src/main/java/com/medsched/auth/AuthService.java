@@ -45,12 +45,12 @@ public class AuthService {
     }
 
     /**
-     * Đăng ký tài khoản bệnh nhân. Tài khoản mới KHÔNG được cấp dòng nào trong
-     * {@code user_medical_center_roles} - đúng thiết kế bản 3.0: mọi tài khoản
-     * mặc định đặt lịch khám được ở mọi chi nhánh mà không cần quyền nhân sự.
+     * Registers a patient account. A new account gets NO row in
+     * {@code user_medical_center_roles} - per the v3.0 design every account can
+     * already book at any branch without being granted a staff role.
      * <p>
-     * Đồng thời tạo sẵn hồ sơ người khám {@code SELF} để bệnh nhân đặt lịch
-     * được ngay, không phải khai báo thêm một bước.
+     * It also creates the {@code SELF} patient profile up front so the patient
+     * can book immediately without a second setup step.
      */
     @Transactional
     public AuthDtos.AuthResponse register(AuthDtos.RegisterRequest request) {
@@ -74,12 +74,12 @@ public class AuthService {
         return issueTokens(userDetailsService.loadUserById(user.getId()), user.getFullName());
     }
 
-    /** Đăng nhập dùng chung cho Customer / Doctor / Staff / Admin. */
+    /** One login flow shared by Customer / Doctor / Staff / Admin. */
     @Transactional(readOnly = true)
     public AuthDtos.AuthResponse login(AuthDtos.LoginRequest request) {
-        // Sai email/mật khẩu -> BadCredentialsException; tài khoản bị khóa ->
-        // DisabledException. Cả hai được GlobalExceptionHandler dịch sang thông
-        // báo tiếng Việt phù hợp.
+        // Wrong email/password -> BadCredentialsException; locked account ->
+        // DisabledException. GlobalExceptionHandler turns both into the proper
+        // user-facing message.
         var authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(normalizeEmail(request.email()), request.password()));
         AppUserDetails principal = (AppUserDetails) authentication.getPrincipal();
@@ -89,9 +89,9 @@ public class AuthService {
     }
 
     /**
-     * Đổi refresh token còn hiệu lực thành cặp token mới (xoay vòng token).
-     * Quyền được nạp lại từ DB nên nếu Admin vừa thu hồi quyền thì access token
-     * mới sẽ không còn quyền đó.
+     * Exchanges a still-valid refresh token for a fresh token pair (rotation).
+     * Authorities are reloaded from the database, so a role an admin has just
+     * revoked will not appear in the new access token.
      */
     @Transactional(readOnly = true)
     public AuthDtos.AuthResponse refresh(AuthDtos.RefreshRequest request) {

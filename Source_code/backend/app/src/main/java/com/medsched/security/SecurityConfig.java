@@ -48,8 +48,8 @@ public class SecurityConfig {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
         provider.setUserDetailsService(userDetailsService);
         provider.setPasswordEncoder(passwordEncoder);
-        // Email không tồn tại cũng báo lỗi giống sai mật khẩu -> kẻ tấn công
-        // không dò được email nào đã đăng ký trong hệ thống.
+        // An unknown email fails exactly like a wrong password, so an attacker
+        // cannot probe which emails are registered.
         provider.setHideUserNotFoundExceptions(true);
         return new ProviderManager(provider);
     }
@@ -57,7 +57,7 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http, JwtAuthenticationFilter jwtFilter) throws Exception {
         return http
-                // API không dùng cookie/session nên không có nguy cơ CSRF cổ điển.
+                // Stateless API with no cookies/session, so classic CSRF does not apply.
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

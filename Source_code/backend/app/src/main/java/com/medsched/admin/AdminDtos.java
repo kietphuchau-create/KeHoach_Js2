@@ -13,13 +13,13 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 
-/** Hợp đồng dữ liệu cho phân hệ quản trị người dùng (chỉ Admin gọi được). */
+/** Contracts for the user-administration module (admin only). */
 public final class AdminDtos {
 
     private AdminDtos() {
     }
 
-    /** Một dòng trong danh sách người dùng. */
+    /** One row of the user list. */
     public record UserSummary(String userId,
                               String email,
                               String fullName,
@@ -29,7 +29,7 @@ public final class AdminDtos {
                               Instant createdAt) {
     }
 
-    /** Quyền nhân sự đã cấp tại một chi nhánh cụ thể. */
+    /** A staff role granted at one specific branch. */
     public record RoleAssignment(String assignmentId,
                                  UserRole role,
                                  String medicalCenterId,
@@ -40,7 +40,7 @@ public final class AdminDtos {
     public record PageResponse<T>(List<T> items, int page, int size, long totalItems, int totalPages) {
     }
 
-    /** Admin tạo tài khoản Lễ tân. */
+    /** Admin creates a receptionist account. */
     public record CreateStaffRequest(
             @NotBlank(message = "Email không được để trống")
             @Email(message = "Email không đúng định dạng")
@@ -61,8 +61,8 @@ public final class AdminDtos {
     }
 
     /**
-     * Admin tạo tài khoản Bác sĩ. Không cần truyền chi nhánh: chi nhánh được suy
-     * ra từ chuyên khoa, vì mỗi chuyên khoa đã thuộc đúng một cơ sở y tế.
+     * Admin creates a doctor account. No branch is passed in: it is derived from
+     * the specialty, since every specialty already belongs to exactly one center.
      */
     public record CreateDoctorRequest(
             @NotBlank(message = "Email không được để trống")

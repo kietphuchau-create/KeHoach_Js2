@@ -16,7 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-/** CRUD danh mục nền: cơ sở y tế, chuyên khoa, dịch vụ khám. */
+/** CRUD for the base catalog: medical centers, specialties and services. */
 @Service
 public class CatalogService {
 
@@ -71,8 +71,9 @@ public class CatalogService {
     }
 
     /**
-     * Ngừng hoạt động cơ sở y tế (xóa mềm). Cố ý KHÔNG xóa cứng vì lịch sử khám,
-     * hồ sơ bệnh án và hóa đơn của cơ sở đó vẫn phải tra cứu được.
+     * Deactivates a medical center (soft delete). A hard delete is deliberately
+     * avoided because its visit history, medical records and invoices must stay
+     * queryable.
      */
     @Transactional
     public void deactivateCenter(String id, String actorId) {
@@ -125,7 +126,7 @@ public class CatalogService {
         return toResponse(specialties.save(specialty));
     }
 
-    /** Chỉ cho xóa chuyên khoa khi chưa có bác sĩ nào thuộc chuyên khoa đó. */
+    /** A specialty may only be deleted while no doctor still belongs to it. */
     @Transactional
     public void deleteSpecialty(String id) {
         SpecialtyEntity specialty = requireSpecialty(id);
@@ -179,7 +180,7 @@ public class CatalogService {
         return toResponse(services.save(service));
     }
 
-    /** Ngừng cung cấp dịch vụ (xóa mềm) để hóa đơn cũ vẫn tra được tên dịch vụ. */
+    /** Retires a service (soft delete) so old invoices can still resolve its name. */
     @Transactional
     public void deactivateService(String id, String actorId) {
         ServiceEntity service = services.findById(id)

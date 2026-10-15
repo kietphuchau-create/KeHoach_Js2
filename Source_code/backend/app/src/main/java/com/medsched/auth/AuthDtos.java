@@ -8,23 +8,23 @@ import jakarta.validation.constraints.Size;
 import java.util.List;
 
 /**
- * Hợp đồng dữ liệu (request/response) của phân hệ xác thực.
- * Gom vào một file để các contract liên quan nằm cạnh nhau, dễ đối chiếu khi
- * frontend gọi API.
+ * Request/response contracts of the authentication module.
+ * Kept in one file so related contracts sit side by side and are easy to check
+ * against while wiring the frontend.
  */
 public final class AuthDtos {
 
     private AuthDtos() {
     }
 
-    /** Bệnh nhân tự đăng ký tài khoản (Customer - Register). */
+    /** Self-service patient sign-up (Customer - Register). */
     public record RegisterRequest(
             @NotBlank(message = "Email không được để trống")
             @Email(message = "Email không đúng định dạng")
             @Size(max = 255, message = "Email tối đa 255 ký tự")
             String email,
 
-            // BCrypt chỉ băm 72 byte đầu nên giới hạn trên ở 72 để không âm thầm cắt mật khẩu.
+            // BCrypt only hashes the first 72 bytes, so cap the length here instead of truncating silently.
             @NotBlank(message = "Mật khẩu không được để trống")
             @Size(min = 8, max = 72, message = "Mật khẩu phải từ 8 đến 72 ký tự")
             String password,
@@ -37,7 +37,7 @@ public final class AuthDtos {
             String phone) {
     }
 
-    /** Dùng chung cho cả 4 vai trò: Customer, Doctor, Staff, Admin. */
+    /** Shared by all four roles: Customer, Doctor, Staff, Admin. */
     public record LoginRequest(
             @NotBlank(message = "Email không được để trống")
             String email,
@@ -52,10 +52,10 @@ public final class AuthDtos {
     }
 
     /**
-     * @param expiresIn số giây còn hiệu lực của access token
-     * @param roles     danh sách quyền, gồm cả quyền có phạm vi chi nhánh
-     *                  (ví dụ {@code ROLE_STAFF@<centerId>}) để frontend biết
-     *                  người này làm việc ở cơ sở nào
+     * @param expiresIn remaining lifetime of the access token, in seconds
+     * @param roles     granted authorities, including branch-scoped ones
+     *                  (e.g. {@code ROLE_STAFF@<centerId>}) so the frontend knows
+     *                  which medical center this person works at
      */
     public record AuthResponse(String tokenType,
                                String accessToken,

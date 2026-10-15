@@ -1,5 +1,7 @@
 package com.medsched.common;
 
+import com.medsched.core.domain.exception.ResourceNotFoundException;
+import com.medsched.core.domain.exception.SlotNotAvailableException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -32,9 +34,25 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.BAD_REQUEST, ex.getMessage(), req);
     }
 
+    /**
+     * Business errors from the core layer (booking, reception). Without this
+     * mapping the exception escapes, Spring forwards to /error and returns a
+     * misleading 401 instead of the real status code.
+     */
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<ApiError> handleCoreNotFound(ResourceNotFoundException ex, HttpServletRequest req) {
+        return build(HttpStatus.NOT_FOUND, ex.getMessage(), req);
+    }
+
+    /** The slot was just taken by someone else -> 409 Conflict so the client can react. */
+    @ExceptionHandler(SlotNotAvailableException.class)
+    public ResponseEntity<ApiError> handleSlotNotAvailable(SlotNotAvailableException ex, HttpServletRequest req) {
+        return build(HttpStatus.CONFLICT, ex.getMessage(), req);
+    }
+
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ApiError> handleBadCredentials(BadCredentialsException ex, HttpServletRequest req) {
-        // Thông báo chung cho cả "email không tồn tại" và "sai mật khẩu".
+        // Same message for "unknown email" and "wrong password" so neither can be probed.
         return build(HttpStatus.UNAUTHORIZED, "Email hoặc mật khẩu không đúng", req);
     }
 

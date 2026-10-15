@@ -10,7 +10,7 @@ import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
 
-/** Hợp đồng dữ liệu cho CRUD danh mục: cơ sở y tế, chuyên khoa, dịch vụ khám. */
+/** Contracts for catalog CRUD: medical centers, specialties, services. */
 public final class CatalogDtos {
 
     private CatalogDtos() {
