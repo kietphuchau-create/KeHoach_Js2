@@ -1278,7 +1278,7 @@ export default function BookingForm() {
                         Chi phí khám niêm yết
                       </span>
                       <span className="text-[11px] text-slate-500 font-medium block truncate">
-                        Tổng tạm tính: <strong className="text-blue-700 font-bold">{selectedDoctor ? `${Number(selectedDoctor.fee).toLocaleString('vi-VN')} đ` : '-- đ'}</strong> (Miễn phí tiện ích)
+                        Khám tại quầy: <strong className="text-slate-800 font-bold">{selectedDoctor ? `${Number(selectedDoctor.fee).toLocaleString('vi-VN')} đ` : '-- đ'}</strong> • <strong className="text-blue-700 font-bold">Cọc online: 2.000 đ</strong>
                       </span>
                     </div>
                   </div>
@@ -2292,37 +2292,61 @@ export default function BookingForm() {
                   </button>
 
                   {/* Thanh Xác Nhận Tóm Tắt & Nút Đặt Khám (Ảnh 3 Sticky Footer) */}
-                  <div className="p-4 bg-blue-50/70 border border-blue-200 rounded-2xl space-y-3">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-                      <div className="space-y-0.5 shrink-0">
-                        <div className="text-slate-700 whitespace-nowrap">
+                  <div className="p-4 bg-gradient-to-br from-blue-50/90 to-indigo-50/70 border border-blue-200 rounded-2xl space-y-3.5 shadow-xs">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                      {/* Cột trái: Bác sĩ & Thời gian khám */}
+                      <div className="space-y-1 shrink-0">
+                        <div className="text-slate-700">
                           <span className="text-slate-500">Khám cùng: </span>
-                          <strong className="text-slate-800">{selectedDoctor?.name}</strong>
+                          <strong className="text-slate-900 font-bold">{selectedDoctor?.name}</strong>
                         </div>
-                        <div className="text-blue-700 font-bold whitespace-nowrap">
-                          {selectedSlot.time} (Ngày {selectedSlot.date})
+                        <div className="text-blue-700 font-bold flex items-center gap-1.5">
+                          <Calendar size={13} className="shrink-0" />
+                          <span>{selectedSlot.time} (Ngày {selectedSlot.date})</span>
                         </div>
                       </div>
-                      <div className="text-right shrink-0">
+
+                      {/* Cột phải: Bóc tách rõ ràng Cọc Online 2.000 đ vs Khám tại quầy */}
+                      <div className="text-left sm:text-right shrink-0 p-2.5 sm:p-0 bg-white/80 sm:bg-transparent rounded-xl border border-blue-100 sm:border-0">
                         {appliedPromo ? (
                           <div>
-                            <div className="text-[11px] text-emerald-600 font-bold">
-                              ✓ Voucher [{appliedPromo}]: Miễn phí tiền cọc
+                            <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px] mb-1">
+                              <Sparkles size={11} className="shrink-0" />
+                              <span>Voucher [{appliedPromo}]: Miễn 100% tiền cọc</span>
                             </div>
-                            <span className="text-slate-500">Tiền cọc giữ chỗ: </span>
-                            <strong className="text-base text-emerald-600 font-extrabold">
-                              0 đ <span className="line-through text-xs text-slate-400 font-normal">2.000 đ</span>
-                            </strong>
+                            <div className="flex items-baseline sm:justify-end gap-1.5">
+                              <span className="text-slate-600 font-medium text-xs">Tiền cọc giữ chỗ online:</span>
+                              <strong className="text-base sm:text-lg text-emerald-600 font-black">0 đ</strong>
+                              <span className="line-through text-xs text-slate-400">2.000 đ</span>
+                            </div>
+                            <div className="text-[11px] text-slate-500 mt-0.5">
+                              Tiền khám tại quầy: <strong className="text-slate-800 font-semibold">{Number(selectedDoctor?.fee || 200000).toLocaleString('vi-VN')} đ</strong> (Thanh toán khi đến khám)
+                            </div>
                           </div>
                         ) : (
                           <div>
-                            <span className="text-slate-500">Tổng thanh toán: </span>
-                            <strong className="text-base text-blue-700 font-extrabold">
-                              {Number(selectedDoctor?.fee || 200000).toLocaleString('vi-VN')} đ
-                            </strong>
+                            <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 font-bold text-[10px] mb-1">
+                              <ShieldCheck size={11} className="shrink-0 text-blue-600" />
+                              <span>Chỉ cọc giữ chỗ online • Viện phí thanh toán tại quầy</span>
+                            </div>
+                            <div className="flex items-baseline sm:justify-end gap-1.5">
+                              <span className="text-slate-600 font-medium text-xs">Tiền cọc giữ chỗ online:</span>
+                              <strong className="text-base sm:text-lg text-blue-700 font-black">2.000 đ</strong>
+                            </div>
+                            <div className="text-[11px] text-slate-500 mt-0.5">
+                              Tiền khám tại quầy: <strong className="text-slate-800 font-semibold">{Number(selectedDoctor?.fee || 200000).toLocaleString('vi-VN')} đ</strong> (Thanh toán khi đến khám)
+                            </div>
                           </div>
                         )}
                       </div>
+                    </div>
+
+                    {/* Hint giải thích an tâm cho bệnh nhân */}
+                    <div className="p-2.5 bg-blue-100/50 border border-blue-200/80 rounded-xl text-[11px] text-blue-900 flex items-start gap-2 leading-relaxed">
+                      <ShieldCheck size={15} className="text-blue-600 shrink-0 mt-0.5" />
+                      <span>
+                        <strong>Minh bạch chi phí:</strong> Bạn chỉ chuyển khoản <strong>{appliedPromo ? '0 đ' : '2.000 đ'}</strong> để hệ thống khóa giữ khung giờ khám. Tiền khám bệnh <strong>{Number(selectedDoctor?.fee || 200000).toLocaleString('vi-VN')} đ</strong> quý khách sẽ thanh toán trực tiếp tại quầy lễ tân khi đến khám.
+                      </span>
                     </div>
 
                     {result && !isPaidOnline && (
@@ -2338,7 +2362,7 @@ export default function BookingForm() {
                       </div>
                     )}
 
-                    <div className="pt-4 border-t border-blue-200/60 flex items-center justify-between gap-3">
+                    <div className="pt-3 border-t border-blue-200/70 flex items-center justify-between gap-3">
                       <button
                         type="button"
                         onClick={() => setStep(2)}
@@ -2360,7 +2384,13 @@ export default function BookingForm() {
                         ) : (
                           <>
                             <CheckCircle2 size={15} className="shrink-0" />
-                            <span>{result && !isPaidOnline ? 'Tiếp tục thanh toán VietQR' : 'Xác nhận đặt & Thanh toán'}</span>
+                            <span>
+                              {result && !isPaidOnline
+                                ? 'Tiếp tục cọc 2.000 đ'
+                                : appliedPromo
+                                ? 'Xác nhận đặt lịch (0 đ cọc)'
+                                : 'Xác nhận & Cọc 2.000 đ'}
+                            </span>
                           </>
                         )}
                       </button>
@@ -2704,11 +2734,33 @@ export default function BookingForm() {
                 </div>
               )}
 
+              {/* Phân định rõ ràng: Tiền cọc online vs Tiền khám tại quầy */}
+              <div className="p-3 bg-blue-50/80 rounded-xl border border-blue-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="font-bold text-blue-900 block">1. Tiền cọc giữ chỗ online (Thanh toán ngay):</span>
+                    <span className="text-[10px] text-blue-700">Khóa số thứ tự &amp; bảo lưu khung giờ khám</span>
+                  </div>
+                  <strong className="text-sm font-extrabold text-blue-700">
+                    {appliedPromo ? '0 đ (Đã áp voucher)' : '2.000 đ'}
+                  </strong>
+                </div>
+                <div className="flex items-center justify-between pt-2 border-t border-blue-200/60">
+                  <div>
+                    <span className="font-bold text-slate-800 block">2. Viện phí thanh toán tại quầy (Khi đến khám):</span>
+                    <span className="text-[10px] text-slate-500">Thanh toán tại quầy tiếp đón phòng khám</span>
+                  </div>
+                  <strong className="text-sm font-bold text-slate-800">
+                    {selectedDoctor ? `${Number(selectedDoctor.fee).toLocaleString('vi-VN')} đ` : '-- đ'}
+                  </strong>
+                </div>
+              </div>
+
               {/* Tổng cộng */}
               <div className="p-3.5 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl border border-blue-200 flex items-center justify-between">
                 <div>
                   <span className="text-xs text-blue-900 font-bold block">Tổng viện phí niêm yết:</span>
-                  <span className="text-[10px] text-blue-600">Thanh toán tại quầy hoặc trực tuyến</span>
+                  <span className="text-[10px] text-blue-600">Minh bạch theo bảng giá Bộ Y Tế</span>
                 </div>
                 <span className="text-base sm:text-lg font-extrabold text-blue-700">
                   {selectedDoctor ? `${Number(selectedDoctor.fee).toLocaleString('vi-VN')} đ` : '-- đ'}
