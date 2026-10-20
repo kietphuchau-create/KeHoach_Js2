@@ -4,8 +4,15 @@ global:
   evaluation_interval: 5s
 
 scrape_configs:
-  - job_name: 'medsched-backend'
+  - job_name: 'medsched-backend-render'
+    metrics_path: '/actuator/prometheus'
+    scheme: https
+    static_configs:
+      - targets: ['medsched-zu15.onrender.com:443']
+
+  - job_name: 'medsched-backend-local'
     metrics_path: '/actuator/prometheus'
     static_configs:
-      # host.docker.internal trỏ về máy host chạy Backend Spring Boot (cổng 8080)
+      # host.docker.internal tro ve may host khi chay Backend local (cong 8080)
       - targets: ['host.docker.internal:8080']
+

@@ -2386,10 +2386,10 @@ export default function BookingForm() {
                             <CheckCircle2 size={15} className="shrink-0" />
                             <span>
                               {result && !isPaidOnline
-                                ? 'Tiếp tục cọc 2.000 đ'
+                                ? 'Cọc 2.000 đ'
                                 : appliedPromo
-                                ? 'Xác nhận đặt lịch (0 đ cọc)'
-                                : 'Xác nhận & Cọc 2.000 đ'}
+                                ? 'Cọc 0 đ'
+                                : 'Cọc 2.000 đ'}
                             </span>
                           </>
                         )}
