@@ -682,39 +682,8 @@
       </div>
     </section>
 
-    <!-- SLIDE 2: BÀI TOÁN & THÁCH THỨC -->
+    <!-- SLIDE 2: KHÁI NIỆM PROMETHEUS & GRAFANA -->
     <section class="slide" data-index="2">
-      <div class="slide-header">
-        <div class="slide-tag">Thực Trạng &amp; Thách Thức</div>
-        <h2 class="slide-title">Vì sao hệ thống MedSched cần Giám Sát Chuyên Sâu?</h2>
-        <p class="slide-subtitle">Chuyển dịch tư duy từ "chờ người dùng báo lỗi" sang "chủ động phát hiện sự cố trước khi xảy ra".</p>
-      </div>
-      <div class="slide-body">
-        <div class="grid-cards-3">
-          <div class="feature-card">
-            <div class="card-icon" style="color: #ef4444; background: rgba(239, 68, 68, 0.1);">⚠️</div>
-            <h3 class="card-title">Tải Đỉnh Giờ Cao Điểm</h3>
-            <p class="card-desc">Bệnh nhân ồ ạt truy cập đặt lịch khám vào khung giờ 07:00 - 09:00 sáng. Nguy cơ nghẽn kết nối Database HikariCP và chậm phản hồi dịch vụ.</p>
-            <div class="card-badge">→ Rủi ro sập ứng dụng</div>
-          </div>
-          <div class="feature-card">
-            <div class="card-icon" style="color: #f59e0b; background: rgba(245, 158, 11, 0.1);">🔍</div>
-            <h3 class="card-title">Thiếu Tầm Nhìn Kỹ Thuật</h3>
-            <p class="card-desc">Nếu không có metrics, lập trình viên không biết API nào đang chạy chậm (P95/P99 latency), bộ nhớ RAM (JVM Heap) có bị rò rỉ (Memory Leak) hay không.</p>
-            <div class="card-badge">→ Khó truy tìm nguyên nhân gốc</div>
-          </div>
-          <div class="feature-card">
-            <div class="card-icon" style="color: #10b981; background: rgba(16, 185, 129, 0.1);">💡</div>
-            <h3 class="card-title">Giải Pháp Observability</h3>
-            <p class="card-desc">Tích hợp bộ ba: <strong>Spring Boot Actuator</strong> (xuất dữ liệu) + <strong>Prometheus</strong> (lưu trữ Time-Series) + <strong>Grafana</strong> (bảng điều khiển đồ thị kim quay).</p>
-            <div class="card-badge" style="color: #10b981;">✓ Tiêu chuẩn Cloud-Native</div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- SLIDE 3: KHÁI NIỆM PROMETHEUS & GRAFANA -->
-    <section class="slide" data-index="3">
       <div class="slide-header">
         <div class="slide-tag">Khái Niệm Nền Tảng</div>
         <h2 class="slide-title">Prometheus &amp; Grafana là gì?</h2>
@@ -739,6 +708,37 @@
             <h3 class="card-title">Sức Mạnh Khi Kết Hợp</h3>
             <p class="card-desc">Tạo thành vòng tròn quan trắc khép kín: <strong>Prometheus</strong> âm thầm đo lường sức khỏe microservices dưới nền tảng, <strong>Grafana</strong> trình diễn trực quan cho kỹ sư theo dõi 24/7. Giúp phát hiện nghẽn mạng và rò rỉ RAM trước khi người dùng kịp phản ánh.</p>
             <div class="card-badge" style="color: #06b6d4;">✓ Tiêu chuẩn vàng doanh nghiệp</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 3: BÀI TOÁN & THÁCH THỨC -->
+    <section class="slide" data-index="3">
+      <div class="slide-header">
+        <div class="slide-tag">Thực Trạng &amp; Thách Thức</div>
+        <h2 class="slide-title">Vì sao hệ thống MedSched cần Giám Sát Chuyên Sâu?</h2>
+        <p class="slide-subtitle">Chuyển dịch tư duy từ "chờ người dùng báo lỗi" sang "chủ động phát hiện sự cố trước khi xảy ra".</p>
+      </div>
+      <div class="slide-body">
+        <div class="grid-cards-3">
+          <div class="feature-card">
+            <div class="card-icon" style="color: #ef4444; background: rgba(239, 68, 68, 0.1);">⚠️</div>
+            <h3 class="card-title">Tải Đỉnh Giờ Cao Điểm</h3>
+            <p class="card-desc">Bệnh nhân ồ ạt truy cập đặt lịch khám vào khung giờ 07:00 - 09:00 sáng. Nguy cơ nghẽn kết nối Database HikariCP và chậm phản hồi dịch vụ.</p>
+            <div class="card-badge">→ Rủi ro sập ứng dụng</div>
+          </div>
+          <div class="feature-card">
+            <div class="card-icon" style="color: #f59e0b; background: rgba(245, 158, 11, 0.1);">🔍</div>
+            <h3 class="card-title">Thiếu Tầm Nhìn Kỹ Thuật</h3>
+            <p class="card-desc">Nếu không có metrics, lập trình viên không biết API nào đang chạy chậm (P95/P99 latency), bộ nhớ RAM (JVM Heap) có bị rò rỉ (Memory Leak) hay không.</p>
+            <div class="card-badge">→ Khó truy tìm nguyên nhân gốc</div>
+          </div>
+          <div class="feature-card">
+            <div class="card-icon" style="color: #10b981; background: rgba(16, 185, 129, 0.1);">💡</div>
+            <h3 class="card-title">Giải Pháp Observability</h3>
+            <p class="card-desc">Tích hợp bộ ba: <strong>Spring Boot Actuator</strong> (xuất dữ liệu) + <strong>Prometheus</strong> (lưu trữ Time-Series) + <strong>Grafana</strong> (bảng điều khiển đồ thị kim quay).</p>
+            <div class="card-badge" style="color: #10b981;">✓ Tiêu chuẩn Cloud-Native</div>
           </div>
         </div>
       </div>
