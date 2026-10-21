@@ -209,15 +209,15 @@ Slide báo cáo của nhóm không phải là PowerPoint truyền thống mà l�
 
 ---
 
-### 🎙️ SLIDE 8: VỊ TRÍ MÃ NGUỒN & CẤU HÌNH TRONG DỰ ÁN
+### 🎙️ SLIDE 8: VỊ TRÍ MÃ NGUỒN & CẤU HÌNH CHI TIẾT TRONG DỰ ÁN
 *(Bấm phím `→` sang Slide 8)*
 
-> *"Thưa Thầy, để chứng minh giải pháp này được tích hợp thực tế vào mã nguồn dự án chứ không phải chỉ là mô hình lý thuyết, nhóm em xin chỉ rõ 4 vị trí then chốt:
+> *"Thưa Thầy, để chứng minh giải pháp này được tích hợp thực tế vào mã nguồn dự án chứ không phải chỉ là mô hình lý thuyết, nhóm em xin phân tích chi tiết 4 vị trí then chốt trên màn hình:
 >
-> 1. **File `build.gradle` (dòng 23):** Khai báo trực tiếp thư viện `spring-boot-starter-actuator` và `micrometer-registry-prometheus`.
-> 2. **File `application.yml` (dòng 104):** Bật mở endpoint `/actuator/prometheus` và cấu hình xuất metrics thời gian thực.
-> 3. **File `SecurityConfig.java` (dòng 72):** Cấu hình `.permitAll()` cho đường dẫn `/actuator/**` để Prometheus cào số liệu mà không bị chặn quyền.
-> 4. **Thư mục `Source_code/monitoring/`:** Chứa file cấu hình cào máy chủ Render Cloud `prometheus.yml` và kịch bản khởi động Docker Grafana cổng 3100."*
+> 1. **Khung 1 - `build.gradle` (dòng 23-25):** Nhóm em khai báo `spring-boot-starter-actuator` để tạo các bộ đo nội tại (JVM, CPU, Connection Pool) và `micrometer-registry-prometheus` để biên dịch toàn bộ số liệu sang định dạng chuỗi thời gian TSDB.
+> 2. **Khung 2 - `application.yml` (dòng 104-117):** Cấu hình `exposure.include: prometheus` để mở cổng HTTP tại `/actuator/prometheus`, đồng thời gắn nhãn `application="medsched"` giúp Grafana lọc số liệu chính xác khi scale nhiều microservices.
+> 3. **Khung 3 - `SecurityConfig.java` (dòng 66-78):** Vì hệ thống dùng Spring Security chặn JWT tất cả API, nhóm cấu hình `.permitAll("/actuator/**")` để Prometheus định kỳ cào số liệu 24/7 mà không bị lỗi 401 Unauthorized, trong khi toàn bộ dữ liệu y tế của bệnh nhân vẫn được bảo mật 100%.
+> 4. **Khung 4 - Hạ tầng Docker `Source_code/monitoring/`:** File `prometheus.yml` cấu hình cào trực tiếp máy chủ Render Cloud thật với chu kỳ 5 giây/lần; file `docker-compose` ánh xạ Grafana sang cổng 3100 tránh đụng độ Next.js và tự động nạp Dashboard qua cơ chế Zero-Config Provisioning."*
 
 ---
 
