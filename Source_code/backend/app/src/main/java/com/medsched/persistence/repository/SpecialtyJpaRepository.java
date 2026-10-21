@@ -13,4 +13,6 @@ public interface SpecialtyJpaRepository extends JpaRepository<SpecialtyEntity, S
     /** Kiem tra trung ma chuyen khoa trong cung 1 co so (UNIQUE(medical_center_id, code)). */
     Optional<SpecialtyEntity> findByMedicalCenterIdAndCode(String medicalCenterId, String code);
 
+    List<SpecialtyEntity> findByCodeIgnoreCase(String code);
+
 }

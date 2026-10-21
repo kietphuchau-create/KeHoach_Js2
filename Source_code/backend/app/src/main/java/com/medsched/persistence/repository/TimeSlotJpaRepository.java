@@ -8,11 +8,18 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 
 public interface TimeSlotJpaRepository extends JpaRepository<TimeSlotEntity, String> {
 
     List<TimeSlotEntity> findByDoctorIdAndStatusOrderByStartTimeAsc(String doctorId, SlotStatus status);
+
+    List<TimeSlotEntity> findByScheduleIdOrderByStartTimeAsc(String scheduleId);
+
+    List<TimeSlotEntity> findByDoctorIdOrderByStartTimeAsc(String doctorId);
+
+    List<TimeSlotEntity> findByDoctorIdAndStartTimeBetweenOrderByStartTimeAsc(String doctorId, Instant start, Instant end);
 
     /**
      * Compare-and-swap trực tiếp trên cột status, dùng cho luồng đặt lịch tần suất cao

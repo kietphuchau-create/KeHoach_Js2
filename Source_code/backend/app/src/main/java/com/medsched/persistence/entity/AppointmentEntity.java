@@ -127,6 +127,10 @@ public class AppointmentEntity {
         return doctorId;
     }
 
+    public void setDoctorId(String doctorId) {
+        this.doctorId = doctorId;
+    }
+
     public String getSlotId() {
         return slotId;
     }
@@ -139,12 +143,20 @@ public class AppointmentEntity {
         return queueNumber;
     }
 
+    public void setQueueNumber(String queueNumber) {
+        this.queueNumber = queueNumber;
+    }
+
     public QueueType getQueueType() {
         return queueType;
     }
 
     public String getPatientSymptoms() {
         return patientSymptoms;
+    }
+
+    public void setPatientSymptoms(String patientSymptoms) {
+        this.patientSymptoms = patientSymptoms;
     }
 
     public String getAiSummary() {

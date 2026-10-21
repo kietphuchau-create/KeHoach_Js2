@@ -14,4 +14,6 @@ public interface MedicineJpaRepository extends JpaRepository<MedicineEntity, Str
 
     List<MedicineEntity> findByMedicalCenterIdAndNameContainingIgnoreCase(String medicalCenterId, String keyword);
 
+    List<MedicineEntity> findByNameContainingIgnoreCaseOrActiveIngredientContainingIgnoreCase(String name, String activeIngredient);
+
 }

@@ -1,20 +1,14 @@
 package com.medsched.app.adapter.out.ai;
 
 import com.medsched.core.port.out.AiTriagePort;
+import com.medsched.core.port.out.TriageEvaluation;
 
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 
 /**
- * Bản cài đặt tạm cho {@link AiTriagePort} bằng quy tắc từ khóa.
- * <p>
- * Mục đích: ứng dụng khởi động và luồng đặt lịch chạy được ngay mà KHÔNG cần
- * khóa API hay kết nối mạng. Khi Tân hoàn thiện phần Spring AI, chỉ cần khai báo
- * một bean khác cài {@link AiTriagePort} (ví dụ {@code @Component}); bean tạm này
- * tự nhường chỗ, không phải sửa use case hay controller - xem {@code AiConfig}.
- * <p>
- * Đây KHÔNG phải chẩn đoán y khoa - chỉ định hướng chuyên khoa để đặt lịch.
+ * Bản cài đặt dự phòng cho {@link AiTriagePort} bằng quy tắc từ khóa cơ bản.
  */
 public class RuleBasedAiTriageAdapter implements AiTriagePort {
 
@@ -59,5 +53,22 @@ public class RuleBasedAiTriageAdapter implements AiTriagePort {
         }
         summary.append(" | Hướng chuyên khoa: ").append(suggestSpecialty(symptoms));
         return summary.toString();
+    }
+
+    @Override
+    public TriageEvaluation evaluateSymptoms(String symptoms, String medicalHistory) {
+        String code = suggestSpecialty(symptoms);
+        String summary = generateClinicalSummary(symptoms, medicalHistory);
+        return new TriageEvaluation(
+                code,
+                "Khoa " + code,
+                "Dịch vụ Khám Tiêu Chuẩn",
+                "200.000 VNĐ",
+                summary,
+                "Vui lòng mang theo sổ khám và thuốc cũ nếu có.",
+                false,
+                null,
+                "Lưu ý: Kết quả mang tính tham khảo kỹ thuật."
+        );
     }
 }

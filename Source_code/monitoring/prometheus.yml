@@ -1,0 +1,11 @@
+# Cấu hình Scrape Metrics cho Prometheus từ MedSched Backend
+global:
+  scrape_interval: 5s        # Tần suất cào dữ liệu: 5 giây một lần
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: 'medsched-backend'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      # host.docker.internal trỏ về máy host chạy Backend Spring Boot (cổng 8080)
+      - targets: ['host.docker.internal:8080']

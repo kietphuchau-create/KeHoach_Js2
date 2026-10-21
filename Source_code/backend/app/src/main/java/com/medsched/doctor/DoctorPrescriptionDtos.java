@@ -1,0 +1,120 @@
+package com.medsched.doctor;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.List;
+
+public class DoctorPrescriptionDtos {
+
+    public record PrescriptionItemRequest(
+            @NotBlank(message = "Tên thuốc không được để trống")
+            String medicineName,
+            String dosage,
+            BigDecimal quantity,
+            String unit,
+            BigDecimal unitPrice
+    ) {}
+
+    public record CreatePrescriptionRequest(
+            @NotBlank(message = "Chẩn đoán bệnh không được để trống")
+            String diagnosis,
+            String doctorAdvice,
+            List<PrescriptionItemRequest> items
+    ) {}
+
+    public record PrescriptionResponse(
+            String prescriptionId,
+            String appointmentId,
+            String doctorName,
+            BigDecimal totalMedicineAmount,
+            String status,
+            Instant createdAt
+    ) {}
+
+    public record PrescriptionDetailDto(
+            String prescriptionId,
+            String appointmentId,
+            String doctorName,
+            String diagnosis,
+            String doctorAdvice,
+            BigDecimal totalMedicineAmount,
+            String status,
+            Instant createdAt,
+            List<PrescriptionItemDetailDto> items
+    ) {}
+
+    public record PrescriptionItemDetailDto(
+            String id,
+            String medicineName,
+            String unit,
+            BigDecimal quantity,
+            String dosage,
+            BigDecimal unitPrice,
+            BigDecimal totalPrice
+    ) {}
+
+    public record QueuePatientDto(
+            String id,
+            String queueNumber,
+            String bookingCode,
+            String patientName,
+            String gender,
+            int birthYear,
+            String phone,
+            String cccd,
+            String symptoms,
+            String aiSummary,
+            String status,
+            String checkInTime,
+            String appointmentTime,
+            String doctorId,
+            String doctorName,
+            String roomNumber
+    ) {}
+
+    public record ConsultationHistoryItemDto(
+            String appointmentId,
+            String bookingCode,
+            String queueNumber,
+            String queueType,
+            String patientName,
+            String gender,
+            int birthYear,
+            String phone,
+            String symptoms,
+            String diagnosis,
+            String doctorAdvice,
+            String prescriptionId,
+            BigDecimal totalMedicineAmount,
+            int medicineCount,
+            Instant consultationTime,
+            String formattedDate
+    ) {}
+
+    /**
+     * CAB-71: Request hoàn tất ca khám (Doctor Complete Visit).
+     */
+    public record CompleteVisitRequest(
+            @NotBlank(message = "Chẩn đoán bệnh không được để trống")
+            String diagnosis,
+            String doctorAdvice,
+            List<PrescriptionItemRequest> items
+    ) {}
+
+    /**
+     * CAB-71: Response kết quả hoàn tất ca khám (Doctor Complete Visit).
+     */
+    public record CompleteVisitResponse(
+            String appointmentId,
+            String status,
+            String diagnosis,
+            String doctorAdvice,
+            String prescriptionId,
+            BigDecimal totalMedicineAmount,
+            Instant completedAt
+    ) {}
+}
+

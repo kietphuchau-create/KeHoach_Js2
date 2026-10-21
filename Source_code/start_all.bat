@@ -10,11 +10,11 @@ echo.
 echo [Luu y]: Hay chac chan rang ban da BAT MYSQL tren XAMPP Control Panel!
 echo.
 echo [1/3] Dang khoi dong Backend Spring Boot (cong 8080)...
-start "MedSched - Backend" cmd /k "cd /d "%~dp0backend" && gradlew.bat :app:bootRun"
+start "MedSched - Backend" cmd /k "chcp 65001 >nul && set JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF-8 -Dsun.stdout.encoding=UTF-8 -Dsun.stderr.encoding=UTF-8 && cd /d "%~dp0backend" && gradlew.bat :app:bootRun"
 
 echo.
 echo [2/3] Dang khoi dong Frontend Next.js bang pnpm (cong 3000)...
-start "MedSched - Frontend" cmd /k "cd /d "%~dp0frontend" && pnpm dev"
+start "MedSched - Frontend" cmd /k "chcp 65001 >nul && cd /d "%~dp0frontend" && pnpm dev"
 
 echo.
 echo [3/3] Dang cho Next.js san sang de tu dong mo trinh duyet Web...

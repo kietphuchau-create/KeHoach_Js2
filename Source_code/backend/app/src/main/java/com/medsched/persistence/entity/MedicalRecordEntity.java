@@ -73,9 +73,18 @@ public class MedicalRecordEntity {
         return updatedAt;
     }
 
+    public void setDiagnosis(String diagnosis) {
+        this.diagnosis = diagnosis;
+    }
+
+    public void setDoctorNotes(String doctorNotes) {
+        this.doctorNotes = doctorNotes;
+    }
+
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
     }
+
 
     public String getCreatedBy() {
         return createdBy;

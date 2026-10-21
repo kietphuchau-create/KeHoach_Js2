@@ -1,39 +1,113 @@
 server:
-  port: 8080
+  port: ${PORT:8080}
 
 spring:
+  config:
+    import: optional:file:.env[.properties],optional:file:../.env[.properties]
   application:
     name: medsched
-  profiles:
-    active: mysql-xampp
+  main:
+    allow-bean-definition-overriding: true
+
+  # Cấu hình DataSource trực tiếp: Tự động dùng DB_URL (Aiven Cloud trên Render),
+  # nếu không có sẽ tự fallback về localhost (XAMPP cho các thành viên trong nhóm).
+  datasource:
+    url: ${DB_URL:jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:medsched_db}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Ho_Chi_Minh}
+    username: ${DB_USER:root}
+    password: ${DB_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 25
+      minimum-idle: 5
+      connection-timeout: 10000
+      idle-timeout: 300000
+      max-lifetime: 1200000
+      leak-detection-threshold: 5000
+
+  # Chỉ định rõ ràng MySQLDialect để Hibernate không cần thăm dò JDBC metadata khi start
+  # Tránh lỗi: Unable to determine Dialect without JDBC metadata
   jpa:
-    hibernate:
-      ddl-auto: update
+    database-platform: org.hibernate.dialect.MySQLDialect
     open-in-view: false
-  flyway:
-    enabled: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+
+  # Thông tin đăng nhập mail bắt buộc lấy từ biến môi trường; không lưu secret trong repo.
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
 
 medsched:
+  ai:
+    guard:
+      max-requests-per-window: ${AI_MAX_REQUESTS_PER_WINDOW:20}
+      window-seconds: ${AI_WINDOW_SECONDS:60}
+      duplicate-seconds: ${AI_DUPLICATE_SECONDS:5}
+      max-message-chars: ${AI_MAX_MESSAGE_CHARS:2000}
+      max-identities: ${AI_MAX_IDENTITIES:10000}
+      cleanup-millis: ${AI_CLEANUP_MILLIS:60000}
   jwt:
     secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
     access-token-duration: 3600s
     refresh-token-duration: 604800s
+
+brevo:
+  api-key: ${BREVO_API_KEY:}
+  sender:
+    email: ${BREVO_SENDER_EMAIL:kietphuchau@gmail.com}
+    name: MedSched Smart Healthcare
   cors:
-    allowed-origins: http://localhost:3000
+    allowed-origins: ${CORS_ORIGINS:http://localhost:3000,http://localhost:3001}
 
 app:
+  openrouter:
+    api-key: ${OPENROUTER_API_KEY:}
+    model: ${OPENROUTER_MODEL:openrouter/free}
+    base-url: ${OPENROUTER_BASE_URL:https://openrouter.ai/api/v1}
+    site-url: ${OPENROUTER_SITE_URL:http://localhost:3000}
+    app-name: ${OPENROUTER_APP_NAME:MedSched AI}
+  gemini:
+    api-key: ${GEMINI_API_KEY:}
+    model: ${GEMINI_MODEL:gemini-3.5-flash-lite}
   jwt:
     secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
     expiration: 86400
 
----
-# Cấu hình kết nối MySQL trong XAMPP (Mặc định cho toàn bộ thành viên trong nhóm)
-spring:
-  config:
-    activate:
-      on-profile: mysql-xampp
-  datasource:
-    url: ${DB_URL:jdbc:mysql://localhost:3306/medsched_db?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Ho_Chi_Minh}
-    username: ${DB_USER:root}
-    password: ${DB_PASSWORD:}
+payos:
+  client-id: ${PAYOS_CLIENT_ID:}
+  api-key: ${PAYOS_API_KEY:}
+  checksum-key: ${PAYOS_CHECKSUM_KEY:}
+
+# ==============================================================================
+# HỆ THỐNG GIÁM SÁT HẠ TẦNG & METRICS (ACTUATOR + PROMETHEUS + GRAFANA)
+# ==============================================================================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, prometheus, metrics
+  endpoint:
+    prometheus:
+      enabled: true
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: medsched
+
 

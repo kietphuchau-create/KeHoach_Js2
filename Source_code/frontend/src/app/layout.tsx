@@ -1,11 +1,20 @@
 import type { Metadata } from "next";
 import React from "react";
 import "./globals.css";
-import HeaderNav from "@/components/HeaderNav";
+import HeaderNav from "@/shared/components/HeaderNav/HeaderNav";
+import Footer from "@/shared/components/Footer/Footer";
+import FloatingWidgets from "@/shared/components/FloatingWidgets/FloatingWidgets";
+import ConcurrentSessionModal from "@/shared/components/Feedback/ConcurrentSessionModal";
+import AppMainLayout from "@/shared/components/Layout/AppMainLayout";
 
 export const metadata: Metadata = {
-  title: "MedSched - Smart Healthcare Appointment & Reception",
-  description: "Hệ thống Đặt lịch & Tiếp đón Y tế Thông minh Tích hợp Spring Boot 3, Spring AI và Quét thẻ CCCD",
+  title: "MedSched - Hệ Thống Y Khoa Chuyên Sâu Quốc Tế & Đặt Lịch Tiếp Đón 1S",
+  description: "Hệ thống Phòng khám Tư nhân Thông minh MedSched: Đặt lịch khám đa chuyên khoa, phân loại AI Triage, tiếp đón 1 giây bằng QR/CCCD",
+  icons: {
+    icon: "/favicon.png",
+    shortcut: "/favicon.png",
+    apple: "/favicon.png",
+  },
 };
 
 export default function RootLayout({
@@ -14,18 +23,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="vi">
-      <body className="min-h-screen bg-slate-100 text-slate-900 flex flex-col font-sans antialiased">
+    <html lang="vi" className="scroll-smooth overflow-x-hidden" suppressHydrationWarning>
+      <body className="min-h-screen w-full bg-mint-soft text-slate-800 flex flex-col antialiased overflow-x-hidden font-sans">
+        <ConcurrentSessionModal />
         <HeaderNav />
-        <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+        <AppMainLayout>
           {children}
-        </main>
-        <footer className="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500">
-          <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-            <span>© 2026 MedSched Healthcare System. All rights reserved.</span>
-            <span className="text-slate-400">Hệ thống Y tế Thông minh Spring Boot 3 + Next.js 15</span>
-          </div>
-        </footer>
+        </AppMainLayout>
+        <Footer />
+        <FloatingWidgets />
       </body>
     </html>
   );

@@ -27,20 +27,24 @@
 ```
 DuAnChinhThuc/
 │
-├── 📂 Ly_Thuyet/                                ➔ [PHÂN HỆ 1: LÝ THUYẾT & TÀI LIỆU ĐỀ TÀI]
-│   ├── 📂 1. Slide/                            ➔ Slide và ghi chú bài giảng chi tiết 10 tuần
-│   ├── 📊 Chuong_Trinh_Thuc_Tap_Spring_Boot_AI.xlsx ➔ Lộ trình đào tạo 10 tuần
-│   └── 📂 De_TaiThamKhao/ThamKhao/             ➔ Hồ sơ đặc tả 4 phân hệ (Features, Actors, Luồng, CSDL 17 bảng)
+├── 📂 Source_code/           ➔ [TOÀN BỘ MÃ NGUỒN DỰ ÁN]
+│   ├── 📂 backend/           ➔ Spring Boot 3 & Java 21 (Multi-module Gradle: core + app)
+│   ├── 📂 frontend/          ➔ Next.js 15+ (React 19, TypeScript, Lucide Icons)
+│   ├── 📂 database/          ➔ File CSDL medsched_db.sql duy nhất (schema + seed data)
+│   └── ⚡ start_all.bat      ➔ Khởi chạy song song Backend + Frontend 1-Click
 │
-└── 📂 Source_code/                              ➔ [PHÂN HỆ 2: MÃ NGUỒN THỰC THI PHẦN MỀM]
-    ├── 📂 backend/                              ➔ Multi-module Gradle Spring Boot 3 & Java 21
-    │   ├── 📂 core/                            ➔ Domain Model, Ports & Use Cases thuần Java
-    │   └── 📂 app/                             ➔ Spring Boot Web, Task 1 (Auth, Account, Admin), JPA 17 bảng
-    ├── 📂 frontend/                             ➔ Giao diện Next.js 15+ (React 19, TypeScript)
-    ├── 📂 database/                             ➔ Chứa 1 file medsched_db.sql duy nhất (17 bảng + seed data)
-    ├── 📄 TASK1_KHUNG_SUON.md                   ➔ Hướng dẫn Task 1 của Tài (68 test cases pass 100%)
-    └── ⚡ start_all.bat                         ➔ 1-Click tự động chạy song song cả Backend và Frontend
+├── 📂 docs/                  ➔ [TOÀN BỘ HỒ SƠ TÀI LIỆU DỰ ÁN] (Xem docs/README.md)
+│   ├── 📂 workflows/         ➔ Quy trình Git Flow chuẩn, Hướng dẫn nhận task UI Trang, CI/CD
+│   ├── 📂 architecture/      ➔ Đặc tả API, CSDL, Quy tắc buồng khám, Kiến trúc hệ thống
+│   ├── 📂 deployment/        ➔ Hướng dẫn Deploy lên Cloud (Render, Vercel, Docker)
+│   ├── 📂 reports/           ➔ Báo cáo tiến độ và Hồ sơ kiểm thử (Test Cases, Bugs)
+│   └── 📄 README.md          ➔ Mục lục tra cứu tài liệu nhanh
+│
+├── 📂 .github/               ➔ Cấu hình CI/CD Workflows tự động
+└── 📄 README.md              ➔ Tài liệu tổng quan dự án
 ```
+
+> 👉 **Tra cứu chi tiết toàn bộ tài liệu:** Xem tại [**`docs/README.md`**](./docs/README.md).
 
 ---
 

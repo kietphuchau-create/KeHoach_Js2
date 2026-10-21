@@ -1,0 +1,274 @@
+package com.medsched.app.adapter.in.web;
+
+import com.medsched.doctor.DoctorPrescriptionDtos;
+import com.medsched.doctor.DoctorPrescriptionService;
+import com.medsched.security.AppUserDetails;
+import jakarta.validation.Valid;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDate;
+import java.time.LocalTime;
+import com.medsched.doctor.DoctorScheduleDtos;
+import com.medsched.doctor.DoctorScheduleService;
+import java.util.List;
+
+@RestController
+@RequestMapping({"/api/v1/doctor", "/api/doctor"})
+@PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN', 'STAFF')")
+public class DoctorController {
+
+    private final DoctorPrescriptionService doctorPrescriptionService;
+    private final DoctorScheduleService doctorScheduleService;
+
+    public DoctorController(DoctorPrescriptionService doctorPrescriptionService,
+                            DoctorScheduleService doctorScheduleService) {
+        this.doctorPrescriptionService = doctorPrescriptionService;
+        this.doctorScheduleService = doctorScheduleService;
+    }
+
+    /**
+     * Lấy danh sách hàng đợi khám cho bác sĩ theo ngày (mặc định hôm nay).
+     */
+    @GetMapping("/queue")
+    public ResponseEntity<List<DoctorPrescriptionDtos.QueuePatientDto>> getQueue(
+            @AuthenticationPrincipal AppUserDetails principal,
+            @RequestParam(required = false) String doctorId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+
+        String userId = principal != null ? principal.getUserId() : null;
+        List<DoctorPrescriptionDtos.QueuePatientDto> queue =
+                doctorPrescriptionService.getDoctorQueue(userId, doctorId, date);
+
+        return ResponseEntity.ok(queue);
+    }
+
+    /**
+     * CLAB-107: Bác sĩ hoàn tất khám & kê đơn thuốc điện tử.
+     * Trả về HTTP 201 Created cùng thông tin đơn thuốc và tổng tiền thuốc.
+     */
+    @PostMapping("/appointments/{appointmentId}/prescriptions")
+    public ResponseEntity<DoctorPrescriptionDtos.PrescriptionResponse> createPrescription(
+            @PathVariable String appointmentId,
+            @Valid @RequestBody DoctorPrescriptionDtos.CreatePrescriptionRequest request) {
+
+        DoctorPrescriptionDtos.PrescriptionResponse response =
+                doctorPrescriptionService.completeConsultation(appointmentId, request);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    /**
+     * CAB-71: Bác sĩ hoàn tất ca khám (Doctor Complete Visit).
+     * Chuyển trạng thái sang COMPLETED, lưu chẩn đoán, lời dặn và đơn thuốc (nếu có).
+     */
+    @PostMapping("/appointments/{appointmentId}/complete")
+    public ResponseEntity<DoctorPrescriptionDtos.CompleteVisitResponse> completeVisit(
+            @PathVariable String appointmentId,
+            @Valid @RequestBody DoctorPrescriptionDtos.CompleteVisitRequest request) {
+
+        DoctorPrescriptionDtos.CompleteVisitResponse response =
+                doctorPrescriptionService.completeVisit(appointmentId, request);
+
+        return ResponseEntity.ok(response);
+    }
+
+
+    /**
+     * Bác sĩ tiếp nhận nhanh ca khám (chuyển sang CHECKED_IN).
+     */
+    @PostMapping("/appointments/{appointmentId}/admit")
+    public ResponseEntity<Void> admitPatient(@PathVariable String appointmentId) {
+        doctorPrescriptionService.admitPatient(appointmentId);
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * Bác sĩ gọi bệnh nhân vào phòng khám (chuyển sang IN_PROGRESS).
+     */
+    @PostMapping("/appointments/{appointmentId}/call")
+    public ResponseEntity<Void> callPatientToRoom(@PathVariable String appointmentId) {
+        doctorPrescriptionService.callPatientToRoom(appointmentId);
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * Bác sĩ tạm hoãn ca khám (chuyển sang WAITING_FOR_LAB_RESULTS).
+     */
+    @PostMapping("/appointments/{appointmentId}/defer")
+    public ResponseEntity<Void> deferPatient(@PathVariable String appointmentId) {
+        doctorPrescriptionService.deferPatient(appointmentId);
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * Bác sĩ gửi bệnh nhân đi làm cận lâm sàng / xét nghiệm (chuyển sang WAITING_FOR_LAB_RESULTS).
+     */
+    @PostMapping("/appointments/{appointmentId}/lab")
+    public ResponseEntity<Void> sendToLab(@PathVariable String appointmentId) {
+        doctorPrescriptionService.deferPatient(appointmentId);
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * Bác sĩ đánh dấu bệnh nhân vắng mặt khi gọi loa (chuyển sang MISSED_NO_SHOW).
+     */
+    @PostMapping("/appointments/{appointmentId}/miss")
+    public ResponseEntity<Void> missPatient(@PathVariable String appointmentId) {
+        doctorPrescriptionService.missPatient(appointmentId);
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * Tra cứu chi tiết kết quả khám & đơn thuốc điện tử.
+     */
+    @GetMapping("/appointments/{appointmentId}/prescription")
+    public ResponseEntity<DoctorPrescriptionDtos.PrescriptionDetailDto> getPrescriptionDetails(
+            @PathVariable String appointmentId) {
+        DoctorPrescriptionDtos.PrescriptionDetailDto response =
+                doctorPrescriptionService.getPrescriptionDetailsByAppointmentId(appointmentId);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Tra cứu lịch sử ca khám đã hoàn tất & đơn thuốc của bác sĩ.
+     */
+    @GetMapping("/history")
+    public ResponseEntity<List<DoctorPrescriptionDtos.ConsultationHistoryItemDto>> getConsultationHistory(
+            @AuthenticationPrincipal AppUserDetails principal,
+            @RequestParam(required = false) String doctorId,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+
+        String userId = principal != null ? principal.getUserId() : null;
+        return ResponseEntity.ok(doctorPrescriptionService.getDoctorConsultationHistory(userId, doctorId, q, from, to));
+    }
+
+    /**
+     * Lấy danh sách ca trực & các khung giờ (TimeSlots) của bác sĩ.
+     */
+    @GetMapping("/schedules")
+    public ResponseEntity<List<DoctorScheduleDtos.DoctorScheduleDto>> getSchedules(
+            @AuthenticationPrincipal AppUserDetails principal,
+            @RequestParam(required = false) String doctorId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+
+        String userId = principal != null ? principal.getUserId() : null;
+        List<DoctorScheduleDtos.DoctorScheduleDto> schedules =
+                doctorScheduleService.getDoctorSchedules(userId, doctorId, from, to);
+        return ResponseEntity.ok(schedules);
+    }
+
+    /**
+     * Lấy tình trạng chiếm dụng của các buồng khám theo ngày và khung giờ.
+     */
+    @GetMapping("/schedules/room-occupancy")
+    public ResponseEntity<List<DoctorScheduleDtos.RoomOccupancyDto>> getRoomOccupancy(
+            @AuthenticationPrincipal AppUserDetails principal,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate workDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.TIME) LocalTime startTime,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.TIME) LocalTime endTime) {
+
+        String userId = principal != null ? principal.getUserId() : null;
+        return ResponseEntity.ok(doctorScheduleService.getRoomOccupancy(userId, workDate, startTime, endTime));
+    }
+
+    /**
+     * Bác sĩ đăng ký ca trực mới (tự động sinh các slot 30 phút).
+     */
+    @PostMapping("/schedules")
+    public ResponseEntity<DoctorScheduleDtos.DoctorScheduleDto> createSchedule(
+            @AuthenticationPrincipal AppUserDetails principal,
+            @Valid @RequestBody DoctorScheduleDtos.CreateScheduleRequest request) {
+
+        String userId = principal != null ? principal.getUserId() : null;
+        DoctorScheduleDtos.DoctorScheduleDto schedule =
+                doctorScheduleService.createSchedule(userId, request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(schedule);
+    }
+
+    /**
+     * Bác sĩ khóa/mở khung giờ khám (AVAILABLE <-> LOCKED).
+     */
+    @PatchMapping("/slots/{slotId}/toggle-lock")
+    public ResponseEntity<DoctorScheduleDtos.TimeSlotDto> toggleSlot(
+            @PathVariable String slotId) {
+        DoctorScheduleDtos.TimeSlotDto updated = doctorScheduleService.toggleSlotStatus(slotId);
+        return ResponseEntity.ok(updated);
+    }
+
+    /**
+     * CLAB-113: Bác sĩ đổi buồng khám cho ca trực.
+     * QUY ĐỊNH BẮT BUỘC: Chỉ được đổi trước tối thiểu 1 ngày (trước 00:00:00).
+     * Khi bước sang ngày khám mới (hôm nay), buồng khám đã chốt cố định và cấm thay đổi.
+     */
+    @PatchMapping("/schedules/{scheduleId}/change-room")
+    public ResponseEntity<DoctorScheduleDtos.DoctorScheduleDto> changeScheduleRoom(
+            @AuthenticationPrincipal AppUserDetails principal,
+            @PathVariable String scheduleId,
+            @Valid @RequestBody DoctorScheduleDtos.ChangeScheduleRoomRequest request) {
+
+        String userId = principal != null ? principal.getUserId() : null;
+        DoctorScheduleDtos.DoctorScheduleDto updated =
+                doctorScheduleService.changeScheduleRoom(userId, scheduleId, request);
+        return ResponseEntity.ok(updated);
+    }
+
+    /**
+     * Bác sĩ hủy ca trực thông thường (chỉ cho phép khi chưa có bệnh nhân đặt lịch).
+     */
+    @DeleteMapping("/schedules/{scheduleId}")
+    public ResponseEntity<Void> deleteSchedule(
+            @AuthenticationPrincipal AppUserDetails principal,
+            @PathVariable String scheduleId) {
+        String userId = principal != null ? principal.getUserId() : null;
+        doctorScheduleService.deleteSchedule(userId, scheduleId);
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Xem trước danh sách bệnh nhân bị ảnh hưởng nếu Bác sĩ hủy ca trực khẩn cấp.
+     */
+    @GetMapping("/schedules/{scheduleId}/affected-patients")
+    public ResponseEntity<List<DoctorScheduleDtos.AffectedPatientInfoDto>> getAffectedPatients(
+            @PathVariable String scheduleId) {
+        List<DoctorScheduleDtos.AffectedPatientInfoDto> result =
+                doctorScheduleService.getScheduleAffectedPatients(scheduleId);
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * PHƯƠNG ÁN 2: Bác sĩ hủy ca trực khẩn cấp khi đã có bệnh nhân đặt hẹn (Bất khả kháng).
+     * Bắt buộc cung cấp lý do hủy để chuyển giao Lễ tân và ghi nhận bệnh án.
+     */
+    @PostMapping("/schedules/{scheduleId}/emergency-cancel")
+    public ResponseEntity<DoctorScheduleDtos.EmergencyCancelResponse> emergencyCancelSchedule(
+            @AuthenticationPrincipal AppUserDetails principal,
+            @PathVariable String scheduleId,
+            @Valid @RequestBody DoctorScheduleDtos.EmergencyCancelScheduleRequest request) {
+
+        String userId = principal != null ? principal.getUserId() : null;
+        DoctorScheduleDtos.EmergencyCancelResponse response =
+                doctorScheduleService.emergencyCancelSchedule(userId, scheduleId, request);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Kích hoạt thủ công tác vụ tự động xếp lịch ngày mai (dành cho Admin / Kiểm thử Job 17h).
+     */
+    @PostMapping("/schedules/auto-generate-tomorrow")
+    public ResponseEntity<DoctorScheduleDtos.AutoScheduleResultDto> triggerAutoScheduleTomorrow() {
+        LocalDate tomorrow = LocalDate.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh")).plusDays(1);
+        DoctorScheduleDtos.AutoScheduleResultDto result =
+                doctorScheduleService.autoGenerateScheduleForTargetDate(tomorrow);
+        return ResponseEntity.ok(result);
+    }
+}
+
+

@@ -18,4 +18,8 @@ public interface PatientProfileJpaRepository extends JpaRepository<PatientProfil
     /** Dùng để đối soát CCCD quét tại quầy với đúng hồ sơ đã đặt lịch (kịch bản 7.7 - nhầm hồ sơ người thân). */
     Optional<PatientProfileEntity> findByCccdNumber(String cccdNumber);
 
+    List<PatientProfileEntity> findByPhone(String phone);
+
+    List<PatientProfileEntity> findByFullNameContainingIgnoreCase(String fullName);
+
 }

@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "permissions": {
+    "allow": [
+      "Bash(./gradlew build*)",
+      "Bash(./gradlew test*)",
+      "Bash(./gradlew clean*)",
+      "Bash(./gradlew :core:*)",
+      "Bash(./gradlew :app:*)",
+      "Bash(./gradlew tasks*)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git ls-files*)",
+      "Bash(git show*)",
+      "Bash(rg *)",
+      "Bash(ls *)",
+      "Bash(find *)"
+    ],
+    "ask": [
+      "Bash(git push*)",
+      "Bash(git commit*)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./**/.env)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(git add*)",
+            "command": "python \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/guard-secrets.py\"",
+            "statusMessage": "Checking for credential files..."
+          },
+          {
+            "type": "command",
+            "if": "Bash(git commit*)",
+            "command": "python \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/guard-secrets.py\"",
+            "statusMessage": "Checking for credential files..."
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/guard-core-imports.py\"",
+            "statusMessage": "Checking core/ boundary..."
+          }
+        ]
+      }
+    ]
+  }
+}

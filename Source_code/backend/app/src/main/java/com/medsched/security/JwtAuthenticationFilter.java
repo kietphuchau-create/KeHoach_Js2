@@ -16,12 +16,13 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 
 /**
- * Đọc header {@code Authorization: Bearer <token>}, xác minh chữ ký rồi nạp
- * người dùng từ DB.
+ * Reads the {@code Authorization: Bearer <token>} header, verifies the
+ * signature and loads the user from the database.
  * <p>
- * Cố ý nạp lại từ DB mỗi request (thay vì tin hoàn toàn vào claim trong token):
- * khi Admin khóa tài khoản hoặc thu hồi quyền, thay đổi có hiệu lực NGAY thay
- * vì phải chờ access token hết hạn.
+ * Reloading from the database on every request (instead of trusting the claims
+ * inside the token) is deliberate: when an admin locks an account or revokes a
+ * role, the change takes effect IMMEDIATELY rather than when the access token
+ * finally expires.
  */
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -38,9 +39,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     /**
-     * Mặc định OncePerRequestFilter bỏ qua error dispatch, khiến mọi lỗi chưa
-     * bắt được đều biến thành 401 gây hiểu nhầm. Bật lên để giữ nguyên danh
-     * tính người dùng và trả đúng mã lỗi thật.
+     * By default OncePerRequestFilter skips the error dispatch, so any
+     * uncaught error turns into a misleading 401. Enabling it keeps the user
+     * identity in place and lets the real status code through.
      */
     @Override
     protected boolean shouldNotFilterErrorDispatch() {
@@ -59,10 +60,26 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         try {
             Claims claims = jwtService.parse(header.substring(PREFIX.length()));
-            // Refresh token KHÔNG được dùng để gọi API nghiệp vụ.
+            // A refresh token must NEVER be accepted for business API calls.
             if (jwtService.isType(claims, JwtService.TYPE_ACCESS)) {
                 AppUserDetails user = userDetailsService.loadUserById(claims.getSubject());
                 if (user.isEnabled()) {
+                    // Single active web session check (Concurrent session kickout):
+                    // Khi tài khoản đăng nhập trên trình duyệt khác, currentSessionId trong DB đã thay đổi.
+                    if (user.getCurrentSessionId() != null) {
+                        String tokenSid = claims.get(JwtService.CLAIM_SESSION_ID, String.class);
+                        if (tokenSid == null || !user.getCurrentSessionId().equals(tokenSid)) {
+                            SecurityContextHolder.clearContext();
+                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                            response.setContentType("application/json;charset=UTF-8");
+                            response.getWriter().write("""
+                                {"status":401,"error":"CONCURRENT_SESSION_EXPIRED","message":"Tài khoản của bạn đã được đăng nhập trên một trình duyệt/thiết bị khác. Phiên làm việc tại đây đã kết thúc.","path":"%s"}
+                                """.formatted(request.getRequestURI()));
+                            response.getWriter().flush();
+                            return;
+                        }
+                    }
+
                     UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
                             user, null, user.getAuthorities());
                     auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
@@ -70,8 +87,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 }
             }
         } catch (JwtException | UsernameNotFoundException | IllegalArgumentException ex) {
-            // Token sai/hết hạn/tài khoản đã bị xóa: để request đi tiếp không có
-            // danh tính, SecurityConfig sẽ trả 401 với thông báo thống nhất.
+            // Invalid/expired token or deleted account: let the request continue
+            // unauthenticated; SecurityConfig returns a consistent 401.
             SecurityContextHolder.clearContext();
         }
 

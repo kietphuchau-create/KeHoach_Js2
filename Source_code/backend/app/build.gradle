@@ -3,18 +3,20 @@ plugins {
     id 'io.spring.dependency-management'
 }
 
-dependencyManagement {
-    imports {
-        mavenBom 'org.springframework.ai:spring-ai-bom:1.0.0-M6'
-    }
-}
-
 dependencies {
     implementation project(':core')
 
     // Web & Validation
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'com.bucket4j:bucket4j_jdk17-core:8.21.0'
+
+    // Email (Gmail SMTP for OTP Verification)
+    implementation 'org.springframework.boot:spring-boot-starter-mail'
+
+    // Monitoring & Observability (Actuator + Prometheus Metrics)
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'io.micrometer:micrometer-registry-prometheus'
 
     // Security & JWT
     implementation 'org.springframework.boot:spring-boot-starter-security'
@@ -25,9 +27,6 @@ dependencies {
     // JPA & Database (MySQL / MariaDB XAMPP)
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     runtimeOnly 'com.mysql:mysql-connector-j'
-
-    // Spring AI
-    implementation 'org.springframework.ai:spring-ai-openai-spring-boot-starter'
 
     // Lombok & Developer tools
     compileOnly 'org.projectlombok:lombok'
@@ -43,4 +42,12 @@ dependencies {
 
 tasks.named('bootJar') {
     archiveFileName = 'medsched-app.jar'
+}
+
+tasks.named('bootRun') {
+    jvmArgs = [
+        "-Dfile.encoding=UTF-8",
+        "-Dsun.stdout.encoding=UTF-8",
+        "-Dsun.stderr.encoding=UTF-8"
+    ]
 }

@@ -14,12 +14,18 @@ public interface UserJpaRepository extends JpaRepository<UserEntity, String> {
 
     Optional<UserEntity> findByEmail(String email);
 
+    Optional<UserEntity> findByPhone(String phone);
+
     boolean existsByEmail(String email);
 
-    /** Tìm theo email/họ tên, không lọc vai trò. Tham số q đã ở dạng %tu-khoa%. */
+    long countByActiveTrue();
+
+    long countByActiveFalse();
+
+    /** Tìm theo email/họ tên/SĐT, không lọc vai trò. Tham số q đã ở dạng %tu-khoa%. */
     @Query("""
             SELECT u FROM UserEntity u
-            WHERE LOWER(u.email) LIKE :q OR LOWER(u.fullName) LIKE :q
+            WHERE LOWER(u.email) LIKE :q OR LOWER(u.fullName) LIKE :q OR (u.phone IS NOT NULL AND LOWER(u.phone) LIKE :q)
             """)
     Page<UserEntity> search(@Param("q") String q, Pageable pageable);
 
@@ -29,7 +35,7 @@ public interface UserJpaRepository extends JpaRepository<UserEntity, String> {
      */
     @Query("""
             SELECT u FROM UserEntity u
-            WHERE (LOWER(u.email) LIKE :q OR LOWER(u.fullName) LIKE :q)
+            WHERE (LOWER(u.email) LIKE :q OR LOWER(u.fullName) LIKE :q OR (u.phone IS NOT NULL AND LOWER(u.phone) LIKE :q))
               AND EXISTS (SELECT 1 FROM UserMedicalCenterRoleEntity r
                           WHERE r.userId = u.id AND r.active = true AND r.role = :role
                             AND (:centerId IS NULL OR r.medicalCenterId = :centerId))
@@ -45,7 +51,7 @@ public interface UserJpaRepository extends JpaRepository<UserEntity, String> {
      */
     @Query("""
             SELECT u FROM UserEntity u
-            WHERE (LOWER(u.email) LIKE :q OR LOWER(u.fullName) LIKE :q)
+            WHERE (LOWER(u.email) LIKE :q OR LOWER(u.fullName) LIKE :q OR (u.phone IS NOT NULL AND LOWER(u.phone) LIKE :q))
               AND NOT EXISTS (SELECT 1 FROM UserMedicalCenterRoleEntity r
                               WHERE r.userId = u.id AND r.active = true)
             """)

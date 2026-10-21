@@ -10,7 +10,7 @@ import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
 
-/** Hợp đồng dữ liệu cho CRUD danh mục: cơ sở y tế, chuyên khoa, dịch vụ khám. */
+/** Contracts for catalog CRUD: medical centers, specialties, services. */
 public final class CatalogDtos {
 
     private CatalogDtos() {
@@ -85,6 +85,32 @@ public final class CatalogDtos {
             @Min(value = 1, message = "Thời lượng phải lớn hơn 0 phút")
             @Max(value = 480, message = "Thời lượng tối đa 480 phút")
             int estimatedDurationMinutes) {
+    }
+
+    public record DoctorSummaryResponse(
+            String id,
+            String userId,
+            String fullName,
+            String phone,
+            String specialtyId,
+            String specialtyName,
+            String medicalCenterId,
+            String medicalCenterName,
+            String academicTitle,
+            BigDecimal consultationFee,
+            String roomNumber,
+            String bio,
+            String avatarUrl) {
+    }
+
+    public record TimeSlotResponse(
+            String id,
+            String doctorId,
+            String startTime,
+            String endTime,
+            String timeDisplay,
+            String status,
+            String label) {
     }
 
 }

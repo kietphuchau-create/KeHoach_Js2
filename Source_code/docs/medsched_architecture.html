@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="vi" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MedSched - Sơ Đồ Kiến Trúc Hệ Thống Lục Giác & Luồng Nghiệp Vụ (Archify)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0b0f17;
+      --bg-card: rgba(18, 24, 38, 0.85);
+      --bg-card-hover: rgba(28, 38, 58, 0.95);
+      --border: rgba(255, 255, 255, 0.08);
+      --border-active: #10b981;
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --accent-teal: #0D5C52;
+      --accent-emerald: #10b981;
+      --accent-blue: #3b82f6;
+      --accent-purple: #8b5cf6;
+      --accent-amber: #f59e0b;
+      --font-display: 'Outfit', sans-serif;
+      --font-body: 'Inter', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-body);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background-image: 
+        radial-gradient(circle at 15% 20%, rgba(13, 92, 82, 0.18) 0%, transparent 40%),
+        radial-gradient(circle at 85% 80%, rgba(59, 130, 246, 0.12) 0%, transparent 45%);
+    }
+
+    header {
+      padding: 1.5rem 2rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: rgba(11, 15, 23, 0.8);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .brand-logo {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #0D5C52, #10b981);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 800;
+      font-size: 1.25rem;
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+    }
+
+    .brand-text h1 {
+      font-family: var(--font-display);
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-text p {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.25rem 0.65rem;
+      border-radius: 9999px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      font-family: var(--font-mono);
+    }
+
+    .controls {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .tab-btn {
+      padding: 0.5rem 1rem;
+      border-radius: 10px;
+      font-size: 0.825rem;
+      font-weight: 600;
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab-btn:hover {
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .tab-btn.active {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border-color: rgba(16, 185, 129, 0.4);
+    }
+
+    main {
+      flex: 1;
+      padding: 2rem;
+      max-width: 1440px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .tab-pane {
+      display: none;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .tab-pane.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Grid Layouts */
+    .arch-container {
+      display: grid;
+      grid-template-columns: 280px 1fr 300px;
+      gap: 1.5rem;
+      margin-top: 1.5rem;
+      position: relative;
+    }
+
+    .layer-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 1.5rem;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+      position: relative;
+    }
+
+    .layer-card.core {
+      border-color: rgba(16, 185, 129, 0.3);
+      background: linear-gradient(180deg, rgba(13, 92, 82, 0.25) 0%, rgba(18, 24, 38, 0.9) 100%);
+    }
+
+    .layer-title {
+      font-family: var(--font-display);
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .node {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 12px;
+      padding: 0.75rem 0.9rem;
+      margin-bottom: 0.75rem;
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+
+    .node:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--border-active);
+      transform: translateX(4px);
+    }
+
+    .node-name {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #f8fafc;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .node-desc {
+      font-size: 0.725rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+      line-height: 1.35;
+    }
+
+    .node-tag {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.08);
+      color: #93c5fd;
+    }
+
+    .workflow-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+      padding: 1rem;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--border);
+      margin-bottom: 1rem;
+      transition: all 0.2s;
+    }
+
+    .workflow-step:hover {
+      background: rgba(255,255,255,0.05);
+      border-color: #3b82f6;
+    }
+
+    .step-num {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: #3b82f6;
+      color: white;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      flex-shrink: 0;
+    }
+
+    .step-content h4 {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #f8fafc;
+      margin-bottom: 0.25rem;
+    }
+
+    .step-content p {
+      font-size: 0.775rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    .code-tag {
+      font-family: var(--font-mono);
+      color: #34d399;
+      background: rgba(16, 185, 129, 0.1);
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+    }
+
+    footer {
+      padding: 1.5rem 2rem;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <div class="brand-logo">M</div>
+      <div class="brand-text">
+        <h1>MedSched Architecture Blueprint</h1>
+        <p>Hệ Thống Đặt Lịch Khám & Quản Lý Y Tế Đa Cơ Sở • Kiến Trúc Lục Giác</p>
+      </div>
+    </div>
+    <div class="controls">
+      <span class="badge">SPRING BOOT 3.4.3</span>
+      <span class="badge">NEXT.JS 16</span>
+      <span class="badge">MYSQL 8.X</span>
+      <button class="tab-btn active" onclick="switchTab('arch')">1. Kiến Trúc Lục Giác</button>
+      <button class="tab-btn" onclick="switchTab('workflow')">2. Luồng Khám & Tiếp Đón</button>
+      <button class="tab-btn" onclick="switchTab('rbac')">3. Ma Trận Phân Quyền (RBAC)</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- TAB 1: HEXAGONAL ARCHITECTURE -->
+    <div id="tab-arch" class="tab-pane active">
+      <div style="margin-bottom: 1rem;">
+        <h2 style="font-family: var(--font-display); font-size: 1.4rem; font-weight: 700;">Kiến Trúc Lục Giác (Ports & Adapters Architecture)</h2>
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.25rem;">
+          Tách biệt hoàn toàn giữa Tầng Giao Tiếp Ngoài (Inbound Adapters), Miền Nghiệp Vụ Cốt Lõi (Core Domain / UseCases) và Tầng Lưu Trữ CSDL (Outbound Adapters).
+        </p>
+      </div>
+
+      <div class="arch-container">
+        <!-- 1. INBOUND ADAPTERS (PRIMARY) -->
+        <div class="layer-card">
+          <div class="layer-title" style="color: #60a5fa;">
+            <span>🌐 Inbound Adapters</span>
+          </div>
+
+          <div class="node">
+            <div class="node-name">
+              <span>Next.js 16 Web Portal</span>
+              <span class="node-tag">UI Client</span>
+            </div>
+            <div class="node-desc">Client Components, Server Components, Pine Teal theme, Dynamic live check-in.</div>
+          </div>
+
+          <div class="node">
+            <div class="node-name">
+              <span>SecurityFilterChain</span>
+              <span class="node-tag">Gateway</span>
+            </div>
+            <div class="node-desc">JwtAuthFilter, CORS config, Stateless Session, BCryptPasswordEncoder.</div>
+          </div>
+
+          <div class="node">
+            <div class="node-name">
+              <span>AuthController</span>
+              <span class="node-tag">REST API</span>
+            </div>
+            <div class="node-desc">/api/v1/auth/login, /register, /refresh, cấp token JWT theo 4 vai trò.</div>
+          </div>
+
+          <div class="node">
+            <div class="node-name">
+              <span>AdminUserController</span>
+              <span class="node-tag">REST API</span>
+            </div>
+            <div class="node-desc">/api/v1/admin/users, cấp tài khoản Bác sĩ, Lễ tân, khóa tài khoản.</div>
+          </div>
+
+          <div class="node">
+            <div class="node-name">
+              <span>CheckInController</span>
+              <span class="node-tag">REST API</span>
+            </div>
+            <div class="node-desc">/api/v1/reception/checkin, quét QR vé hẹn 1s & chip CCCD 12 số.</div>
+          </div>
+
+          <div class="node">
+            <div class="node-name">
+              <span>DoctorController</span>
+              <span class="node-tag">REST API</span>
+            </div>
+            <div class="node-desc">/api/v1/doctor/examination, kê đơn thuốc, kết luận chẩn đoán.</div>
+          </div>
+        </div>
+
+        <!-- 2. CORE DOMAIN / USECASES -->
+        <div class="layer-card core">
+          <div class="layer-title" style="color: #34d399;">
+            <span>⚡ Core Domain & Services (Ports)</span>
+          </div>
+
+          <div class="node" style="border-color: rgba(16, 185, 129, 0.4);">
+            <div class="node-name">
+              <span>AppointmentService</span>
+              <span class="node-tag" style="background: rgba(16, 185, 129, 0.2); color: #34d399;">UseCase</span>
+            </div>
+            <div class="node-desc">Điều phối lịch hẹn, giữ chỗ time_slot, validate trùng giờ ca khám của bác sĩ.</div>
+          </div>
+
+          <div class="node" style="border-color: rgba(16, 185, 129, 0.4);">
+            <div class="node-name">
+              <span>CheckInService</span>
+              <span class="node-tag" style="background: rgba(16, 185, 129, 0.2); color: #34d399;">UseCase</span>
+            </div>
+            <div class="node-desc">Xác thực mã QR/CCCD, cấp số thứ tự khám (queue_number), đẩy vào phòng chờ.</div>
+          </div>
+
+          <div class="node" style="border-color: rgba(16, 185, 129, 0.4);">
+            <div class="node-name">
+              <span>AdminUserService</span>
+              <span class="node-tag" style="background: rgba(16, 185, 129, 0.2); color: #34d399;">UseCase</span>
+            </div>
+            <div class="node-desc">Quản lý nhân sự, gán vai trò theo cơ sở y tế (UserMedicalCenterRole). Phòng khám linh hoạt theo ca trực.</div>
+          </div>
+
+          <div class="node" style="border-color: rgba(16, 185, 129, 0.4);">
+            <div class="node-name">
+              <span>DoctorPrescriptionService</span>
+              <span class="node-tag" style="background: rgba(16, 185, 129, 0.2); color: #34d399;">UseCase</span>
+            </div>
+            <div class="node-desc">Kê đơn thuốc, tạo hồ sơ bệnh án điện tử, cập nhật trạng thái COMPLETED.</div>
+          </div>
+
+          <div class="node" style="border-color: rgba(16, 185, 129, 0.4);">
+            <div class="node-name">
+              <span>BillingService</span>
+              <span class="node-tag" style="background: rgba(16, 185, 129, 0.2); color: #34d399;">UseCase</span>
+            </div>
+            <div class="node-desc">Tính toán tổng viện phí, phát hành hóa đơn (invoices), ghi nhận thanh toán.</div>
+          </div>
+
+          <div class="node" style="border-color: rgba(139, 92, 246, 0.4);">
+            <div class="node-name">
+              <span>Spring AI Triage Engine</span>
+              <span class="node-tag" style="background: rgba(139, 92, 246, 0.2); color: #c084fc;">AI Engine</span>
+            </div>
+            <div class="node-desc">Tự động phân tích triệu chứng khai báo và gợi ý hướng điều trị tóm tắt cho Bác sĩ.</div>
+          </div>
+        </div>
+
+        <!-- 3. OUTBOUND ADAPTERS (SECONDARY) -->
+        <div class="layer-card">
+          <div class="layer-title" style="color: #f59e0b;">
+            <span>💾 Outbound Adapters</span>
+          </div>
+
+          <div class="node">
+            <div class="node-name">
+              <span>UserJpaRepository</span>
+              <span class="node-tag">JPA Port</span>
+            </div>
+            <div class="node-desc">Ánh xạ bảng `users`, tìm kiếm theo email và họ tên phân trang.</div>
+          </div>
+
+          <div class="node">
+            <div class="node-name">
+              <span>AppointmentJpaRepo</span>
+              <span class="node-tag">JPA Port</span>
+            </div>
+            <div class="node-desc">Ánh xạ bảng `appointments`, quản lý trạng thái CONFIRMED, CHECKED_IN, COMPLETED.</div>
+          </div>
+
+          <div class="node">
+            <div class="node-name">
+              <span>DoctorJpaRepository</span>
+              <span class="node-tag">JPA Port</span>
+            </div>
+            <div class="node-desc">Ánh xạ `doctors`, học hàm/học vị, giá khám, chuyên khoa phụ trách.</div>
+          </div>
+
+          <div class="node">
+            <div class="node-name">
+              <span>InvoiceJpaRepository</span>
+              <span class="node-tag">JPA Port</span>
+            </div>
+            <div class="node-desc">Quản lý bảng `invoices` & `payments`, ghi vết thanh toán viện phí.</div>
+          </div>
+
+          <div class="node" style="border-color: rgba(245, 158, 11, 0.4);">
+            <div class="node-name">
+              <span>MySQL 8.x CSDL</span>
+              <span class="node-tag" style="background: rgba(245, 158, 11, 0.2); color: #fcd34d;">Database</span>
+            </div>
+            <div class="node-desc">InnoDB, XAMPP port 3306, Foreign Keys, UUID Primary Keys, bảng danh mục 18 tables.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: CLINICAL WORKFLOW -->
+    <div id="tab-workflow" class="tab-pane">
+      <div style="margin-bottom: 1.5rem;">
+        <h2 style="font-family: var(--font-display); font-size: 1.4rem; font-weight: 700;">Quy Trình Khám Chữa Bệnh Khép Kín (End-to-End Workflow)</h2>
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.25rem;">
+          Từ lúc Bệnh nhân đặt lịch trực tuyến đến khi Lễ tân quét QR check-in, Bác sĩ chẩn đoán và Kế toán xuất hóa đơn viện phí.
+        </p>
+      </div>
+
+      <div class="workflow-step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <h4>Bệnh Nhân Đặt Lịch Khám Online (`/booking`)</h4>
+          <p>
+            Bệnh nhân chọn <span class="code-tag">Cơ sở y tế</span> (Quận 1 / Quận 7) &rarr; chọn <span class="code-tag">Chuyên khoa</span> &rarr; chọn <span class="code-tag">Bác sĩ & Ngày khám</span>. Hệ thống tạo lịch hẹn với trạng thái <span class="code-tag">CONFIRMED</span> và cấp vé khám có mã QR.
+          </p>
+        </div>
+      </div>
+
+      <div class="workflow-step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <h4>Lễ Tân Tiếp Đón & Quét Check-in 1s (`/reception`)</h4>
+          <p>
+            Khi bệnh nhân đến viện, Lễ tân dùng đầu đọc quét mã QR vé hẹn hoặc chip CCCD. API <span class="code-tag">CheckInService</span> kiểm tra tính hợp lệ, đổi trạng thái sang <span class="code-tag">CHECKED_IN</span> và cấp số thứ tự STT tự động.
+          </p>
+        </div>
+      </div>
+
+      <div class="workflow-step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <h4>Bác Sĩ Khám Bệnh & Tham Khảo AI (`/doctor/clinic`)</h4>
+          <p>
+            Bệnh nhân xuất hiện tại hàng đợi của Bác sĩ trực phòng khám hôm đó. Bác sĩ xem tóm tắt lâm sàng từ <span class="code-tag">Spring AI</span>, nhập kết luận chẩn đoán và chuyển trạng thái sang <span class="code-tag">IN_CONSULTATION</span>.
+          </p>
+        </div>
+      </div>
+
+      <div class="workflow-step">
+        <div class="step-num">4</div>
+        <div class="step-content">
+          <h4>Kê Đơn Thuốc Điện Tử & Tạo Bệnh Án</h4>
+          <p>
+            Bác sĩ chọn thuốc từ danh mục `medicines`, nhập liều lượng và lưu đơn thuốc điện tử (<span class="code-tag">prescriptions</span> / <span class="code-tag">prescription_items</span>). Ca khám được cập nhật thành <span class="code-tag">COMPLETED</span>.
+          </p>
+        </div>
+      </div>
+
+      <div class="workflow-step">
+        <div class="step-num">5</div>
+        <div class="step-content">
+          <h4>Thanh Toán & Xuất Hóa Đơn Viện Phí (`/billing`)</h4>
+          <p>
+            Hệ thống tự động tổng hợp tiền công khám + tiền thuốc thành hóa đơn <span class="code-tag">invoices</span>. Bệnh nhân có thể thanh toán tại quầy hoặc qua cổng thanh toán số.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: RBAC -->
+    <div id="tab-rbac" class="tab-pane">
+      <div style="margin-bottom: 1.5rem;">
+        <h2 style="font-family: var(--font-display); font-size: 1.4rem; font-weight: 700;">Ma Trận Phân Quyền Vai Trò (Role-Based Access Control)</h2>
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.25rem;">
+          Bản 3.0 phân quyền đa cơ sở thông qua bảng nối `user_medical_center_roles`.
+        </p>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+        <div class="layer-card">
+          <h3 style="color: #60a5fa; font-size: 1rem; margin-bottom: 0.5rem;">🛡️ ROLE_ADMIN</h3>
+          <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.5;">
+            Quản trị viên toàn hệ thống: Cấp tài khoản mới cho Bác sĩ, Nhân viên lễ tân; Bật/tắt trạng thái kích hoạt tài khoản; Quản lý danh mục cơ sở và chuyên khoa.
+          </p>
+        </div>
+
+        <div class="layer-card">
+          <h3 style="color: #34d399; font-size: 1rem; margin-bottom: 0.5rem;">🩺 ROLE_DOCTOR</h3>
+          <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.5;">
+            Bác sĩ chuyên khoa: Xem danh sách bệnh nhân chờ khám theo ca trực; Thực hiện chẩn đoán, xem tóm tắt Spring AI, kê đơn thuốc và hoàn tất ca khám.
+          </p>
+        </div>
+
+        <div class="layer-card">
+          <h3 style="color: #f59e0b; font-size: 1rem; margin-bottom: 0.5rem;">💁‍♀️ ROLE_STAFF (Lễ Tân)</h3>
+          <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.5;">
+            Nhân viên quầy tiếp đón: Quét mã QR vé hẹn, quét CCCD gắn chip; Đặt lịch trực tiếp tại quầy cho bệnh nhân vãng lai; Hỗ trợ thu viện phí.
+          </p>
+        </div>
+
+        <div class="layer-card">
+          <h3 style="color: #a78bfa; font-size: 1rem; margin-bottom: 0.5rem;">👤 ROLE_PATIENT / CUSTOMER</h3>
+          <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.5;">
+            Quyền mặc định cho toàn bộ người dùng đăng ký tự do: Đặt lịch khám, tra cứu phiếu hẹn, xem lịch sử đơn thuốc và cập nhật thông tin y tế cá nhân (BHYT, CCCD).
+          </p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    MedSched Architecture Diagram • Generated with Archify & Superpowers Skill Suite • Spring Boot 3 + Next.js
+  </footer>
+
+  <script>
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-pane').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+      
+      const targetPane = document.getElementById('tab-' + tabId);
+      if (targetPane) targetPane.classList.add('active');
+      
+      event.target.classList.add('active');
+    }
+  </script>
+</body>
+</html>

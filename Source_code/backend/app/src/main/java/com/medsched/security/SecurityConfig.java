@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -48,8 +49,8 @@ public class SecurityConfig {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
         provider.setUserDetailsService(userDetailsService);
         provider.setPasswordEncoder(passwordEncoder);
-        // Email không tồn tại cũng báo lỗi giống sai mật khẩu -> kẻ tấn công
-        // không dò được email nào đã đăng ký trong hệ thống.
+        // An unknown email fails exactly like a wrong password, so an attacker
+        // cannot probe which emails are registered.
         provider.setHideUserNotFoundExceptions(true);
         return new ProviderManager(provider);
     }
@@ -57,20 +58,71 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http, JwtAuthenticationFilter jwtFilter) throws Exception {
         return http
-                // API không dùng cookie/session nên không có nguy cơ CSRF cổ điển.
+                // Stateless API with no cookies/session, so classic CSRF does not apply.
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // 1. Endpoints công khai hoàn toàn: Health check, Auth, tài liệu Swagger / OpenAPI, Actuator Prometheus Metrics
                         .requestMatchers(
+                                "/",
+                                "/health",
+                                "/api/health",
+                                "/api/v1/health",
+                                "/actuator/**",
+                                "/error",
                                 "/api/v1/auth/**",
-                                "/api/v1/medical-centers",
-                                "/api/v1/specialties",
-                                "/api/v1/services",
-                                "/api/appointments/**",
-                                "/api/reception/**",
-                                "/api/ai/**"
+                                "/v3/api-docs/**",
+                                "/swagger-ui/**",
+                                "/swagger-ui.html"
                         ).permitAll()
+
+                        // 2. Cho phép GET public danh mục y tế để người bệnh xem thông tin phòng khám/dịch vụ/bác sĩ
+                        .requestMatchers(HttpMethod.GET,
+                                "/api/v1/medical-centers/**",
+                                "/api/medical-centers/**",
+                                "/api/v1/specialties/**",
+                                "/api/specialties/**",
+                                "/api/v1/services/**",
+                                "/api/services/**",
+                                "/api/v1/doctors/**",
+                                "/api/doctors/**"
+                        ).permitAll()
+
+                        // 3. Khách xem danh sách slot giờ khám và tra cứu mã booking
+                        .requestMatchers(HttpMethod.GET,
+                                "/api/appointments/doctors/*/slots",
+                                "/api/v1/appointments/doctors/*/slots",
+                                "/api/appointments/booking-code/*",
+                                "/api/v1/appointments/booking-code/*"
+                        ).permitAll()
+
+                        // 3.1 Kiosk / Bệnh nhân tự tiếp đón bằng mã QR tại quầy và sảnh chờ (CLAB-124)
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/reception/checkin/qr",
+                                "/api/v1/reception/checkin/qr",
+                                "/api/appointments/checkin/qr",
+                                "/api/v1/appointments/checkin/qr"
+                        ).permitAll()
+
+                        // MCP tool execution is privileged; keep public AI chat/triage below for patients.
+                        .requestMatchers(HttpMethod.POST, "/api/ai/tools/execute", "/api/v1/ai/tools/execute").authenticated()
+
+                        // 4. AI Triage định hướng chuyên khoa ban đầu & Webhook / Tra cứu thanh toán
+                        .requestMatchers(
+                                "/api/ai/**",
+                                "/api/v1/ai/**",
+                                "/api/payments/**",
+                                "/api/v1/payments/**"
+                        ).permitAll()
+
+                        // 5. Phân quyền theo vai trò cụ thể
+                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/v1/doctor/schedules/**", "/api/doctor/schedules/**").hasAnyRole("STAFF", "DOCTOR", "ADMIN")
+                        .requestMatchers("/api/v1/doctor/**", "/api/doctor/**").hasAnyRole("DOCTOR", "ADMIN")
+                        .requestMatchers("/api/v1/reception/**", "/api/reception/**").hasAnyRole("STAFF", "ADMIN")
+
+                        // 6. Toàn bộ các API còn lại (bao gồm /api/v1/appointments/**, /api/v1/me/**) BẮT BUỘC ĐĂNG NHẬP
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((req, res, e) -> write(res, HttpStatus.UNAUTHORIZED,
@@ -84,12 +136,27 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(allowedOrigins);
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        java.util.List<String> patterns = new java.util.ArrayList<>(java.util.List.of(
+                "http://localhost:[*]",
+                "http://127.0.0.1:[*]",
+                "https://*.vercel.app",
+                "https://vercel.app"
+        ));
+        if (allowedOrigins != null) {
+            for (String origin : allowedOrigins) {
+                if (origin != null && !origin.isBlank()) {
+                    patterns.add(origin.trim());
+                }
+            }
+        }
+        config.setAllowedOriginPatterns(patterns);
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"));
+        config.setAllowedHeaders(List.of("*"));
+        config.setExposedHeaders(List.of("Authorization", "Content-Type"));
+        config.setAllowCredentials(true);
         config.setMaxAge(3600L);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/api/**", config);
+        source.registerCorsConfiguration("/**", config);
         return source;
     }
 

@@ -8,6 +8,7 @@ import com.medsched.persistence.repository.DoctorJpaRepository;
 import com.medsched.persistence.repository.MedicalCenterJpaRepository;
 import com.medsched.persistence.repository.ServiceJpaRepository;
 import com.medsched.persistence.repository.SpecialtyJpaRepository;
+import com.medsched.persistence.repository.UserJpaRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,7 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-/** CRUD danh mục nền: cơ sở y tế, chuyên khoa, dịch vụ khám. */
+/** CRUD for the base catalog: medical centers, specialties and services. */
 @Service
 public class CatalogService {
 
@@ -24,15 +25,18 @@ public class CatalogService {
     private final SpecialtyJpaRepository specialties;
     private final ServiceJpaRepository services;
     private final DoctorJpaRepository doctors;
+    private final UserJpaRepository users;
 
     public CatalogService(MedicalCenterJpaRepository medicalCenters,
                           SpecialtyJpaRepository specialties,
                           ServiceJpaRepository services,
-                          DoctorJpaRepository doctors) {
+                          DoctorJpaRepository doctors,
+                          UserJpaRepository users) {
         this.medicalCenters = medicalCenters;
         this.specialties = specialties;
         this.services = services;
         this.doctors = doctors;
+        this.users = users;
     }
 
     @Transactional(readOnly = true)
@@ -71,14 +75,25 @@ public class CatalogService {
     }
 
     /**
-     * Ngừng hoạt động cơ sở y tế (xóa mềm). Cố ý KHÔNG xóa cứng vì lịch sử khám,
-     * hồ sơ bệnh án và hóa đơn của cơ sở đó vẫn phải tra cứu được.
+     * Deactivates a medical center (soft delete). A hard delete is deliberately
+     * avoided because its visit history, medical records and invoices must stay
+     * queryable.
      */
     @Transactional
     public void deactivateCenter(String id, String actorId) {
         MedicalCenterEntity center = medicalCenters.findById(id)
                 .orElseThrow(() -> new AppExceptions.NotFoundException("Không tìm thấy cơ sở y tế"));
         center.setActive(false);
+        center.setUpdatedAt(Instant.now());
+        center.setUpdatedBy(actorId);
+        medicalCenters.save(center);
+    }
+
+    @Transactional
+    public void reactivateCenter(String id, String actorId) {
+        MedicalCenterEntity center = medicalCenters.findById(id)
+                .orElseThrow(() -> new AppExceptions.NotFoundException("Không tìm thấy cơ sở y tế"));
+        center.setActive(true);
         center.setUpdatedAt(Instant.now());
         center.setUpdatedBy(actorId);
         medicalCenters.save(center);
@@ -125,7 +140,7 @@ public class CatalogService {
         return toResponse(specialties.save(specialty));
     }
 
-    /** Chỉ cho xóa chuyên khoa khi chưa có bác sĩ nào thuộc chuyên khoa đó. */
+    /** A specialty may only be deleted while no doctor still belongs to it. */
     @Transactional
     public void deleteSpecialty(String id) {
         SpecialtyEntity specialty = requireSpecialty(id);
@@ -179,7 +194,7 @@ public class CatalogService {
         return toResponse(services.save(service));
     }
 
-    /** Ngừng cung cấp dịch vụ (xóa mềm) để hóa đơn cũ vẫn tra được tên dịch vụ. */
+    /** Retires a service (soft delete) so old invoices can still resolve its name. */
     @Transactional
     public void deactivateService(String id, String actorId) {
         ServiceEntity service = services.findById(id)
@@ -188,6 +203,43 @@ public class CatalogService {
         service.setUpdatedAt(Instant.now());
         service.setUpdatedBy(actorId);
         services.save(service);
+    }
+
+    @Transactional(readOnly = true)
+    public List<CatalogDtos.DoctorSummaryResponse> listDoctors(String specialtyId, String centerId) {
+        List<com.medsched.persistence.entity.DoctorEntity> list = (specialtyId != null && !specialtyId.isBlank())
+                ? doctors.findBySpecialtyId(specialtyId)
+                : doctors.findAll();
+
+        List<CatalogDtos.DoctorSummaryResponse> results = new ArrayList<>();
+        for (var doc : list) {
+            SpecialtyEntity sp = specialties.findById(doc.getSpecialtyId()).orElse(null);
+            if (centerId != null && !centerId.isBlank() && sp != null && !centerId.equals(sp.getMedicalCenterId())) {
+                continue;
+            }
+            var user = users.findById(doc.getUserId()).orElse(null);
+            if (user == null || !user.isActive()) {
+                continue;
+            }
+            MedicalCenterEntity center = sp != null ? medicalCenters.findById(sp.getMedicalCenterId()).orElse(null) : null;
+
+            results.add(new CatalogDtos.DoctorSummaryResponse(
+                    doc.getId(),
+                    doc.getUserId(),
+                    user != null ? user.getFullName() : "Bác sĩ",
+                    user != null ? user.getPhone() : "",
+                    doc.getSpecialtyId(),
+                    sp != null ? sp.getName() : "Chuyên khoa",
+                    center != null ? center.getId() : (sp != null ? sp.getMedicalCenterId() : ""),
+                    center != null ? center.getName() : "",
+                    doc.getAcademicTitle() != null ? doc.getAcademicTitle() : "BS",
+                    doc.getConsultationFee() != null ? doc.getConsultationFee() : java.math.BigDecimal.valueOf(300000),
+                    doc.getRoomNumber() != null ? doc.getRoomNumber() : "P.101",
+                    doc.getBio() != null ? doc.getBio() : "",
+                    doc.getAvatarUrl()
+            ));
+        }
+        return results;
     }
 
     private MedicalCenterEntity requireCenter(String id) {

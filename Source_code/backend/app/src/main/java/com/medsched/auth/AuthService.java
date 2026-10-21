@@ -45,12 +45,12 @@ public class AuthService {
     }
 
     /**
-     * Đăng ký tài khoản bệnh nhân. Tài khoản mới KHÔNG được cấp dòng nào trong
-     * {@code user_medical_center_roles} - đúng thiết kế bản 3.0: mọi tài khoản
-     * mặc định đặt lịch khám được ở mọi chi nhánh mà không cần quyền nhân sự.
+     * Registers a patient account. A new account gets NO row in
+     * {@code user_medical_center_roles} - per the v3.0 design every account can
+     * already book at any branch without being granted a staff role.
      * <p>
-     * Đồng thời tạo sẵn hồ sơ người khám {@code SELF} để bệnh nhân đặt lịch
-     * được ngay, không phải khai báo thêm một bước.
+     * It also creates the {@code SELF} patient profile up front so the patient
+     * can book immediately without a second setup step.
      */
     @Transactional
     public AuthDtos.AuthResponse register(AuthDtos.RegisterRequest request) {
@@ -62,36 +62,46 @@ public class AuthService {
         Instant now = Instant.now();
         String fullName = request.fullName().trim();
         String phone = blankToNull(request.phone());
+        validatePasswordSecurity(request.password(), fullName, phone, email);
 
         UserEntity user = new UserEntity(UUID.randomUUID().toString(), email,
                 passwordEncoder.encode(request.password()), fullName, phone, true, now, now);
+        String sessionId = UUID.randomUUID().toString();
+        user.setCurrentSessionId(sessionId);
         users.save(user);
 
         PatientProfileEntity self = new PatientProfileEntity(UUID.randomUUID().toString(), user.getId(),
                 RelationshipType.SELF, fullName, null, null, null, null, phone, null, null, now, now);
         patientProfiles.save(self);
 
-        return issueTokens(userDetailsService.loadUserById(user.getId()), user.getFullName());
+        return issueTokens(userDetailsService.loadUserById(user.getId()), user.getFullName(), sessionId);
     }
 
-    /** Đăng nhập dùng chung cho Customer / Doctor / Staff / Admin. */
-    @Transactional(readOnly = true)
+    /** One login flow shared by Customer / Doctor / Staff / Admin. */
+    @Transactional
     public AuthDtos.AuthResponse login(AuthDtos.LoginRequest request) {
-        // Sai email/mật khẩu -> BadCredentialsException; tài khoản bị khóa ->
-        // DisabledException. Cả hai được GlobalExceptionHandler dịch sang thông
-        // báo tiếng Việt phù hợp.
+        // Wrong email/password -> BadCredentialsException; locked account ->
+        // DisabledException. GlobalExceptionHandler turns both into the proper
+        // user-facing message.
         var authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(normalizeEmail(request.email()), request.password()));
         AppUserDetails principal = (AppUserDetails) authentication.getPrincipal();
         UserEntity user = users.findById(principal.getUserId())
                 .orElseThrow(() -> new AppExceptions.NotFoundException("Không tìm thấy tài khoản"));
-        return issueTokens(principal, user.getFullName());
+
+        // Single active web session (Concurrent session kickout):
+        // Sinh session ID mới, ghi đè session cũ để vô hiệu hóa trình duyệt trước đó
+        String sessionId = UUID.randomUUID().toString();
+        user.setCurrentSessionId(sessionId);
+        users.save(user);
+
+        return issueTokens(principal, user.getFullName(), sessionId);
     }
 
     /**
-     * Đổi refresh token còn hiệu lực thành cặp token mới (xoay vòng token).
-     * Quyền được nạp lại từ DB nên nếu Admin vừa thu hồi quyền thì access token
-     * mới sẽ không còn quyền đó.
+     * Exchanges a still-valid refresh token for a fresh token pair (rotation).
+     * Authorities are reloaded from the database, so a role an admin has just
+     * revoked will not appear in the new access token.
      */
     @Transactional(readOnly = true)
     public AuthDtos.AuthResponse refresh(AuthDtos.RefreshRequest request) {
@@ -111,19 +121,70 @@ public class AuthService {
         }
         UserEntity user = users.findById(principal.getUserId())
                 .orElseThrow(() -> new AppExceptions.NotFoundException("Không tìm thấy tài khoản"));
-        return issueTokens(principal, user.getFullName());
+
+        String tokenSid = claims.get(JwtService.CLAIM_SESSION_ID, String.class);
+        if (user.getCurrentSessionId() != null && tokenSid != null && !user.getCurrentSessionId().equals(tokenSid)) {
+            throw new AppExceptions.BadRequestException("Phiên làm việc đã hết hạn do tài khoản được đăng nhập trên trình duyệt khác");
+        }
+
+        String effectiveSessionId = user.getCurrentSessionId() != null ? user.getCurrentSessionId() : tokenSid;
+        return issueTokens(principal, user.getFullName(), effectiveSessionId);
     }
 
-    private AuthDtos.AuthResponse issueTokens(AppUserDetails principal, String fullName) {
+    private AuthDtos.AuthResponse issueTokens(AppUserDetails principal, String fullName, String sessionId) {
         return new AuthDtos.AuthResponse(
                 "Bearer",
-                jwtService.generateAccessToken(principal.getUserId(), principal.getEmail(), principal.getRoleNames()),
-                jwtService.generateRefreshToken(principal.getUserId()),
+                jwtService.generateAccessToken(principal.getUserId(), principal.getEmail(), principal.getRoleNames(), sessionId),
+                jwtService.generateRefreshToken(principal.getUserId(), sessionId),
                 jwtService.accessTtlSeconds(),
                 principal.getUserId(),
                 principal.getEmail(),
                 fullName,
                 principal.getRoleNames());
+    }
+
+    private static void validatePasswordSecurity(String password, String fullName, String phone, String email) {
+        if (password == null) {
+            return;
+        }
+        String lowerPwd = removeAccents(password.toLowerCase());
+
+        if (fullName != null) {
+            String normName = removeAccents(fullName.toLowerCase()).trim();
+            String noSpaces = normName.replaceAll("\\s+", "");
+            if (noSpaces.length() >= 3 && lowerPwd.contains(noSpaces)) {
+                throw new AppExceptions.BadRequestException("Mật khẩu không được chứa họ tên của bạn");
+            }
+            for (String word : normName.split("\\s+")) {
+                if (word.length() >= 3 && lowerPwd.contains(word)) {
+                    throw new AppExceptions.BadRequestException("Mật khẩu không được chứa từ trong họ tên");
+                }
+            }
+        }
+
+        if (phone != null && !phone.isBlank()) {
+            String cleanPhone = phone.replaceAll("\\D", "");
+            if (cleanPhone.length() >= 6 && (lowerPwd.contains(cleanPhone)
+                    || (cleanPhone.length() == 10 && (lowerPwd.contains(cleanPhone.substring(4)) || lowerPwd.contains(cleanPhone.substring(0, 6)))))) {
+                throw new AppExceptions.BadRequestException("Mật khẩu không được chứa số điện thoại của bạn");
+            }
+        }
+
+        if (email != null && email.contains("@")) {
+            String prefix = email.split("@")[0].toLowerCase().trim();
+            if (prefix.length() >= 3 && lowerPwd.contains(prefix)) {
+                throw new AppExceptions.BadRequestException("Mật khẩu không được chứa tên tài khoản email");
+            }
+        }
+    }
+
+    private static String removeAccents(String text) {
+        if (text == null) {
+            return "";
+        }
+        String nfd = java.text.Normalizer.normalize(text, java.text.Normalizer.Form.NFD);
+        return java.util.regex.Pattern.compile("\\p{InCombiningDiacriticalMarks}+").matcher(nfd)
+                .replaceAll("").replace("đ", "d").replace("Đ", "D");
     }
 
     private static String normalizeEmail(String email) {

@@ -110,8 +110,16 @@ public class PaymentEntity {
         return amount;
     }
 
+    public void setAmount(BigDecimal amount) {
+        this.amount = amount;
+    }
+
     public PaymentMethod getMethod() {
         return method;
+    }
+
+    public void setMethod(PaymentMethod method) {
+        this.method = method;
     }
 
     public PaymentStatus getStatus() {
@@ -124,6 +132,10 @@ public class PaymentEntity {
 
     public String getTransactionRef() {
         return transactionRef;
+    }
+
+    public void setTransactionRef(String transactionRef) {
+        this.transactionRef = transactionRef;
     }
 
     public Instant getPaidAt() {
