@@ -338,6 +338,44 @@
       gap: 6px;
     }
 
+    .card-bullets {
+      list-style: none;
+      padding: 0;
+      margin: 10px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .card-bullets.compact {
+      margin: 8px 0;
+      gap: 6px;
+    }
+
+    .card-bullets li {
+      font-size: 13px;
+      font-weight: 500;
+      color: #e2e8f0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      line-height: 1.4;
+    }
+
+    .card-bullets.compact li {
+      font-size: 11.5px;
+      gap: 6px;
+      line-height: 1.35;
+    }
+
+    .card-bullets li::before {
+      content: '•';
+      color: var(--primary);
+      font-size: 15px;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+
     /* ARCHITECTURE ANIMATED DIAGRAM */
     .diagram-container {
       background: rgba(2, 6, 23, 0.7);
@@ -675,10 +713,17 @@
     <!-- SLIDE 1: TRANG BÌA -->
     <section class="slide active" data-index="1">
       <div class="cover-content">
+        <div class="slide-tag">Hệ Thống Đặt Lịch Khám</div>
         <h1 class="hero-title">
-          Giám Sát Hạ Tầng &amp; Hiệu Năng Với<br>
+          Giám Sát Hệ Thống MedSched<br>
           <span class="hero-gradient">Prometheus &amp; Grafana</span>
         </h1>
+        <ul class="card-bullets" style="margin-top: 20px; align-items: center;">
+          <li>Chuẩn Vận Hành Đám Mây</li>
+          <li>Báo Cáo Đồ Án Chuyên Đề</li>
+          <li>Giảng Viên: Thầy Trương Thanh Bình</li>
+          <li>Nhóm Sinh Viên Thực Hiện</li>
+        </ul>
       </div>
     </section>
 
@@ -686,27 +731,42 @@
     <section class="slide" data-index="2">
       <div class="slide-header">
         <div class="slide-tag">Khái Niệm Nền Tảng</div>
-        <h2 class="slide-title">Prometheus &amp; Grafana là gì?</h2>
-        <p class="slide-subtitle">Bộ đôi công nghệ mã nguồn mở tiêu chuẩn công nghiệp (De-facto Standard) cho giám sát hệ thống Cloud-Native.</p>
+        <h2 class="slide-title">Prometheus &amp; Grafana Là Gì?</h2>
+        <p class="slide-subtitle">Bộ Đôi Giám Sát Cloud-Native</p>
       </div>
       <div class="slide-body">
         <div class="grid-cards-3">
           <div class="feature-card">
             <div class="card-icon" style="color: #f97316; background: rgba(249, 115, 22, 0.1);">🔥</div>
-            <h3 class="card-title">Prometheus (TSDB)</h3>
-            <p class="card-desc">Hệ thống giám sát mã nguồn mở thuộc quỹ <strong>CNCF</strong> (Cloud Native Computing Foundation). Hoạt động theo cơ chế <strong>PULL</strong>, cứ 5s lại tự động cào metrics từ ứng dụng và lưu vào cơ sở dữ liệu chuỗi thời gian (Time-Series DB) với ngôn ngữ truy vấn mạnh mẽ <strong>PromQL</strong>.</p>
-            <div class="card-badge" style="color: #f97316;">→ Bộ não đo lường &amp; lưu trữ</div>
+            <h3 class="card-title">Prometheus TSDB</h3>
+            <ul class="card-bullets compact">
+              <li>Mã nguồn mở chuẩn CNCF</li>
+              <li>Cơ chế cào dữ liệu Pull</li>
+              <li>Lưu chuỗi thời gian TSDB</li>
+              <li>Truy vấn số liệu với PromQL</li>
+            </ul>
+            <div class="card-badge" style="color: #f97316;">→ Bộ não đo lường</div>
           </div>
           <div class="feature-card">
             <div class="card-icon" style="color: #f59e0b; background: rgba(245, 158, 11, 0.1);">📊</div>
-            <h3 class="card-title">Grafana (Visualization)</h3>
-            <p class="card-desc">Nền tảng trực quan hóa và phân tích dữ liệu hàng đầu thế giới. Grafana kết nối trực tiếp vào Prometheus để biến hàng triệu bản ghi số liệu khô khan thành <strong>bảng điều khiển (Dashboards)</strong> động, đồ thị kim quay (Gauges) và biểu đồ thời gian thực đa chiều.</p>
-            <div class="card-badge" style="color: #f59e0b;">→ Đôi mắt quan sát &amp; điều hành</div>
+            <h3 class="card-title">Grafana Visualization</h3>
+            <ul class="card-bullets compact">
+              <li>Nền tảng trực quan hóa đỉnh</li>
+              <li>Kết nối trực tiếp vào Prometheus</li>
+              <li>Bảng điều khiển động đa chiều</li>
+              <li>Đồ thị và kim quay số</li>
+            </ul>
+            <div class="card-badge" style="color: #f59e0b;">→ Đôi mắt quan sát</div>
           </div>
           <div class="feature-card">
             <div class="card-icon" style="color: #06b6d4; background: rgba(6, 182, 212, 0.1);">⚡</div>
-            <h3 class="card-title">Sức Mạnh Khi Kết Hợp</h3>
-            <p class="card-desc">Tạo thành vòng tròn quan trắc khép kín: <strong>Prometheus</strong> âm thầm đo lường sức khỏe microservices dưới nền tảng, <strong>Grafana</strong> trình diễn trực quan cho kỹ sư theo dõi 24/7. Giúp phát hiện nghẽn mạng và rò rỉ RAM trước khi người dùng kịp phản ánh.</p>
+            <h3 class="card-title">Sức Mạnh Kết Hợp</h3>
+            <ul class="card-bullets compact">
+              <li>Vòng tròn quan trắc khép kín</li>
+              <li>Theo dõi sức khỏe 24/7</li>
+              <li>Phát hiện lỗi trước người dùng</li>
+              <li>Chuẩn vận hành SRE quốc tế</li>
+            </ul>
             <div class="card-badge" style="color: #06b6d4;">✓ Tiêu chuẩn vàng doanh nghiệp</div>
           </div>
         </div>
@@ -717,27 +777,42 @@
     <section class="slide" data-index="3">
       <div class="slide-header">
         <div class="slide-tag">Thực Trạng &amp; Thách Thức</div>
-        <h2 class="slide-title">Vì sao hệ thống MedSched cần Giám Sát Chuyên Sâu?</h2>
-        <p class="slide-subtitle">Chuyển dịch tư duy từ "chờ người dùng báo lỗi" sang "chủ động phát hiện sự cố trước khi xảy ra".</p>
+        <h2 class="slide-title">Vì Sao Cần Giám Sát?</h2>
+        <p class="slide-subtitle">Chủ Động Phát Hiện Sự Cố</p>
       </div>
       <div class="slide-body">
         <div class="grid-cards-3">
           <div class="feature-card">
             <div class="card-icon" style="color: #ef4444; background: rgba(239, 68, 68, 0.1);">⚠️</div>
-            <h3 class="card-title">Tải Đỉnh Giờ Cao Điểm</h3>
-            <p class="card-desc">Bệnh nhân ồ ạt truy cập đặt lịch khám vào khung giờ 07:00 - 09:00 sáng. Nguy cơ nghẽn kết nối Database HikariCP và chậm phản hồi dịch vụ.</p>
+            <h3 class="card-title">Tải Giờ Cao Điểm</h3>
+            <ul class="card-bullets compact">
+              <li>Bệnh nhân đặt lịch cùng lúc</li>
+              <li>Khung giờ 7 đến 9 sáng</li>
+              <li>Dễ nghẽn kết nối cơ sở</li>
+              <li>Nguy cơ chậm phản hồi dịch</li>
+            </ul>
             <div class="card-badge">→ Rủi ro sập ứng dụng</div>
           </div>
           <div class="feature-card">
             <div class="card-icon" style="color: #f59e0b; background: rgba(245, 158, 11, 0.1);">🔍</div>
             <h3 class="card-title">Thiếu Tầm Nhìn Kỹ Thuật</h3>
-            <p class="card-desc">Nếu không có metrics, lập trình viên không biết API nào đang chạy chậm (P95/P99 latency), bộ nhớ RAM (JVM Heap) có bị rò rỉ (Memory Leak) hay không.</p>
-            <div class="card-badge">→ Khó truy tìm nguyên nhân gốc</div>
+            <ul class="card-bullets compact">
+              <li>Không thấy độ trễ API P95</li>
+              <li>Khó phát hiện rò rỉ RAM</li>
+              <li>Không rõ điểm nghẽn hệ thống</li>
+              <li>Sửa lỗi mò mẫm bị động</li>
+            </ul>
+            <div class="card-badge">→ Khó tìm nguyên nhân gốc</div>
           </div>
           <div class="feature-card">
             <div class="card-icon" style="color: #10b981; background: rgba(16, 185, 129, 0.1);">💡</div>
             <h3 class="card-title">Giải Pháp Observability</h3>
-            <p class="card-desc">Tích hợp bộ ba: <strong>Spring Boot Actuator</strong> (xuất dữ liệu) + <strong>Prometheus</strong> (lưu trữ Time-Series) + <strong>Grafana</strong> (bảng điều khiển đồ thị kim quay).</p>
+            <ul class="card-bullets compact">
+              <li>Tích hợp Spring Boot Actuator</li>
+              <li>Prometheus lưu số liệu 5s</li>
+              <li>Grafana vẽ đồ thị tức thời</li>
+              <li>Cảnh báo tức thì mọi sự</li>
+            </ul>
             <div class="card-badge" style="color: #10b981;">✓ Tiêu chuẩn Cloud-Native</div>
           </div>
         </div>
@@ -748,8 +823,8 @@
     <section class="slide" data-index="4">
       <div class="slide-header">
         <div class="slide-tag">Kiến Trúc Hoạt Động</div>
-        <h2 class="slide-title">Mô hình Giám Sát 3 Tầng Khép Kín (Pull-based)</h2>
-        <p class="slide-subtitle">Dữ liệu chỉ số được cào tự động mỗi 5 giây mà không làm gián đoạn luồng xử lý của bệnh nhân.</p>
+        <h2 class="slide-title">Mô Hình Giám Sát 3 Tầng</h2>
+        <p class="slide-subtitle">Cơ Chế Kéo Dữ Liệu Tự Động</p>
       </div>
       <div class="slide-body">
         <div class="diagram-container">
@@ -757,38 +832,50 @@
           <div class="diagram-node">
             <span class="node-badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8;">TẦNG 1: BACKEND PRODUCTION</span>
             <h4 class="node-title">Render Cloud App</h4>
-            <p class="node-desc">medsched-zu15.onrender.com (HTTPS:443)</p>
-            <p style="font-size: 11px; margin-top: 8px; color: #cbd5e1;">Xuất <code>/actuator/prometheus</code><br>Hỗ trợ Local Fallback :8080</p>
+            <p class="node-desc">HTTPS Cổng 443</p>
+            <ul class="card-bullets compact" style="text-align: left; margin-top: 8px;">
+              <li>Xuất Actuator Prometheus mỗi giây</li>
+              <li>Bảo mật đường truyền mã hóa</li>
+              <li>Không làm chậm luồng khám</li>
+            </ul>
           </div>
 
           <!-- Arrow 1 -->
           <div class="diagram-arrow">
-            <span>PULL (Cào mỗi 5s)</span>
+            <span>PULL mỗi 5 giây</span>
             <div class="arrow-line"></div>
-            <span>HTTP GET</span>
+            <span>HTTP GET an toàn</span>
           </div>
 
           <!-- Node 2 -->
           <div class="diagram-node active-node">
             <span class="node-badge" style="background: rgba(249, 115, 22, 0.15); color: #f97316;">TẦNG 2: COLLECTOR</span>
             <h4 class="node-title">Prometheus TSDB</h4>
-            <p class="node-desc">Cổng 9090 (Docker)</p>
-            <p style="font-size: 11px; margin-top: 8px; color: #cbd5e1;">Lưu cơ sở dữ liệu chuỗi thời gian<br>Xử lý truy vấn PromQL</p>
+            <p class="node-desc">Docker Cổng 9090</p>
+            <ul class="card-bullets compact" style="text-align: left; margin-top: 8px;">
+              <li>Lưu cơ sở chuỗi thời</li>
+              <li>Thực thi câu lệnh PromQL</li>
+              <li>Phát hiện cảnh báo ngưỡng tải</li>
+            </ul>
           </div>
 
           <!-- Arrow 2 -->
           <div class="diagram-arrow">
             <span>Truy vấn PromQL</span>
             <div class="arrow-line"></div>
-            <span>Real-time Sync</span>
+            <span>Đồng bộ tức thì</span>
           </div>
 
           <!-- Node 3 -->
           <div class="diagram-node">
             <span class="node-badge" style="background: rgba(139, 92, 246, 0.15); color: #a78bfa;">TẦNG 3: DASHBOARD</span>
             <h4 class="node-title">Grafana UI</h4>
-            <p class="node-desc">Cổng 3100 (Docker)</p>
-            <p style="font-size: 11px; margin-top: 8px; color: #cbd5e1;">Bảng điều khiển trực quan<br>Dashboard JVM Spring Boot</p>
+            <p class="node-desc">Docker Cổng 3100</p>
+            <ul class="card-bullets compact" style="text-align: left; margin-top: 8px;">
+              <li>Bảng điều khiển trực quan</li>
+              <li>Đồ thị kim quay động</li>
+              <li>Theo dõi sức khỏe hệ thống</li>
+            </ul>
           </div>
         </div>
       </div>
@@ -798,33 +885,49 @@
     <section class="slide" data-index="5">
       <div class="slide-header">
         <div class="slide-tag">Thông Số Kỹ Thuật (Metrics)</div>
-        <h2 class="slide-title">Hệ thống MedSched đang đo lường những gì?</h2>
-        <p class="slide-subtitle">4 nhóm chỉ số vàng được theo dõi liên tục từng giây.</p>
+        <h2 class="slide-title">Hệ Thống Đang Đo Gì?</h2>
+        <p class="slide-subtitle">4 Nhóm Chỉ Số Vàng</p>
       </div>
       <div class="slide-body">
         <div class="grid-cards-3" style="grid-template-columns: repeat(4, 1fr); gap: 14px;">
           <div class="feature-card">
             <div class="card-icon" style="color: #38bdf8;">⚡</div>
             <h4 class="card-title" style="font-size: 15px;">HTTP Requests</h4>
-            <p class="card-desc" style="font-size: 12px;">Đếm tổng số lượt gọi API, phân loại mã trạng thái 200, 400, 409, 500 để phát hiện lỗi tức thì.</p>
+            <ul class="card-bullets compact">
+              <li>Đếm tổng số lượt gọi API</li>
+              <li>Phân loại mã trạng thái lỗi</li>
+              <li>Đo độ trễ phản hồi P95</li>
+            </ul>
             <div class="card-badge" style="font-size: 10px;">http_server_requests</div>
           </div>
           <div class="feature-card">
             <div class="card-icon" style="color: #818cf8;">🧠</div>
             <h4 class="card-title" style="font-size: 15px;">Bộ Nhớ JVM</h4>
-            <p class="card-desc" style="font-size: 12px;">Đo lường dung lượng RAM Heap &amp; Non-Heap, tần suất gom rác Garbage Collection (GC Pause).</p>
+            <ul class="card-bullets compact">
+              <li>Dung lượng RAM Heap sử dụng</li>
+              <li>Tần suất gom rác GC</li>
+              <li>Chống tràn bộ nhớ hệ thống</li>
+            </ul>
             <div class="card-badge" style="font-size: 10px;">jvm_memory_used_bytes</div>
           </div>
           <div class="feature-card">
             <div class="card-icon" style="color: #f59e0b;">🔥</div>
             <h4 class="card-title" style="font-size: 15px;">Tải Vi Xử Lý CPU</h4>
-            <p class="card-desc" style="font-size: 12px;">Theo dõi tỷ lệ % CPU tiến trình Backend sử dụng và mức chịu tải của toàn bộ máy chủ hệ điều hành.</p>
+            <ul class="card-bullets compact">
+              <li>Tỷ lệ phần trăm CPU dùng</li>
+              <li>Tải toàn bộ máy chủ</li>
+              <li>Cảnh báo khi vượt ngưỡng an</li>
+            </ul>
             <div class="card-badge" style="font-size: 10px;">process_cpu_usage</div>
           </div>
           <div class="feature-card">
             <div class="card-icon" style="color: #10b981;">🗄️</div>
             <h4 class="card-title" style="font-size: 15px;">MySQL Pool</h4>
-            <p class="card-desc" style="font-size: 12px;">Giám sát số kết nối Database HikariCP: Active, Idle và hàng đợi Threads chờ kết nối phòng ngừa nghẽn DB.</p>
+            <ul class="card-bullets compact">
+              <li>Số kết nối DB đang dùng</li>
+              <li>Số kết nối rảnh trong hồ</li>
+              <li>Ngăn ngừa nghẽn hàng đợi DB</li>
+            </ul>
             <div class="card-badge" style="font-size: 10px;">hikaricp_connections</div>
           </div>
         </div>
@@ -834,46 +937,52 @@
     <!-- SLIDE 6: LIVE DEMO & CƠ CHẾ 1-CLICK -->
     <section class="slide" data-index="6">
       <div class="slide-header">
-        <div class="slide-tag">Thực Nghiệm &amp; Demo Trực Tiếp</div>
-        <h2 class="slide-title">Kỹ Thuật Triển Khai 1-Click &amp; Giả Lập Tải</h2>
-        <p class="slide-subtitle">Nhóm đã tối ưu hóa để bất kỳ thành viên nào cũng bật và demo được ngay lập tức.</p>
+        <div class="slide-tag">Thực Nghiệm Trực Tiếp</div>
+        <h2 class="slide-title">Triển Khai 1-Click &amp; Giả Lập</h2>
+        <p class="slide-subtitle">Bật Nhanh Không Cần Cấu Hình</p>
       </div>
       <div class="slide-body">
         <div class="sim-box">
           <div>
-            <h4 style="font-size: 15px; margin-bottom: 8px; color: #fff;">Mô Phỏng Chỉ Số Đang Thu Thập Thời Gian Thực:</h4>
+            <h4 style="font-size: 15px; margin-bottom: 8px; color: #fff;">Chỉ Số Thời Gian Thực:</h4>
             <div class="metric-gauges">
               <div class="gauge-card">
-                <div class="gauge-title">Tổng Request API</div>
+                <div class="gauge-title">Lượt Gọi API</div>
                 <div class="gauge-val" id="metric-req">1,428</div>
                 <div style="font-size: 10px; color: #34d399;">+12 req/min</div>
               </div>
               <div class="gauge-card">
-                <div class="gauge-title">Bộ Nhớ JVM Heap</div>
+                <div class="gauge-title">RAM JVM Dùng</div>
                 <div class="gauge-val" id="metric-ram" style="color: #a78bfa;">342 MB</div>
-                <div style="font-size: 10px; color: #94a3b8;">Max: 2048 MB</div>
+                <div style="font-size: 10px; color: #94a3b8;">Tối đa: 2048 MB</div>
               </div>
               <div class="gauge-card">
-                <div class="gauge-title">Thời Gian Phản Hồi</div>
+                <div class="gauge-title">Độ Trễ Phản Hồi</div>
                 <div class="gauge-val" id="metric-p95" style="color: #38bdf8;">45 ms</div>
-                <div style="font-size: 10px; color: #38bdf8;">P95 Latency</div>
+                <div style="font-size: 10px; color: #38bdf8;">Độ trễ chuẩn P95</div>
               </div>
             </div>
           </div>
           <div class="sim-ctrl">
-            <p style="font-size: 12px; color: #cbd5e1; margin-bottom: 12px;">Bấm nút dưới đây để tạo lưu lượng API giả lập thử nghiệm:</p>
-            <button class="btn-fire" id="btn-simulate-traffic">
-              ⚡ Gửi 10 Request Đặt Lịch
+            <p style="font-size: 12px; color: #cbd5e1; margin-bottom: 12px;">Tạo Lưu Lượng Giả Lập Thử:</p>
+            <button class="btn-fire" id="btn-simulate-traffic" type="button">
+              ⚡ Bắn 10 Request Đặt Lịch
             </button>
-            <p style="font-size: 10px; color: #64748b; margin-top: 8px;">Quan sát chỉ số nhảy số ngay lập tức!</p>
+            <p style="font-size: 10px; color: #64748b; margin-top: 8px;">Chỉ số cập nhật tức thì</p>
           </div>
         </div>
         <div style="display: flex; gap: 12px; margin-top: 14px;">
           <div style="flex: 1; background: rgba(15, 23, 42, 0.5); padding: 10px 14px; border-radius: 12px; font-size: 12px; border: 1px solid rgba(255, 255, 255, 0.06);">
-            🟢 <strong>Script 1-Click:</strong> Chạy <code>Source_code/monitoring/start-monitoring.bat</code> tự mở Grafana cổng 3100.
+            <ul class="card-bullets compact" style="margin: 0;">
+              <li>Script 1-Click start-monitoring.bat</li>
+              <li>Tự động mở Grafana cổng 3100</li>
+            </ul>
           </div>
           <div style="flex: 1; background: rgba(15, 23, 42, 0.5); padding: 10px 14px; border-radius: 12px; font-size: 12px; border: 1px solid rgba(255, 255, 255, 0.06);">
-            ✨ <strong>Zero-Config:</strong> File <code>datasource.yml</code> tự động kết nối Prometheus với quyền Admin sẵn.
+            <ul class="card-bullets compact" style="margin: 0;">
+              <li>Cấu hình tự động kết nối</li>
+              <li>Tích hợp sẵn Prometheus Data Source</li>
+            </ul>
           </div>
         </div>
       </div>
@@ -882,23 +991,41 @@
     <!-- SLIDE 7: BỘ CÂU HỎI PHẢN BIỆN THẦY BÌNH (FAQ) -->
     <section class="slide" data-index="7">
       <div class="slide-header">
-        <div class="slide-tag">Hỏi Đáp Kỹ Thuật (Defense FAQ)</div>
-        <h2 class="slide-title">Câu Hỏi Thầy Hay Hỏi &amp; Cách Trả Lời</h2>
-        <p class="slide-subtitle">Chuẩn bị sẵn sàng các luận điểm kỹ thuật then chốt để bảo vệ đồ án.</p>
+        <div class="slide-tag">Hỏi Đáp Kỹ Thuật (FAQ)</div>
+        <h2 class="slide-title">Câu Hỏi Thầy Hay Hỏi</h2>
+        <p class="slide-subtitle">Luận Điểm Trả Lời Trọng Tâm</p>
       </div>
       <div class="slide-body">
         <div class="faq-list">
           <div class="faq-item">
-            <div class="faq-q"><span>❓</span> 1. Prometheus lấy dữ liệu bằng cơ chế Push hay Pull?</div>
-            <div class="faq-a">Dạ, cơ chế <strong>PULL</strong>. Cứ mỗi 5 giây, Prometheus Server chủ động gửi HTTP GET vào <code>/actuator/prometheus</code> để cào dữ liệu. Cách này giúp server không bị quá tải nếu microservice có hàng chục instance.</div>
+            <div class="faq-q"><span>❓</span> 1. Prometheus Dùng Push Hay Pull?</div>
+            <div class="faq-a">
+              <ul class="card-bullets compact" style="margin: 4px 0 0 0;">
+                <li>Dạ, dùng cơ chế PULL</li>
+                <li>Server chủ động kéo mỗi 5s</li>
+                <li>Tránh quá tải ứng dụng backend</li>
+              </ul>
+            </div>
           </div>
           <div class="faq-item">
-            <div class="faq-q"><span>❓</span> 2. Vì sao Grafana lại chạy ở cổng 3100 thay vì cổng mặc định 3000?</div>
-            <div class="faq-a">Dạ, cổng 3000 đã được nhóm dành riêng cho Frontend Next.js. Để tránh xung đột cổng khi chạy đồng thời cả web đặt lịch và cụm giám sát trên cùng 1 máy, nhóm đã ánh xạ port sang <strong>3100:3000</strong>.</div>
+            <div class="faq-q"><span>❓</span> 2. Vì Sao Dùng Cổng 3100?</div>
+            <div class="faq-a">
+              <ul class="card-bullets compact" style="margin: 4px 0 0 0;">
+                <li>Dạ, cổng 3000 dành Next.js</li>
+                <li>Ánh xạ 3100 tránh xung đột</li>
+                <li>Chạy song song hai dịch vụ</li>
+              </ul>
+            </div>
           </div>
           <div class="faq-item">
-            <div class="faq-q"><span>❓</span> 3. Việc cào dữ liệu liên tục 5s có làm chậm Backend không?</div>
-            <div class="faq-a">Dạ không. Thư viện Micrometer dùng các bộ đếm không khóa (Non-blocking Atomic Counters) lưu trực tiếp trên RAM, tải tăng thêm cho CPU chưa tới <strong>1%</strong>.</div>
+            <div class="faq-q"><span>❓</span> 3. Cào 5s Có Chậm Không?</div>
+            <div class="faq-a">
+              <ul class="card-bullets compact" style="margin: 4px 0 0 0;">
+                <li>Dạ, hoàn toàn không chậm</li>
+                <li>Dùng biến đếm trên RAM</li>
+                <li>Tải CPU tăng dưới 1%</li>
+              </ul>
+            </div>
           </div>
         </div>
       </div>
@@ -908,16 +1035,20 @@
     <section class="slide" data-index="8">
       <div class="cover-content" style="text-align: center; align-items: center;">
         <div class="slide-tag" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border-color: rgba(52, 211, 153, 0.3);">
-          ✓ Tổng Kết Báo Cáo Chuyên Đề
+          ✓ Tổng Kết Báo Cáo
         </div>
-        <h2 class="hero-title" style="margin-bottom: 20px;">
-          Sẵn Sàng Cho Môi Trường <span class="hero-gradient">Production</span>
+        <h2 class="hero-title" style="margin-bottom: 16px;">
+          Sẵn Sàng Cho <span class="hero-gradient">Production</span>
         </h2>
-        <p class="hero-desc" style="text-align: center; max-width: 680px;">
-          Với việc hoàn thiện hệ thống quan trắc <strong>Prometheus &amp; Grafana</strong>, dự án MedSched đã hoàn tất cả 3 tiêu chuẩn lớn: <strong>Tính năng kinh doanh y tế</strong>, <strong>Ứng dụng AI lâm sàng</strong> và <strong>Năng lực vận hành SRE chuẩn doanh nghiệp</strong>.
-        </p>
+        <ul class="card-bullets" style="margin: 0 auto 20px auto; max-width: 480px; text-align: left;">
+          <li>Hoàn thiện giám sát thời gian thực</li>
+          <li>Nắm bắt toàn diện sức khỏe hệ</li>
+          <li>Tối ưu hóa hiệu năng ứng dụng</li>
+          <li>Chuẩn hóa vận hành điện toán mây</li>
+          <li>Bảo đảm dịch vụ khám thông suốt</li>
+        </ul>
 
-        <div style="display: flex; gap: 16px; margin-top: 12px;">
+        <div style="display: flex; gap: 16px; margin-top: 8px;">
           <a href="http://localhost:3100/d/medsched-cloud/medsched-cloud-production-realtime-monitoring" target="_blank" style="text-decoration: none; background: linear-gradient(135deg, #06b6d4, #8b5cf6); color: white; padding: 12px 24px; border-radius: 12px; font-weight: 700; font-size: 14px; box-shadow: 0 4px 16px rgba(6, 182, 212, 0.4);">
             🚀 Mở Grafana Dashboard (Port 3100)
           </a>
@@ -926,8 +1057,8 @@
           </a>
         </div>
 
-        <p style="margin-top: 40px; font-size: 14px; color: var(--text-muted);">
-          Xin trân trọng cảm ơn Thầy Trương Thanh Bình và các bạn đã theo dõi!
+        <p style="margin-top: 32px; font-size: 14px; color: var(--text-muted);">
+          Xin trân trọng cảm ơn Thầy!
         </p>
       </div>
     </section>
