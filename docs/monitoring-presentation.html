@@ -713,8 +713,39 @@
       </div>
     </section>
 
-    <!-- SLIDE 3: KIẾN TRÚC HOẠT ĐỘNG -->
+    <!-- SLIDE 3: KHÁI NIỆM PROMETHEUS & GRAFANA -->
     <section class="slide" data-index="3">
+      <div class="slide-header">
+        <div class="slide-tag">Khái Niệm Nền Tảng</div>
+        <h2 class="slide-title">Prometheus &amp; Grafana là gì?</h2>
+        <p class="slide-subtitle">Bộ đôi công nghệ mã nguồn mở tiêu chuẩn công nghiệp (De-facto Standard) cho giám sát hệ thống Cloud-Native.</p>
+      </div>
+      <div class="slide-body">
+        <div class="grid-cards-3">
+          <div class="feature-card">
+            <div class="card-icon" style="color: #f97316; background: rgba(249, 115, 22, 0.1);">🔥</div>
+            <h3 class="card-title">Prometheus (TSDB)</h3>
+            <p class="card-desc">Hệ thống giám sát mã nguồn mở thuộc quỹ <strong>CNCF</strong> (Cloud Native Computing Foundation). Hoạt động theo cơ chế <strong>PULL</strong>, cứ 5s lại tự động cào metrics từ ứng dụng và lưu vào cơ sở dữ liệu chuỗi thời gian (Time-Series DB) với ngôn ngữ truy vấn mạnh mẽ <strong>PromQL</strong>.</p>
+            <div class="card-badge" style="color: #f97316;">→ Bộ não đo lường &amp; lưu trữ</div>
+          </div>
+          <div class="feature-card">
+            <div class="card-icon" style="color: #f59e0b; background: rgba(245, 158, 11, 0.1);">📊</div>
+            <h3 class="card-title">Grafana (Visualization)</h3>
+            <p class="card-desc">Nền tảng trực quan hóa và phân tích dữ liệu hàng đầu thế giới. Grafana kết nối trực tiếp vào Prometheus để biến hàng triệu bản ghi số liệu khô khan thành <strong>bảng điều khiển (Dashboards)</strong> động, đồ thị kim quay (Gauges) và biểu đồ thời gian thực đa chiều.</p>
+            <div class="card-badge" style="color: #f59e0b;">→ Đôi mắt quan sát &amp; điều hành</div>
+          </div>
+          <div class="feature-card">
+            <div class="card-icon" style="color: #06b6d4; background: rgba(6, 182, 212, 0.1);">⚡</div>
+            <h3 class="card-title">Sức Mạnh Khi Kết Hợp</h3>
+            <p class="card-desc">Tạo thành vòng tròn quan trắc khép kín: <strong>Prometheus</strong> âm thầm đo lường sức khỏe microservices dưới nền tảng, <strong>Grafana</strong> trình diễn trực quan cho kỹ sư theo dõi 24/7. Giúp phát hiện nghẽn mạng và rò rỉ RAM trước khi người dùng kịp phản ánh.</p>
+            <div class="card-badge" style="color: #06b6d4;">✓ Tiêu chuẩn vàng doanh nghiệp</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 4: KIẾN TRÚC HOẠT ĐỘNG -->
+    <section class="slide" data-index="4">
       <div class="slide-header">
         <div class="slide-tag">Kiến Trúc Hoạt Động</div>
         <h2 class="slide-title">Mô hình Giám Sát 3 Tầng Khép Kín (Pull-based)</h2>
@@ -763,8 +794,8 @@
       </div>
     </section>
 
-    <!-- SLIDE 4: CÁC THÔNG SỐ QUAN TRỌNG ĐƯỢC GIÁM SÁT -->
-    <section class="slide" data-index="4">
+    <!-- SLIDE 5: CÁC THÔNG SỐ QUAN TRỌNG ĐƯỢC GIÁM SÁT -->
+    <section class="slide" data-index="5">
       <div class="slide-header">
         <div class="slide-tag">Thông Số Kỹ Thuật (Metrics)</div>
         <h2 class="slide-title">Hệ thống MedSched đang đo lường những gì?</h2>
@@ -800,8 +831,8 @@
       </div>
     </section>
 
-    <!-- SLIDE 5: LIVE DEMO & CƠ CHẾ 1-CLICK -->
-    <section class="slide" data-index="5">
+    <!-- SLIDE 6: LIVE DEMO & CƠ CHẾ 1-CLICK -->
+    <section class="slide" data-index="6">
       <div class="slide-header">
         <div class="slide-tag">Thực Nghiệm &amp; Demo Trực Tiếp</div>
         <h2 class="slide-title">Kỹ Thuật Triển Khai 1-Click &amp; Giả Lập Tải</h2>
@@ -848,8 +879,8 @@
       </div>
     </section>
 
-    <!-- SLIDE 6: BỘ CÂU HỎI PHẢN BIỆN THẦY BÌNH (FAQ) -->
-    <section class="slide" data-index="6">
+    <!-- SLIDE 7: BỘ CÂU HỎI PHẢN BIỆN THẦY BÌNH (FAQ) -->
+    <section class="slide" data-index="7">
       <div class="slide-header">
         <div class="slide-tag">Hỏi Đáp Kỹ Thuật (Defense FAQ)</div>
         <h2 class="slide-title">Câu Hỏi Thầy Hay Hỏi &amp; Cách Trả Lời</h2>
@@ -873,8 +904,8 @@
       </div>
     </section>
 
-    <!-- SLIDE 7: KẾT LUẬN & TỔNG KẾT -->
-    <section class="slide" data-index="7">
+    <!-- SLIDE 8: KẾT LUẬN & TỔNG KẾT -->
+    <section class="slide" data-index="8">
       <div class="cover-content" style="text-align: center; align-items: center;">
         <div class="slide-tag" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border-color: rgba(52, 211, 153, 0.3);">
           ✓ Tổng Kết Báo Cáo Chuyên Đề
@@ -887,7 +918,7 @@
         </p>
 
         <div style="display: flex; gap: 16px; margin-top: 12px;">
-          <a href="http://localhost:3100" target="_blank" style="text-decoration: none; background: linear-gradient(135deg, #06b6d4, #8b5cf6); color: white; padding: 12px 24px; border-radius: 12px; font-weight: 700; font-size: 14px; box-shadow: 0 4px 16px rgba(6, 182, 212, 0.4);">
+          <a href="http://localhost:3100/d/medsched-cloud/medsched-cloud-production-realtime-monitoring" target="_blank" style="text-decoration: none; background: linear-gradient(135deg, #06b6d4, #8b5cf6); color: white; padding: 12px 24px; border-radius: 12px; font-weight: 700; font-size: 14px; box-shadow: 0 4px 16px rgba(6, 182, 212, 0.4);">
             🚀 Mở Grafana Dashboard (Port 3100)
           </a>
           <a href="http://localhost:9090/targets" target="_blank" style="text-decoration: none; background: rgba(30, 41, 59, 0.8); color: #f8fafc; border: 1px solid rgba(255, 255, 255, 0.12); padding: 12px 24px; border-radius: 12px; font-weight: 700; font-size: 14px;">
@@ -907,7 +938,7 @@
 
   <!-- Footer Navigation -->
   <footer>
-    <div class="slide-counter" id="slide-num">Slide 1 / 7</div>
+    <div class="slide-counter" id="slide-num">Slide 1 / 8</div>
     <div class="btn-group">
       <button class="nav-arrow" id="btn-prev" title="Slide trước (Phím ←)">←</button>
       <button class="nav-arrow" id="btn-next" title="Slide tiếp theo (Phím →)">→</button>
