@@ -209,8 +209,20 @@ Slide báo cáo của nhóm không phải là PowerPoint truyền thống mà l�
 
 ---
 
-### 🎙️ SLIDE 8: TỔNG KẾT & LỜI CẢM ƠN
+### 🎙️ SLIDE 8: VỊ TRÍ MÃ NGUỒN & CẤU HÌNH TRONG DỰ ÁN
 *(Bấm phím `→` sang Slide 8)*
+
+> *"Thưa Thầy, để chứng minh giải pháp này được tích hợp thực tế vào mã nguồn dự án chứ không phải chỉ là mô hình lý thuyết, nhóm em xin chỉ rõ 4 vị trí then chốt:
+>
+> 1. **File `build.gradle` (dòng 23):** Khai báo trực tiếp thư viện `spring-boot-starter-actuator` và `micrometer-registry-prometheus`.
+> 2. **File `application.yml` (dòng 104):** Bật mở endpoint `/actuator/prometheus` và cấu hình xuất metrics thời gian thực.
+> 3. **File `SecurityConfig.java` (dòng 72):** Cấu hình `.permitAll()` cho đường dẫn `/actuator/**` để Prometheus cào số liệu mà không bị chặn quyền.
+> 4. **Thư mục `Source_code/monitoring/`:** Chứa file cấu hình cào máy chủ Render Cloud `prometheus.yml` và kịch bản khởi động Docker Grafana cổng 3100."*
+
+---
+
+### 🎙️ SLIDE 9: TỔNG KẾT & LỜI CẢM ƠN
+*(Bấm phím `→` sang Slide 9)*
 
 > *"Dạ thưa Thầy, việc tích hợp thành công Prometheus và Grafana đã giúp dự án MedSched hoàn thiện mảnh ghép vận hành theo đúng chuẩn **Cloud-Native Doanh Nghiệp**. Hệ thống không chỉ chạy tốt về mặt chức năng mà còn được bảo vệ và theo dõi sức khỏe 24/7 một cách minh bạch, sẵn sàng phục vụ người bệnh an toàn và tin cậy.
 >
@@ -239,13 +251,6 @@ Thầy Bình rất thích hỏi sâu về bản chất kiến trúc. Nếu Thầ
   > *"Dạ thưa Thầy, hoàn toàn không làm chậm ạ!  
   > Vì thư viện Micrometer trong Spring Boot sử dụng các biến đếm nguyên tử trong bộ nhớ RAM (`AtomicLong` và `MeterRegistry`). Khi bệnh nhân đặt lịch, hệ thống chỉ mất vài nano-giây để tăng biến đếm trên RAM.  
   > Khi Prometheus cào dữ liệu qua cổng `/actuator/prometheus`, server chỉ việc tuần tự hóa các số liệu có sẵn trên RAM trả về dưới dạng văn bản thuần, mức tiêu thụ CPU tăng chưa tới 1%, hoàn toàn không ảnh hưởng tới luồng đặt khám của người bệnh ạ."*
-
-### ❓ Câu 4: "Công nghệ Prometheus & Grafana liên quan tới dòng code nào, file nào trong dự án?"
-* **Tài trả lời:**  
-  > *"Dạ thưa Thầy, mã nguồn liên quan gồm 3 vị trí trọng yếu trong dự án:  
-  > 1. **Trong Backend:** File `build.gradle` (dòng 23-25) nạp Actuator & Micrometer; File `application.yml` (dòng 101-117) bật endpoint `/actuator/prometheus`; Và file `SecurityConfig.java` (dòng 72) mở quyền `.permitAll()` cho Prometheus cào dữ liệu.  
-  > 2. **Trong Prometheus:** File `Source_code/monitoring/prometheus.yml` cấu hình cào dữ liệu định kỳ 5s từ máy chủ Cloud Render (`medsched-zu15.onrender.com:443`).  
-  > 3. **Trong Grafana:** Thư mục `Source_code/monitoring/provisioning/` chứa file nạp Data Source và file JSON định nghĩa toàn bộ biểu đồ, đồng hồ kim theo dõi thời gian thực ạ!"*
 
 ---
 
