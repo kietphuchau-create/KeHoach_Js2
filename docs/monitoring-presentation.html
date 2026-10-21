@@ -216,8 +216,9 @@
       display: flex;
       flex-direction: column;
       justify-content: center;
+      align-items: center;
       height: 100%;
-      text-align: left;
+      text-align: center;
     }
 
     .hero-title {
@@ -666,14 +667,6 @@
       <span>MedSched Observability</span>
       <span style="color: var(--primary); font-family: var(--font-mono);">v1.3.1</span>
     </div>
-    <div class="nav-tools">
-      <button class="tool-btn" id="btn-overview" title="Xem danh sách tất cả slide (Phím O)">
-        <span>📑</span> <span>Mục Lục (O)</span>
-      </button>
-      <button class="tool-btn" id="btn-fullscreen" title="Toàn màn hình (Phím F)">
-        <span>⛶</span> <span>Toàn Màn Hình (F)</span>
-      </button>
-    </div>
   </header>
 
   <!-- Slide Viewport -->
@@ -682,28 +675,10 @@
     <!-- SLIDE 1: TRANG BÌA -->
     <section class="slide active" data-index="1">
       <div class="cover-content">
-        <div class="slide-tag">🚀 Báo Cáo Chuyên Đề Kỹ Thuật • Java Spring 2</div>
         <h1 class="hero-title">
           Giám Sát Hạ Tầng &amp; Hiệu Năng Với<br>
           <span class="hero-gradient">Prometheus &amp; Grafana</span>
         </h1>
-        <p class="hero-desc">
-          Ứng dụng kiến trúc Observability chuẩn công nghiệp vào Hệ thống Phòng khám Thông minh <strong>MedSched</strong> nhằm phát hiện nghẽn mạng, đo lường độ trễ API và giám sát tài nguyên 24/7 theo thời gian thực.
-        </p>
-        <div class="meta-grid">
-          <div class="meta-item">
-            <span class="meta-label">Giảng Viên Hướng Dẫn</span>
-            <span class="meta-value">Thầy Trương Thanh Bình</span>
-          </div>
-          <div class="meta-item">
-            <span class="meta-label">Nhóm Thực Hiện</span>
-            <span class="meta-value">Nhóm Dự Án MedSched</span>
-          </div>
-          <div class="meta-item">
-            <span class="meta-label">Công Nghệ Cốt Lõi</span>
-            <span class="meta-value" style="color: #38bdf8;">Spring Boot 3 + Micrometer + Docker</span>
-          </div>
-        </div>
       </div>
     </section>
 
@@ -928,12 +903,7 @@
 
   </main>
 
-  <!-- Keyboard Shortcuts Hint -->
-  <div class="kb-hint">
-    <span>Dùng phím</span> <kbd>→</kbd> <kbd>←</kbd> <span>hoặc</span> <kbd>Space</kbd> <span>để chuyển slide</span>
-    <span>•</span> <kbd>F</kbd> <span>Toàn màn hình</span>
-    <span>•</span> <kbd>O</kbd> <span>Mục lục</span>
-  </div>
+
 
   <!-- Footer Navigation -->
   <footer>
@@ -1041,12 +1011,18 @@
     });
 
     // Overview modal controls
-    document.getElementById('btn-overview').addEventListener('click', () => {
-      modal.classList.add('open');
-    });
-    document.getElementById('btn-close-overview').addEventListener('click', () => {
-      modal.classList.remove('open');
-    });
+    const btnOverview = document.getElementById('btn-overview');
+    if (btnOverview) {
+      btnOverview.addEventListener('click', () => {
+        modal.classList.add('open');
+      });
+    }
+    const btnCloseOverview = document.getElementById('btn-close-overview');
+    if (btnCloseOverview) {
+      btnCloseOverview.addEventListener('click', () => {
+        modal.classList.remove('open');
+      });
+    }
 
     // Fullscreen toggle
     function toggleFullscreen() {
@@ -1056,7 +1032,10 @@
         document.exitFullscreen().catch(() => {});
       }
     }
-    document.getElementById('btn-fullscreen').addEventListener('click', toggleFullscreen);
+    const btnFullscreen = document.getElementById('btn-fullscreen');
+    if (btnFullscreen) {
+      btnFullscreen.addEventListener('click', toggleFullscreen);
+    }
 
     // Live Traffic Simulation (Slide 5 interactive demo)
     let requestCount = 1428;
