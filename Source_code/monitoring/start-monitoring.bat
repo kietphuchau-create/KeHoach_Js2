@@ -32,7 +32,8 @@ echo.
 echo ---------------------------------------------------------------------
 echo 1. Prometheus Server:  http://localhost:9090
 echo 2. Grafana Dashboard:  http://localhost:3100 (Tự động đăng nhập Admin)
-echo 3. Backend Metrics:    http://localhost:8080/actuator/prometheus
+echo 3. Cloud Backend (Thật): https://medsched-zu15.onrender.com/actuator/prometheus
+echo 4. Local Backend (Dev):  http://localhost:8080/actuator/prometheus
 echo ---------------------------------------------------------------------
 echo.
 echo Đang mở trình duyệt tới trang Grafana và Prometheus...
