@@ -39,7 +39,7 @@ echo.
 echo Dang mo trinh duyet toi Grafana va Prometheus...
 ping 127.0.0.1 -n 3 >nul
 
-start http://localhost:3100
+start http://localhost:3100/d/medsched-cloud/medsched-cloud-production-realtime-monitoring
 start http://localhost:9090/targets
 
 echo.
