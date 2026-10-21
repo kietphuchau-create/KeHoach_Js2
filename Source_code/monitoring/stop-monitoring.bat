@@ -1,16 +1,15 @@
 @echo off
-chcp 65001 >nul
-title MedSched - Tắt Giám Sát Prometheus ^& Grafana
+title MedSched - Tat Giam Sat Prometheus and Grafana
 
 echo =====================================================================
-echo    MEDSCHED - TẮT HỆ THỐNG GIÁM SÁT PROMETHEUS ^& GRAFANA
+echo    MEDSCHED - TAT HE THONG GIAM SAT PROMETHEUS ^& GRAFANA
 echo =====================================================================
 echo.
 
-echo [+] Đang dừng và giải phóng container Prometheus ^& Grafana...
+echo [+] Dang dung va giai phong container Prometheus ^& Grafana...
 docker compose -f "%~dp0docker-compose-monitoring.yml" down
 
 echo.
-echo [✓] Đã tắt toàn bộ hệ thống giám sát và giải phóng tài nguyên RAM/CPU!
+echo [OK] Da tat toan bo he thong giam sat va giai phong tai nguyen RAM/CPU!
 echo.
 pause

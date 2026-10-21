@@ -1,47 +1,46 @@
 @echo off
-chcp 65001 >nul
-title MedSched - Bật Giám Sát Prometheus ^& Grafana
+title MedSched - Giam Sat Prometheus and Grafana
 
 echo =====================================================================
-echo    MEDSCHED - HỆ THỐNG GIÁM SÁT HẠ TẦNG (PROMETHEUS ^& GRAFANA)
+echo    MEDSCHED - HE THONG GIAM SAT HA TANG (PROMETHEUS ^& GRAFANA)
 echo =====================================================================
 echo.
 
-:: 1. Kiểm tra Docker
+:: 1. Kiem tra Docker Desktop
 docker info >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [!] CẢNH BÁO: Docker Desktop chưa được mở hoặc chưa khởi động xong!
-    echo [!] Vui lòng mở ứng dụng Docker Desktop trên máy tính rồi chạy lại file này.
+    echo [!] CANH BAO: Docker Desktop chua duoc bat hoac chua khoi dong xong!
+    echo [!] Vui long mo Docker Desktop tren may tinh roi chay lai file nay.
     echo.
     pause
     exit /b 1
 )
 
-echo [+] Đang khởi chạy cụm Prometheus (Port 9090) và Grafana (Port 3100)...
+echo [+] Dang khoi chay cum Prometheus (Port 9090) va Grafana (Port 3100)...
 docker compose -f "%~dp0docker-compose-monitoring.yml" up -d
 
 if %errorlevel% neq 0 (
-    echo [X] Khởi chạy thất bại. Vui lòng kiểm tra Docker Desktop.
+    echo [X] Khoi chay that bai. Vui long kiem tra Docker Desktop.
     pause
     exit /b 1
 )
 
 echo.
-echo [✓] Khởi chạy thành công!
+echo [OK] Khoi chay he thong giam sat thanh cong!
 echo.
 echo ---------------------------------------------------------------------
-echo 1. Prometheus Server:  http://localhost:9090
-echo 2. Grafana Dashboard:  http://localhost:3100 (Tự động đăng nhập Admin)
-echo 3. Cloud Backend (Thật): https://medsched-zu15.onrender.com/actuator/prometheus
+echo 1. Prometheus Server:    http://localhost:9090
+echo 2. Grafana Dashboard:    http://localhost:3100 (Tu dong dang nhap Admin)
+echo 3. Cloud Backend (That): https://medsched-zu15.onrender.com/actuator/prometheus
 echo 4. Local Backend (Dev):  http://localhost:8080/actuator/prometheus
 echo ---------------------------------------------------------------------
 echo.
-echo Đang mở trình duyệt tới trang Grafana và Prometheus...
-timeout /t 2 >nul
+echo Dang mo trinh duyet toi Grafana va Prometheus...
+ping 127.0.0.1 -n 3 >nul
 
 start http://localhost:3100
 start http://localhost:9090/targets
 
 echo.
-echo [!] Bạn có thể thu nhỏ cửa sổ này. Để tắt hệ thống, bấm chạy file stop-monitoring.bat.
+echo [!] Ban co the thu nho cua so nay. De tat giam sat, hay chay file stop-monitoring.bat.
 pause
