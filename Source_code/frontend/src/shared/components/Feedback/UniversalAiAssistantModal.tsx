@@ -12,7 +12,7 @@ import {
   CalendarCheck2,
   Stethoscope
 } from 'lucide-react';
-import { api, getAuthUser } from '@/shared/lib/api';
+import { api, getAuthUser, getAuthToken } from '@/shared/lib/api';
 
 interface Message {
   id: string;
@@ -129,6 +129,13 @@ export default function UniversalAiAssistantModal({
   };
 
   const handleSendMessage = async (textToSend?: string) => {
+    const token = getAuthToken();
+    if (!token) {
+      onClose();
+      router.push('/login?reason=ai_required');
+      return;
+    }
+
     const query = (textToSend || input).trim();
     if (!query || loading) return;
 

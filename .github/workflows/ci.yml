@@ -40,6 +40,14 @@ jobs:
       - name: Biên Dịch & Chạy Kiểm Thử Tự Động (JUnit 5)
         run: ./gradlew test --no-daemon
 
+      - name: Lưu Báo Cáo Kiểm Thử Khi Thất Bại (JUnit HTML Reports)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-reports
+          path: Source_code/backend/**/build/reports/tests/test/
+          retention-days: 7
+
       - name: Đóng Gói Ứng Dụng (Build bootJar)
         run: ./gradlew :app:bootJar --no-daemon -x test
 

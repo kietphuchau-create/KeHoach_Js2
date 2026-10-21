@@ -6,7 +6,6 @@ import {
   Calendar, 
   Clock, 
   Stethoscope, 
-  Sparkles, 
   CheckCircle2, 
   Check,
   Building2, 
@@ -16,7 +15,7 @@ import {
   QrCode, 
   MapPin, 
   ShieldCheck,
-  Printer,
+  Download,
   ChevronRight,
   ChevronLeft,
   ChevronDown,
@@ -36,6 +35,7 @@ import {
   ReceiptText,
   Award,
   GraduationCap,
+  Sparkles,
   X
 } from 'lucide-react';
 import { api, AppointmentResponse, getAuthUser, getAuthToken } from '@/shared/lib/api';
@@ -46,6 +46,7 @@ import { useSingleTabLock } from '@/shared/hooks/useSingleTabLock';
 import SingleTabLockOverlay from '@/shared/components/Feedback/SingleTabLockOverlay';
 import { QrCodeImage } from '@/shared/components/QrCodeImage';
 import { VietQrModal } from '@/shared/components/VietQrModal';
+import QRCode from 'qrcode';
 
 // Trích xuất chữ cái đại diện chuẩn cho Avatar Bác sĩ (Ưu tiên chữ cái đầu tên chính, viết hoa)
 const getDoctorInitials = (name?: string): string => {
@@ -146,7 +147,6 @@ export default function BookingForm() {
   const [showClinicInfoModal, setShowClinicInfoModal] = useState<boolean>(false);
   const [showFeeModal, setShowFeeModal] = useState<boolean>(false);
   const [showRelativeModal, setShowRelativeModal] = useState<boolean>(false);
-  const [showAiModal, setShowAiModal] = useState<boolean>(false);
   const [showAttachmentModal, setShowAttachmentModal] = useState<boolean>(false);
   const [showVoucherModal, setShowVoucherModal] = useState<boolean>(false);
   const [showDoctorModal, setShowDoctorModal] = useState<boolean>(false);
@@ -336,7 +336,6 @@ export default function BookingForm() {
         setShowClinicInfoModal(false);
         setShowFeeModal(false);
         setShowRelativeModal(false);
-        setShowAiModal(false);
         setShowAttachmentModal(false);
         setShowVoucherModal(false);
         setShowDoctorModal(false);
@@ -351,7 +350,6 @@ export default function BookingForm() {
       showClinicInfoModal ||
       showFeeModal ||
       showRelativeModal ||
-      showAiModal ||
       showAttachmentModal ||
       showVoucherModal ||
       showDoctorModal ||
@@ -370,7 +368,6 @@ export default function BookingForm() {
     showClinicInfoModal,
     showFeeModal,
     showRelativeModal,
-    showAiModal,
     showAttachmentModal,
     showVoucherModal,
     showDoctorModal,
@@ -501,8 +498,6 @@ export default function BookingForm() {
   }, [calendarMonth]);
 
   const [symptoms, setSymptoms] = useState('');
-  const [aiPreview, setAiPreview] = useState<{ specialty: string; summary: string } | null>(null);
-  const [analyzingAi, setAnalyzingAi] = useState(false);
 
   // Submit states
   const [submitting, setSubmitting] = useState(false);
@@ -607,19 +602,7 @@ export default function BookingForm() {
     }
   }, [selectedDoctor?.id, bookingDate, selectedSlot.id, isPaidOnline]);
 
-  const handleAnalyzeSymptoms = async () => {
-    if (!symptoms.trim()) return;
-    setAnalyzingAi(true);
-    try {
-      const res = await api.triageSymptoms(symptoms);
-      setAiPreview(res);
-      setShowAiModal(true);
-    } catch (e: any) {
-      console.error(e);
-    } finally {
-      setAnalyzingAi(false);
-    }
-  };
+
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -738,6 +721,282 @@ export default function BookingForm() {
       setError(err.message || 'Đặt lịch thất bại. Vui lòng thử lại.');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const [savingImage, setSavingImage] = useState(false);
+
+  const handleSaveTicketImage = async () => {
+    if (!result) return;
+    setSavingImage(true);
+    try {
+      const qn = String(result.queueNumber || '0003').trim();
+      const displayQueue = qn.startsWith('#') ? qn : `#${qn}`;
+      const patientName = bookingFor === 'relative' && relativeInfo.fullName
+        ? relativeInfo.fullName
+        : result.patientName || currentUser?.fullName || 'Bệnh nhân';
+      const doctorName = selectedDoctor?.name || 'Bác sĩ chuyên khoa';
+      const specialty = selectedDoctor?.specialty || 'Chuyên khoa';
+      const room = selectedDoctor?.room || 'Phòng P.208';
+      const centerName = activeCenterObj?.name || 'Hệ thống phòng khám MedSched';
+      const timeStr = `${selectedSlot.time} • Ngày ${selectedSlot.date}`;
+      const feeStr = `${Number(selectedDoctor?.fee || 200000).toLocaleString('vi-VN')} đ`;
+      const depositStr = appliedPromo ? '0 đ (Ưu đãi)' : '2.000 đ';
+      const statusStr = isPaidOnline
+        ? (appliedPromo ? 'ĐÃ XÁC NHẬN GIỮ CHỖ (0 Đ)' : 'ĐÃ CHUYỂN CỌC 2.000 Đ')
+        : 'CHỜ CHUYỂN CỌC 2.000 Đ';
+
+      const checkinUrl = typeof window !== 'undefined'
+        ? `${window.location.origin}/checkin?code=${encodeURIComponent(result.bookingCode)}`
+        : `/checkin?code=${encodeURIComponent(result.bookingCode)}`;
+      const qrDataUrl = await QRCode.toDataURL(checkinUrl, {
+        width: 280,
+        margin: 1,
+        color: { dark: '#0f172a', light: '#ffffff' },
+      });
+
+      const canvas = document.createElement('canvas');
+      const w = 750;
+      const h = 1040;
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      const drawRoundRect = (x: number, y: number, width: number, height: number, radius: number) => {
+        ctx.beginPath();
+        ctx.moveTo(x + radius, y);
+        ctx.lineTo(x + width - radius, y);
+        ctx.arcTo(x + width, y, x + width, y + radius, radius);
+        ctx.lineTo(x + width, y + height - radius);
+        ctx.arcTo(x + width, y + height, x + width - radius, y + height, radius);
+        ctx.lineTo(x + radius, y + height);
+        ctx.arcTo(x, y + height, x, y + height - radius, radius);
+        ctx.lineTo(x, y + radius);
+        ctx.arcTo(x, y, x + radius, y, radius);
+        ctx.closePath();
+      };
+
+      // Nền toàn khung
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(0, 0, w, h);
+
+      // Thẻ vé trắng
+      const cx = 35;
+      const cy = 35;
+      const cw = w - 70;
+      const ch = h - 70;
+
+      drawRoundRect(cx, cy, cw, ch, 36);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.stroke();
+
+      // Header Gradient
+      ctx.save();
+      drawRoundRect(cx, cy, cw, 175, 36);
+      ctx.clip();
+      const grad = ctx.createLinearGradient(cx, cy, cx + cw, cy);
+      grad.addColorStop(0, '#1d4ed8');
+      grad.addColorStop(0.5, '#4338ca');
+      grad.addColorStop(1, '#1e1b4b');
+      ctx.fillStyle = grad;
+      ctx.fillRect(cx, cy, cw, 175);
+
+      // Header texts
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 22px system-ui, -apple-system, sans-serif';
+      ctx.fillText('MEDSCHED E-TICKET', cx + 32, cy + 56);
+
+      ctx.fillStyle = '#a5f3fc';
+      ctx.font = '16px monospace';
+      ctx.fillText(`Mã: ${result.bookingCode}`, cx + 32, cy + 90);
+
+      ctx.fillStyle = '#93c5fd';
+      ctx.font = 'bold 14px system-ui, -apple-system, sans-serif';
+      ctx.fillText('HỆ THỐNG Y TẾ TIẾP ĐÓN THÔNG MINH', cx + 32, cy + 128);
+
+      // STT Badge
+      const sttX = cx + cw - 230;
+      const sttY = cy + 32;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+      drawRoundRect(sttX, sttY, 198, 110, 20);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+      ctx.stroke();
+
+      ctx.fillStyle = '#bfdbfe';
+      ctx.font = 'bold 13px system-ui, -apple-system, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('SỐ THỨ TỰ (STT)', sttX + 99, sttY + 36);
+
+      ctx.fillStyle = '#fde047';
+      ctx.font = 'bold 36px monospace';
+      ctx.fillText(displayQueue, sttX + 99, sttY + 84);
+      ctx.restore();
+
+      // Body Patient Info
+      ctx.textAlign = 'left';
+      let infoY = cy + 230;
+
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = 'bold 13px system-ui, -apple-system, sans-serif';
+      ctx.fillText('BỆNH NHÂN THĂM KHÁM', cx + 32, infoY);
+
+      ctx.fillStyle = '#0f172a';
+      ctx.font = 'bold 26px system-ui, -apple-system, sans-serif';
+      ctx.fillText(patientName, cx + 32, infoY + 36);
+
+      infoY += 88;
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = 'bold 13px system-ui, -apple-system, sans-serif';
+      ctx.fillText('BÁC SĨ PHỤ TRÁCH', cx + 32, infoY);
+
+      ctx.fillStyle = '#1e293b';
+      ctx.font = 'bold 20px system-ui, -apple-system, sans-serif';
+      ctx.fillText(doctorName, cx + 32, infoY + 28);
+
+      ctx.fillStyle = '#64748b';
+      ctx.font = '16px system-ui, -apple-system, sans-serif';
+      ctx.fillText(`${specialty} • ${room}`, cx + 32, infoY + 54);
+
+      infoY += 105;
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = 'bold 13px system-ui, -apple-system, sans-serif';
+      ctx.fillText('THỜI GIAN & ĐỊA ĐIỂM', cx + 32, infoY);
+
+      ctx.fillStyle = '#1d4ed8';
+      ctx.font = 'bold 20px system-ui, -apple-system, sans-serif';
+      ctx.fillText(timeStr, cx + 32, infoY + 28);
+
+      ctx.fillStyle = '#64748b';
+      ctx.font = '15px system-ui, -apple-system, sans-serif';
+      const dispCenter = centerName.length > 38 ? centerName.substring(0, 36) + '...' : centerName;
+      ctx.fillText(dispCenter, cx + 32, infoY + 54);
+
+      // QR Code
+      const qrImg = new Image();
+      qrImg.src = qrDataUrl;
+      await new Promise((resolve) => {
+        qrImg.onload = resolve;
+      });
+
+      const qrBoxX = cx + cw - 240;
+      const qrBoxY = cy + 230;
+      ctx.fillStyle = '#f8fafc';
+      drawRoundRect(qrBoxX, qrBoxY, 208, 238, 24);
+      ctx.fill();
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.stroke();
+
+      ctx.drawImage(qrImg, qrBoxX + 24, qrBoxY + 18, 160, 160);
+
+      ctx.fillStyle = '#334155';
+      ctx.font = 'bold 14px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(result.bookingCode, qrBoxX + 104, qrBoxY + 198);
+
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '12px system-ui, -apple-system, sans-serif';
+      ctx.fillText('Quét tại quầy tiếp đón', qrBoxX + 104, qrBoxY + 220);
+
+      // Tear Notch Line
+      const tearY = cy + 545;
+      ctx.save();
+      ctx.beginPath();
+      ctx.setLineDash([10, 8]);
+      ctx.strokeStyle = '#cbd5e1';
+      ctx.lineWidth = 2;
+      ctx.moveTo(cx + 25, tearY);
+      ctx.lineTo(cx + cw - 25, tearY);
+      ctx.stroke();
+      ctx.restore();
+
+      ctx.fillStyle = '#f8fafc';
+      ctx.beginPath();
+      ctx.arc(cx, tearY, 16, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(cx + cw, tearY, 16, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Fee Section
+      const feeY = tearY + 55;
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#64748b';
+      ctx.font = '16px system-ui, -apple-system, sans-serif';
+      ctx.fillText(`Giá khám niêm yết: ${feeStr}`, cx + 32, feeY);
+
+      ctx.fillStyle = '#0f172a';
+      ctx.font = 'bold 18px system-ui, -apple-system, sans-serif';
+      ctx.fillText(`Tiền cọc giữ chỗ: `, cx + 32, feeY + 36);
+
+      ctx.fillStyle = '#047857';
+      ctx.font = 'bold 22px system-ui, -apple-system, sans-serif';
+      ctx.fillText(depositStr, cx + 195, feeY + 36);
+
+      // Status Badge
+      const badgeY = feeY - 8;
+      const badgeX = cx + cw - 275;
+      ctx.fillStyle = isPaidOnline ? '#ecfdf5' : '#eff6ff';
+      drawRoundRect(badgeX, badgeY, 245, 52, 16);
+      ctx.fill();
+      ctx.strokeStyle = isPaidOnline ? '#a7f3d0' : '#bfdbfe';
+      ctx.stroke();
+
+      ctx.textAlign = 'center';
+      ctx.fillStyle = isPaidOnline ? '#065f46' : '#1d4ed8';
+      ctx.font = 'bold 13px system-ui, -apple-system, sans-serif';
+      ctx.fillText(statusStr, badgeX + 122, badgeY + 32);
+
+      // Note
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#64748b';
+      ctx.font = 'italic 14px system-ui, -apple-system, sans-serif';
+      ctx.fillText('* Vui lòng có mặt trước giờ khám 15 - 20 phút và quét mã QR tại Quầy Tiếp Đón.', cx + cw / 2, cy + ch - 80);
+
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = 'bold 12px system-ui, -apple-system, sans-serif';
+      ctx.fillText('HỆ THỐNG TIẾP ĐÓN Y TẾ THÔNG MINH MEDSCHED • HOTLINE: (028) 3535 2468', cx + cw / 2, cy + ch - 50);
+
+      // Download / Web Share
+      canvas.toBlob(async (blob) => {
+        if (!blob) return;
+        const fileName = `VeKham-${result.bookingCode}.png`;
+        const file = new File([blob], fileName, { type: 'image/png' });
+
+        if (typeof navigator !== 'undefined' && navigator.canShare && navigator.canShare({ files: [file] })) {
+          try {
+            await navigator.share({
+              files: [file],
+              title: `Vé khám MedSched ${result.bookingCode}`,
+              text: `Vé khám điện tử MedSched - STT ${displayQueue}`,
+            });
+            return;
+          } catch {
+            // Share cancelled, fallback to direct download
+          }
+        }
+
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+      }, 'image/png');
+    } catch (err) {
+      console.error('Lỗi khi lưu ảnh vé:', err);
+    } finally {
+      setSavingImage(false);
     }
   };
 
@@ -897,7 +1156,7 @@ export default function BookingForm() {
   }
 
   return (
-    <div className="w-full max-w-4xl mx-auto space-y-4 sm:px-4 pb-6 sm:pb-10">
+    <div className="w-full max-w-4xl mx-auto my-auto space-y-4 sm:px-4 pb-6 sm:pb-10">
       <h1 className="sr-only">Đặt Lịch Khám Bác Sĩ Chuyên Khoa</h1>
 
       {/* Thanh tiến trình Stepper (Chỉ báo tiến trình chuẩn Y tế - Trong suốt, không khung trắng) */}
@@ -1052,6 +1311,7 @@ export default function BookingForm() {
         {/* Step 1: Cơ Sở & Chuyên Khoa */}
         {step === 1 && (
           <div className="mt-4 sm:mt-5 space-y-3.5 sm:space-y-4">
+
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase mb-2 flex items-center gap-1.5">
                 <Building2 size={15} className="text-blue-600" />
@@ -1220,12 +1480,12 @@ export default function BookingForm() {
               </div>
             ) : null}
 
-            {/* Nút Tiếp tục chọn Bác sĩ & Khung giờ */}
-            <div className="pt-3 sm:pt-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            {/* Nút Tiếp tục chọn Bác sĩ & Khung giờ - Căn giữa màn hình cho cân đối */}
+            <div className="pt-4 sm:pt-6 flex items-center justify-center">
               <button
                 type="button"
                 onClick={handleContinueStep1}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3 sm:py-2.5 rounded-xl sm:rounded-2xl transition shadow-md shadow-blue-600/20 flex items-center justify-center gap-2 cursor-pointer text-xs sm:text-sm w-full sm:w-auto sm:ml-auto"
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 py-3 rounded-xl sm:rounded-2xl transition shadow-md shadow-blue-600/20 flex items-center justify-center gap-2 cursor-pointer text-xs sm:text-sm w-full sm:w-auto"
               >
                 <span>Tiếp tục chọn Bác sĩ &amp; Khung giờ</span>
                 <ArrowRight size={15} />
@@ -1423,11 +1683,27 @@ export default function BookingForm() {
                     <div className="py-8 px-4 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
                       <Stethoscope size={28} className="mx-auto text-slate-400 mb-2" />
                       <p className="text-xs font-semibold text-slate-600">
-                        Khoa {activeSpecialtyObj?.name || 'này'} hiện chưa có bác sĩ phụ trách tại {activeCenterObj.name}
+                        Khoa {activeSpecialtyObj?.name || 'này'} hiện chưa có bác sĩ phụ trách tại {activeCenterObj?.name || 'cơ sở này'}
                       </p>
                       <p className="text-[11px] text-slate-400 mt-1">
-                        Vui lòng nhấn &quot;Quay lại&quot; ở bên dưới để chọn Chuyên khoa khác
+                        Vui lòng nhấn &quot;Quay lại&quot; để chọn Chuyên khoa khác, hoặc chuyển cơ sở bên dưới:
                       </p>
+                      {(() => {
+                        const otherCenter = centers.find((c) => c.id !== selectedCenter);
+                        if (otherCenter) {
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedCenter(otherCenter.id)}
+                              className="mt-3 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-xs flex items-center justify-center gap-1.5 mx-auto cursor-pointer"
+                            >
+                              <span>Chuyển sang {otherCenter.name} (Có Bác Sĩ Sẵn Sàng)</span>
+                              <ArrowRight size={13} />
+                            </button>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
                   )}
 
@@ -2096,28 +2372,34 @@ export default function BookingForm() {
                       <span>1. Chọn Hồ Sơ Người Đi Khám:</span>
                     </label>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 gap-2 sm:gap-3">
                       <button
                         type="button"
                         onClick={() => setBookingFor('self')}
-                        className={`p-3.5 rounded-2xl border-2 text-left transition cursor-pointer flex items-center justify-between ${
+                        className={`p-2.5 sm:p-3 rounded-2xl border-2 text-left transition cursor-pointer flex flex-col justify-between min-h-[78px] sm:min-h-[84px] ${
                           bookingFor === 'self'
                             ? 'border-blue-600 bg-blue-50/50 shadow-xs'
                             : 'border-slate-200 hover:border-slate-300 bg-white'
                         }`}
                       >
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs shrink-0">
+                        <div className="flex items-center justify-between w-full">
+                          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs shrink-0">
                             Tôi
                           </div>
-                          <div>
-                            <span className="font-bold text-slate-800 text-xs block">
-                              {currentUser?.fullName || 'Bản Thân Tôi'}
-                            </span>
-                            <span className="text-[10px] text-slate-500">{currentUser?.phone || 'Chủ tài khoản'}</span>
-                          </div>
+                          {bookingFor === 'self' ? (
+                            <CheckCircle2 size={16} className="text-blue-600 shrink-0" />
+                          ) : (
+                            <div className="w-4 h-4 rounded-full border border-slate-300 shrink-0" />
+                          )}
                         </div>
-                        {bookingFor === 'self' && <CheckCircle2 size={16} className="text-blue-600" />}
+                        <div className="mt-1.5">
+                          <strong className="font-bold text-slate-800 text-xs block leading-tight truncate">
+                            {currentUser?.fullName || 'Bản Thân Tôi'}
+                          </strong>
+                          <span className="text-[10px] text-slate-500 block truncate mt-0.5 leading-tight">
+                            {currentUser?.phone || 'Chủ tài khoản'}
+                          </span>
+                        </div>
                       </button>
 
                       <button
@@ -2128,26 +2410,32 @@ export default function BookingForm() {
                             setShowRelativeModal(true);
                           }
                         }}
-                        className={`p-3.5 rounded-2xl border-2 text-left transition cursor-pointer flex items-center justify-between ${
+                        className={`p-2.5 sm:p-3 rounded-2xl border-2 text-left transition cursor-pointer flex flex-col justify-between min-h-[78px] sm:min-h-[84px] ${
                           bookingFor === 'relative'
                             ? 'border-blue-600 bg-blue-50/50 shadow-xs'
                             : 'border-slate-200 hover:border-slate-300 bg-white'
                         }`}
                       >
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-xs shrink-0">
+                        <div className="flex items-center justify-between w-full">
+                          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-xs shrink-0">
                             +
                           </div>
-                          <div>
-                            <span className="font-bold text-slate-800 text-xs block">Người Thân Trong Gia Đình</span>
-                            <span className="text-[10px] text-slate-500">
-                              {bookingFor === 'relative' && relativeInfo.fullName
-                                ? `${relativeInfo.fullName} (${relativeInfo.relationship})`
-                                : 'Ba, Mẹ, Con, Vợ/Chồng'}
-                            </span>
-                          </div>
+                          {bookingFor === 'relative' ? (
+                            <CheckCircle2 size={16} className="text-blue-600 shrink-0" />
+                          ) : (
+                            <div className="w-4 h-4 rounded-full border border-slate-300 shrink-0" />
+                          )}
                         </div>
-                        {bookingFor === 'relative' && <CheckCircle2 size={16} className="text-blue-600" />}
+                        <div className="mt-1.5">
+                          <strong className="font-bold text-slate-800 text-xs block leading-tight truncate">
+                            Người Thân
+                          </strong>
+                          <span className="text-[10px] text-slate-500 block truncate mt-0.5 leading-tight">
+                            {bookingFor === 'relative' && relativeInfo.fullName
+                              ? `${relativeInfo.fullName} (${relativeInfo.relationship})`
+                              : 'Ba, Mẹ, Con, Vợ/Chồng'}
+                          </span>
+                        </div>
                       </button>
                     </div>
 
@@ -2178,189 +2466,208 @@ export default function BookingForm() {
                     )}
                   </div>
 
-                  {/* 2. Mô Tả Triệu Chứng & Spring AI */}
+                  {/* 2. Mô Tả Triệu Chứng */}
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block text-xs font-bold text-slate-700 uppercase">
-                        2. Mô Tả Triệu Chứng &amp; Lý Do Đi Khám:
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-bold text-slate-700 uppercase whitespace-nowrap">
+                        2. Mô Tả Triệu Chứng:
                       </label>
-                      <button
-                        type="button"
-                        onClick={handleAnalyzeSymptoms}
-                        disabled={analyzingAi || !symptoms.trim()}
-                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 px-3 py-1.5 rounded-xl shadow-xs transition cursor-pointer disabled:opacity-50"
-                      >
-                        <Sparkles size={13} className={analyzingAi ? "animate-spin" : ""} />
-                        <span>{analyzingAi ? 'AI Đang Phân Tích...' : 'Trợ Lý AI Phân Tích Gói Khám'}</span>
-                      </button>
+                      <span className="text-[11px] text-blue-600 font-semibold flex items-center gap-1">
+                        <Sparkles size={12} />
+                        Bấm chọn nhanh hoặc gõ bên dưới
+                      </span>
+                    </div>
+
+                    {/* Danh sách các nút chọn nhanh triệu chứng bệnh */}
+                    <div className="space-y-1.5 p-2.5 bg-slate-50/80 rounded-2xl border border-slate-200">
+                      <span className="text-[10.5px] font-bold text-slate-500 block">
+                        Triệu chứng thường gặp (chạm để chọn/bỏ chọn):
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {[
+                          { label: 'Đau đầu, chóng mặt', icon: '🧠' },
+                          { label: 'Đau bụng, đau dạ dày', icon: '🤢' },
+                          { label: 'Ho khan, sốt, đau họng', icon: '🤧' },
+                          { label: 'Ngứa, nổi mề đay da', icon: '🔴' },
+                          { label: 'Đau nhức răng, nướu', icon: '🦷' },
+                          { label: 'Mắt mờ, cộm rát', icon: '👁️' },
+                          { label: 'Đau tức ngực, hồi hộp', icon: '❤️' },
+                          { label: 'Đau mỏi cơ xương khớp', icon: '🦴' },
+                        ].map((item, idx) => {
+                          const isPicked = symptoms.includes(item.label);
+                          return (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => {
+                                if (isPicked) {
+                                  const updated = symptoms
+                                    .split(',')
+                                    .map(s => s.trim())
+                                    .filter(s => s && !s.includes(item.label))
+                                    .join(', ');
+                                  setSymptoms(updated);
+                                } else {
+                                  const prefix = symptoms.trim() ? `${symptoms.trim()}, ` : '';
+                                  setSymptoms(`${prefix}${item.label}`);
+                                }
+                              }}
+                              className={`px-2.5 py-1 text-xs rounded-full border transition cursor-pointer flex items-center gap-1 ${
+                                isPicked
+                                  ? 'bg-blue-600 text-white border-blue-600 font-bold shadow-2xs'
+                                  : 'bg-white hover:bg-blue-50 text-slate-700 border-slate-200'
+                              }`}
+                            >
+                              <span>{item.icon}</span>
+                              <span>{item.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Tính chất & thời gian cảm giác */}
+                      <div className="flex flex-wrap gap-1 pt-1 border-t border-slate-200/60">
+                        {[
+                          'Đau âm ỉ',
+                          'Đau từng cơn',
+                          'Mới bị hôm nay',
+                          'Kéo dài 2 - 3 ngày',
+                          'Kéo dài hơn 1 tuần',
+                          'Tái phát nhiều lần'
+                        ].map((qual, idx) => {
+                          const isPicked = symptoms.includes(qual);
+                          return (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => {
+                                if (isPicked) {
+                                  const updated = symptoms
+                                    .split(',')
+                                    .map(s => s.trim())
+                                    .filter(s => s && !s.includes(qual))
+                                    .join(', ');
+                                  setSymptoms(updated);
+                                } else {
+                                  const prefix = symptoms.trim() ? `${symptoms.trim()} (${qual})` : qual;
+                                  setSymptoms(prefix);
+                                }
+                              }}
+                              className={`px-2 py-0.5 text-[11px] rounded-lg border transition cursor-pointer ${
+                                isPicked
+                                  ? 'bg-indigo-600 text-white border-indigo-600 font-bold'
+                                  : 'bg-white hover:bg-indigo-50 text-slate-600 border-slate-200'
+                              }`}
+                            >
+                              + {qual}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
 
                     <textarea
-                      rows={3}
+                      rows={2}
                       required
                       value={symptoms}
                       onChange={(e) => setSymptoms(e.target.value)}
                       placeholder="Mô tả triệu chứng bệnh, tiền sử dị ứng thuốc hoặc cảm giác khó chịu cần bác sĩ tư vấn..."
                       className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none text-xs sm:text-sm text-slate-800"
                     />
-
-                    {/* AI Preview badge - Bấm mở popup xem phân tích chi tiết */}
-                    {aiPreview && (
-                      <button
-                        type="button"
-                        onClick={() => setShowAiModal(true)}
-                        className="w-full flex items-center justify-between p-2.5 bg-purple-50/80 border border-purple-200 hover:border-purple-400 rounded-xl text-xs text-purple-900 transition cursor-pointer group"
-                      >
-                        <div className="flex items-center gap-2 min-w-0 text-left">
-                          <Sparkles size={14} className="text-purple-600 shrink-0 group-hover:rotate-12 transition" />
-                          <span className="font-bold text-purple-900 text-xs truncate">
-                            Đã có đề xuất chuyên môn Spring AI: <span className="font-normal text-slate-700">{(aiPreview as any).clinicalSummary || aiPreview.summary}</span>
-                          </span>
-                        </div>
-                        <span className="text-[11px] font-bold text-purple-700 bg-white border border-purple-200 px-2 py-0.5 rounded-lg shrink-0 group-hover:bg-purple-100 transition ml-2">
-                          Xem chi tiết
-                        </span>
-                      </button>
-                    )}
                   </div>
 
-                  {/* 3. Tệp Đính Kèm (Thu gọn thành nút bấm mở popup quản lý tệp) */}
-                  <div className="space-y-1.5">
+                  {/* 3. Tệp Đính Kèm & Mã Khuyến Mãi (Chỉ để Tệp đính kèm & Mã ưu đãi) */}
+                  <div className="grid grid-cols-2 gap-2.5">
+                    {/* Khung 1: Tệp đính kèm */}
                     <button
                       type="button"
                       onClick={() => setShowAttachmentModal(true)}
-                      className="w-full flex items-center justify-between p-2.5 sm:p-3 bg-white rounded-xl sm:rounded-2xl border border-slate-200/90 hover:border-blue-400 hover:bg-blue-50/40 text-xs transition-all cursor-pointer group shadow-2xs"
+                      className="w-full flex items-center justify-center gap-2 py-3 px-3 bg-white hover:bg-blue-50/50 rounded-2xl border border-slate-200 hover:border-blue-400 text-xs font-bold text-slate-700 transition cursor-pointer shadow-2xs group"
                     >
-                      <div className="flex items-center gap-2.5 min-w-0 text-left">
-                        <div className="w-7 h-7 rounded-lg bg-blue-100/70 text-blue-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition">
-                          <Paperclip size={14} />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5 whitespace-nowrap">
-                            <span className="font-bold text-slate-800 text-xs">
-                              Tệp đính kèm
-                            </span>
-                            <span className="text-[10px] bg-blue-100 text-blue-800 font-bold px-1.5 py-0.5 rounded-md">
-                              {attachments.length}/5
-                            </span>
-                          </div>
-                          <span className="text-[11px] text-slate-400 block truncate">
-                            {attachments.length === 0
-                              ? 'Đơn thuốc, xét nghiệm cũ'
-                              : attachments.map((f) => f.name).join(', ')}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1 text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg shrink-0 group-hover:bg-blue-100 transition ml-2 whitespace-nowrap">
-                        <span>{attachments.length === 0 ? 'Thêm' : 'Quản lý'}</span>
-                        <ChevronRight size={13} />
-                      </div>
+                      <Paperclip size={15} className="text-blue-600 shrink-0 group-hover:scale-110 transition" />
+                      <span>Tệp đính kèm</span>
+                      {attachments.length > 0 && (
+                        <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0" />
+                      )}
                     </button>
 
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      multiple
-                      accept="image/*,.pdf"
-                      onChange={handleFileUpload}
-                      className="hidden"
-                    />
+                    {/* Khung 2: Mã ưu đãi */}
+                    <button
+                      type="button"
+                      onClick={() => setShowVoucherModal(true)}
+                      className={`w-full flex items-center justify-center gap-2 py-3 px-3 rounded-2xl border text-xs font-bold transition cursor-pointer shadow-2xs group ${
+                        appliedPromo
+                          ? 'bg-emerald-50/80 border-emerald-300 text-emerald-800 hover:bg-emerald-100/60'
+                          : 'bg-amber-50/60 border-amber-200 text-amber-900 hover:bg-amber-100/60'
+                      }`}
+                    >
+                      <Gift size={15} className={`shrink-0 group-hover:scale-110 transition ${appliedPromo ? 'text-emerald-600' : 'text-amber-600'}`} />
+                      <span>Mã ưu đãi</span>
+                      {appliedPromo && (
+                        <span className="w-2 h-2 rounded-full bg-emerald-600 shrink-0" />
+                      )}
+                    </button>
                   </div>
 
-                  {/* Mã Khuyến Mãi / Voucher Miễn Phí Cọc (Thu gọn thành nút bấm mở popup thông tin) */}
-                  <button
-                    type="button"
-                    onClick={() => setShowVoucherModal(true)}
-                    className={`w-full flex items-center justify-between p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border text-xs transition-all cursor-pointer group shadow-2xs ${
-                      appliedPromo
-                        ? 'bg-emerald-50/70 border-emerald-300 hover:border-emerald-400'
-                        : 'bg-amber-50/60 border-amber-200/90 hover:border-amber-400 hover:bg-amber-100/50'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0 text-left">
-                      <div
-                        className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 group-hover:scale-105 transition ${
-                          appliedPromo ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-white shadow-2xs'
-                        }`}
-                      >
-                        <Gift size={14} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5 whitespace-nowrap">
-                          <span className="font-bold text-slate-800 text-xs">
-                            Mã ưu đãi
-                          </span>
-                          {appliedPromo ? (
-                            <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded-md">
-                              -100% cọc
-                            </span>
-                          ) : (
-                            <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded-md">
-                              Miễn cọc
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-[11px] text-slate-500 block truncate">
-                          {appliedPromo ? (
-                            <span className="text-emerald-700 font-semibold">
-                              Mã: <strong className="font-mono text-blue-700">{appliedPromo}</strong>
-                            </span>
-                          ) : (
-                            'Dành cho Giảng viên & Tester'
-                          )}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-100/80 px-2 py-1 rounded-lg shrink-0 group-hover:bg-amber-200 transition ml-2 whitespace-nowrap">
-                      <span>{appliedPromo ? 'Đổi mã' : 'Nhập mã'}</span>
-                      <ChevronRight size={13} />
-                    </div>
-                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    accept="image/*,.pdf"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
 
                   {/* Thanh Xác Nhận Tóm Tắt & Nút Đặt Khám (Ảnh 3 Sticky Footer) */}
-                  <div className="p-4 bg-blue-50/70 border border-blue-200 rounded-2xl space-y-3">
+                  <div className="p-3.5 sm:p-4 bg-blue-50/70 border border-blue-200 rounded-2xl space-y-2.5">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-                      <div className="space-y-0.5 shrink-0">
-                        <div className="text-slate-700 whitespace-nowrap">
+                      <div className="space-y-0.5">
+                        <div className="text-slate-700">
                           <span className="text-slate-500">Khám cùng: </span>
                           <strong className="text-slate-800">{selectedDoctor?.name}</strong>
                         </div>
-                        <div className="text-blue-700 font-bold whitespace-nowrap">
+                        <div className="text-blue-700 font-bold">
                           {selectedSlot.time} (Ngày {selectedSlot.date})
                         </div>
                       </div>
-                      <div className="text-right shrink-0">
+                      <div className="text-left sm:text-right pt-2 sm:pt-0 border-t sm:border-t-0 border-blue-100">
                         {appliedPromo ? (
-                          <div>
+                          <div className="space-y-0.5">
                             <div className="text-[11px] text-emerald-600 font-bold">
                               ✓ Voucher [{appliedPromo}]: Miễn phí tiền cọc
                             </div>
-                            <span className="text-slate-500">Tiền cọc giữ chỗ: </span>
-                            <strong className="text-base text-emerald-600 font-extrabold">
-                              0 đ <span className="line-through text-xs text-slate-400 font-normal">2.000 đ</span>
-                            </strong>
+                            <div>
+                              <span className="text-slate-500">Tiền cọc giữ chỗ: </span>
+                              <strong className="text-base text-emerald-600 font-extrabold">
+                                0 đ <span className="line-through text-xs text-slate-400 font-normal">2.000 đ</span>
+                              </strong>
+                            </div>
+                            <div className="text-[11px] text-slate-500">
+                              Giá khám niêm yết: <strong className="text-slate-700">{Number(selectedDoctor?.fee || 200000).toLocaleString('vi-VN')} đ</strong> (tại quầy)
+                            </div>
                           </div>
                         ) : (
-                          <div>
-                            <span className="text-slate-500">Tổng thanh toán: </span>
-                            <strong className="text-base text-blue-700 font-extrabold">
-                              {Number(selectedDoctor?.fee || 200000).toLocaleString('vi-VN')} đ
-                            </strong>
+                          <div className="space-y-0.5">
+                            <div>
+                              <span className="text-slate-500">Tiền cọc giữ chỗ: </span>
+                              <strong className="text-base text-blue-700 font-extrabold">
+                                2.000 đ
+                              </strong>
+                            </div>
+                            <div className="text-[11px] text-slate-500">
+                              Giá niêm yết: <strong className="text-slate-700">{Number(selectedDoctor?.fee || 200000).toLocaleString('vi-VN')} đ</strong> (còn lại {Number(Math.max(0, (selectedDoctor?.fee || 200000) - 2000)).toLocaleString('vi-VN')} đ tại quầy)
+                            </div>
                           </div>
                         )}
                       </div>
                     </div>
 
                     {result && !isPaidOnline && (
-                      <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-center justify-between">
-                        <span>Phiếu hẹn <strong>{result.bookingCode}</strong> đang chờ thanh toán cọc để chính thức xác nhận.</span>
-                        <button
-                          type="button"
-                          onClick={() => setShowPaymentModal(true)}
-                          className="text-xs font-bold text-amber-900 underline hover:no-underline ml-2 cursor-pointer"
-                        >
-                          Mở mã QR
-                        </button>
+                      <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-center gap-2">
+                        <AlertCircle size={15} className="text-amber-600 shrink-0" />
+                        <span className="leading-snug">
+                          Phiếu <strong>{result.bookingCode}</strong> đang chờ cọc 2.000 đ để hoàn tất.
+                        </span>
                       </div>
                     )}
 
@@ -2381,12 +2688,12 @@ export default function BookingForm() {
                         {submitting ? (
                           <>
                             <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />
-                            <span>Đang tạo vé...</span>
+                            <span>Đang xử lý...</span>
                           </>
                         ) : (
                           <>
                             <CheckCircle2 size={15} className="shrink-0" />
-                            <span>{result && !isPaidOnline ? 'Tiếp tục thanh toán VietQR' : 'Xác nhận đặt & Thanh toán'}</span>
+                            <span>Xác nhận</span>
                           </>
                         )}
                       </button>
@@ -2397,171 +2704,163 @@ export default function BookingForm() {
           </div>
         )}
 
-        {/* Step 4: Phiếu Hẹn Khám Điện Tử (Chuẩn E-Ticket YouMed - Ảnh 2 Screen 4) */}
+        {/* Step 4: Phiếu Hẹn Khám Điện Tử - Siêu Gọn Gàng Chuẩn E-Ticket Wallet */}
         {step === 4 && result && (
-          <div className="mt-6 max-w-2xl mx-auto space-y-6">
-            <div className="bg-gradient-to-br from-blue-600 via-indigo-600 to-blue-700 text-white p-4 sm:p-6 rounded-t-3xl relative overflow-hidden shadow-md">
-              <div className="flex items-center justify-between gap-2 relative z-10">
-                <div className="flex items-center gap-1.5 sm:gap-2">
-                  <ShieldCheck size={18} className="text-cyan-300 shrink-0" />
-                  <span className="font-extrabold tracking-wider text-xs sm:text-sm uppercase whitespace-nowrap">
-                    <span className="sm:hidden">MEDSCHED</span>
-                    <span className="hidden sm:inline">HỆ THỐNG Y TẾ MEDSCHED</span>
+          <div className="max-w-md mx-auto animate-fadeIn my-auto pb-4 px-1 sm:px-0">
+            {/* Thẻ Vé Y Tế Liền Khối (Boarding Pass Card) */}
+            <div className="bg-white rounded-3xl shadow-xl border border-slate-200/90 overflow-hidden">
+              
+              {/* Header Vé: Xanh Navy Y Khoa Hiện Đại */}
+              <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-800 text-white px-4 py-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-white/15 flex items-center justify-center shrink-0">
+                    <ShieldCheck size={16} className="text-cyan-300" />
+                  </div>
+                  <div>
+                    <span className="font-extrabold text-xs tracking-wider uppercase block">
+                      MEDSCHED E-TICKET
+                    </span>
+                    <span className="text-[10px] text-cyan-200 font-mono">
+                      Mã: {result.bookingCode}
+                    </span>
+                  </div>
+                </div>
+
+                {/* STT Nổi Bật Dạng Huy Hiệu */}
+                <div className="text-right">
+                  <span className="text-[9px] text-blue-200 uppercase tracking-widest block font-medium">
+                    SỐ THỨ TỰ (STT)
+                  </span>
+                  <span className="text-lg sm:text-xl font-black text-amber-300 font-mono leading-none tracking-tight">
+                    {(() => {
+                      const qn = String(result.queueNumber || '0003').trim();
+                      return qn.startsWith('#') ? qn : `#${qn}`;
+                    })()}
                   </span>
                 </div>
-                <span className="text-[10px] sm:text-[11px] bg-white/20 px-2.5 py-1 rounded-full font-mono font-bold tracking-wider whitespace-nowrap shrink-0">
-                  ĐẶT KHÁM THÀNH CÔNG
-                </span>
               </div>
-              
-              {/* STT Nổi Bật Siêu Lớn (Đảm bảo luôn trên 1 dòng duy nhất) */}
-              <div className="mt-4 sm:mt-5 text-center relative z-10 bg-white/10 backdrop-blur-xs py-3.5 sm:py-4 px-2 sm:px-6 rounded-2xl border border-white/20">
-                <span className="text-[11px] sm:text-xs text-blue-100 uppercase tracking-widest font-bold block whitespace-nowrap">
-                  SỐ THỨ TỰ VÀO KHÁM (STT)
-                </span>
-                <div className="text-2xl sm:text-4xl md:text-5xl font-black text-white mt-1 tracking-tight drop-shadow-sm whitespace-nowrap overflow-hidden text-ellipsis">
-                  STT: {(() => {
-                    const qn = String(result.queueNumber || '0003').trim();
-                    return qn.startsWith('#') ? qn : `#${qn}`;
-                  })()}
+
+              {/* Thân Vé: Thông Tin Khám & QR Nằm Song Song Ngang */}
+              <div className="p-3.5 sm:p-4 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  {/* Bên Trái: Chi Tiết Khám */}
+                  <div className="space-y-1.5 min-w-0 flex-1 text-xs">
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase font-semibold block">Bệnh nhân</span>
+                      <strong className="text-slate-900 font-bold text-sm block truncate">
+                        {bookingFor === 'relative' && relativeInfo.fullName ? relativeInfo.fullName : result.patientName || currentUser?.fullName || 'Bệnh nhân'}
+                      </strong>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase font-semibold block">Bác sĩ khám</span>
+                      <span className="text-slate-800 font-semibold block truncate">
+                        {selectedDoctor?.name || 'Bác sĩ chuyên khoa'}
+                      </span>
+                      <span className="text-[11px] text-slate-500 block truncate">
+                        {selectedDoctor?.specialty} • {selectedDoctor?.room || 'P.208'}
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase font-semibold block">Thời gian &amp; Địa điểm</span>
+                      <span className="text-blue-700 font-bold block text-xs truncate">
+                        {selectedSlot.time} • {selectedSlot.date}
+                      </span>
+                      <span className="text-[11px] text-slate-500 block truncate">
+                        {activeCenterObj?.name}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Bên Phải: QR Check-in Nhỏ Gọn */}
+                  <div className="flex flex-col items-center shrink-0 bg-slate-50 p-2 rounded-2xl border border-slate-200">
+                    <div className="w-18 h-18 bg-white rounded-xl p-1 flex items-center justify-center border border-slate-200 shadow-2xs">
+                      <QrCodeImage
+                        value={typeof window !== 'undefined' ? `${window.location.origin}/checkin?code=${encodeURIComponent(result.bookingCode)}` : `/checkin?code=${encodeURIComponent(result.bookingCode)}`}
+                        size={64}
+                        className="rounded-lg"
+                      />
+                    </div>
+                    <span className="text-[9px] font-mono font-bold text-slate-600 mt-1">
+                      {result.bookingCode}
+                    </span>
+                    <span className="text-[8px] text-slate-400 text-center leading-tight">
+                      Quét tại quầy
+                    </span>
+                  </div>
                 </div>
-                <p className="text-xs text-cyan-200 mt-1.5 font-medium whitespace-nowrap">
-                  Mã phiếu khám: <strong className="font-mono text-white text-xs sm:text-sm bg-black/20 px-2.5 py-0.5 rounded-md ml-1">{result.bookingCode}</strong>
+
+                {/* Đường Rãnh Cắt Vé Máy Bay (Ticket Tear Notch) */}
+                <div className="relative flex items-center my-1">
+                  <div className="w-full border-t border-dashed border-slate-200" />
+                  <div className="absolute -left-5 w-3 h-3 bg-mint-soft rounded-full" />
+                  <div className="absolute -right-5 w-3 h-3 bg-mint-soft rounded-full" />
+                </div>
+
+                {/* Dải Thanh Toán & Lời Dặn Thu Gọn */}
+                <div className="flex items-center justify-between text-xs pt-0.5">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block">Viện phí: <strong className="text-slate-700">{Number(selectedDoctor?.fee || 200000).toLocaleString('vi-VN')} đ</strong></span>
+                    <span className="text-[11px] text-slate-600 font-medium">
+                      Cọc: <strong className="text-emerald-700">{appliedPromo ? '0 đ' : '2.000 đ'}</strong>
+                    </span>
+                  </div>
+
+                  <div>
+                    {isPaidOnline ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-lg text-[11px] font-bold">
+                        <CheckCircle2 size={12} /> {appliedPromo ? 'Đã giữ chỗ (0 đ)' : 'Đã cọc 2.000 đ'}
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setShowPaymentModal(true)}
+                        className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[11px] font-bold transition flex items-center gap-1 cursor-pointer"
+                      >
+                        <QrCode size={12} />
+                        <span>Chuyển cọc 2.000 đ</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Lời dặn 1 dòng */}
+                <p className="text-[10px] text-slate-500 text-center bg-slate-50 py-1.5 px-2 rounded-lg border border-slate-100 italic">
+                  * Có mặt trước 15 phút &amp; quét mã QR trên tại quầy tiếp đón để vào khám.
                 </p>
               </div>
             </div>
 
-            {/* Thân Phiếu Khám & QR Code */}
-            <div className="bg-white border-2 border-dashed border-slate-200 p-6 rounded-b-3xl -mt-6 pt-8 space-y-5 shadow-sm">
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-6 pb-5 border-b border-slate-100">
-                <div className="space-y-2.5 text-xs text-slate-700 flex-1">
-                  <div>
-                    <span className="text-slate-400 block text-[11px]">Bệnh nhân:</span>
-                    <strong className="text-slate-900 text-sm font-bold">
-                      {bookingFor === 'relative' && relativeInfo.fullName ? relativeInfo.fullName : result.patientName || currentUser?.fullName || 'Bệnh nhân'}
-                    </strong>
-                    {bookingFor === 'relative' && (
-                      <span className="ml-2 text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded-md font-semibold">
-                        {relativeInfo.relationship}
-                      </span>
-                    )}
-                  </div>
-
-                  <div>
-                    <span className="text-slate-400 block text-[11px]">Bác sĩ chuyên khoa:</span>
-                    <strong className="text-slate-900 font-semibold">{selectedDoctor?.name || 'Bác sĩ chuyên khoa'}</strong>
-                    <span className="text-slate-500 block text-[11px]">{selectedDoctor?.specialty}</span>
-                  </div>
-
-                  <div>
-                    <span className="text-slate-400 block text-[11px]">Khung giờ hẹn &amp; Buồng khám:</span>
-                    <span className="text-blue-700 font-bold text-sm block">{selectedSlot.time} • Ngày {selectedSlot.date}</span>
-                    <span className="text-slate-600 text-[11px] font-medium">{selectedDoctor?.room || 'Phòng P.208'} - {activeCenterObj.name}</span>
-                  </div>
-                </div>
-
-                {/* QR Code Check-in */}
-                <div className="flex flex-col items-center bg-slate-50 p-4 rounded-2xl border border-slate-200 shrink-0">
-                  <div className="w-28 h-28 bg-white border border-slate-300 rounded-xl p-1.5 flex items-center justify-center shadow-inner">
-                    <QrCodeImage
-                      value={typeof window !== 'undefined' ? `${window.location.origin}/checkin?code=${encodeURIComponent(result.bookingCode)}` : `/checkin?code=${encodeURIComponent(result.bookingCode)}`}
-                      size={96}
-                      className="rounded-lg"
-                    />
-                  </div>
-                  <span className="text-[10px] font-mono font-bold text-slate-700 mt-2 bg-slate-200/80 px-2.5 py-0.5 rounded">
-                    {result.bookingCode}
-                  </span>
-                  <span className="text-[10px] text-slate-500 font-medium text-center mt-1.5 max-w-[130px] leading-tight">
-                    Xuất trình mã này tại quầy tiếp đón
-                  </span>
-                </div>
-              </div>
-
-              {/* Chi tiết thanh toán */}
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2 text-xs">
-                <div className="flex justify-between text-slate-600">
-                  <span>Phí khám:</span>
-                  <span className="font-semibold text-slate-800">{Number(selectedDoctor?.fee || 200000).toLocaleString('vi-VN')} đ</span>
-                </div>
-                <div className="flex justify-between text-slate-600">
-                  <span>Phí tiện ích:</span>
-                  <span className="font-semibold text-emerald-600">0 đ (Miễn phí)</span>
-                </div>
-                <div className="pt-2 border-t border-slate-200 flex justify-between font-extrabold text-blue-700 text-sm">
-                  <span>Tổng viện phí thanh toán:</span>
-                  <span>{Number(selectedDoctor?.fee || 200000).toLocaleString('vi-VN')} đ</span>
-                </div>
-              </div>
-
-              {/* Thanh toán VietQR & Voucher */}
-              <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 text-left">
-                <div>
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-900">
-                    <CreditCard size={15} />
-                    <span>{isPaidOnline ? 'Xác Nhận Giữ Chỗ & Đặt Cọc:' : 'Thanh Toán Trực Tuyến Qua VietQR & Ví MoMo:'}</span>
-                  </div>
-                  <p className="text-[11px] text-slate-600 mt-0.5">
-                    {isPaidOnline
-                      ? (paidPromoCode || appliedPromo)
-                        ? `✓ Đã áp dụng mã ưu đãi [${paidPromoCode || appliedPromo}]: Miễn 100% tiền cọc (0 đ) - Lịch hẹn đã được xác nhận chính thức!`
-                        : '✓ Quý khách đã xác nhận thanh toán thành công.'
-                      : 'Hỗ trợ quét mã VietQR chuyển khoản nhanh 24/7 để xác nhận giữ chỗ ưu tiên.'}
-                  </p>
-                </div>
-                {isPaidOnline ? (
-                  <span className="inline-flex items-center gap-1 px-3.5 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold shadow-xs whitespace-nowrap">
-                    <CheckCircle2 size={14} /> {(paidPromoCode || appliedPromo) ? 'ĐÃ GIỮ CHỖ (0 Đ)' : 'ĐÃ THANH TOÁN'}
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setShowPaymentModal(true)}
-                    className="w-full sm:w-auto px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-700/20 transition cursor-pointer flex items-center justify-center gap-2 whitespace-nowrap"
-                  >
-                    <QrCode size={15} />
-                    <span>Quét Mã VietQR / Nhập Voucher</span>
-                  </button>
-                )}
-              </div>
-
-              {/* Lời dặn dò y tế nổi bật (Ảnh 2 Screen 4) */}
-              <div className="text-xs text-amber-900 bg-amber-50/80 p-3.5 rounded-2xl border border-amber-200 flex items-start gap-2.5">
-                <span className="text-base leading-none">🔔</span>
-                <span className="text-[11px] leading-relaxed">
-                  <strong>Lời dặn dò tiếp đón:</strong> Bệnh nhân vui lòng đến trước giờ khám <strong>15 - 20 phút</strong> và xuất trình mã QR trên vé này hoặc thẻ CCCD tại Quầy Tiếp Đón để được hướng dẫn vào thẳng buồng khám.
-                </span>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="pt-2 flex flex-col sm:flex-row gap-3">
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="flex-1 bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 rounded-2xl transition text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer shadow-xs"
-                >
-                  <Printer size={16} />
-                  <span>In Phiếu / Lưu PDF</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => router.push('/appointments')}
-                  className="flex-1 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold py-3 rounded-2xl transition text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <span>Xem Danh Sách Lịch Hẹn</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setResult(null);
-                    setStep(1);
-                  }}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-2xl transition text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-blue-600/20"
-                >
-                  <Calendar size={16} />
-                  <span>Đặt Ca Khám Mới</span>
-                </button>
-              </div>
+            {/* 3 Nút Hành Động Gọn Gàng */}
+            <div className="flex items-center gap-2 pt-2.5">
+              <button
+                type="button"
+                onClick={handleSaveTicketImage}
+                disabled={savingImage}
+                className="flex-1 py-2 px-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer disabled:opacity-50"
+              >
+                <Download size={13} className={savingImage ? 'animate-bounce' : ''} />
+                <span>{savingImage ? 'Đang lưu ảnh...' : 'Lưu Ảnh Vé'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push('/my-appointments')}
+                className="flex-1 py-2 px-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold rounded-xl text-xs transition flex items-center justify-center gap-1 shadow-2xs cursor-pointer"
+              >
+                <span>Xem Lịch Hẹn</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setResult(null);
+                  setStep(1);
+                }}
+                className="flex-1 py-2 px-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition flex items-center justify-center gap-1 shadow-xs cursor-pointer"
+              >
+                <Calendar size={13} />
+                <span>Đặt Mới</span>
+              </button>
             </div>
           </div>
         )}
@@ -2892,86 +3191,7 @@ export default function BookingForm() {
         </div>
       )}
 
-      {/* Modal Popup: Đề Xuất Chuyên Môn Spring AI */}
-      {showAiModal && aiPreview && (
-        <div
-          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn"
-          onClick={() => setShowAiModal(false)}
-        >
-          <div
-            className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-100 p-5 sm:p-6 space-y-4 max-h-[85vh] overflow-y-auto animate-scaleUp"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold">
-                  <Sparkles size={18} />
-                </div>
-                <div>
-                  <h3 className="font-bold text-slate-800 text-sm sm:text-base">Trợ Lý AI Phân Tích Gói Khám</h3>
-                  <span className="text-[11px] text-purple-600 font-semibold">Công nghệ Spring AI Y Khoa</span>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowAiModal(false)}
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition cursor-pointer"
-                aria-label="Đóng popup"
-              >
-                <X size={16} />
-              </button>
-            </div>
 
-            {/* Nội dung tư vấn */}
-            <div className="space-y-3 text-xs">
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80">
-                <span className="font-bold text-slate-700 block mb-1">Triệu chứng bạn đã nhập:</span>
-                <p className="text-slate-600 italic">"{symptoms}"</p>
-              </div>
-
-              <div className="p-3.5 bg-purple-50/70 rounded-2xl border border-purple-200 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-purple-900 flex items-center gap-1.5">
-                    <Sparkles size={14} className="text-purple-600" />
-                    Đề Xuất Lâm Sàng &amp; Hướng Dẫn:
-                  </span>
-                  <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">
-                    Đã Tối Ưu
-                  </span>
-                </div>
-                <p className="text-slate-700 leading-relaxed text-xs">
-                  {(aiPreview as any).clinicalSummary || aiPreview.summary}
-                </p>
-              </div>
-
-              {(aiPreview as any).recommendedDepartment && (
-                <div className="p-3 bg-blue-50/60 rounded-xl border border-blue-200">
-                  <span className="font-bold text-blue-900 block text-xs">Chuyên khoa khuyến nghị:</span>
-                  <span className="text-xs text-blue-700 font-bold block mt-0.5">
-                    {(aiPreview as any).recommendedDepartment}
-                  </span>
-                </div>
-              )}
-
-              <div className="p-3 bg-amber-50/80 rounded-xl border border-amber-200 text-[11px] text-amber-800">
-                <p>⚠️ <em>Khuyến cáo: Kết quả phân tích từ AI chỉ mang tính chất tham khảo hỗ trợ định hướng trước khám, không thay thế chẩn đoán y khoa chính thức của bác sĩ.</em></p>
-              </div>
-            </div>
-
-            {/* Nút đóng */}
-            <div className="pt-1">
-              <button
-                type="button"
-                onClick={() => setShowAiModal(false)}
-                className="w-full py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold rounded-xl text-xs transition shadow-md shadow-purple-600/20 cursor-pointer text-center"
-              >
-                Đã hiểu &amp; Áp dụng
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Modal Popup: Quản Lý Tệp Đính Kèm Hồ Sơ (0/5) */}
       {showAttachmentModal && (

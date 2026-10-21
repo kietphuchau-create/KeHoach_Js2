@@ -10,8 +10,10 @@ import AlertMessage from '@/shared/components/Feedback/AlertMessage';
 export default function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectUrl = searchParams.get('redirect') || '/booking';
+  const redirectParam = searchParams.get('redirect');
+  const redirectUrl = redirectParam || '/booking-method';
   const isAuthRequired = searchParams.get('reason') === 'auth_required';
+  const isAiRequired = searchParams.get('reason') === 'ai_required';
 
   const emailInputRef = React.useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
@@ -51,13 +53,18 @@ export default function LoginForm() {
       }
 
       setTimeout(() => {
-        let dest = redirectUrl;
+        let dest = '/booking-method';
         if (roles.includes('ROLE_ADMIN')) {
           dest = '/admin';
         } else if (roles.includes('ROLE_STAFF')) {
           dest = '/reception';
         } else if (roles.includes('ROLE_DOCTOR')) {
           dest = '/doctor';
+        } else if (redirectParam && redirectParam !== '/booking' && redirectParam !== '/') {
+          dest = redirectParam;
+        } else {
+          // Bệnh nhân / Người dùng đăng nhập xong chuyển ngay tới giao diện chọn phương thức đặt lịch
+          dest = '/booking-method';
         }
         window.location.href = dest;
       }, 500);
@@ -91,6 +98,15 @@ export default function LoginForm() {
         <AlertMessage 
           type="info" 
           message="Vui lòng đăng nhập tài khoản bệnh nhân để tiếp tục đặt lịch khám." 
+          className="mb-2.5 py-1.5 text-xs" 
+        />
+      )}
+
+      {/* Thông báo yêu cầu đăng nhập nếu từ Trợ lý AI */}
+      {isAiRequired && !errorMessage && !successMessage && (
+        <AlertMessage 
+          type="info" 
+          message="Vui lòng đăng nhập tài khoản MedSched để sử dụng Trợ lý Sức Khỏe AI & phân loại triệu chứng." 
           className="mb-2.5 py-1.5 text-xs" 
         />
       )}

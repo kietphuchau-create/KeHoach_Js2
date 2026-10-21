@@ -63,15 +63,15 @@ export default function HeaderNav() {
       setUser(authUser);
       const userRoles: string[] = authUser.roles || [];
       if (userRoles.includes('ROLE_ADMIN')) {
-        if (pathname === '/' || pathname === '/booking' || pathname === '/reception' || pathname === '/doctor' || pathname === '/my-appointments') {
+        if (pathname === '/' || pathname === '/booking' || pathname === '/booking-method' || pathname === '/reception' || pathname === '/doctor' || pathname === '/my-appointments') {
           router.push('/admin');
         }
       } else if (userRoles.includes('ROLE_DOCTOR')) {
-        if (pathname === '/' || pathname === '/booking' || pathname === '/reception' || pathname === '/admin' || pathname === '/my-appointments') {
+        if (pathname === '/' || pathname === '/booking' || pathname === '/booking-method' || pathname === '/reception' || pathname === '/admin' || pathname === '/my-appointments') {
           router.push('/doctor');
         }
       } else if (userRoles.includes('ROLE_STAFF')) {
-        if (pathname === '/' || pathname === '/booking' || pathname === '/doctor' || pathname === '/admin' || pathname === '/my-appointments') {
+        if (pathname === '/' || pathname === '/booking' || pathname === '/booking-method' || pathname === '/doctor' || pathname === '/admin' || pathname === '/my-appointments') {
           router.push('/reception');
         }
       }
@@ -94,15 +94,15 @@ export default function HeaderNav() {
             sessionStorage.setItem("user", JSON.stringify(updatedUser));
           }
           if (updatedUser.roles?.includes('ROLE_ADMIN')) {
-            if (pathname === '/' || pathname === '/booking' || pathname === '/reception' || pathname === '/doctor' || pathname === '/my-appointments') {
+            if (pathname === '/' || pathname === '/booking' || pathname === '/booking-method' || pathname === '/reception' || pathname === '/doctor' || pathname === '/my-appointments') {
               router.push('/admin');
             }
           } else if (updatedUser.roles?.includes('ROLE_DOCTOR')) {
-            if (pathname === '/' || pathname === '/booking' || pathname === '/reception' || pathname === '/admin' || pathname === '/my-appointments') {
+            if (pathname === '/' || pathname === '/booking' || pathname === '/booking-method' || pathname === '/reception' || pathname === '/admin' || pathname === '/my-appointments') {
               router.push('/doctor');
             }
           } else if (updatedUser.roles?.includes('ROLE_STAFF')) {
-            if (pathname === '/' || pathname === '/booking' || pathname === '/doctor' || pathname === '/admin' || pathname === '/my-appointments') {
+            if (pathname === '/' || pathname === '/booking' || pathname === '/booking-method' || pathname === '/doctor' || pathname === '/admin' || pathname === '/my-appointments') {
               router.push('/reception');
             }
           }
@@ -170,7 +170,7 @@ export default function HeaderNav() {
     { href: '/#workflow', label: 'Quy Trình', icon: ShieldCheck },
     { href: '/#about', label: 'Về MedSched', icon: Sparkles },
     { href: '/#specialties', label: 'Chuyên Khoa', icon: Stethoscope },
-    { href: '/booking', label: 'Đặt Lịch Khám', icon: Calendar },
+    { href: '/booking-method', label: 'Đặt Lịch Khám', icon: Calendar },
     { href: '/my-appointments', label: 'Phiếu Khám', icon: ClipboardList },
   ];
 
@@ -208,6 +208,12 @@ export default function HeaderNav() {
           <Link
             key={link.href}
             href={link.href}
+            onClick={(e) => {
+              if (link.href === '/booking' || link.href === '/booking-method') {
+                e.preventDefault();
+                window.dispatchEvent(new CustomEvent('medsched:open-booking-method'));
+              }
+            }}
             className={`flex items-center justify-center gap-1.5 px-2.5 py-1.5 lg:px-3.5 lg:py-2 rounded-full text-xs transition-all duration-200 select-none cursor-pointer whitespace-nowrap shrink-0 ${
               isActive
                 ? 'bg-emerald-700 text-white font-bold shadow-[0_6px_14px_-2px_rgba(14,92,85,0.35),inset_-2px_-2px_4px_rgba(0,0,0,0.15),inset_2px_2px_4px_rgba(255,255,255,0.35)] scale-102'
@@ -310,7 +316,7 @@ export default function HeaderNav() {
                 MedSched
               </span>
               <span className="text-[9px] text-teal-300/80 font-medium tracking-tight mt-0.5">
-                Phiên bản v1.2.0
+                Phiên bản v1.3.1
               </span>
             </div>
           </Link>
@@ -335,7 +341,13 @@ export default function HeaderNav() {
                 <Link
                   key={link.href}
                   href={link.href}
-                  onClick={() => setMobileMenuOpen(false)}
+                  onClick={(e) => {
+                    setMobileMenuOpen(false);
+                    if (link.href === '/booking' || link.href === '/booking-method') {
+                      e.preventDefault();
+                      window.dispatchEvent(new CustomEvent('medsched:open-booking-method'));
+                    }
+                  }}
                   className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold transition ${
                     isActive ? 'bg-mint-light text-pine-teal font-bold' : 'text-slate-700 hover:bg-mint-soft'
                   }`}
@@ -418,7 +430,7 @@ export default function HeaderNav() {
                   MedSched
                 </span>
                 <span className="text-[9px] sm:text-[10px] text-teal-300/80 font-medium tracking-tight mt-0.5">
-                  Phiên bản v1.2.0
+                  Phiên bản v1.3.1
                 </span>
               </div>
             </Link>

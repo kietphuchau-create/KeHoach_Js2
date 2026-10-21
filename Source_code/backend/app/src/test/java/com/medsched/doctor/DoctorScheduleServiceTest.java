@@ -26,6 +26,8 @@ import static org.mockito.Mockito.verify;
 @ExtendWith(MockitoExtension.class)
 class DoctorScheduleServiceTest {
 
+    private static final java.time.ZoneId VN_ZONE = java.time.ZoneId.of("Asia/Ho_Chi_Minh");
+
     @Mock
     private DoctorScheduleJpaRepository doctorScheduleRepository;
     @Mock
@@ -53,13 +55,14 @@ class DoctorScheduleServiceTest {
                 BigDecimal.valueOf(300000), "P.101", "Bio", null, now, now
         );
 
+        LocalDate today = LocalDate.now(VN_ZONE);
         DoctorScheduleEntity sch = new DoctorScheduleEntity(
-                "sch-1", "doc-1", LocalDate.now(), LocalTime.of(8, 0),
+                "sch-1", "doc-1", today, LocalTime.of(8, 0),
                 LocalTime.of(12, 0), 30, ScheduleStatus.ACTIVE, now, now
         );
 
         given(doctorRepository.findByUserId("u-doc-1")).willReturn(List.of(doc));
-        given(doctorScheduleRepository.findByDoctorIdAndWorkDate("doc-1", LocalDate.now())).willReturn(List.of(sch));
+        given(doctorScheduleRepository.findByDoctorIdAndWorkDate("doc-1", today)).willReturn(List.of(sch));
         given(doctorScheduleRepository.findByDoctorIdOrderByWorkDateAscStartTimeAsc("doc-1")).willReturn(List.of(sch));
         given(timeSlotRepository.findByScheduleIdOrderByStartTimeAsc("sch-1")).willReturn(List.of());
 
@@ -78,7 +81,7 @@ class DoctorScheduleServiceTest {
                 BigDecimal.valueOf(300000), "P.101", "Bio", null, now, now
         );
 
-        LocalDate validWorkDate = LocalDate.now().plusDays(1);
+        LocalDate validWorkDate = LocalDate.now(VN_ZONE).plusDays(1);
         while (validWorkDate.getDayOfWeek() == java.time.DayOfWeek.SATURDAY || validWorkDate.getDayOfWeek() == java.time.DayOfWeek.SUNDAY) {
             validWorkDate = validWorkDate.plusDays(1);
         }
@@ -127,7 +130,7 @@ class DoctorScheduleServiceTest {
     void givenUnbookedSchedule_whenDeleteSchedule_thenDeleteSuccess() {
         Instant now = Instant.now();
         DoctorScheduleEntity sch = new DoctorScheduleEntity(
-                "sch-del", "doc-1", LocalDate.now(), LocalTime.of(8, 0),
+                "sch-del", "doc-1", LocalDate.now(VN_ZONE), LocalTime.of(8, 0),
                 LocalTime.of(12, 0), 30, ScheduleStatus.ACTIVE, now, now
         );
 
@@ -144,7 +147,7 @@ class DoctorScheduleServiceTest {
     void givenScheduleToday_whenChangeScheduleRoom_thenThrowsIllegalArgumentException() {
         Instant now = Instant.now();
         DoctorScheduleEntity sch = new DoctorScheduleEntity(
-                "sch-today", "doc-1", LocalDate.now(), LocalTime.of(8, 0),
+                "sch-today", "doc-1", LocalDate.now(VN_ZONE), LocalTime.of(8, 0),
                 LocalTime.of(12, 0), 30, ScheduleStatus.ACTIVE, now, now
         );
 
@@ -166,7 +169,7 @@ class DoctorScheduleServiceTest {
                 "doc-1", "u-doc-1", "spec-1", "ThS.BS",
                 java.math.BigDecimal.valueOf(300000), "P.101", "Bio", null, now, now
         );
-        LocalDate tomorrow = LocalDate.now().plusDays(1);
+        LocalDate tomorrow = LocalDate.now(VN_ZONE).plusDays(1);
         DoctorScheduleEntity sch = new DoctorScheduleEntity(
                 "sch-tomorrow", "doc-1", tomorrow, LocalTime.of(8, 0),
                 LocalTime.of(12, 0), 30, ScheduleStatus.ACTIVE, now, now

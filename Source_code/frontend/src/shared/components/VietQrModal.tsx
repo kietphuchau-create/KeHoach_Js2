@@ -415,11 +415,6 @@ export const VietQrModal: React.FC<VietQrModalProps> = ({
                   {activeAmount.toLocaleString('vi-VN')}{' '}
                   <span className="text-base sm:text-lg font-bold">VNĐ</span>
                 </div>
-                {patientName && (
-                  <div className="text-xs text-slate-600 mt-0.5 font-medium">
-                    Bệnh nhân: <strong className="text-slate-800">{patientName}</strong>
-                  </div>
-                )}
               </div>
 
               {/* Trường hợp 1: Miễn phí đặt cọc qua mã khuyến mãi */}
@@ -492,16 +487,6 @@ export const VietQrModal: React.FC<VietQrModalProps> = ({
                 </>
               )}
 
-              {/* Cảnh báo khi người dùng bấm kiểm tra nhưng tiền chưa về */}
-              {checkError && (
-                <div className="bg-rose-50 border border-rose-300 text-rose-800 p-3.5 rounded-2xl text-xs space-y-1.5 animate-in fade-in">
-                  <div className="flex items-center gap-1.5 font-bold text-rose-900">
-                    <AlertCircle size={15} className="text-rose-600 shrink-0" />
-                    <span>Chưa Nhận Được Thanh Toán Tự Động:</span>
-                  </div>
-                  <p className="text-[11px] leading-relaxed text-rose-700">{checkError}</p>
-                </div>
-              )}
             </>
           )}
         </div>
@@ -579,6 +564,40 @@ export const VietQrModal: React.FC<VietQrModalProps> = ({
           </div>
         )}
       </div>
+
+      {/* Popup Thông Báo Trạng Thái Thanh Toán */}
+      {checkError && (
+        <div
+          className="fixed inset-0 z-60 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setCheckError(null)}
+        >
+          <div
+            className="w-full max-w-sm bg-white rounded-3xl p-5 shadow-2xl border border-slate-100 space-y-3.5 text-center animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-12 h-12 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
+              <AlertCircle size={26} className="text-rose-600" />
+            </div>
+
+            <div className="space-y-1.5">
+              <h4 className="font-extrabold text-slate-800 text-sm sm:text-base">
+                Chưa Nhận Được Thanh Toán Tự Động
+              </h4>
+              <p className="text-xs text-slate-600 leading-relaxed text-left bg-slate-50 p-3 rounded-xl border border-slate-200/80">
+                {checkError}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setCheckError(null)}
+              className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
+            >
+              Đã hiểu &amp; Đóng
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
