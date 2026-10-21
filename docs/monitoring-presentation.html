@@ -377,98 +377,122 @@
     }
 
     /* DETAILED 2x2 CODE GRID FOR SLIDE 8 */
-    .code-grid-2x2 {
+    /* SPLIT VIEW CHO TỪNG SLIDE CODE RIÊNG BIỆT (SLIDES 8, 9, 10, 11) */
+    .code-split-view {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 14px;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 20px;
       height: 100%;
+      align-items: stretch;
     }
 
-    .code-card {
-      background: rgba(15, 23, 42, 0.65);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+    .ide-window {
+      background: #020617;
+      border: 1px solid rgba(255, 255, 255, 0.12);
       border-radius: 16px;
-      padding: 12px 16px;
       display: flex;
       flex-direction: column;
-      gap: 6px;
-      transition: all 0.25s ease;
+      overflow: hidden;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.5);
     }
 
-    .code-card:hover {
-      border-color: rgba(6, 182, 212, 0.45);
+    .ide-header {
       background: rgba(15, 23, 42, 0.85);
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-    }
-
-    .code-card-header {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 10px 14px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-      padding-bottom: 6px;
     }
 
-    .code-card-title {
-      font-size: 13.5px;
-      font-weight: 700;
-      color: #f8fafc;
+    .ide-dots {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .ide-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    .dot-red { background: #ef4444; }
+    .dot-yellow { background: #f59e0b; }
+    .dot-green { background: #10b981; }
+
+    .ide-file-tab {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: #94a3b8;
+      background: rgba(2, 6, 23, 0.6);
+      padding: 3px 10px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
       display: flex;
       align-items: center;
       gap: 6px;
     }
 
-    .code-card-file {
+    .ide-body {
+      padding: 16px;
       font-family: var(--font-mono);
-      font-size: 10px;
-      color: var(--primary);
-      background: rgba(6, 182, 212, 0.1);
-      padding: 2px 7px;
-      border-radius: 4px;
-      border: 1px solid rgba(6, 182, 212, 0.25);
-    }
-
-    .code-box-full {
-      background: #020617;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 8px;
-      padding: 7px 10px;
-      font-family: var(--font-mono);
-      font-size: 11px;
-      line-height: 1.35;
-      color: #38bdf8;
+      font-size: 12px;
+      line-height: 1.55;
+      color: #f1f5f9;
       overflow-x: auto;
+      flex: 1;
+      background: #020617;
     }
 
-    .code-box-full .cm { color: #64748b; font-style: italic; }
-    .code-box-full .kw { color: #f43f5e; font-weight: 600; }
-    .code-box-full .str { color: #34d399; }
-    .code-box-full .prop { color: #fbbf24; }
+    .ide-body .cm { color: #64748b; font-style: italic; }
+    .ide-body .kw { color: #f43f5e; font-weight: 700; }
+    .ide-body .str { color: #34d399; }
+    .ide-body .prop { color: #38bdf8; font-weight: 600; }
+    .ide-body .hl { background: rgba(56, 189, 248, 0.12); display: block; border-left: 2px solid #38bdf8; padding-left: 6px; margin: 0 -16px 0 -16px; }
 
-    .code-card-notes {
-      list-style: none;
-      padding: 0;
-      margin: 0;
+    .code-explain-col {
       display: flex;
       flex-direction: column;
-      gap: 3px;
+      gap: 12px;
+      justify-content: flex-start;
     }
 
-    .code-card-notes li {
-      font-size: 11.5px;
-      color: #cbd5e1;
-      line-height: 1.35;
+    .explain-card {
+      background: rgba(15, 23, 42, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 14px;
+      padding: 14px 16px;
       display: flex;
-      align-items: flex-start;
+      flex-direction: column;
       gap: 6px;
     }
 
-    .code-card-notes li::before {
-      content: '✔';
-      color: #10b981;
-      font-size: 10px;
-      margin-top: 2px;
-      flex-shrink: 0;
+    .explain-card-title {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .explain-card-desc {
+      font-size: 12px;
+      color: #cbd5e1;
+      line-height: 1.5;
+    }
+
+    .explain-callout {
+      background: rgba(6, 182, 212, 0.08);
+      border: 1px solid rgba(6, 182, 212, 0.25);
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-size: 11.5px;
+      color: #38bdf8;
+      line-height: 1.45;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
     }
 
     /* ARCHITECTURE ANIMATED DIAGRAM */
@@ -1126,94 +1150,250 @@
       </div>
     </section>
 
-    <!-- SLIDE 8: VỊ TRÍ MÃ NGUỒN & CẤU HÌNH CHI TIẾT -->
+    <!-- SLIDE 8: CODE 1 - BUILD.GRADLE -->
     <section class="slide" data-index="8">
       <div class="slide-header" style="margin-bottom: 12px;">
-        <div class="slide-tag">Mã Nguồn &amp; Cấu Hình Dự Án</div>
-        <h2 class="slide-title">Chi Tiết Tích Hợp Prometheus &amp; Grafana</h2>
-        <p class="slide-subtitle">Vị trí chính xác các file cấu hình backend Spring Boot, phân quyền JWT và hạ tầng Docker.</p>
+        <div class="slide-tag">Mã Nguồn Backend [1/4]</div>
+        <h2 class="slide-title">1. Khai Báo Thư Viện Đo Lường (build.gradle)</h2>
+        <p class="slide-subtitle">Nạp Spring Boot Actuator và Micrometer Prometheus Registry vào tầng ứng dụng.</p>
       </div>
       <div class="slide-body">
-        <div class="code-grid-2x2">
-          <!-- Card 1: build.gradle -->
-          <div class="code-card">
-            <div class="code-card-header">
-              <div class="code-card-title">📦 1. Nạp Thư Viện Đo Lường</div>
-              <span class="code-card-file">Source_code/backend/app/build.gradle (L23-25)</span>
+        <div class="code-split-view">
+          <!-- Left: IDE Window -->
+          <div class="ide-window">
+            <div class="ide-header">
+              <div class="ide-dots">
+                <span class="ide-dot dot-red"></span>
+                <span class="ide-dot dot-yellow"></span>
+                <span class="ide-dot dot-green"></span>
+              </div>
+              <span class="ide-file-tab">📄 Source_code/backend/app/build.gradle : L23-25</span>
             </div>
-            <div class="code-box-full">
-<span class="cm">// Thư viện thu thập số liệu và biên dịch định dạng Prometheus TSDB</span>
-<span class="kw">implementation</span> <span class="str">'org.springframework.boot:spring-boot-starter-actuator'</span>
-<span class="kw">implementation</span> <span class="str">'io.micrometer:micrometer-registry-prometheus'</span>
-            </div>
-            <ul class="code-card-notes">
-              <li><strong>Actuator:</strong> Đo lường nội tại Spring Boot: JVM Heap RAM, CPU tiến trình, HTTP Request, HikariCP Pool.</li>
-              <li><strong>Micrometer Prometheus:</strong> Xuất số liệu theo định dạng chuỗi thời gian (TSDB) cho Prometheus cào.</li>
-            </ul>
+            <pre class="ide-body"><code><span class="cm">// ==============================================================</span>
+<span class="cm">// MONITORING &amp; OBSERVABILITY DEPENDENCIES</span>
+<span class="cm">// ==============================================================</span>
+dependencies {
+    <span class="cm">// 1. Bộ khung cung cấp các endpoint đo đạc sức khỏe &amp; số liệu</span>
+<span class="hl">    <span class="kw">implementation</span> <span class="str">'org.springframework.boot:spring-boot-starter-actuator'</span></span>
+
+    <span class="cm">// 2. Bộ chuyển đổi dữ liệu sang chuẩn chuỗi thời gian Prometheus TSDB</span>
+<span class="hl">    <span class="kw">implementation</span> <span class="str">'io.micrometer:micrometer-registry-prometheus'</span></span>
+}</code></pre>
           </div>
 
-          <!-- Card 2: application.yml -->
-          <div class="code-card">
-            <div class="code-card-header">
-              <div class="code-card-title">⚙️ 2. Bật Endpoint &amp; Gắn Nhãn Metrics</div>
-              <span class="code-card-file">backend/app/src/main/resources/application.yml (L104-117)</span>
+          <!-- Right: Detailed Explanation -->
+          <div class="code-explain-col">
+            <div class="explain-card">
+              <div class="explain-card-title">📦 Vai Trò Của Spring Boot Actuator</div>
+              <div class="explain-card-desc">
+                Cung cấp các công cụ quản lý và giám sát nội tại (Production-ready features). Tự động theo dõi:
+                <br>• Bộ nhớ <strong>JVM Heap &amp; Non-Heap</strong>, các đợt dọn rác GC Pause.
+                <br>• Tần suất và độ trễ của các luồng xử lý <strong>HTTP Request</strong>.
+                <br>• Tình trạng hồ kết nối CSDL <strong>HikariCP Connection Pool</strong>.
+              </div>
             </div>
-            <div class="code-box-full">
-<span class="prop">management:</span>
-  <span class="prop">endpoints.web.exposure.include:</span> <span class="str">health, info, prometheus, metrics</span>
-  <span class="prop">endpoint.prometheus.enabled:</span> <span class="kw">true</span>
-  <span class="prop">metrics.tags.application:</span> <span class="str">medsched</span>
-            </div>
-            <ul class="code-card-notes">
-              <li><strong>exposure.include:</strong> Mở cổng xuất số liệu HTTP tại đường dẫn <code>/actuator/prometheus</code>.</li>
-              <li><strong>metrics.tags.application:</strong> Gắn nhãn <code>application="medsched"</code> giúp Grafana lọc số liệu chính xác khi scale.</li>
-            </ul>
-          </div>
 
-          <!-- Card 3: SecurityConfig.java -->
-          <div class="code-card">
-            <div class="code-card-header">
-              <div class="code-card-title">🛡️ 3. Phân Quyền Bảo Mật JWT</div>
-              <span class="code-card-file">com/medsched/security/SecurityConfig.java (L66-78)</span>
+            <div class="explain-card">
+              <div class="explain-card-title">🔄 Vai Trò Của Micrometer Prometheus</div>
+              <div class="explain-card-desc">
+                Đóng vai trò là <strong>"Thông dịch viên định dạng"</strong>: Biên dịch toàn bộ số liệu nội bộ của Java sang định dạng chuỗi thời gian (TSDB) tiêu chuẩn công nghiệp gồm: <code>metric_name{label=value} timestamp value</code> để Prometheus Server có thể cào và lưu trữ được.
+              </div>
             </div>
-            <div class="code-box-full">
-<span class="cm">// Cho phép /actuator/** truy cập công khai để Prometheus cào định kỳ</span>
-.requestMatchers(
-    <span class="str">"/"</span>, <span class="str">"/health"</span>, <span class="str">"/api/v1/health"</span>,
-    <span class="str">"/actuator/**"</span>, <span class="cm">// &lt;-- Prometheus cào metrics tại đây</span>
-    <span class="str">"/api/v1/auth/**"</span>
-).<span class="kw">permitAll</span>()
-            </div>
-            <ul class="code-card-notes">
-              <li>Mặc định Spring Security chặn toàn bộ API nếu không có JWT token (trả về <code>401 Unauthorized</code>).</li>
-              <li>Cấu hình <code>permitAll()</code> cho <code>/actuator/**</code> giúp Prometheus cào 24/7 mà không làm lộ dữ liệu y tế của bệnh nhân.</li>
-            </ul>
-          </div>
 
-          <!-- Card 4: prometheus.yml & docker-compose -->
-          <div class="code-card">
-            <div class="code-card-header">
-              <div class="code-card-title">🐳 4. Cấu Hình Cào Cloud &amp; Docker Grafana</div>
-              <span class="code-card-file">Source_code/monitoring/ (prometheus.yml &amp; docker-compose)</span>
+            <div class="explain-callout">
+              💡 <strong>Lưu ý kỹ thuật:</strong> Nếu thiếu thư viện <code>micrometer-registry-prometheus</code>, Actuator chỉ xuất được JSON thông thường chứ không thể tương thích với Prometheus.
             </div>
-            <div class="code-box-full">
-<span class="kw">- job_name:</span> <span class="str">'medsched-cloud-render'</span>  <span class="cm"># Cào từ Render Cloud thật (HTTPS:443)</span>
-  <span class="prop">metrics_path:</span> <span class="str">'/actuator/prometheus'</span>
-  <span class="prop">static_configs:</span>
-    <span class="kw">- targets:</span> [<span class="str">'medsched-zu15.onrender.com:443'</span>]
-            </div>
-            <ul class="code-card-notes">
-              <li><strong>scrape_interval: 5s:</strong> Cứ 5 giây Prometheus chủ động gửi HTTP GET kéo số đo về lưu vào kho TSDB.</li>
-              <li><strong>ports: ["3100:3000"]:</strong> Ánh xạ Grafana sang cổng 3100 tránh đụng độ Next.js; tự nạp Dashboard qua <code>provisioning/</code>.</li>
-            </ul>
           </div>
-
         </div>
       </div>
     </section>
 
-    <!-- SLIDE 9: KẾT LUẬN & TỔNG KẾT -->
+    <!-- SLIDE 9: CODE 2 - APPLICATION.YML -->
     <section class="slide" data-index="9">
+      <div class="slide-header" style="margin-bottom: 12px;">
+        <div class="slide-tag">Cấu Hình Ứng Dụng [2/4]</div>
+        <h2 class="slide-title">2. Kích Hoạt Endpoint &amp; Nhãn Metrics (application.yml)</h2>
+        <p class="slide-subtitle">Mở đường dẫn xuất dữ liệu thời gian thực và gắn nhãn định danh dịch vụ MedSched.</p>
+      </div>
+      <div class="slide-body">
+        <div class="code-split-view">
+          <!-- Left: IDE Window -->
+          <div class="ide-window">
+            <div class="ide-header">
+              <div class="ide-dots">
+                <span class="ide-dot dot-red"></span>
+                <span class="ide-dot dot-yellow"></span>
+                <span class="ide-dot dot-green"></span>
+              </div>
+              <span class="ide-file-tab">📄 backend/app/src/main/resources/application.yml : L104-117</span>
+            </div>
+            <pre class="ide-body"><code><span class="cm"># ==============================================================</span>
+<span class="cm"># HỆ THỐNG GIÁM SÁT HẠ TẦNG &amp; METRICS (ACTUATOR + PROMETHEUS)</span>
+<span class="cm"># ==============================================================</span>
+<span class="prop">management:</span>
+  <span class="prop">endpoints:</span>
+    <span class="prop">web:</span>
+      <span class="prop">exposure:</span>
+<span class="hl">        <span class="prop">include:</span> <span class="str">health, info, prometheus, metrics</span></span>
+  <span class="prop">endpoint:</span>
+<span class="hl">    <span class="prop">prometheus:</span></span>
+<span class="hl">      <span class="prop">enabled:</span> <span class="kw">true</span></span>
+    <span class="prop">health:</span>
+      <span class="prop">show-details:</span> <span class="str">always</span>
+  <span class="prop">metrics:</span>
+    <span class="prop">tags:</span>
+<span class="hl">      <span class="prop">application:</span> <span class="str">medsched</span></span></code></pre>
+          </div>
+
+          <!-- Right: Detailed Explanation -->
+          <div class="code-explain-col">
+            <div class="explain-card">
+              <div class="explain-card-title">🌐 Mở Cổng HTTP Tại /actuator/prometheus</div>
+              <div class="explain-card-desc">
+                Mặc định Spring Boot chỉ kích hoạt 2 endpoint <code>health</code> và <code>info</code>. Thuộc tính <code>exposure.include: prometheus</code> cho phép mở cổng HTTP để Prometheus Server từ bên ngoài có thể gửi lệnh GET đến lấy số liệu.
+              </div>
+            </div>
+
+            <div class="explain-card">
+              <div class="explain-card-title">🏷️ Gắn Tag Định Danh Ứng Dụng (Application Tag)</div>
+              <div class="explain-card-desc">
+                Cấu hình <code>metrics.tags.application: medsched</code> sẽ tự động chèn nhãn <code>app="medsched"</code> vào từng bản ghi số liệu. Giúp Grafana lọc chính xác dữ liệu của MedSched khi triển khai chung cụm giám sát với các dịch vụ khác.
+              </div>
+            </div>
+
+            <div class="explain-callout">
+              💡 <strong>Kiểm thử trực tiếp:</strong> Truy cập <code>http://localhost:8080/actuator/prometheus</code> (hoặc máy chủ Cloud) sẽ thấy hàng ngàn dòng chỉ số dạng text sẵn sàng cho Prometheus.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 10: CODE 3 - SECURITYCONFIG.JAVA -->
+    <section class="slide" data-index="10">
+      <div class="slide-header" style="margin-bottom: 12px;">
+        <div class="slide-tag">Bảo Mật Hệ Thống [3/4]</div>
+        <h2 class="slide-title">3. Cấu Hình Quyền Truy Cập (SecurityConfig.java)</h2>
+        <p class="slide-subtitle">Cho phép Prometheus tự động cào số liệu định kỳ mà không bị chặn bởi bộ lọc bảo mật JWT.</p>
+      </div>
+      <div class="slide-body">
+        <div class="code-split-view">
+          <!-- Left: IDE Window -->
+          <div class="ide-window">
+            <div class="ide-header">
+              <div class="ide-dots">
+                <span class="ide-dot dot-red"></span>
+                <span class="ide-dot dot-yellow"></span>
+                <span class="ide-dot dot-green"></span>
+              </div>
+              <span class="ide-file-tab">📄 com/medsched/security/SecurityConfig.java : L66-78</span>
+            </div>
+            <pre class="ide-body"><code><span class="cm">// 1. Cấu hình các Endpoints công khai hoàn toàn (Không cần JWT Token)</span>
+.authorizeHttpRequests(auth -&gt; auth
+    .requestMatchers(
+        <span class="str">"/"</span>,
+        <span class="str">"/health"</span>,
+        <span class="str">"/api/health"</span>,
+        <span class="str">"/api/v1/health"</span>,
+<span class="hl">        <span class="str">"/actuator/**"</span>,  <span class="cm">// &lt;-- Prometheus cào metrics qua đây</span></span>
+        <span class="str">"/error"</span>,
+        <span class="str">"/api/v1/auth/**"</span>,
+        <span class="str">"/swagger-ui/**"</span>,
+        <span class="str">"/swagger-ui.html"</span>
+<span class="hl">    ).<span class="kw">permitAll</span>()</span>
+    <span class="cm">// Mọi API bệnh án &amp; đặt lịch khác đều bắt buộc xác thực JWT Token</span>
+    .anyRequest().authenticated()
+)</code></pre>
+          </div>
+
+          <!-- Right: Detailed Explanation -->
+          <div class="code-explain-col">
+            <div class="explain-card">
+              <div class="explain-card-title">🛡️ Tại Sao Cần .permitAll() Cho /actuator/**?</div>
+              <div class="explain-card-desc">
+                Hệ thống MedSched sử dụng kiến trúc <strong>Stateless JWT</strong>. Mọi request không kèm header <code>Authorization: Bearer &lt;token&gt;</code> đều bị Spring Security chặn lập tức với mã <code>401 Unauthorized</code>.<br>
+                Prometheus Server là dịch vụ chạy ngầm độc lập, không mang token người dùng, nên bắt buộc phải cấu hình <code>permitAll()</code>.
+              </div>
+            </div>
+
+            <div class="explain-card">
+              <div class="explain-card-title">🔒 Tính An Toàn Thông Tin (Security Audit)</div>
+              <div class="explain-card-desc">
+                Đường dẫn <code>/actuator/prometheus</code> chỉ xuất các chỉ số kỹ thuật phần cứng và tần suất gọi API, <strong>hoàn toàn không chứa dữ liệu cá nhân hay bệnh án</strong>. Tất cả API khám bệnh, thông tin bác sĩ và bệnh nhân vẫn được bảo vệ nghiêm ngặt 100%.
+              </div>
+            </div>
+
+            <div class="explain-callout">
+              💡 <strong>Câu hỏi Thầy hay hỏi:</strong> "Mở permitAll như vậy có nguy hiểm không?" — Trả lời: "Dạ không, vì metrics chỉ chứa số đo kỹ thuật, không chứa dữ liệu y tế nhạy cảm."
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 11: CODE 4 - PROMETHEUS.YML & DOCKER -->
+    <section class="slide" data-index="11">
+      <div class="slide-header" style="margin-bottom: 12px;">
+        <div class="slide-tag">Hạ Tầng DevOps [4/4]</div>
+        <h2 class="slide-title">4. Cấu Hình Cào Dữ Liệu Cloud &amp; Docker Grafana</h2>
+        <p class="slide-subtitle">Cào máy chủ Render Production thật và ánh xạ cổng 3100 không xung đột với Next.js.</p>
+      </div>
+      <div class="slide-body">
+        <div class="code-split-view">
+          <!-- Left: IDE Window -->
+          <div class="ide-window">
+            <div class="ide-header">
+              <div class="ide-dots">
+                <span class="ide-dot dot-red"></span>
+                <span class="ide-dot dot-yellow"></span>
+                <span class="ide-dot dot-green"></span>
+              </div>
+              <span class="ide-file-tab">📄 Source_code/monitoring/ (prometheus.yml &amp; docker-compose)</span>
+            </div>
+            <pre class="ide-body"><code><span class="cm"># 1. File prometheus.yml: Định kỳ cào số liệu máy chủ Render thật</span>
+<span class="prop">scrape_configs:</span>
+<span class="hl">  - <span class="prop">job_name:</span> <span class="str">'medsched-cloud-render'</span></span>
+<span class="hl">    <span class="prop">scheme:</span> <span class="str">https</span></span>
+<span class="hl">    <span class="prop">metrics_path:</span> <span class="str">'/actuator/prometheus'</span></span>
+    <span class="prop">static_configs:</span>
+<span class="hl">      - <span class="prop">targets:</span> [<span class="str">'medsched-zu15.onrender.com:443'</span>]</span>
+
+<span class="cm"># 2. File docker-compose-monitoring.yml: Cổng &amp; Auto-Provisioning</span>
+<span class="prop">services:</span>
+  <span class="prop">grafana:</span>
+    <span class="prop">ports:</span>
+<span class="hl">      - <span class="str">"3100:3000"</span>  <span class="cm"># Tránh đụng độ cổng 3000 của Frontend Next.js</span></span>
+    <span class="prop">volumes:</span>
+      - ./provisioning:/etc/grafana/provisioning</code></pre>
+          </div>
+
+          <!-- Right: Detailed Explanation -->
+          <div class="code-explain-col">
+            <div class="explain-card">
+              <div class="explain-card-title">☁️ Cào Trực Tiếp Máy Chủ Cloud Render Thật</div>
+              <div class="explain-card-desc">
+                Với cấu hình <code>scrape_interval: 5s</code>, cứ đúng 5 giây Prometheus sẽ gửi một request HTTPS mã hóa tới máy chủ Render Production. Dữ liệu sau đó được nén và lưu trữ tối ưu trong cơ sở dữ liệu chuỗi thời gian TSDB.
+              </div>
+            </div>
+
+            <div class="explain-card">
+              <div class="explain-card-title">🔌 Ánh Xạ Cổng 3100 &amp; Cơ Chế Zero-Config</div>
+              <div class="explain-card-desc">
+                Cổng mặc định 3000 đã dành cho giao diện web đặt lịch Next.js. Docker ánh xạ <code>3100:3000</code> giúp chạy đồng thời cả hai trên cùng một máy.<br>
+                Thư mục <code>provisioning/</code> tự động nạp Data Source và Dashboard <code>medsched-cloud-dashboard.json</code> mà không cần cấu hình tay.
+              </div>
+            </div>
+
+            <div class="explain-callout">
+              💡 <strong>Tự động hóa 1-Click:</strong> Chỉ cần chạy <code>start-monitoring.bat</code> là toàn bộ cụm này tự động kéo và khởi chạy trong chưa tới 15 giây.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 12: KẾT LUẬN & TỔNG KẾT -->
+    <section class="slide" data-index="12">
       <div class="cover-content" style="text-align: center; align-items: center;">
         <div class="slide-tag" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border-color: rgba(52, 211, 153, 0.3);">
           ✓ Tổng Kết Báo Cáo
@@ -1250,7 +1430,7 @@
 
   <!-- Footer Navigation -->
   <footer>
-    <div class="slide-counter" id="slide-num">Slide 1 / 9</div>
+    <div class="slide-counter" id="slide-num">Slide 1 / 12</div>
     <div class="btn-group">
       <button class="nav-arrow" id="btn-prev" title="Slide trước (Phím ←)">←</button>
       <button class="nav-arrow" id="btn-next" title="Slide tiếp theo (Phím →)">→</button>

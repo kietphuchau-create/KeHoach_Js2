@@ -79,7 +79,7 @@ Slide báo cáo của nhóm không phải là PowerPoint truyền thống mà l�
 * **Phím `F11`**: Bật chế độ toàn màn hình (Fullscreen) – Giao diện biến thành slide chuyên nghiệp không thấy thanh địa chỉ web.
 * **Phím mũi tên sang phải `→`** hoặc **phím cách `Space`**: Chuyển sang slide tiếp theo.
 * **Phím mũi tên sang trái `←`**: Lùi lại slide trước.
-* **Click chuột**: Trên mỗi slide đều có nút tương tác (Ví dụ nút bắn request giả lập ở Slide 6, nút mở Grafana ở Slide 8).
+* **Click chuột**: Trên mỗi slide đều có nút tương tác (Ví dụ nút bắn request giả lập ở Slide 6, nút mở Grafana ở Slide 12).
 
 ---
 
@@ -209,20 +209,53 @@ Slide báo cáo của nhóm không phải là PowerPoint truyền thống mà l�
 
 ---
 
-### 🎙️ SLIDE 8: VỊ TRÍ MÃ NGUỒN & CẤU HÌNH CHI TIẾT TRONG DỰ ÁN
+### 🎙️ SLIDE 8: MÃ NGUỒN BACKEND [1/4] — KHAI BÁO THƯ VIỆN ĐO LƯỜNG (`build.gradle`)
 *(Bấm phím `→` sang Slide 8)*
 
-> *"Thưa Thầy, để chứng minh giải pháp này được tích hợp thực tế vào mã nguồn dự án chứ không phải chỉ là mô hình lý thuyết, nhóm em xin phân tích chi tiết 4 vị trí then chốt trên màn hình:
+> *"Thưa Thầy, để chứng minh giải pháp này được tích hợp thực tế vào mã nguồn dự án chứ không phải chỉ là mô hình lý thuyết, nhóm em xin phân tích chi tiết từng vị trí code then chốt.
 >
-> 1. **Khung 1 - `build.gradle` (dòng 23-25):** Nhóm em khai báo `spring-boot-starter-actuator` để tạo các bộ đo nội tại (JVM, CPU, Connection Pool) và `micrometer-registry-prometheus` để biên dịch toàn bộ số liệu sang định dạng chuỗi thời gian TSDB.
-> 2. **Khung 2 - `application.yml` (dòng 104-117):** Cấu hình `exposure.include: prometheus` để mở cổng HTTP tại `/actuator/prometheus`, đồng thời gắn nhãn `application="medsched"` giúp Grafana lọc số liệu chính xác khi scale nhiều microservices.
-> 3. **Khung 3 - `SecurityConfig.java` (dòng 66-78):** Vì hệ thống dùng Spring Security chặn JWT tất cả API, nhóm cấu hình `.permitAll("/actuator/**")` để Prometheus định kỳ cào số liệu 24/7 mà không bị lỗi 401 Unauthorized, trong khi toàn bộ dữ liệu y tế của bệnh nhân vẫn được bảo mật 100%.
-> 4. **Khung 4 - Hạ tầng Docker `Source_code/monitoring/`:** File `prometheus.yml` cấu hình cào trực tiếp máy chủ Render Cloud thật với chu kỳ 5 giây/lần; file `docker-compose` ánh xạ Grafana sang cổng 3100 tránh đụng độ Next.js và tự động nạp Dashboard qua cơ chế Zero-Config Provisioning."*
+> Đầu tiên là file **`Source_code/backend/app/build.gradle` (dòng 23 - 25)**:
+> - Thư viện thứ nhất là **`spring-boot-starter-actuator`**: Cung cấp bộ khung giám sát sức khỏe nội tại của Spring Boot, tự động theo dõi bộ nhớ RAM JVM Heap, các đợt dọn rác GC Pause, tần suất xử lý HTTP Request và hồ kết nối HikariCP Connection Pool.
+> - Thư viện thứ hai là **`micrometer-registry-prometheus`**: Đóng vai trò là 'thông dịch viên định dạng'. Nó biên dịch toàn bộ dữ liệu chỉ số của Java sang chuẩn chuỗi thời gian TSDB `metric_name{label=value} timestamp value` để Prometheus Server có thể cào và lưu trữ được.
+>
+> Nếu thiếu thư viện Micrometer này, Actuator sẽ chỉ xuất được JSON thông thường chứ không thể kết nối tương thích với Prometheus."*
 
 ---
 
-### 🎙️ SLIDE 9: TỔNG KẾT & LỜI CẢM ƠN
+### 🎙️ SLIDE 9: CẤU HÌNH ỨNG DỤNG [2/4] — KÍCH HOẠT ENDPOINT & NHÃN METRICS (`application.yml`)
 *(Bấm phím `→` sang Slide 9)*
+
+> *"Tiếp theo là cấu hình kích hoạt tại **`application.yml` (dòng 104 - 117)**:
+>
+> - Mặc định Spring Boot chỉ mở 2 endpoint an toàn là `health` và `info`. Nhóm em đã cấu hình thuộc tính **`exposure.include: health, info, prometheus, metrics`** và bật **`prometheus.enabled: true`** để mở cổng HTTP tại đường dẫn `/actuator/prometheus`.
+> - Đặc biệt, nhóm cấu hình **`metrics.tags.application: medsched`**. Thuộc tính này sẽ tự động gắn nhãn `application="medsched"` vào từng dòng chỉ số được xuất ra. Điều này vô cùng quan trọng trong môi trường Microservices, giúp Prometheus và Grafana lọc chính xác dữ liệu của MedSched khi chạy chung cụm với các dịch vụ khác."*
+
+---
+
+### 🎙️ SLIDE 10: BẢO MẬT HỆ THỐNG [3/4] — CẤU HÌNH QUYỀN TRUY CẬP (`SecurityConfig.java`)
+*(Bấm phím `→` sang Slide 10)*
+
+> *"Vị trí thứ ba rất quan trọng về mặt an toàn thông tin là **`SecurityConfig.java` (dòng 66 - 78)**:
+>
+> - Hệ thống MedSched sử dụng kiến trúc bảo mật **Stateless JWT**. Mọi API nếu không có token người dùng đều bị chặn ngay lập tức với mã lỗi `401 Unauthorized`.
+> - Tuy nhiên, Prometheus Server là một tiến trình cào dữ liệu tự động chạy ngầm, không mang JWT token của người dùng. Do đó, nhóm em đã cấu hình **`.requestMatchers("/actuator/**").permitAll()`**.
+> - Về mặt an ninh: Endpoint `/actuator/prometheus` chỉ xuất các con số thống kê kỹ thuật về phần cứng và tần suất gọi API, **hoàn toàn không chứa dữ liệu cá nhân hay bệnh án của người bệnh**. Toàn bộ các API khám bệnh, thông tin bác sĩ và đơn đặt khám vẫn được Spring Security bảo vệ nghiêm ngặt 100%."*
+
+---
+
+### 🎙️ SLIDE 11: HẠ TẦNG DEVOPS [4/4] — CẤU HÌNH CÀO DỮ LIỆU CLOUD & DOCKER GRAFANA
+*(Bấm phím `→` sang Slide 11)*
+
+> *"Và vị trí cuối cùng là cấu hình hạ tầng tại thư mục **`Source_code/monitoring/`**:
+>
+> - Trong file **`prometheus.yml`**: Nhóm cấu hình job `medsched-cloud-render` với `metrics_path: '/actuator/prometheus'` và mục tiêu target là máy chủ thật **`medsched-zu15.onrender.com:443`** chạy giao thức mã hóa HTTPS. Cứ đều đặn 5 giây một lần, Prometheus sẽ cào số liệu từ máy chủ Cloud về lưu vào TSDB.
+> - Trong file **`docker-compose-monitoring.yml`**: Nhóm ánh xạ cổng Grafana là **`3100:3000`** để tránh đụng độ với cổng 3000 của giao diện Frontend Next.js.
+> - Đồng thời, nhóm thiết lập cơ chế **Zero-Config Provisioning** thông qua thư mục `provisioning/`: Tự động gắn Prometheus Data Source và tự động nạp sẵn Dashboard `medsched-cloud-dashboard.json` ngay khi khởi động container, người dùng chỉ cần chạy file `start-monitoring.bat` là có ngay bảng điều khiển hoàn chỉnh mà không cần bấm cấu hình tay bất kỳ bước nào!"*
+
+---
+
+### 🎙️ SLIDE 12: TỔNG KẾT & LỜI CẢM ƠN
+*(Bấm phím `→` sang Slide 12)*
 
 > *"Dạ thưa Thầy, việc tích hợp thành công Prometheus và Grafana đã giúp dự án MedSched hoàn thiện mảnh ghép vận hành theo đúng chuẩn **Cloud-Native Doanh Nghiệp**. Hệ thống không chỉ chạy tốt về mặt chức năng mà còn được bảo vệ và theo dõi sức khỏe 24/7 một cách minh bạch, sẵn sàng phục vụ người bệnh an toàn và tin cậy.
 >
