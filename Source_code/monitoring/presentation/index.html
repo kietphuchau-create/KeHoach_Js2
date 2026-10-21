@@ -1,0 +1,1102 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MedSched - Báo Cáo Chuyên Đề Giám Sát Hệ Thống (Prometheus & Grafana)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #070d18;
+      --bg-card: rgba(15, 23, 42, 0.75);
+      --bg-card-border: rgba(56, 189, 248, 0.18);
+      --primary: #06b6d4;
+      --primary-glow: rgba(6, 182, 212, 0.45);
+      --secondary: #8b5cf6;
+      --accent-orange: #f97316;
+      --accent-green: #10b981;
+      --accent-red: #ef4444;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      background-image: 
+        radial-gradient(circle at 15% 20%, rgba(139, 92, 246, 0.15) 0%, transparent 40%),
+        radial-gradient(circle at 85% 80%, rgba(6, 182, 212, 0.15) 0%, transparent 45%),
+        linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 48px 48px, 48px 48px;
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+      user-select: none;
+    }
+
+    /* TOP PROGRESS BAR */
+    #progress-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 4px;
+      background: linear-gradient(90deg, #06b6d4, #8b5cf6, #10b981);
+      width: 0%;
+      transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 100;
+      box-shadow: 0 0 12px var(--primary-glow);
+    }
+
+    /* HEADER CONTROLS */
+    header {
+      position: fixed;
+      top: 16px;
+      left: 24px;
+      right: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 50;
+      pointer-events: auto;
+    }
+
+    .brand-badge {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(15, 23, 42, 0.8);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: -0.2px;
+    }
+
+    .brand-badge .dot {
+      width: 8px;
+      height: 8px;
+      background: var(--accent-green);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--accent-green);
+      animation: pulse-dot 2s infinite;
+    }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.85); }
+    }
+
+    .nav-tools {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .tool-btn {
+      background: rgba(15, 23, 42, 0.8);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--text-muted);
+      padding: 6px 12px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .tool-btn:hover {
+      background: rgba(30, 41, 59, 0.9);
+      color: var(--text-main);
+      border-color: var(--primary);
+      transform: translateY(-1px);
+    }
+
+    /* SLIDE STAGE */
+    #slide-viewport {
+      position: relative;
+      height: 100vh;
+      width: 100vw;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 64px 32px 80px;
+    }
+
+    .slide {
+      position: absolute;
+      width: min(1200px, 94vw);
+      height: min(680px, 82vh);
+      background: var(--bg-card);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--bg-card-border);
+      border-radius: 28px;
+      padding: 48px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      opacity: 0;
+      transform: scale(0.96) translateY(24px);
+      pointer-events: none;
+      transition: all 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 24px 64px -12px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      overflow: hidden;
+    }
+
+    .slide.active {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+      pointer-events: auto;
+    }
+
+    /* SLIDE CONTENT TYPOGRAPHY */
+    .slide-header {
+      margin-bottom: 24px;
+    }
+
+    .slide-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--primary);
+      background: rgba(6, 182, 212, 0.12);
+      border: 1px solid rgba(6, 182, 212, 0.25);
+      padding: 4px 10px;
+      border-radius: 8px;
+      margin-bottom: 12px;
+    }
+
+    .slide-title {
+      font-size: clamp(26px, 3.2vw, 38px);
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -0.6px;
+      background: linear-gradient(135deg, #ffffff 30%, #cbd5e1 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .slide-subtitle {
+      font-size: 15px;
+      color: var(--text-muted);
+      margin-top: 8px;
+      line-height: 1.5;
+    }
+
+    .slide-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    /* SLIDE 1: COVER SPECIFIC */
+    .cover-content {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      height: 100%;
+      text-align: left;
+    }
+
+    .hero-title {
+      font-size: clamp(34px, 4.4vw, 54px);
+      font-weight: 800;
+      line-height: 1.1;
+      letter-spacing: -1.2px;
+      margin-bottom: 16px;
+    }
+
+    .hero-gradient {
+      background: linear-gradient(135deg, #38bdf8 0%, #818cf8 50%, #34d399 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-desc {
+      font-size: 17px;
+      color: #94a3b8;
+      max-width: 720px;
+      line-height: 1.6;
+      margin-bottom: 32px;
+    }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      background: rgba(2, 6, 23, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 16px 20px;
+    }
+
+    .meta-item {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .meta-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+    }
+
+    .meta-value {
+      font-size: 14px;
+      font-weight: 700;
+      color: #f1f5f9;
+      margin-top: 4px;
+    }
+
+    /* CARDS GRID FOR CONTENT */
+    .grid-cards-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      height: 100%;
+      align-items: stretch;
+    }
+
+    .feature-card {
+      background: rgba(30, 41, 59, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 20px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .feature-card:hover {
+      background: rgba(30, 41, 59, 0.7);
+      border-color: rgba(6, 182, 212, 0.4);
+      transform: translateY(-4px);
+    }
+
+    .card-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      margin-bottom: 16px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .card-title {
+      font-size: 17px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 8px;
+    }
+
+    .card-desc {
+      font-size: 13px;
+      color: #94a3b8;
+      line-height: 1.6;
+    }
+
+    .card-badge {
+      margin-top: auto;
+      padding-top: 16px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* ARCHITECTURE ANIMATED DIAGRAM */
+    .diagram-container {
+      background: rgba(2, 6, 23, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 20px;
+      padding: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      position: relative;
+    }
+
+    .diagram-node {
+      flex: 1;
+      background: rgba(30, 41, 59, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 16px;
+      padding: 20px 16px;
+      text-align: center;
+      position: relative;
+      transition: all 0.3s;
+    }
+
+    .diagram-node.active-node {
+      border-color: var(--primary);
+      box-shadow: 0 0 24px rgba(6, 182, 212, 0.25);
+    }
+
+    .node-badge {
+      display: inline-block;
+      font-size: 10px;
+      font-family: var(--font-mono);
+      padding: 2px 8px;
+      border-radius: 6px;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+
+    .node-title {
+      font-size: 15px;
+      font-weight: 800;
+      color: #fff;
+      margin-bottom: 4px;
+    }
+
+    .node-desc {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .diagram-arrow {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      color: var(--primary);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      min-width: 100px;
+      text-align: center;
+    }
+
+    .arrow-line {
+      width: 100%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--primary), transparent);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .arrow-line::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 50%;
+      height: 100%;
+      background: #fff;
+      animation: data-stream 1.5s infinite linear;
+    }
+
+    @keyframes data-stream {
+      0% { left: -50%; }
+      100% { left: 100%; }
+    }
+
+    /* LIVE METRIC SIMULATOR IN SLIDE 5 */
+    .sim-box {
+      background: rgba(2, 6, 23, 0.8);
+      border: 1px solid rgba(56, 189, 248, 0.2);
+      border-radius: 20px;
+      padding: 20px;
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 20px;
+      align-items: center;
+    }
+
+    .metric-gauges {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+
+    .gauge-card {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      padding: 14px;
+      text-align: center;
+    }
+
+    .gauge-val {
+      font-family: var(--font-mono);
+      font-size: 26px;
+      font-weight: 800;
+      color: #38bdf8;
+      margin: 4px 0;
+      transition: color 0.3s;
+    }
+
+    .gauge-title {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    .sim-ctrl {
+      background: rgba(30, 41, 59, 0.5);
+      border-radius: 14px;
+      padding: 16px;
+      text-align: center;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .btn-fire {
+      background: linear-gradient(135deg, #06b6d4, #3b82f6);
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+      box-shadow: 0 4px 16px rgba(6, 182, 212, 0.4);
+      transition: all 0.2s;
+      width: 100%;
+    }
+
+    .btn-fire:hover {
+      transform: scale(1.02);
+      box-shadow: 0 6px 20px rgba(6, 182, 212, 0.6);
+    }
+
+    .btn-fire:active {
+      transform: scale(0.98);
+    }
+
+    /* FAQ ACCORDION IN SLIDE 6 */
+    .faq-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .faq-item {
+      background: rgba(30, 41, 59, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      padding: 14px 18px;
+      transition: all 0.2s;
+    }
+
+    .faq-item:hover {
+      background: rgba(30, 41, 59, 0.7);
+      border-color: rgba(139, 92, 246, 0.4);
+    }
+
+    .faq-q {
+      font-weight: 700;
+      font-size: 14px;
+      color: #f8fafc;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .faq-a {
+      font-size: 13px;
+      color: #94a3b8;
+      margin-top: 6px;
+      line-height: 1.5;
+    }
+
+    /* FOOTER CONTROLS */
+    footer {
+      position: fixed;
+      bottom: 20px;
+      left: 32px;
+      right: 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 50;
+    }
+
+    .slide-counter {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-muted);
+      background: rgba(15, 23, 42, 0.8);
+      padding: 6px 14px;
+      border-radius: 9999px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 8px;
+    }
+
+    .nav-arrow {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .nav-arrow:hover:not(:disabled) {
+      background: var(--primary);
+      color: #000;
+      transform: scale(1.08);
+    }
+
+    .nav-arrow:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    /* KEYBOARD HINT */
+    .kb-hint {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 11px;
+      color: rgba(148, 163, 184, 0.6);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    kbd {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: #e2e8f0;
+    }
+
+    /* MODAL OVERVIEW */
+    #overview-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(2, 6, 23, 0.9);
+      backdrop-filter: blur(16px);
+      z-index: 200;
+      display: none;
+      padding: 40px;
+      overflow-y: auto;
+    }
+
+    #overview-modal.open {
+      display: block;
+    }
+
+    .overview-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 20px;
+      max-width: 1200px;
+      margin: 40px auto 0;
+    }
+
+    .thumb-card {
+      background: rgba(30, 41, 59, 0.6);
+      border: 2px solid rgba(255, 255, 255, 0.1);
+      border-radius: 14px;
+      padding: 16px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .thumb-card:hover {
+      border-color: var(--primary);
+      transform: scale(1.03);
+    }
+
+    .thumb-card.active-thumb {
+      border-color: var(--primary);
+      box-shadow: 0 0 20px rgba(6, 182, 212, 0.4);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Progress Bar -->
+  <div id="progress-bar"></div>
+
+  <!-- Header Controls -->
+  <header>
+    <div class="brand-badge">
+      <span class="dot"></span>
+      <span>MedSched Observability</span>
+      <span style="color: var(--primary); font-family: var(--font-mono);">v1.3.1</span>
+    </div>
+    <div class="nav-tools">
+      <button class="tool-btn" id="btn-overview" title="Xem danh sách tất cả slide (Phím O)">
+        <span>📑</span> <span>Mục Lục (O)</span>
+      </button>
+      <button class="tool-btn" id="btn-fullscreen" title="Toàn màn hình (Phím F)">
+        <span>⛶</span> <span>Toàn Màn Hình (F)</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Slide Viewport -->
+  <main id="slide-viewport">
+
+    <!-- SLIDE 1: TRANG BÌA -->
+    <section class="slide active" data-index="1">
+      <div class="cover-content">
+        <div class="slide-tag">🚀 Báo Cáo Chuyên Đề Kỹ Thuật • Java Spring 2</div>
+        <h1 class="hero-title">
+          Giám Sát Hạ Tầng &amp; Hiệu Năng Với<br>
+          <span class="hero-gradient">Prometheus &amp; Grafana</span>
+        </h1>
+        <p class="hero-desc">
+          Ứng dụng kiến trúc Observability chuẩn công nghiệp vào Hệ thống Phòng khám Thông minh <strong>MedSched</strong> nhằm phát hiện nghẽn mạng, đo lường độ trễ API và giám sát tài nguyên 24/7 theo thời gian thực.
+        </p>
+        <div class="meta-grid">
+          <div class="meta-item">
+            <span class="meta-label">Giảng Viên Hướng Dẫn</span>
+            <span class="meta-value">Thầy Trương Thanh Bình</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Nhóm Thực Hiện</span>
+            <span class="meta-value">Nhóm Dự Án MedSched</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Công Nghệ Cốt Lõi</span>
+            <span class="meta-value" style="color: #38bdf8;">Spring Boot 3 + Micrometer + Docker</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 2: BÀI TOÁN & THÁCH THỨC -->
+    <section class="slide" data-index="2">
+      <div class="slide-header">
+        <div class="slide-tag">Thực Trạng &amp; Thách Thức</div>
+        <h2 class="slide-title">Vì sao hệ thống MedSched cần Giám Sát Chuyên Sâu?</h2>
+        <p class="slide-subtitle">Chuyển dịch tư duy từ "chờ người dùng báo lỗi" sang "chủ động phát hiện sự cố trước khi xảy ra".</p>
+      </div>
+      <div class="slide-body">
+        <div class="grid-cards-3">
+          <div class="feature-card">
+            <div class="card-icon" style="color: #ef4444; background: rgba(239, 68, 68, 0.1);">⚠️</div>
+            <h3 class="card-title">Tải Đỉnh Giờ Cao Điểm</h3>
+            <p class="card-desc">Bệnh nhân ồ ạt truy cập đặt lịch khám vào khung giờ 07:00 - 09:00 sáng. Nguy cơ nghẽn kết nối Database HikariCP và chậm phản hồi dịch vụ.</p>
+            <div class="card-badge">→ Rủi ro sập ứng dụng</div>
+          </div>
+          <div class="feature-card">
+            <div class="card-icon" style="color: #f59e0b; background: rgba(245, 158, 11, 0.1);">🔍</div>
+            <h3 class="card-title">Thiếu Tầm Nhìn Kỹ Thuật</h3>
+            <p class="card-desc">Nếu không có metrics, lập trình viên không biết API nào đang chạy chậm (P95/P99 latency), bộ nhớ RAM (JVM Heap) có bị rò rỉ (Memory Leak) hay không.</p>
+            <div class="card-badge">→ Khó truy tìm nguyên nhân gốc</div>
+          </div>
+          <div class="feature-card">
+            <div class="card-icon" style="color: #10b981; background: rgba(16, 185, 129, 0.1);">💡</div>
+            <h3 class="card-title">Giải Pháp Observability</h3>
+            <p class="card-desc">Tích hợp bộ ba: <strong>Spring Boot Actuator</strong> (xuất dữ liệu) + <strong>Prometheus</strong> (lưu trữ Time-Series) + <strong>Grafana</strong> (bảng điều khiển đồ thị kim quay).</p>
+            <div class="card-badge" style="color: #10b981;">✓ Tiêu chuẩn Cloud-Native</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 3: KIẾN TRÚC HOẠT ĐỘNG -->
+    <section class="slide" data-index="3">
+      <div class="slide-header">
+        <div class="slide-tag">Kiến Trúc Hoạt Động</div>
+        <h2 class="slide-title">Mô hình Giám Sát 3 Tầng Khép Kín (Pull-based)</h2>
+        <p class="slide-subtitle">Dữ liệu chỉ số được cào tự động mỗi 5 giây mà không làm gián đoạn luồng xử lý của bệnh nhân.</p>
+      </div>
+      <div class="slide-body">
+        <div class="diagram-container">
+          <!-- Node 1 -->
+          <div class="diagram-node">
+            <span class="node-badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8;">TẦNG 1: BACKEND</span>
+            <h4 class="node-title">Spring Boot App</h4>
+            <p class="node-desc">Cổng 8080 (Local / Render)</p>
+            <p style="font-size: 11px; margin-top: 8px; color: #cbd5e1;">Nhúng Micrometer Prometheus<br>Xuất <code>/actuator/prometheus</code></p>
+          </div>
+
+          <!-- Arrow 1 -->
+          <div class="diagram-arrow">
+            <span>PULL (Cào mỗi 5s)</span>
+            <div class="arrow-line"></div>
+            <span>HTTP GET</span>
+          </div>
+
+          <!-- Node 2 -->
+          <div class="diagram-node active-node">
+            <span class="node-badge" style="background: rgba(249, 115, 22, 0.15); color: #f97316;">TẦNG 2: COLLECTOR</span>
+            <h4 class="node-title">Prometheus TSDB</h4>
+            <p class="node-desc">Cổng 9090 (Docker)</p>
+            <p style="font-size: 11px; margin-top: 8px; color: #cbd5e1;">Lưu cơ sở dữ liệu chuỗi thời gian<br>Xử lý truy vấn PromQL</p>
+          </div>
+
+          <!-- Arrow 2 -->
+          <div class="diagram-arrow">
+            <span>Truy vấn PromQL</span>
+            <div class="arrow-line"></div>
+            <span>Real-time Sync</span>
+          </div>
+
+          <!-- Node 3 -->
+          <div class="diagram-node">
+            <span class="node-badge" style="background: rgba(139, 92, 246, 0.15); color: #a78bfa;">TẦNG 3: DASHBOARD</span>
+            <h4 class="node-title">Grafana UI</h4>
+            <p class="node-desc">Cổng 3100 (Docker)</p>
+            <p style="font-size: 11px; margin-top: 8px; color: #cbd5e1;">Bảng điều khiển trực quan<br>Dashboard JVM Spring Boot</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 4: CÁC THÔNG SỐ QUAN TRỌNG ĐƯỢC GIÁM SÁT -->
+    <section class="slide" data-index="4">
+      <div class="slide-header">
+        <div class="slide-tag">Thông Số Kỹ Thuật (Metrics)</div>
+        <h2 class="slide-title">Hệ thống MedSched đang đo lường những gì?</h2>
+        <p class="slide-subtitle">4 nhóm chỉ số vàng được theo dõi liên tục từng giây.</p>
+      </div>
+      <div class="slide-body">
+        <div class="grid-cards-3" style="grid-template-columns: repeat(4, 1fr); gap: 14px;">
+          <div class="feature-card">
+            <div class="card-icon" style="color: #38bdf8;">⚡</div>
+            <h4 class="card-title" style="font-size: 15px;">HTTP Requests</h4>
+            <p class="card-desc" style="font-size: 12px;">Đếm tổng số lượt gọi API, phân loại mã trạng thái 200, 400, 409, 500 để phát hiện lỗi tức thì.</p>
+            <div class="card-badge" style="font-size: 10px;">http_server_requests</div>
+          </div>
+          <div class="feature-card">
+            <div class="card-icon" style="color: #818cf8;">🧠</div>
+            <h4 class="card-title" style="font-size: 15px;">Bộ Nhớ JVM</h4>
+            <p class="card-desc" style="font-size: 12px;">Đo lường dung lượng RAM Heap &amp; Non-Heap, tần suất gom rác Garbage Collection (GC Pause).</p>
+            <div class="card-badge" style="font-size: 10px;">jvm_memory_used_bytes</div>
+          </div>
+          <div class="feature-card">
+            <div class="card-icon" style="color: #f59e0b;">🔥</div>
+            <h4 class="card-title" style="font-size: 15px;">Tải Vi Xử Lý CPU</h4>
+            <p class="card-desc" style="font-size: 12px;">Theo dõi tỷ lệ % CPU tiến trình Backend sử dụng và mức chịu tải của toàn bộ máy chủ hệ điều hành.</p>
+            <div class="card-badge" style="font-size: 10px;">process_cpu_usage</div>
+          </div>
+          <div class="feature-card">
+            <div class="card-icon" style="color: #10b981;">🗄️</div>
+            <h4 class="card-title" style="font-size: 15px;">MySQL Pool</h4>
+            <p class="card-desc" style="font-size: 12px;">Giám sát số kết nối Database HikariCP: Active, Idle và hàng đợi Threads chờ kết nối phòng ngừa nghẽn DB.</p>
+            <div class="card-badge" style="font-size: 10px;">hikaricp_connections</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 5: LIVE DEMO & CƠ CHẾ 1-CLICK -->
+    <section class="slide" data-index="5">
+      <div class="slide-header">
+        <div class="slide-tag">Thực Nghiệm &amp; Demo Trực Tiếp</div>
+        <h2 class="slide-title">Kỹ Thuật Triển Khai 1-Click &amp; Giả Lập Tải</h2>
+        <p class="slide-subtitle">Nhóm đã tối ưu hóa để bất kỳ thành viên nào cũng bật và demo được ngay lập tức.</p>
+      </div>
+      <div class="slide-body">
+        <div class="sim-box">
+          <div>
+            <h4 style="font-size: 15px; margin-bottom: 8px; color: #fff;">Mô Phỏng Chỉ Số Đang Thu Thập Thời Gian Thực:</h4>
+            <div class="metric-gauges">
+              <div class="gauge-card">
+                <div class="gauge-title">Tổng Request API</div>
+                <div class="gauge-val" id="metric-req">1,428</div>
+                <div style="font-size: 10px; color: #34d399;">+12 req/min</div>
+              </div>
+              <div class="gauge-card">
+                <div class="gauge-title">Bộ Nhớ JVM Heap</div>
+                <div class="gauge-val" id="metric-ram" style="color: #a78bfa;">342 MB</div>
+                <div style="font-size: 10px; color: #94a3b8;">Max: 2048 MB</div>
+              </div>
+              <div class="gauge-card">
+                <div class="gauge-title">Thời Gian Phản Hồi</div>
+                <div class="gauge-val" id="metric-p95" style="color: #38bdf8;">45 ms</div>
+                <div style="font-size: 10px; color: #38bdf8;">P95 Latency</div>
+              </div>
+            </div>
+          </div>
+          <div class="sim-ctrl">
+            <p style="font-size: 12px; color: #cbd5e1; margin-bottom: 12px;">Bấm nút dưới đây để tạo lưu lượng API giả lập thử nghiệm:</p>
+            <button class="btn-fire" id="btn-simulate-traffic">
+              ⚡ Gửi 10 Request Đặt Lịch
+            </button>
+            <p style="font-size: 10px; color: #64748b; margin-top: 8px;">Quan sát chỉ số nhảy số ngay lập tức!</p>
+          </div>
+        </div>
+        <div style="display: flex; gap: 12px; margin-top: 14px;">
+          <div style="flex: 1; background: rgba(15, 23, 42, 0.5); padding: 10px 14px; border-radius: 12px; font-size: 12px; border: 1px solid rgba(255, 255, 255, 0.06);">
+            🟢 <strong>Script 1-Click:</strong> Chạy <code>Source_code/monitoring/start-monitoring.bat</code> tự mở Grafana cổng 3100.
+          </div>
+          <div style="flex: 1; background: rgba(15, 23, 42, 0.5); padding: 10px 14px; border-radius: 12px; font-size: 12px; border: 1px solid rgba(255, 255, 255, 0.06);">
+            ✨ <strong>Zero-Config:</strong> File <code>datasource.yml</code> tự động kết nối Prometheus với quyền Admin sẵn.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 6: BỘ CÂU HỎI PHẢN BIỆN THẦY BÌNH (FAQ) -->
+    <section class="slide" data-index="6">
+      <div class="slide-header">
+        <div class="slide-tag">Hỏi Đáp Kỹ Thuật (Defense FAQ)</div>
+        <h2 class="slide-title">Câu Hỏi Thầy Hay Hỏi &amp; Cách Trả Lời</h2>
+        <p class="slide-subtitle">Chuẩn bị sẵn sàng các luận điểm kỹ thuật then chốt để bảo vệ đồ án.</p>
+      </div>
+      <div class="slide-body">
+        <div class="faq-list">
+          <div class="faq-item">
+            <div class="faq-q"><span>❓</span> 1. Prometheus lấy dữ liệu bằng cơ chế Push hay Pull?</div>
+            <div class="faq-a">Dạ, cơ chế <strong>PULL</strong>. Cứ mỗi 5 giây, Prometheus Server chủ động gửi HTTP GET vào <code>/actuator/prometheus</code> để cào dữ liệu. Cách này giúp server không bị quá tải nếu microservice có hàng chục instance.</div>
+          </div>
+          <div class="faq-item">
+            <div class="faq-q"><span>❓</span> 2. Vì sao Grafana lại chạy ở cổng 3100 thay vì cổng mặc định 3000?</div>
+            <div class="faq-a">Dạ, cổng 3000 đã được nhóm dành riêng cho Frontend Next.js. Để tránh xung đột cổng khi chạy đồng thời cả web đặt lịch và cụm giám sát trên cùng 1 máy, nhóm đã ánh xạ port sang <strong>3100:3000</strong>.</div>
+          </div>
+          <div class="faq-item">
+            <div class="faq-q"><span>❓</span> 3. Việc cào dữ liệu liên tục 5s có làm chậm Backend không?</div>
+            <div class="faq-a">Dạ không. Thư viện Micrometer dùng các bộ đếm không khóa (Non-blocking Atomic Counters) lưu trực tiếp trên RAM, tải tăng thêm cho CPU chưa tới <strong>1%</strong>.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 7: KẾT LUẬN & TỔNG KẾT -->
+    <section class="slide" data-index="7">
+      <div class="cover-content" style="text-align: center; align-items: center;">
+        <div class="slide-tag" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border-color: rgba(52, 211, 153, 0.3);">
+          ✓ Tổng Kết Báo Cáo Chuyên Đề
+        </div>
+        <h2 class="hero-title" style="margin-bottom: 20px;">
+          Sẵn Sàng Cho Môi Trường <span class="hero-gradient">Production</span>
+        </h2>
+        <p class="hero-desc" style="text-align: center; max-width: 680px;">
+          Với việc hoàn thiện hệ thống quan trắc <strong>Prometheus &amp; Grafana</strong>, dự án MedSched đã hoàn tất cả 3 tiêu chuẩn lớn: <strong>Tính năng kinh doanh y tế</strong>, <strong>Ứng dụng AI lâm sàng</strong> và <strong>Năng lực vận hành SRE chuẩn doanh nghiệp</strong>.
+        </p>
+
+        <div style="display: flex; gap: 16px; margin-top: 12px;">
+          <a href="http://localhost:3100" target="_blank" style="text-decoration: none; background: linear-gradient(135deg, #06b6d4, #8b5cf6); color: white; padding: 12px 24px; border-radius: 12px; font-weight: 700; font-size: 14px; box-shadow: 0 4px 16px rgba(6, 182, 212, 0.4);">
+            🚀 Mở Grafana Dashboard (Port 3100)
+          </a>
+          <a href="http://localhost:9090/targets" target="_blank" style="text-decoration: none; background: rgba(30, 41, 59, 0.8); color: #f8fafc; border: 1px solid rgba(255, 255, 255, 0.12); padding: 12px 24px; border-radius: 12px; font-weight: 700; font-size: 14px;">
+            📊 Mở Prometheus Targets (Port 9090)
+          </a>
+        </div>
+
+        <p style="margin-top: 40px; font-size: 14px; color: var(--text-muted);">
+          Xin trân trọng cảm ơn Thầy Trương Thanh Bình và các bạn đã theo dõi!
+        </p>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Keyboard Shortcuts Hint -->
+  <div class="kb-hint">
+    <span>Dùng phím</span> <kbd>→</kbd> <kbd>←</kbd> <span>hoặc</span> <kbd>Space</kbd> <span>để chuyển slide</span>
+    <span>•</span> <kbd>F</kbd> <span>Toàn màn hình</span>
+    <span>•</span> <kbd>O</kbd> <span>Mục lục</span>
+  </div>
+
+  <!-- Footer Navigation -->
+  <footer>
+    <div class="slide-counter" id="slide-num">Slide 1 / 7</div>
+    <div class="btn-group">
+      <button class="nav-arrow" id="btn-prev" title="Slide trước (Phím ←)">←</button>
+      <button class="nav-arrow" id="btn-next" title="Slide tiếp theo (Phím →)">→</button>
+    </div>
+  </footer>
+
+  <!-- Overview Modal -->
+  <div id="overview-modal">
+    <div style="display: flex; justify-content: space-between; align-items: center; max-width: 1200px; margin: 0 auto;">
+      <h3 style="font-size: 20px; font-weight: 800; color: #fff;">Mục Lục Các Slide Thuyết Trình</h3>
+      <button class="tool-btn" id="btn-close-overview">Đóng (Esc)</button>
+    </div>
+    <div class="overview-grid" id="overview-container"></div>
+  </div>
+
+  <!-- Javascript Logic -->
+  <script>
+    let currentSlide = 1;
+    const slides = document.querySelectorAll('.slide');
+    const totalSlides = slides.length;
+    const progressBar = document.getElementById('progress-bar');
+    const slideNum = document.getElementById('slide-num');
+    const btnPrev = document.getElementById('btn-prev');
+    const btnNext = document.getElementById('btn-next');
+    const modal = document.getElementById('overview-modal');
+    const overviewContainer = document.getElementById('overview-container');
+
+    // Build overview cards
+    slides.forEach((s, idx) => {
+      const titleElem = s.querySelector('.slide-title') || s.querySelector('.hero-title');
+      const title = titleElem ? titleElem.innerText.replace(/\n/g, ' ') : `Slide ${idx + 1}`;
+      const card = document.createElement('div');
+      card.className = `thumb-card ${idx === 0 ? 'active-thumb' : ''}`;
+      card.innerHTML = `
+        <div style="font-size: 11px; font-family: monospace; color: var(--primary); margin-bottom: 6px;">SLIDE ${idx + 1}</div>
+        <div style="font-size: 13px; font-weight: 700; color: #fff; line-height: 1.4;">${title.slice(0, 50)}...</div>
+      `;
+      card.onclick = () => {
+        goToSlide(idx + 1);
+        modal.classList.remove('open');
+      };
+      overviewContainer.appendChild(card);
+    });
+
+    function updateSlide() {
+      slides.forEach((s, idx) => {
+        if (idx + 1 === currentSlide) {
+          s.classList.add('active');
+        } else {
+          s.classList.remove('active');
+        }
+      });
+
+      const pct = ((currentSlide - 1) / (totalSlides - 1)) * 100;
+      progressBar.style.width = pct + '%';
+      slideNum.innerText = `Slide ${currentSlide} / ${totalSlides}`;
+
+      btnPrev.disabled = currentSlide === 1;
+      btnNext.disabled = currentSlide === totalSlides;
+
+      // Update overview thumb active
+      const thumbs = document.querySelectorAll('.thumb-card');
+      thumbs.forEach((t, i) => {
+        if (i + 1 === currentSlide) t.classList.add('active-thumb');
+        else t.classList.remove('active-thumb');
+      });
+    }
+
+    function goToSlide(n) {
+      if (n >= 1 && n <= totalSlides) {
+        currentSlide = n;
+        updateSlide();
+      }
+    }
+
+    btnNext.addEventListener('click', () => goToSlide(currentSlide + 1));
+    btnPrev.addEventListener('click', () => goToSlide(currentSlide - 1));
+
+    // Keyboard navigation
+    window.addEventListener('keydown', (e) => {
+      if (modal.classList.contains('open')) {
+        if (e.key === 'Escape' || e.key.toLowerCase() === 'o') {
+          modal.classList.remove('open');
+        }
+        return;
+      }
+
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+        goToSlide(currentSlide + 1);
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        goToSlide(currentSlide - 1);
+      } else if (e.key.toLowerCase() === 'f') {
+        toggleFullscreen();
+      } else if (e.key.toLowerCase() === 'o') {
+        modal.classList.add('open');
+      } else if (e.key === 'Home') {
+        goToSlide(1);
+      } else if (e.key === 'End') {
+        goToSlide(totalSlides);
+      }
+    });
+
+    // Overview modal controls
+    document.getElementById('btn-overview').addEventListener('click', () => {
+      modal.classList.add('open');
+    });
+    document.getElementById('btn-close-overview').addEventListener('click', () => {
+      modal.classList.remove('open');
+    });
+
+    // Fullscreen toggle
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      } else {
+        document.exitFullscreen().catch(() => {});
+      }
+    }
+    document.getElementById('btn-fullscreen').addEventListener('click', toggleFullscreen);
+
+    // Live Traffic Simulation (Slide 5 interactive demo)
+    let requestCount = 1428;
+    let ramUsage = 342;
+    const reqElem = document.getElementById('metric-req');
+    const ramElem = document.getElementById('metric-ram');
+    const latencyElem = document.getElementById('metric-p95');
+    const btnSim = document.getElementById('btn-simulate-traffic');
+
+    if (btnSim) {
+      btnSim.addEventListener('click', () => {
+        requestCount += 10;
+        ramUsage += Math.floor(Math.random() * 8) + 2;
+        const fakeLatency = Math.floor(Math.random() * 30) + 40;
+
+        reqElem.innerText = requestCount.toLocaleString();
+        reqElem.style.color = '#10b981';
+        ramElem.innerText = ramUsage + ' MB';
+        latencyElem.innerText = fakeLatency + ' ms';
+
+        setTimeout(() => {
+          reqElem.style.color = '#38bdf8';
+        }, 600);
+      });
+    }
+
+    // Touch swipe support on mobile/tablets
+    let touchStartX = 0;
+    let touchEndX = 0;
+    window.addEventListener('touchstart', (e) => {
+      touchStartX = e.changedTouches[0].screenX;
+    });
+    window.addEventListener('touchend', (e) => {
+      touchEndX = e.changedTouches[0].screenX;
+      if (touchEndX < touchStartX - 60) goToSlide(currentSlide + 1);
+      if (touchEndX > touchStartX + 60) goToSlide(currentSlide - 1);
+    });
+
+    // Initial state
+    updateSlide();
+  </script>
+</body>
+</html>
