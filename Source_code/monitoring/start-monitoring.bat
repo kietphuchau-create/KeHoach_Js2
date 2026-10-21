@@ -18,6 +18,7 @@ if %errorlevel% neq 0 (
 
 echo [+] Dang khoi chay cum Prometheus (Port 9090) va Grafana (Port 3100)...
 docker compose -f "%~dp0docker-compose-monitoring.yml" up -d
+docker compose -f "%~dp0docker-compose-monitoring.yml" restart prometheus >nul 2>&1
 
 if %errorlevel% neq 0 (
     echo [X] Khoi chay that bai. Vui long kiem tra Docker Desktop.
