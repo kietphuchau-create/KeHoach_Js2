@@ -6,7 +6,8 @@
         "d:/HOCTAP/jspring/KeHoach_Js2/Source_code/mcp-server/server.js"
       ],
       "env": {
-        "MEDSCHED_API_URL": "http://localhost:8080/api/v1"
+        "MEDSCHED_API_URL": "http://localhost:8080/api/v1",
+        "MEDSCHED_API_TOKEN": "paste_a_staff_or_admin_jwt_here"
       }
     }
   }

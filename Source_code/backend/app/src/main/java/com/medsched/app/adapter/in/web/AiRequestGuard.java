@@ -3,6 +3,7 @@ package com.medsched.app.adapter.in.web;
 import io.github.bucket4j.Bucket;
 import io.github.bucket4j.ConsumptionProbe;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
@@ -15,19 +16,25 @@ import java.util.concurrent.ConcurrentHashMap;
 public class AiRequestGuard {
     private final int maxRequests;
     private final Duration duplicateWindow;
+    private final Duration identityTtl;
     private final int maxMessageChars;
-    private final Map<String, Bucket> buckets = new ConcurrentHashMap<>();
+    private final int maxIdentities;
+    private final Map<String, BucketState> buckets = new ConcurrentHashMap<>();
     private final Map<String, DuplicateState> duplicateStates = new ConcurrentHashMap<>();
 
     public AiRequestGuard(
             @Value("${medsched.ai.guard.max-requests-per-window:20}") int maxRequests,
             @Value("${medsched.ai.guard.window-seconds:60}") long windowSeconds,
             @Value("${medsched.ai.guard.duplicate-seconds:5}") long duplicateSeconds,
-            @Value("${medsched.ai.guard.max-message-chars:2000}") int maxMessageChars) {
+            @Value("${medsched.ai.guard.max-message-chars:2000}") int maxMessageChars,
+            @Value("${medsched.ai.guard.max-identities:10000}") int maxIdentities) {
         this.maxRequests = Math.max(1, maxRequests);
         Duration refillWindow = Duration.ofSeconds(Math.max(1, windowSeconds));
         this.duplicateWindow = Duration.ofSeconds(Math.max(1, duplicateSeconds));
+        this.identityTtl = refillWindow.multipliedBy(2).compareTo(this.duplicateWindow.multipliedBy(2)) >= 0
+                ? refillWindow.multipliedBy(2) : this.duplicateWindow.multipliedBy(2);
         this.maxMessageChars = Math.max(100, maxMessageChars);
+        this.maxIdentities = Math.max(100, maxIdentities);
         this.bucketFactory = () -> Bucket.builder()
                 .addLimit(limit -> limit.capacity(this.maxRequests).refillIntervally(this.maxRequests, refillWindow))
                 .build();
@@ -52,8 +59,8 @@ public class AiRequestGuard {
             duplicate.lastMessage = fingerprint;
             duplicate.lastAt = now;
         }
-        ConsumptionProbe probe = buckets.computeIfAbsent(safeKey, ignored -> bucketFactory.get())
-                .tryConsumeAndReturnRemaining(1);
+        BucketState bucketState = bucketFor(safeKey, now);
+        ConsumptionProbe probe = bucketState.bucket.tryConsumeAndReturnRemaining(1);
         if (!probe.isConsumed()) {
             long retryAfter = Math.max(1, Duration.ofNanos(probe.getNanosToWaitForRefill()).toSeconds() + 1);
             return Decision.reject("Bạn đã gửi quá nhiều yêu cầu AI trong thời gian ngắn. Vui lòng thử lại sau.", retryAfter);
@@ -63,6 +70,36 @@ public class AiRequestGuard {
 
     public int maxMessageChars() { return maxMessageChars; }
 
+    @Scheduled(fixedRateString = "${medsched.ai.guard.cleanup-millis:60000}")
+    public void cleanupExpiredIdentities() {
+        cleanupExpiredIdentities(Instant.now());
+    }
+
+    void cleanupExpiredIdentities(Instant now) {
+        Instant cutoff = now.minus(identityTtl);
+        buckets.entrySet().removeIf(entry -> entry.getValue().lastSeen.isBefore(cutoff));
+        duplicateStates.entrySet().removeIf(entry -> entry.getValue().lastAt == null
+                || entry.getValue().lastAt.isBefore(cutoff));
+    }
+
+    int trackedIdentityCount() { return Math.max(buckets.size(), duplicateStates.size()); }
+
+    private BucketState bucketFor(String key, Instant now) {
+        if (!buckets.containsKey(key) && buckets.size() >= maxIdentities) evictOldestBucket();
+        BucketState state = buckets.computeIfAbsent(key, ignored -> new BucketState(bucketFactory.get(), now));
+        state.lastSeen = now;
+        return state;
+    }
+
+    private void evictOldestBucket() {
+        buckets.entrySet().stream()
+                .min(java.util.Comparator.comparing(entry -> entry.getValue().lastSeen))
+                .ifPresent(entry -> {
+                    buckets.remove(entry.getKey(), entry.getValue());
+                    duplicateStates.remove(entry.getKey());
+                });
+    }
+
     public record Decision(boolean allowed, String message, long retryAfterSeconds) {
         static Decision allow() { return new Decision(true, null, 0); }
         static Decision reject(String message, long retryAfter) { return new Decision(false, message, retryAfter); }
@@ -71,5 +108,15 @@ public class AiRequestGuard {
     private static final class DuplicateState {
         private String lastMessage;
         private Instant lastAt;
+    }
+
+    private static final class BucketState {
+        private final Bucket bucket;
+        private volatile Instant lastSeen;
+
+        private BucketState(Bucket bucket, Instant lastSeen) {
+            this.bucket = bucket;
+            this.lastSeen = lastSeen;
+        }
     }
 }

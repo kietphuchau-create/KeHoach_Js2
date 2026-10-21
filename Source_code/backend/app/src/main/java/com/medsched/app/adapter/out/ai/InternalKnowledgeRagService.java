@@ -12,6 +12,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /** Local retrieval over reviewed clinic knowledge; no external API/token is required. */
 @Service
@@ -24,24 +26,42 @@ public class InternalKnowledgeRagService {
     public Optional<Answer> retrieve(String question) {
         if (question == null || question.isBlank()) return Optional.empty();
         String normalizedQuestion = normalize(question);
-        List<String> terms = List.of(normalizedQuestion.split("\\s+"));
+        Set<String> terms = significantTerms(normalizedQuestion);
         return chunks.stream()
                 .map(chunk -> new ScoredChunk(chunk, score(chunk, normalizedQuestion, terms)))
-                .filter(item -> item.score() >= 2)
+                // Một từ trùng ngẫu nhiên giữa câu hỏi và tiêu đề/keyword chưa đủ để trả lời.
+                .filter(item -> item.score() >= 3)
                 .max(Comparator.comparingInt(ScoredChunk::score))
                 .map(item -> new Answer(limit(item.chunk().answer()), item.chunk().title(), item.score()));
     }
 
-    private int score(KnowledgeChunk chunk, String question, List<String> terms) {
+    private int score(KnowledgeChunk chunk, String question, Set<String> terms) {
         int score = 0;
         String keywords = normalize(chunk.keywords());
         String title = normalize(chunk.title());
-        for (String term : terms) {
-            if (term.length() >= 3 && keywords.contains(term)) score += 2;
-            if (term.length() >= 3 && title.contains(term)) score += 1;
+        for (String keyword : keywords.split("\\s*,\\s*")) {
+            if (keyword.length() >= 3 && containsPhrase(question, keyword)) {
+                score += 4 + Math.min(2, keyword.split("\\s+").length - 1);
+            }
         }
-        if (question.contains(keywords)) score += 3;
+        Set<String> keywordTerms = significantTerms(keywords.replace(',', ' '));
+        Set<String> titleTerms = significantTerms(title);
+        for (String term : terms) {
+            if (keywordTerms.contains(term)) score += 1;
+            if (titleTerms.contains(term)) score += 1;
+        }
         return score;
+    }
+
+    private boolean containsPhrase(String text, String phrase) {
+        return (" " + text + " ").contains(" " + phrase + " ");
+    }
+
+    private Set<String> significantTerms(String text) {
+        return List.of(text.split("\\s+"))
+                .stream()
+                .filter(term -> term.length() >= 3)
+                .collect(Collectors.toSet());
     }
 
     private List<KnowledgeChunk> loadKnowledgeBase() {

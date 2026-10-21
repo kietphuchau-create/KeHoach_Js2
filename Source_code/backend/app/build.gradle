@@ -3,12 +3,6 @@ plugins {
     id 'io.spring.dependency-management'
 }
 
-dependencyManagement {
-    imports {
-        mavenBom 'org.springframework.ai:spring-ai-bom:1.0.0-M6'
-    }
-}
-
 dependencies {
     implementation project(':core')
 
@@ -33,9 +27,6 @@ dependencies {
     // JPA & Database (MySQL / MariaDB XAMPP)
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     runtimeOnly 'com.mysql:mysql-connector-j'
-
-    // Spring AI
-    implementation 'org.springframework.ai:spring-ai-openai-spring-boot-starter'
 
     // Lombok & Developer tools
     compileOnly 'org.projectlombok:lombok'
