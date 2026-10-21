@@ -240,6 +240,13 @@ Thầy Bình rất thích hỏi sâu về bản chất kiến trúc. Nếu Thầ
   > Vì thư viện Micrometer trong Spring Boot sử dụng các biến đếm nguyên tử trong bộ nhớ RAM (`AtomicLong` và `MeterRegistry`). Khi bệnh nhân đặt lịch, hệ thống chỉ mất vài nano-giây để tăng biến đếm trên RAM.  
   > Khi Prometheus cào dữ liệu qua cổng `/actuator/prometheus`, server chỉ việc tuần tự hóa các số liệu có sẵn trên RAM trả về dưới dạng văn bản thuần, mức tiêu thụ CPU tăng chưa tới 1%, hoàn toàn không ảnh hưởng tới luồng đặt khám của người bệnh ạ."*
 
+### ❓ Câu 4: "Công nghệ Prometheus & Grafana liên quan tới dòng code nào, file nào trong dự án?"
+* **Tài trả lời:**  
+  > *"Dạ thưa Thầy, mã nguồn liên quan gồm 3 vị trí trọng yếu trong dự án:  
+  > 1. **Trong Backend:** File `build.gradle` (dòng 23-25) nạp Actuator & Micrometer; File `application.yml` (dòng 101-117) bật endpoint `/actuator/prometheus`; Và file `SecurityConfig.java` (dòng 72) mở quyền `.permitAll()` cho Prometheus cào dữ liệu.  
+  > 2. **Trong Prometheus:** File `Source_code/monitoring/prometheus.yml` cấu hình cào dữ liệu định kỳ 5s từ máy chủ Cloud Render (`medsched-zu15.onrender.com:443`).  
+  > 3. **Trong Grafana:** Thư mục `Source_code/monitoring/provisioning/` chứa file nạp Data Source và file JSON định nghĩa toàn bộ biểu đồ, đồng hồ kim theo dõi thời gian thực ạ!"*
+
 ---
 
 <a name="phan-6-xu-ly-su-co"></a>
