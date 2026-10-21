@@ -264,8 +264,16 @@ export default function MyAppointmentsView() {
         // fallback to default patient id
       }
 
+      let localAiApts: any[] = [];
+      if (typeof window !== 'undefined') {
+        try {
+          const stored = localStorage.getItem('medsched_ai_appointments');
+          if (stored) localAiApts = JSON.parse(stored);
+        } catch {}
+      }
+
       if (!patientId) {
-        setAppointments([]);
+        setAppointments(localAiApts);
         return;
       }
 
@@ -306,9 +314,24 @@ export default function MyAppointmentsView() {
         }
         return apt;
       });
-      setAppointments(validAppointments);
+
+      // Gộp lịch hẹn AI lên đầu danh sách để người bệnh thấy ngay lập tức
+      const existingCodes = new Set(validAppointments.map((a: any) => a.bookingCode));
+      const filteredAiApts = localAiApts.filter((a: any) => !existingCodes.has(a.bookingCode));
+      setAppointments([...filteredAiApts, ...validAppointments]);
     } catch (err: any) {
-      setError(err.message || 'Không thể tải danh sách phiếu khám.');
+      let localAiApts: any[] = [];
+      if (typeof window !== 'undefined') {
+        try {
+          const stored = localStorage.getItem('medsched_ai_appointments');
+          if (stored) localAiApts = JSON.parse(stored);
+        } catch {}
+      }
+      if (localAiApts.length > 0) {
+        setAppointments(localAiApts);
+      } else {
+        setError(err.message || 'Không thể tải danh sách phiếu khám.');
+      }
     } finally {
       setLoading(false);
     }

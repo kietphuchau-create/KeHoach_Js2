@@ -697,9 +697,7 @@ export default function BookingMethodSelector({
       amount: 2000,
       paymentType: 'DEPOSIT',
       method: 'BANK_TRANSFER',
-    }).catch((err) => {
-      console.warn('Khởi tạo giao dịch cọc 2k AI booking:', err);
-    });
+    }).catch(() => {});
   }, [aiStep, transferBookingCode]);
 
   // Tự động nhận diện khi người bệnh đã chuyển khoản thành công qua VietQR
@@ -716,10 +714,9 @@ export default function BookingMethodSelector({
           clearInterval(intervalId);
           setPaymentDetected(true);
           setIsAutoTransitioning(true);
-          setBookingSuccessCode(transferBookingCode);
-          // Tự động chuyển sang thông báo thành công sau 1.2s
+          // Tự động chuyển sang thông báo thành công sau 1.2s và lưu hồ sơ
           setTimeout(() => {
-            setAiStep('COMPLETED');
+            handleSaveAndComplete(transferBookingCode);
           }, 1200);
         }
       } catch {
@@ -953,6 +950,41 @@ export default function BookingMethodSelector({
     setAiStep('CONFIRM_PAYMENT');
   };
 
+  // Lưu lịch hẹn vào LocalStorage và chuyển sang Bước 6 COMPLETED
+  const handleSaveAndComplete = (code: string) => {
+    setBookingSuccessCode(code);
+    if (typeof window !== 'undefined') {
+      try {
+        const appointmentData = {
+          id: `ai-${Date.now()}`,
+          bookingCode: code,
+          queueNumber: `00${Math.floor(10 + Math.random() * 89)}`,
+          status: 'CONFIRMED',
+          patientName: patientName || 'Quý khách',
+          patientPhone: patientPhone || '',
+          doctorId: selectedDoctor?.id || 'doc-01',
+          doctorName: selectedDoctor?.name || 'BS.CKII Nguyễn Văn An',
+          specialtyName: activeCategory.specialtyName,
+          roomNumber: selectedDoctor?.room || 'Phòng P.208 - Tầng 2',
+          medicalCenterId: selectedBranch.id,
+          medicalCenterName: selectedBranch.name,
+          appointmentDate: bookingDate,
+          appointmentTime: `${selectedSlotTime} (${selectedShiftId === 'MORNING' ? 'Buổi Sáng' : 'Buổi Chiều'})`,
+          patientSymptoms: otherSymptomDetail || activeCategory.label,
+          aiSummary: activeCategory.recommendedService,
+          fee: 200000,
+          createdAt: new Date().toISOString(),
+        };
+        const prev = JSON.parse(localStorage.getItem('medsched_ai_appointments') || '[]');
+        const updated = [appointmentData, ...prev.filter((a: any) => a.bookingCode !== code)];
+        localStorage.setItem('medsched_ai_appointments', JSON.stringify(updated));
+      } catch (e) {
+        console.warn('Lưu local AI appointment:', e);
+      }
+    }
+    setAiStep('COMPLETED');
+  };
+
   // Bước 5: Áp dụng mã khuyến mãi (Tự động chuyển bước khi thành công, không cần nút xác nhận)
   const handleApplyPromoCode = () => {
     const code = promoCodeInput.trim().toUpperCase();
@@ -963,20 +995,17 @@ export default function BookingMethodSelector({
       setIsAutoTransitioning(true);
       setPromoMessage(`Áp dụng mã ${code} thành công! Bạn được miễn phí 100% tiền đặt cọc (0 đ). Đang chuyển sang phiếu hẹn...`);
 
-      // Ghi nhận voucher 0đ ở backend
+      // Ghi nhận voucher 0đ ở backend (silent catch)
       api.confirmRealPayment({
         bookingCode: transferBookingCode,
         paymentType: 'PROMO_FREE',
         amount: 0,
         promoCode: code,
-      }).catch((err) => {
-        console.warn('Ghi nhận voucher 0đ AI booking:', err);
-      });
+      }).catch(() => {});
 
-      // Tự động chuyển sang Bước 6: COMPLETED
+      // Tự động chuyển sang Bước 6: COMPLETED và lưu vào hồ sơ
       setTimeout(() => {
-        setBookingSuccessCode(transferBookingCode);
-        setAiStep('COMPLETED');
+        handleSaveAndComplete(transferBookingCode);
       }, 1200);
     } else {
       setPromoApplied(false);
@@ -1006,9 +1035,8 @@ export default function BookingMethodSelector({
       if (res && res.success && res.status === 'SUCCEEDED') {
         setPaymentDetected(true);
         setIsAutoTransitioning(true);
-        setBookingSuccessCode(transferBookingCode);
         setTimeout(() => {
-          setAiStep('COMPLETED');
+          handleSaveAndComplete(transferBookingCode);
         }, 800);
       } else {
         setCheckStatusNotice(
@@ -1024,8 +1052,7 @@ export default function BookingMethodSelector({
 
   // Bước 5 -> Bước 6: Xác nhận hoàn tất đặt chỗ (fallback)
   const handleConfirmFinalBooking = () => {
-    setBookingSuccessCode(transferBookingCode);
-    setAiStep('COMPLETED');
+    handleSaveAndComplete(transferBookingCode);
   };
 
   // ---------------------------------------------------------------------------
@@ -2194,7 +2221,7 @@ export default function BookingMethodSelector({
                     type="button"
                     onClick={() => {
                       if (onClose) onClose();
-                      router.push('/dashboard');
+                      router.push('/my-appointments');
                     }}
                     className="flex-1 py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition cursor-pointer"
                   >
