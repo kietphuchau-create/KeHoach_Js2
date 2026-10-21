@@ -376,18 +376,99 @@
       flex-shrink: 0;
     }
 
-    .code-snippet {
-      background: rgba(15, 23, 42, 0.7);
-      border: 1px solid rgba(56, 189, 248, 0.2);
+    /* DETAILED 2x2 CODE GRID FOR SLIDE 8 */
+    .code-grid-2x2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      height: 100%;
+    }
+
+    .code-card {
+      background: rgba(15, 23, 42, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      transition: all 0.25s ease;
+    }
+
+    .code-card:hover {
+      border-color: rgba(6, 182, 212, 0.45);
+      background: rgba(15, 23, 42, 0.85);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    }
+
+    .code-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 6px;
+    }
+
+    .code-card-title {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: #f8fafc;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .code-card-file {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--primary);
+      background: rgba(6, 182, 212, 0.1);
+      padding: 2px 7px;
+      border-radius: 4px;
+      border: 1px solid rgba(6, 182, 212, 0.25);
+    }
+
+    .code-box-full {
+      background: #020617;
+      border: 1px solid rgba(255, 255, 255, 0.08);
       border-radius: 8px;
-      padding: 6px 8px;
+      padding: 7px 10px;
       font-family: var(--font-mono);
       font-size: 11px;
-      color: #38bdf8;
-      margin: 8px 0;
-      white-space: pre-wrap;
-      word-break: break-all;
       line-height: 1.35;
+      color: #38bdf8;
+      overflow-x: auto;
+    }
+
+    .code-box-full .cm { color: #64748b; font-style: italic; }
+    .code-box-full .kw { color: #f43f5e; font-weight: 600; }
+    .code-box-full .str { color: #34d399; }
+    .code-box-full .prop { color: #fbbf24; }
+
+    .code-card-notes {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .code-card-notes li {
+      font-size: 11.5px;
+      color: #cbd5e1;
+      line-height: 1.35;
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+    }
+
+    .code-card-notes li::before {
+      content: '✔';
+      color: #10b981;
+      font-size: 10px;
+      margin-top: 2px;
+      flex-shrink: 0;
     }
 
     /* ARCHITECTURE ANIMATED DIAGRAM */
@@ -1045,71 +1126,88 @@
       </div>
     </section>
 
-    <!-- SLIDE 8: VỊ TRÍ MÃ NGUỒN & CẤU HÌNH -->
+    <!-- SLIDE 8: VỊ TRÍ MÃ NGUỒN & CẤU HÌNH CHI TIẾT -->
     <section class="slide" data-index="8">
-      <div class="slide-header">
-        <div class="slide-tag">Mã Nguồn Dự Án</div>
-        <h2 class="slide-title">Code Tích Hợp Ở Đâu?</h2>
-        <p class="slide-subtitle">4 Vị Trí Trọng Yếu</p>
+      <div class="slide-header" style="margin-bottom: 12px;">
+        <div class="slide-tag">Mã Nguồn &amp; Cấu Hình Dự Án</div>
+        <h2 class="slide-title">Chi Tiết Tích Hợp Prometheus &amp; Grafana</h2>
+        <p class="slide-subtitle">Vị trí chính xác các file cấu hình backend Spring Boot, phân quyền JWT và hạ tầng Docker.</p>
       </div>
       <div class="slide-body">
-        <div class="grid-cards-3" style="grid-template-columns: repeat(4, 1fr); gap: 14px;">
-          <!-- Card 1 -->
-          <div class="feature-card">
-            <div class="card-icon" style="color: #38bdf8;">📦</div>
-            <h4 class="card-title" style="font-size: 14px;">build.gradle (L23)</h4>
-            <div class="code-snippet">implementation '...actuator'
-implementation '...prometheus'</div>
-            <ul class="card-bullets compact">
-              <li>Nạp Spring Boot Actuator</li>
-              <li>Tích hợp Micrometer Prometheus</li>
-              <li>Định dạng chuẩn TSDB</li>
+        <div class="code-grid-2x2">
+          <!-- Card 1: build.gradle -->
+          <div class="code-card">
+            <div class="code-card-header">
+              <div class="code-card-title">📦 1. Nạp Thư Viện Đo Lường</div>
+              <span class="code-card-file">Source_code/backend/app/build.gradle (L23-25)</span>
+            </div>
+            <div class="code-box-full">
+<span class="cm">// Thư viện thu thập số liệu và biên dịch định dạng Prometheus TSDB</span>
+<span class="kw">implementation</span> <span class="str">'org.springframework.boot:spring-boot-starter-actuator'</span>
+<span class="kw">implementation</span> <span class="str">'io.micrometer:micrometer-registry-prometheus'</span>
+            </div>
+            <ul class="code-card-notes">
+              <li><strong>Actuator:</strong> Đo lường nội tại Spring Boot: JVM Heap RAM, CPU tiến trình, HTTP Request, HikariCP Pool.</li>
+              <li><strong>Micrometer Prometheus:</strong> Xuất số liệu theo định dạng chuỗi thời gian (TSDB) cho Prometheus cào.</li>
             </ul>
-            <div class="card-badge" style="font-size: 10px;">backend/app/</div>
           </div>
 
-          <!-- Card 2 -->
-          <div class="feature-card">
-            <div class="card-icon" style="color: #f59e0b;">⚙️</div>
-            <h4 class="card-title" style="font-size: 14px;">application.yml (L104)</h4>
-            <div class="code-snippet">management.endpoints.web:
-  include: prometheus</div>
-            <ul class="card-bullets compact">
-              <li>Bật endpoint actuator prometheus</li>
-              <li>Đo lường thời gian thực</li>
-              <li>Gắn tag tên medsched</li>
+          <!-- Card 2: application.yml -->
+          <div class="code-card">
+            <div class="code-card-header">
+              <div class="code-card-title">⚙️ 2. Bật Endpoint &amp; Gắn Nhãn Metrics</div>
+              <span class="code-card-file">backend/app/src/main/resources/application.yml (L104-117)</span>
+            </div>
+            <div class="code-box-full">
+<span class="prop">management:</span>
+  <span class="prop">endpoints.web.exposure.include:</span> <span class="str">health, info, prometheus, metrics</span>
+  <span class="prop">endpoint.prometheus.enabled:</span> <span class="kw">true</span>
+  <span class="prop">metrics.tags.application:</span> <span class="str">medsched</span>
+            </div>
+            <ul class="code-card-notes">
+              <li><strong>exposure.include:</strong> Mở cổng xuất số liệu HTTP tại đường dẫn <code>/actuator/prometheus</code>.</li>
+              <li><strong>metrics.tags.application:</strong> Gắn nhãn <code>application="medsched"</code> giúp Grafana lọc số liệu chính xác khi scale.</li>
             </ul>
-            <div class="card-badge" style="font-size: 10px;">src/main/resources/</div>
           </div>
 
-          <!-- Card 3 -->
-          <div class="feature-card">
-            <div class="card-icon" style="color: #a78bfa;">🛡️</div>
-            <h4 class="card-title" style="font-size: 14px;">SecurityConfig (L72)</h4>
-            <div class="code-snippet">.requestMatchers(
-  "/actuator/**"
-).permitAll()</div>
-            <ul class="card-bullets compact">
-              <li>Cho phép truy cập actuator</li>
-              <li>Prometheus cào không token</li>
-              <li>Bảo mật các API khác</li>
+          <!-- Card 3: SecurityConfig.java -->
+          <div class="code-card">
+            <div class="code-card-header">
+              <div class="code-card-title">🛡️ 3. Phân Quyền Bảo Mật JWT</div>
+              <span class="code-card-file">com/medsched/security/SecurityConfig.java (L66-78)</span>
+            </div>
+            <div class="code-box-full">
+<span class="cm">// Cho phép /actuator/** truy cập công khai để Prometheus cào định kỳ</span>
+.requestMatchers(
+    <span class="str">"/"</span>, <span class="str">"/health"</span>, <span class="str">"/api/v1/health"</span>,
+    <span class="str">"/actuator/**"</span>, <span class="cm">// &lt;-- Prometheus cào metrics tại đây</span>
+    <span class="str">"/api/v1/auth/**"</span>
+).<span class="kw">permitAll</span>()
+            </div>
+            <ul class="code-card-notes">
+              <li>Mặc định Spring Security chặn toàn bộ API nếu không có JWT token (trả về <code>401 Unauthorized</code>).</li>
+              <li>Cấu hình <code>permitAll()</code> cho <code>/actuator/**</code> giúp Prometheus cào 24/7 mà không làm lộ dữ liệu y tế của bệnh nhân.</li>
             </ul>
-            <div class="card-badge" style="font-size: 10px;">security/SecurityConfig.java</div>
           </div>
 
-          <!-- Card 4 -->
-          <div class="feature-card">
-            <div class="card-icon" style="color: #10b981;">🐳</div>
-            <h4 class="card-title" style="font-size: 14px;">prometheus.yml &amp; Docker</h4>
-            <div class="code-snippet">targets:
-  ['medsched-zu15.onrender.com:443']</div>
-            <ul class="card-bullets compact">
-              <li>Cào Render Cloud mỗi 5s</li>
-              <li>Grafana ánh xạ cổng 3100</li>
-              <li>Tự nạp Dashboard tự động</li>
+          <!-- Card 4: prometheus.yml & docker-compose -->
+          <div class="code-card">
+            <div class="code-card-header">
+              <div class="code-card-title">🐳 4. Cấu Hình Cào Cloud &amp; Docker Grafana</div>
+              <span class="code-card-file">Source_code/monitoring/ (prometheus.yml &amp; docker-compose)</span>
+            </div>
+            <div class="code-box-full">
+<span class="kw">- job_name:</span> <span class="str">'medsched-cloud-render'</span>  <span class="cm"># Cào từ Render Cloud thật (HTTPS:443)</span>
+  <span class="prop">metrics_path:</span> <span class="str">'/actuator/prometheus'</span>
+  <span class="prop">static_configs:</span>
+    <span class="kw">- targets:</span> [<span class="str">'medsched-zu15.onrender.com:443'</span>]
+            </div>
+            <ul class="code-card-notes">
+              <li><strong>scrape_interval: 5s:</strong> Cứ 5 giây Prometheus chủ động gửi HTTP GET kéo số đo về lưu vào kho TSDB.</li>
+              <li><strong>ports: ["3100:3000"]:</strong> Ánh xạ Grafana sang cổng 3100 tránh đụng độ Next.js; tự nạp Dashboard qua <code>provisioning/</code>.</li>
             </ul>
-            <div class="card-badge" style="font-size: 10px;">Source_code/monitoring/</div>
           </div>
+
         </div>
       </div>
     </section>
