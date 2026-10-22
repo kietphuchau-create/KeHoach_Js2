@@ -1516,6 +1516,7 @@ export default function BookingMethodSelector({
   const [checkManualMessage, setCheckManualMessage] = useState<string>('');
   const [qrCountdown, setQrCountdown] = useState<number>(300);
   const [isCheckingAuto, setIsCheckingAuto] = useState<boolean>(false);
+  const [isPaymentVerified, setIsPaymentVerified] = useState<boolean>(false);
 
   // Bước 6: Đặt chỗ thành công
   const [bookingSuccessCode, setBookingSuccessCode] = useState<string>('');
@@ -1619,10 +1620,14 @@ export default function BookingMethodSelector({
     const polling = setInterval(async () => {
       try {
         setIsCheckingAuto(true);
-        const res = await api.checkRealPaymentStatus({ bookingCode: transferBookingCode });
+        const res = await api.checkRealPaymentStatus({
+          bookingCode: transferBookingCode,
+          appointmentId: createdAppointment?.id,
+        });
         if (res?.status === 'SUCCEEDED' || res?.success) {
           clearInterval(polling);
           clearInterval(timer);
+          setIsPaymentVerified(true);
           handleConfirmFinalBooking();
         }
       } catch (err) {
@@ -1636,7 +1641,7 @@ export default function BookingMethodSelector({
       clearInterval(timer);
       clearInterval(polling);
     };
-  }, [aiStep, transferBookingCode]);
+  }, [aiStep, transferBookingCode, createdAppointment?.id]);
 
   // Danh sách bác sĩ phù hợp với chuyên khoa, cơ sở và bộ lọc (RÀNG BUỘC NGHIÊM NGẶT THEO TRIỆU CHỨNG & CƠ SỞ)
   const availableDoctors = useMemo(() => {
@@ -1748,6 +1753,11 @@ export default function BookingMethodSelector({
     setSelectedFollowup('');
     setCustomNatureInput('');
     setOtherSymptomDetail('');
+    setIsPaymentVerified(false);
+    setCheckManualMessage('');
+    setPromoCode('');
+    setPromoSuccessMsg('');
+    setPromoErrorMsg('');
     setMessages([
       {
         id: 'msg-' + Date.now(),
@@ -3081,6 +3091,7 @@ export default function BookingMethodSelector({
     if (valRes.valid || VALID_PROMO_CODES.includes(code)) {
       const isFree = valRes.valid ? valRes.isFree : (code !== 'DEMO2K' && code !== 'UDAI2K');
       if (isFree) {
+        setIsPaymentVerified(true);
         setPromoSuccessMsg(valRes.valid ? `Áp dụng thành công mã ${code}! ${valRes.message}` : `Áp dụng thành công mã ${code}! Giảm 100% tiền cọc (0 VNĐ).`);
         setTimeout(() => {
           handleConfirmFinalBooking();
@@ -3094,20 +3105,26 @@ export default function BookingMethodSelector({
     }
   };
 
-  // Kiểm tra thanh toán thủ công
+  // Kiểm tra thanh toán thủ công khi bấm "Tôi Đã Chuyển Khoản — Kiểm Tra Ngay"
   const handleCheckPaymentManual = async () => {
-    if (!transferBookingCode) return;
+    const targetCode = transferBookingCode || createdAppointment?.bookingCode;
+    if (!targetCode) return;
     setIsCheckingManual(true);
     setCheckManualMessage('');
     try {
-      const res = await api.checkRealPaymentStatus({ bookingCode: transferBookingCode });
+      const res = await api.checkRealPaymentStatus({
+        bookingCode: targetCode,
+        appointmentId: createdAppointment?.id,
+      });
       if (res?.status === 'SUCCEEDED' || res?.success) {
-        handleConfirmFinalBooking();
+        setIsPaymentVerified(true);
+        setCheckManualMessage('✓ Ngân hàng đã ghi nhận thành công! Đang cấp vé hẹn khám...');
+        await handleConfirmFinalBooking();
       } else {
-        setCheckManualMessage('Hệ thống chưa ghi nhận tiền vào tài khoản. Quý khách vui lòng chờ 5-10 giây sau khi chuyển khoản thành công.');
+        setCheckManualMessage(`Hệ thống chưa ghi nhận biến động số dư 2.000 VNĐ cho nội dung "MEDPAY ${targetCode}". Nếu bạn vừa quét mã, vui lòng đợi 5-10 giây để liên ngân hàng đồng bộ rồi bấm kiểm tra lại nhé.`);
       }
-    } catch (err) {
-      setCheckManualMessage('Đang kiểm tra kết nối với cổng ngân hàng...');
+    } catch (err: any) {
+      setCheckManualMessage(err?.message || 'Không thể kết nối cổng kiểm tra giao dịch ngân hàng. Vui lòng thử lại sau giây lát.');
     } finally {
       setIsCheckingManual(false);
     }
@@ -3116,6 +3133,13 @@ export default function BookingMethodSelector({
   // Hoàn tất đặt chỗ (Bước 6) — GHI NHẬN CSDL VÀ CHUYỂN CONFIRMED
   const handleConfirmFinalBooking = async () => {
     if (isBookingSubmitting) return;
+
+    // Bắt buộc phải có xác nhận thanh toán thật qua VietQR hoặc mã ưu đãi 0đ
+    if (!isPaymentVerified && !promoCode) {
+      setCheckManualMessage('Vui lòng quét mã VietQR chuyển khoản 2.000 VNĐ hoặc nhập mã ưu đãi trước khi cấp vé hẹn.');
+      return;
+    }
+
     setIsBookingSubmitting(true);
     setCheckManualMessage('');
 
@@ -4186,28 +4210,60 @@ export default function BookingMethodSelector({
                             )}
                           </div>
 
-                          {/* Nút hoàn tất đặt chỗ */}
+                          {/* Nút kiểm tra thanh toán / hoàn tất đặt chỗ */}
                           <div className="space-y-1.5 pt-1">
-                            <button
-                              type="button"
-                              onClick={handleConfirmFinalBooking}
-                              disabled={isBookingSubmitting}
-                              className="w-full py-3 px-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
-                            >
-                              {isBookingSubmitting ? (
-                                <>
-                                  <Loader2 size={16} className="animate-spin shrink-0" />
-                                  <span>Đang Lưu Phiếu Khám &amp; Cấp Vé Hẹn...</span>
-                                </>
+                            {paymentTab === 'vietqr' ? (
+                              <button
+                                type="button"
+                                onClick={handleCheckPaymentManual}
+                                disabled={isCheckingManual || isBookingSubmitting}
+                                className="w-full py-3 px-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
+                              >
+                                {isCheckingManual || isBookingSubmitting ? (
+                                  <>
+                                    <Loader2 size={16} className="animate-spin shrink-0" />
+                                    <span>Đang Kiểm Tra Đối Soát Ngân Hàng...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <RefreshCw size={15} className="shrink-0" />
+                                    <span>Tôi Đã Chuyển Khoản — Kiểm Tra Ngay</span>
+                                  </>
+                                )}
+                              </button>
+                            ) : (
+                              promoSuccessMsg && isPaymentVerified ? (
+                                <button
+                                  type="button"
+                                  onClick={handleConfirmFinalBooking}
+                                  disabled={isBookingSubmitting}
+                                  className="w-full py-3 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
+                                >
+                                  {isBookingSubmitting ? (
+                                    <>
+                                      <Loader2 size={16} className="animate-spin shrink-0" />
+                                      <span>Đang Cấp Vé Hẹn...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <CheckCircle2 size={15} />
+                                      <span>Xác Nhận Giữ Chỗ Miễn Phí (0 VNĐ)</span>
+                                    </>
+                                  )}
+                                </button>
                               ) : (
-                                <>
-                                  <CheckCircle2 size={15} />
-                                  <span>Xác Nhận Giữ Chỗ &amp; Cấp Vé Hẹn Ngay</span>
-                                </>
-                              )}
-                            </button>
+                                <div className="text-center p-2.5 bg-purple-50/70 border border-purple-100 rounded-xl text-[11px] text-purple-800">
+                                  Nhập mã ưu đãi hợp lệ phía trên để nhận ưu đãi cọc 0 VNĐ, hoặc chọn tab <strong>Chuyển khoản VietQR</strong> để chuyển 2.000 VNĐ.
+                                </div>
+                              )
+                            )}
+
                             {checkManualMessage && (
-                              <p className="text-[10.5px] text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200 text-center">
+                              <p className={`text-[11px] p-2.5 rounded-xl border text-center leading-relaxed ${
+                                checkManualMessage.includes('✓')
+                                  ? 'text-emerald-800 bg-emerald-50 border-emerald-200 font-semibold'
+                                  : 'text-amber-800 bg-amber-50 border-amber-200'
+                              }`}>
                                 {checkManualMessage}
                               </p>
                             )}
