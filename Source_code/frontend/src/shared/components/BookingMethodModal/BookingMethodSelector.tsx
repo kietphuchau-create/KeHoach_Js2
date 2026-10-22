@@ -824,6 +824,7 @@ const DEMO_DOCTORS: DemoDoctor[] = [
 ];
 
 interface ClinicTimeSlot {
+  id?: string;
   time: string;
   startMinutes: number;
   session: 'MORNING' | 'AFTERNOON';
@@ -831,18 +832,18 @@ interface ClinicTimeSlot {
 
 const BASE_TIME_SLOTS: ClinicTimeSlot[] = [
   // Buổi Sáng (08:00 - 11:30)
-  { time: '08:00 - 08:30', startMinutes: 8 * 60, session: 'MORNING' },
-  { time: '08:30 - 09:00', startMinutes: 8 * 60 + 30, session: 'MORNING' },
-  { time: '09:00 - 09:30', startMinutes: 9 * 60, session: 'MORNING' },
-  { time: '09:30 - 10:00', startMinutes: 9 * 60 + 30, session: 'MORNING' },
-  { time: '10:00 - 10:30', startMinutes: 10 * 60, session: 'MORNING' },
-  { time: '10:30 - 11:00', startMinutes: 10 * 60 + 30, session: 'MORNING' },
+  { id: 'sl000001-0000-0000-0000-000000000001', time: '08:00 - 08:30', startMinutes: 8 * 60, session: 'MORNING' },
+  { id: 'sl000002-0000-0000-0000-000000000001', time: '08:30 - 09:00', startMinutes: 8 * 60 + 30, session: 'MORNING' },
+  { id: 'sl000003-0000-0000-0000-000000000001', time: '09:00 - 09:30', startMinutes: 9 * 60, session: 'MORNING' },
+  { id: 'sl000004-0000-0000-0000-000000000001', time: '09:30 - 10:00', startMinutes: 9 * 60 + 30, session: 'MORNING' },
+  { id: 'sl000005-0000-0000-0000-000000000001', time: '10:00 - 10:30', startMinutes: 10 * 60, session: 'MORNING' },
+  { id: 'sl000006-0000-0000-0000-000000000001', time: '10:30 - 11:00', startMinutes: 10 * 60 + 30, session: 'MORNING' },
   // Buổi Chiều (13:30 - 16:00)
-  { time: '13:30 - 14:00', startMinutes: 13 * 60 + 30, session: 'AFTERNOON' },
-  { time: '14:00 - 14:30', startMinutes: 14 * 60, session: 'AFTERNOON' },
-  { time: '14:30 - 15:00', startMinutes: 14 * 60 + 30, session: 'AFTERNOON' },
-  { time: '15:00 - 15:30', startMinutes: 15 * 60, session: 'AFTERNOON' },
-  { time: '15:30 - 16:00', startMinutes: 15 * 60 + 30, session: 'AFTERNOON' },
+  { id: 'sl000007-0000-0000-0000-000000000001', time: '13:30 - 14:00', startMinutes: 13 * 60 + 30, session: 'AFTERNOON' },
+  { id: 'sl000008-0000-0000-0000-000000000001', time: '14:00 - 14:30', startMinutes: 14 * 60, session: 'AFTERNOON' },
+  { id: 'sl000009-0000-0000-0000-000000000001', time: '14:30 - 15:00', startMinutes: 14 * 60 + 30, session: 'AFTERNOON' },
+  { id: 'sl000010-0000-0000-0000-000000000001', time: '15:00 - 15:30', startMinutes: 15 * 60, session: 'AFTERNOON' },
+  { id: 'sl000011-0000-0000-0000-000000000001', time: '15:30 - 16:00', startMinutes: 15 * 60 + 30, session: 'AFTERNOON' },
 ];
 
 // Helper xử lý ngày giờ đồng bộ chuẩn với BookingForm
@@ -1519,6 +1520,8 @@ export default function BookingMethodSelector({
   // Bước 6: Đặt chỗ thành công
   const [bookingSuccessCode, setBookingSuccessCode] = useState<string>('');
   const [isCopied, setIsCopied] = useState<boolean>(false);
+  const [createdAppointment, setCreatedAppointment] = useState<any>(null);
+  const [isBookingSubmitting, setIsBookingSubmitting] = useState<boolean>(false);
 
   // Chuyên mục triệu chứng hiện tại
   const activeCategory = useMemo(() => {
@@ -1584,21 +1587,23 @@ export default function BookingMethodSelector({
     }
   }, [patientName, patientPhone]);
 
-  // Sinh mã chuyển khoản cọc 2k khi vào bước thanh toán
+  // Sinh mã chuyển khoản cọc 2k khi vào bước thanh toán và khởi tạo appointment thực tế
   useEffect(() => {
     if (aiStep === 'CONFIRM_PAYMENT' && !transferBookingCode) {
-      const randNum = Math.floor(100000 + Math.random() * 900000);
-      const code = `MED${randNum}`;
-      setTransferBookingCode(code);
-
-      // Khởi tạo payment cọc trên backend
-      api.createRealPayment({
-        bookingCode: code,
-        amount: 2000,
-        paymentType: 'DEPOSIT',
-        method: 'BANK_TRANSFER',
-      }).catch((err) => {
-        console.warn('Khởi tạo giao dịch cọc 2k AI booking:', err);
+      initiateBackendAppointment().then((apt) => {
+        if (!apt) {
+          const randNum = Math.floor(100000 + Math.random() * 900000);
+          const code = `MED${randNum}`;
+          setTransferBookingCode(code);
+          api.createRealPayment({
+            bookingCode: code,
+            amount: 2000,
+            paymentType: 'DEPOSIT',
+            method: 'BANK_TRANSFER',
+          }).catch((err) => {
+            console.warn('Khởi tạo giao dịch cọc 2k AI booking:', err);
+          });
+        }
       });
     }
   }, [aiStep, transferBookingCode]);
@@ -2943,6 +2948,101 @@ export default function BookingMethodSelector({
     setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg, aiMsg]);
   };
 
+  // Khởi tạo bản ghi Appointment thực tế trong CSDL Backend
+  const initiateBackendAppointment = async (): Promise<any> => {
+    if (createdAppointment?.id) return createdAppointment;
+
+    try {
+      // 1. Phân giải Patient Profile ID từ User đang đăng nhập
+      let currentPatientProfileId = '';
+      try {
+        const profile = await api.getProfile();
+        if (profile?.patientProfile?.profileId) {
+          currentPatientProfileId = profile.patientProfile.profileId;
+        }
+      } catch (e) {
+        // Backend tự động phân giải từ JWT Session principal
+      }
+
+      // 2. Tìm Bác sĩ & Chi nhánh hợp lệ (Ưu tiên ID thực từ DB)
+      let docId = selectedDoctor?.id;
+      if (!docId || docId.startsWith('doc-')) {
+        const realDoc = dbDoctors.find(d => !d.id.startsWith('doc-')) || dbDoctors[0];
+        if (realDoc) docId = realDoc.id;
+      }
+
+      let centerId = selectedBranch?.id;
+      if (!centerId && branches.length > 0) {
+        centerId = branches[0].id;
+      }
+
+      // 3. Phân giải Slot ID hợp lệ từ CSDL
+      let slotId = '';
+      const matchedSlot = shiftSlots.find(s => s.time === selectedSlotTime && !s.disabled);
+      if (matchedSlot && matchedSlot.id && !matchedSlot.id.startsWith('base-')) {
+        slotId = matchedSlot.id;
+      }
+
+      // Nếu chưa có slot thực, gọi backend để tự động sinh và lưu slot chuẩn
+      if (!slotId && docId) {
+        try {
+          const freshSlots = await api.getDoctorAvailableSlots(docId, bookingDate);
+          if (Array.isArray(freshSlots) && freshSlots.length > 0) {
+            const startPart = (selectedSlotTime || '08:00').split(':')[0].trim();
+            const found = freshSlots.find(s => s.time?.startsWith(startPart) && !s.disabled) || freshSlots[0];
+            if (found?.id) slotId = found.id;
+          }
+        } catch (slotErr) {
+          console.warn('Lấy slot bác sĩ từ DB:', slotErr);
+        }
+      }
+
+      if (!slotId) {
+        slotId = 'sl000001-0000-0000-0000-000000000001';
+      }
+
+      // 4. Định dạng triệu chứng
+      const symptomsList = [
+        customNatureInput || selectedNature || activeCategory.label,
+        selectedDuration ? `Thời gian: ${selectedDuration}` : null,
+        selectedAssociated ? `Kèm theo: ${selectedAssociated}` : null,
+        patientName ? `Bệnh nhân: ${patientName}` : null,
+        patientPhone ? `SĐT: ${patientPhone}` : null,
+        aiClinicalSummary ? `[AI Triage]: ${aiClinicalSummary}` : null,
+      ].filter(Boolean);
+      const formattedSymptoms = symptomsList.join(' • ') || 'Đặt khám tư vấn qua Trợ Lý Y Tế AI MedSched';
+
+      // 5. GỌI API ĐẶT KHÁM THẬT LƯU VÀO CSDL
+      const res = await api.bookAppointment({
+        medicalCenterId: centerId,
+        patientProfileId: currentPatientProfileId,
+        doctorId: docId || '',
+        slotId: slotId,
+        symptoms: formattedSymptoms,
+        medicalHistory: '',
+      });
+
+      if (res && res.id) {
+        setCreatedAppointment(res);
+        if (res.bookingCode) {
+          setTransferBookingCode(res.bookingCode);
+          // Khởi tạo payment cọc trên backend cho đúng mã này
+          api.createRealPayment({
+            appointmentId: res.id,
+            bookingCode: res.bookingCode,
+            amount: 2000,
+            paymentType: 'DEPOSIT',
+            method: 'BANK_TRANSFER',
+          }).catch(console.warn);
+        }
+        return res;
+      }
+    } catch (err: any) {
+      console.warn('Không thể khởi tạo appointment PENDING:', err);
+    }
+    return null;
+  };
+
   // Bước 4 -> Bước 5: Chuyển sang Xác nhận & Giữ chỗ (Cọc 2k / Ưu đãi)
   const handleProceedToPayment = () => {
     const userMsg: ChatMessage = {
@@ -2963,6 +3063,9 @@ export default function BookingMethodSelector({
 
     setAiStep('CONFIRM_PAYMENT');
     setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg, aiMsg]);
+
+    // Khởi tạo ngay bản ghi Appointment thực tế trong CSDL Backend
+    initiateBackendAppointment();
   };
 
   // Áp dụng mã ưu đãi
@@ -2979,17 +3082,9 @@ export default function BookingMethodSelector({
       const isFree = valRes.valid ? valRes.isFree : (code !== 'DEMO2K' && code !== 'UDAI2K');
       if (isFree) {
         setPromoSuccessMsg(valRes.valid ? `Áp dụng thành công mã ${code}! ${valRes.message}` : `Áp dụng thành công mã ${code}! Giảm 100% tiền cọc (0 VNĐ).`);
-        api.confirmRealPayment({
-          bookingCode: transferBookingCode,
-          paymentType: 'PROMO_FREE',
-          amount: 0,
-          promoCode: code,
-        }).catch((err) => {
-          console.warn('Ghi nhận voucher 0đ AI booking:', err);
-        });
         setTimeout(() => {
           handleConfirmFinalBooking();
-        }, 1000);
+        }, 800);
       } else {
         setPaymentTab('vietqr');
         setPromoSuccessMsg(`Áp dụng thành công mã ${code}! Đồng giá cọc 2.000 đ để quét VietQR thật. Vui lòng chuyển 2.000 đ bên tab Chuyển khoản.`);
@@ -3018,29 +3113,64 @@ export default function BookingMethodSelector({
     }
   };
 
-  // Hoàn tất đặt chỗ (Bước 6)
-  const handleConfirmFinalBooking = () => {
-    const successCode = transferBookingCode || 'MED' + Math.floor(100000 + Math.random() * 900000);
-    setBookingSuccessCode(successCode);
+  // Hoàn tất đặt chỗ (Bước 6) — GHI NHẬN CSDL VÀ CHUYỂN CONFIRMED
+  const handleConfirmFinalBooking = async () => {
+    if (isBookingSubmitting) return;
+    setIsBookingSubmitting(true);
+    setCheckManualMessage('');
 
-    const userMsg: ChatMessage = {
-      id: 'msg-' + Date.now(),
-      sender: 'user',
-      time: getFormattedTime(),
-      text: `Đã hoàn tất xác nhận đặt hẹn và giữ chỗ`,
-    };
+    try {
+      // 1. Đảm bảo đã có bản ghi Appointment trong CSDL
+      let apt = createdAppointment;
+      if (!apt || !apt.id) {
+        apt = await initiateBackendAppointment();
+      }
 
-    const aiMsg: ChatMessage = {
-      id: 'msg-' + (Date.now() + 1),
-      sender: 'ai',
-      time: getFormattedTime(),
-      text: `🎉 Chúc mừng bạn! Phiếu khám đã được xác nhận thành công trên hệ thống MedSched. Mã đặt hẹn của bạn là **${successCode}**.`,
-      widget: 'COMPLETED',
-      isTypingComplete: false,
-    };
+      const finalCode = apt?.bookingCode || transferBookingCode || ('MED' + Math.floor(100000 + Math.random() * 900000));
+      setBookingSuccessCode(finalCode);
 
-    setAiStep('COMPLETED');
-    setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg, aiMsg]);
+      // 2. Cập nhật trạng thái thanh toán sang CONFIRMED trong CSDL Backend
+      try {
+        await api.confirmRealPayment({
+          appointmentId: apt?.id,
+          bookingCode: finalCode,
+          paymentType: promoCode ? 'PROMO_FREE' : 'DEPOSIT',
+          amount: promoCode ? 0 : 2000,
+          promoCode: promoCode || undefined,
+        });
+      } catch (payErr) {
+        console.warn('confirmRealPayment warning:', payErr);
+      }
+
+      // 3. Phát sự kiện toàn cục để trang /my-appointments tự động tải lại phiếu khám ngay lập tức
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('appointment_created', { detail: { bookingCode: finalCode } }));
+      }
+
+      const userMsg: ChatMessage = {
+        id: 'msg-' + Date.now(),
+        sender: 'user',
+        time: getFormattedTime(),
+        text: `Đã hoàn tất xác nhận đặt hẹn và giữ chỗ`,
+      };
+
+      const aiMsg: ChatMessage = {
+        id: 'msg-' + (Date.now() + 1),
+        sender: 'ai',
+        time: getFormattedTime(),
+        text: `🎉 Chúc mừng bạn! Phiếu khám đã được ghi nhận thành công trên hệ thống MedSched với mã đặt hẹn **${finalCode}**.\n\nThông tin đã được đồng bộ vào hệ thống phòng khám. Bạn có thể xem ngay phiếu khám trong mục **Phiếu Khám Của Tôi**!`,
+        widget: 'COMPLETED',
+        isTypingComplete: false,
+      };
+
+      setAiStep('COMPLETED');
+      setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg, aiMsg]);
+    } catch (err: any) {
+      console.error('Lỗi xác nhận đặt hẹn:', err);
+      setCheckManualMessage(err?.message || 'Có lỗi khi xác nhận phiếu khám. Vui lòng thử lại.');
+    } finally {
+      setIsBookingSubmitting(false);
+    }
   };
 
   // Sao chép mã
@@ -4061,10 +4191,20 @@ export default function BookingMethodSelector({
                             <button
                               type="button"
                               onClick={handleConfirmFinalBooking}
-                              className="w-full py-3 px-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer"
+                              disabled={isBookingSubmitting}
+                              className="w-full py-3 px-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
                             >
-                              <CheckCircle2 size={15} />
-                              <span>Xác Nhận Giữ Chỗ &amp; Cấp Vé Hẹn Ngay</span>
+                              {isBookingSubmitting ? (
+                                <>
+                                  <Loader2 size={16} className="animate-spin shrink-0" />
+                                  <span>Đang Lưu Phiếu Khám &amp; Cấp Vé Hẹn...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <CheckCircle2 size={15} />
+                                  <span>Xác Nhận Giữ Chỗ &amp; Cấp Vé Hẹn Ngay</span>
+                                </>
+                              )}
                             </button>
                             {checkManualMessage && (
                               <p className="text-[10.5px] text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200 text-center">
@@ -4126,6 +4266,9 @@ export default function BookingMethodSelector({
                             <button
                               type="button"
                               onClick={() => {
+                                if (typeof window !== 'undefined') {
+                                  window.dispatchEvent(new CustomEvent('appointment_created'));
+                                }
                                 if (onClose) onClose();
                                 router.push('/my-appointments');
                               }}

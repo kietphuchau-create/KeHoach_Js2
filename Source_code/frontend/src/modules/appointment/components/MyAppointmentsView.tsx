@@ -322,6 +322,16 @@ export default function MyAppointmentsView() {
     }
     setAuthChecking(false);
     fetchAppointments();
+
+    const handleRefresh = () => {
+      fetchAppointments();
+    };
+    window.addEventListener('appointment_created', handleRefresh);
+    window.addEventListener('focus', handleRefresh);
+    return () => {
+      window.removeEventListener('appointment_created', handleRefresh);
+      window.removeEventListener('focus', handleRefresh);
+    };
   }, [router]);
 
 
