@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { api, getAuthToken, getAuthUser } from '@/shared/lib/api';
 import { validatePromotion } from '@/shared/lib/promotions';
+import { formatDoctorFullName } from '@/shared/lib/formatters';
 import { 
   getBranchGoogleMapsUrl, 
   getBranchDirectionUrl 
@@ -336,13 +337,17 @@ const TIME_SHIFTS: TimeShiftOption[] = [
 interface DemoDoctor {
   id: string;
   name: string;
+  rawName?: string;
+  academicTitle?: string;
   title: string;
-  specialtyCode: string;
-  categoryKeys: string[];
-  centerId: string;
+  specialtyCode?: string;
+  specialtyName?: string;
+  specialtyId?: string;
+  categoryKeys?: string[];
+  centerId?: string;
   room: string;
   fee: number;
-  gender: 'male' | 'female';
+  gender?: 'male' | 'female';
   isExpert?: boolean;
 }
 
@@ -1254,26 +1259,206 @@ export default function BookingMethodSelector({
   // Danh sách 5 ngày làm việc sắp tới (Thứ 2 đến Thứ 6)
   const upcomingWeekdays = useMemo(() => getUpcomingWeekdays(5), []);
 
-  // Lọc các khung giờ theo Buổi và Ngày khám
+  // Bước 4: Bác sĩ & Khung giờ & Bộ lọc (Đồng bộ 100% CSDL)
+  const [dbDoctors, setDbDoctors] = useState<DemoDoctor[]>([]);
+  const [isDoctorsLoading, setIsDoctorsLoading] = useState<boolean>(true);
+  const [selectedDoctor, setSelectedDoctor] = useState<DemoDoctor | null>(null);
+  const [selectedSlotTime, setSelectedSlotTime] = useState<string>('08:00 - 08:30');
+  const [doctorFilter, setDoctorFilter] = useState<'ALL' | 'EXPERT' | 'MALE' | 'FEMALE'>('ALL');
+
+  // Dynamic slots tải từ CSDL theo bác sĩ và ngày đang chọn
+  const [dynamicSlots, setDynamicSlots] = useState<Array<{
+    id: string;
+    time: string;
+    startMinutes: number;
+    status: string;
+    label: string;
+    disabled: boolean;
+  }>>([]);
+  const [isSlotsLoading, setIsSlotsLoading] = useState<boolean>(false);
+
+  // Đồng bộ danh mục bác sĩ từ CSDL qua API
+  useEffect(() => {
+    let isMounted = true;
+    setIsDoctorsLoading(true);
+    api.getDoctors()
+      .then((data: any[]) => {
+        if (!isMounted) return;
+        if (Array.isArray(data) && data.length > 0) {
+          const mapped: DemoDoctor[] = data.map((d: any) => {
+            const rawName = d.fullName || '';
+            const academicTitle = d.academicTitle || '';
+            const formattedName = formatDoctorFullName(academicTitle, rawName);
+
+            // Tự động phân tích danh mục triệu chứng tương ứng
+            const catKeys: string[] = [];
+            const specName = (d.specialtyName || '').toLowerCase();
+            if (specName.includes('thần kinh') || specName.includes('nội')) {
+              catKeys.push('HEADACHE', 'FATIGUE');
+            }
+            if (specName.includes('tiêu hóa') || specName.includes('gan mật')) {
+              catKeys.push('ABDOMINAL');
+            }
+            if (specName.includes('hô hấp') || specName.includes('nhiễm')) {
+              catKeys.push('RESPIRATORY');
+            }
+            if (specName.includes('xương') || specName.includes('khớp')) {
+              catKeys.push('BONE_JOINT');
+            }
+            if (specName.includes('da')) {
+              catKeys.push('SKIN');
+            }
+            if (specName.includes('răng') || specName.includes('hàm')) {
+              catKeys.push('DENTAL');
+            }
+            if (specName.includes('mắt') || specName.includes('nhãn')) {
+              catKeys.push('EYE');
+            }
+            if (catKeys.length === 0) {
+              catKeys.push('HEADACHE', 'FATIGUE');
+            }
+
+            const lowerName = rawName.toLowerCase();
+            const isFemale = lowerName.includes('thị') || lowerName.includes('hương') || 
+              lowerName.includes('linh') || lowerName.includes('thảo') || lowerName.includes('thu') ||
+              lowerName.includes('mai') || lowerName.includes('lan') || lowerName.includes('trang') ||
+              lowerName.includes('ngọc') || lowerName.includes('hoa') || lowerName.includes('phương');
+
+            const isExpert = (academicTitle && (academicTitle.includes('CKII') || academicTitle.includes('TS') || academicTitle.includes('PGS') || academicTitle.includes('GS') || academicTitle.includes('Trưởng'))) ||
+              (d.bio && (d.bio.includes('Trưởng') || d.bio.includes('Chuyên gia')));
+
+            const roomText = d.roomNumber 
+              ? (d.roomNumber.toLowerCase().startsWith('phòng') ? d.roomNumber : `Phòng ${d.roomNumber}`)
+              : 'Phòng P.208 - Tầng 2';
+
+            return {
+              id: d.id,
+              name: formattedName || rawName || 'Bác sĩ chuyên khoa',
+              rawName,
+              academicTitle,
+              title: d.bio || `${academicTitle || 'Bác sĩ'} - ${d.specialtyName || 'Chuyên khoa'}`,
+              specialtyCode: d.specialtyCode || (specName.includes('da') ? 'DERMATOLOGY' : specName.includes('răng') ? 'ODONTO_STOMATOLOGY' : specName.includes('mắt') ? 'OPHTHALMOLOGY' : 'INTERNAL_MEDICINE'),
+              specialtyName: d.specialtyName || '',
+              specialtyId: d.specialtyId || '',
+              categoryKeys: catKeys,
+              centerId: d.medicalCenterId,
+              room: roomText,
+              fee: Number(d.consultationFee) || 200000,
+              gender: isFemale ? 'female' : 'male',
+              isExpert: !!isExpert,
+            };
+          });
+          setDbDoctors(mapped);
+        }
+      })
+      .catch((err) => {
+        console.warn('Lỗi tải danh mục bác sĩ từ máy chủ:', err);
+      })
+      .finally(() => {
+        if (isMounted) setIsDoctorsLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Tải danh sách ca khám thực tế từ CSDL khi đổi bác sĩ hoặc ngày khám
+  useEffect(() => {
+    if (!selectedDoctor?.id) {
+      setDynamicSlots([]);
+      return;
+    }
+    let isCancelled = false;
+    setIsSlotsLoading(true);
+    api.getDoctorAvailableSlots(selectedDoctor.id, bookingDate)
+      .then((data) => {
+        if (!isCancelled && Array.isArray(data) && data.length > 0) {
+          setDynamicSlots(data);
+        } else if (!isCancelled) {
+          setDynamicSlots([]);
+        }
+      })
+      .catch((err) => {
+        console.warn('Không thể tải lịch khám bác sĩ từ DB:', err);
+        if (!isCancelled) setDynamicSlots([]);
+      })
+      .finally(() => {
+        if (!isCancelled) setIsSlotsLoading(false);
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [selectedDoctor?.id, bookingDate]);
+
+  // Lọc các khung giờ theo Buổi và Ngày khám (Ưu tiên lịch thực từ Database nếu có)
   const shiftSlots = useMemo(() => {
     const isToday = bookingDate === getTodayISODate();
     const now = new Date();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
+    if (dynamicSlots.length > 0) {
+      const isMorning = selectedShiftId === 'MORNING';
+      const filtered = dynamicSlots.filter(s => {
+        if (s.startMinutes !== undefined) {
+          return isMorning ? s.startMinutes < 720 : s.startMinutes >= 720;
+        }
+        const hour = parseInt(s.time?.split(':')[0] || '8', 10);
+        return isMorning ? hour < 12 : hour >= 12;
+      });
+
+      if (filtered.length > 0) {
+        return filtered.map(slot => {
+          const isPast = isToday && slot.startMinutes <= currentMinutes;
+          const isDisabled = slot.disabled || slot.status === 'full' || slot.status === 'expired' || slot.status === 'locked' || isPast;
+          let label = slot.label;
+          if (isPast) {
+            label = 'Đã qua giờ';
+          } else if (slot.status === 'full' || slot.status === 'locked') {
+            label = 'Hết chỗ';
+          } else if (!label) {
+            label = isDisabled ? 'Không khả dụng' : 'Khả dụng';
+          }
+
+          return {
+            id: slot.id,
+            time: slot.time,
+            startMinutes: slot.startMinutes,
+            session: selectedShiftId as 'MORNING' | 'AFTERNOON',
+            disabled: isDisabled,
+            label: label,
+          };
+        });
+      }
+    }
+
+    // Fallback: BASE_TIME_SLOTS
     return BASE_TIME_SLOTS.filter(s => s.session === selectedShiftId).map(slot => {
       const isPast = isToday && slot.startMinutes <= currentMinutes;
       return {
+        id: `base-${slot.time}`,
         ...slot,
         disabled: isPast,
         label: isPast ? 'Đã qua giờ' : 'Khả dụng',
       };
     });
-  }, [selectedShiftId, bookingDate]);
+  }, [dynamicSlots, selectedShiftId, bookingDate]);
 
-  // Bước 4: Bác sĩ & Khung giờ & Bộ lọc
-  const [selectedDoctor, setSelectedDoctor] = useState<DemoDoctor | null>(null);
-  const [selectedSlotTime, setSelectedSlotTime] = useState<string>('08:00 - 08:30');
-  const [doctorFilter, setDoctorFilter] = useState<'ALL' | 'EXPERT' | 'MALE' | 'FEMALE'>('ALL');
+  // Tự động đồng bộ khung giờ hợp lệ khi danh sách giờ thay đổi
+  useEffect(() => {
+    if (shiftSlots.length > 0) {
+      const currentValid = shiftSlots.find(s => s.time === selectedSlotTime && !s.disabled);
+      if (!currentValid) {
+        const firstAvailable = shiftSlots.find(s => !s.disabled);
+        if (firstAvailable) {
+          setSelectedSlotTime(firstAvailable.time);
+        } else {
+          setSelectedSlotTime(shiftSlots[0].time);
+        }
+      }
+    }
+  }, [shiftSlots, selectedSlotTime]);
 
   // Bước 5: Thông tin bệnh nhân & Thanh toán cọc 2k / Mã ưu đãi
   const [patientName, setPatientName] = useState<string>('');
@@ -1411,23 +1596,37 @@ export default function BookingMethodSelector({
 
   // Danh sách bác sĩ phù hợp với chuyên khoa, cơ sở và bộ lọc (RÀNG BUỘC NGHIÊM NGẶT THEO TRIỆU CHỨNG)
   const availableDoctors = useMemo(() => {
+    const doctorPool = dbDoctors.length > 0 ? dbDoctors : DEMO_DOCTORS;
     // 1. Ràng buộc nghiêm ngặt: Chỉ lấy đúng các bác sĩ chuyên khoa tương ứng với triệu chứng bệnh nhân đã chọn
-    const branchIndex = selectedBranch ? branches.findIndex(b => b.id === selectedBranch.id || b.code === selectedBranch.code) : 0;
-    let matched = DEMO_DOCTORS.filter(d => {
-      if (!d.categoryKeys?.includes(selectedCategoryKey)) return false;
-      if (selectedBranch && (d.centerId === selectedBranch.id || d.centerId === selectedBranch.code)) return true;
-      if (branchIndex === 0 && (d.centerId === 'a1b2c3d4-0001-4000-8000-000000000001' || d.centerId === 'CN1' || d.centerId === 'MED_Q1')) return true;
-      if (branchIndex === 1 && (d.centerId === 'a1b2c3d4-0002-4000-8000-000000000002' || d.centerId === 'CN2' || d.centerId === 'MED_Q7')) return true;
-      return false;
+    let matched = doctorPool.filter(d => {
+      const matchesCategory = d.categoryKeys?.includes(selectedCategoryKey) ||
+        (d.specialtyCode && d.specialtyCode === activeCategory.specialtyCode) ||
+        (d.specialtyName && activeCategory.specialtyName && (
+          d.specialtyName.toLowerCase().includes(activeCategory.specialtyName.toLowerCase()) ||
+          activeCategory.specialtyName.toLowerCase().includes(d.specialtyName.toLowerCase())
+        ));
+      if (!matchesCategory) return false;
+
+      if (!selectedBranch) return true;
+      if (!d.centerId) return true;
+      return d.centerId === selectedBranch.id || d.centerId === selectedBranch.code;
     });
 
     if (matched.length === 0) {
-      matched = DEMO_DOCTORS.filter(d => d.categoryKeys?.includes(selectedCategoryKey));
+      matched = doctorPool.filter(d =>
+        d.categoryKeys?.includes(selectedCategoryKey) ||
+        (d.specialtyCode && d.specialtyCode === activeCategory.specialtyCode)
+      );
     }
     if (matched.length === 0) {
-      matched = DEMO_DOCTORS.filter(d => d.specialtyCode === activeCategory.specialtyCode);
+      matched = doctorPool.filter(d => d.specialtyCode === activeCategory.specialtyCode);
     }
-    if (matched.length === 0) matched = [DEMO_DOCTORS[0]];
+    if (matched.length === 0 && selectedBranch) {
+      matched = doctorPool.filter(d => !d.centerId || d.centerId === selectedBranch.id || d.centerId === selectedBranch.code);
+    }
+    if (matched.length === 0) {
+      matched = doctorPool.slice(0, 3);
+    }
 
     if (doctorFilter === 'EXPERT') {
       const filtered = matched.filter(d => d.isExpert);
@@ -1440,7 +1639,7 @@ export default function BookingMethodSelector({
       return filtered.length > 0 ? filtered : matched;
     }
     return matched;
-  }, [selectedCategoryKey, activeCategory, selectedBranch, doctorFilter]);
+  }, [dbDoctors, selectedCategoryKey, activeCategory, selectedBranch, doctorFilter]);
 
   // Cập nhật bác sĩ mặc định khi danh sách thay đổi theo cơ sở
   useEffect(() => {
@@ -2063,7 +2262,8 @@ export default function BookingMethodSelector({
     }
 
     // Nếu người dùng nhắc đến bác sĩ thuộc chuyên khoa khác (ví dụ: đau đầu nhưng lại hỏi bác sĩ khoa Hô hấp)
-    const otherSpecialtyDoc = DEMO_DOCTORS.find(d =>
+    const allDocPool = dbDoctors.length > 0 ? dbDoctors : DEMO_DOCTORS;
+    const otherSpecialtyDoc = allDocPool.find(d =>
       lower.includes(d.name.toLowerCase()) ||
       lower.includes(d.name.split(' ').slice(-2).join(' ').toLowerCase()) ||
       lower.includes(d.name.split(' ').pop()?.toLowerCase() || '')
@@ -3072,47 +3272,62 @@ export default function BookingMethodSelector({
 
                           {/* Danh sách Bác sĩ */}
                           <div className="space-y-2">
-                            {availableDoctors.map((doc) => {
-                              const isSelected = selectedDoctor?.id === doc.id;
-                              return (
-                                <div
-                                  key={doc.id}
-                                  onClick={() => setSelectedDoctor(doc)}
-                                  className={`p-2.5 rounded-xl border-2 transition cursor-pointer flex items-center justify-between ${
-                                    isSelected
-                                      ? 'bg-purple-50/90 border-purple-600 shadow-2xs ring-1 ring-purple-300'
-                                      : 'bg-white hover:bg-slate-50 border-slate-200'
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-2.5">
-                                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-extrabold text-sm ${
-                                      isSelected ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-700'
+                            {isDoctorsLoading && availableDoctors.length === 0 ? (
+                              <div className="py-6 px-4 bg-slate-50 rounded-xl border border-dashed border-slate-300 text-center flex flex-col items-center justify-center gap-2">
+                                <Loader2 size={20} className="animate-spin text-purple-600" />
+                                <span className="text-xs font-semibold text-slate-600">
+                                  Đang đồng bộ danh sách bác sĩ chuyên khoa từ hệ thống...
+                                </span>
+                              </div>
+                            ) : availableDoctors.length === 0 ? (
+                              <div className="py-6 px-4 bg-slate-50 rounded-xl border border-dashed border-slate-300 text-center">
+                                <p className="text-xs font-semibold text-slate-600">
+                                  Hiện chưa có bác sĩ trực theo bộ lọc này. Vui lòng chọn &quot;Tất Cả Bác Sĩ&quot; hoặc chọn cơ sở khác.
+                                </p>
+                              </div>
+                            ) : (
+                              availableDoctors.map((doc) => {
+                                const isSelected = selectedDoctor?.id === doc.id;
+                                return (
+                                  <div
+                                    key={doc.id}
+                                    onClick={() => setSelectedDoctor(doc)}
+                                    className={`p-2.5 rounded-xl border-2 transition cursor-pointer flex items-center justify-between ${
+                                      isSelected
+                                        ? 'bg-purple-50/90 border-purple-600 shadow-2xs ring-1 ring-purple-300'
+                                        : 'bg-white hover:bg-slate-50 border-slate-200'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2.5">
+                                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-extrabold text-sm ${
+                                        isSelected ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-700'
+                                      }`}>
+                                        {doc.gender === 'female' ? '👩‍⚕️' : '👨‍⚕️'}
+                                      </div>
+                                      <div>
+                                        <h4 className="text-xs font-extrabold text-slate-900 flex items-center gap-1">
+                                          {doc.name}
+                                          {doc.isExpert && (
+                                            <span className="text-[8.5px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.2 rounded flex items-center gap-0.5">
+                                              <Award size={9} /> Chuyên Gia
+                                            </span>
+                                          )}
+                                        </h4>
+                                        <p className="text-[10px] text-slate-500 line-clamp-1">{doc.title}</p>
+                                        <p className="text-[9.5px] text-purple-700 font-bold">
+                                          📍 {doc.room} • Phí khám: {doc.fee.toLocaleString('vi-VN')} đ
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <div className={`w-4 h-4 rounded-full flex items-center justify-center border ${
+                                      isSelected ? 'bg-purple-600 border-purple-600 text-white' : 'border-slate-300'
                                     }`}>
-                                      {doc.gender === 'female' ? '👩‍⚕️' : '👨‍⚕️'}
-                                    </div>
-                                    <div>
-                                      <h4 className="text-xs font-extrabold text-slate-900 flex items-center gap-1">
-                                        {doc.name}
-                                        {doc.isExpert && (
-                                          <span className="text-[8.5px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.2 rounded flex items-center gap-0.5">
-                                            <Award size={9} /> Chuyên Gia
-                                          </span>
-                                        )}
-                                      </h4>
-                                      <p className="text-[10px] text-slate-500 line-clamp-1">{doc.title}</p>
-                                      <p className="text-[9.5px] text-purple-700 font-bold">
-                                        📍 {doc.room} • Phí khám: {doc.fee.toLocaleString('vi-VN')} đ
-                                      </p>
+                                      {isSelected && <Check size={10} />}
                                     </div>
                                   </div>
-                                  <div className={`w-4 h-4 rounded-full flex items-center justify-center border ${
-                                    isSelected ? 'bg-purple-600 border-purple-600 text-white' : 'border-slate-300'
-                                  }`}>
-                                    {isSelected && <Check size={10} />}
-                                  </div>
-                                </div>
-                              );
-                            })}
+                                );
+                              })
+                            )}
                           </div>
 
                           {/* Khung giờ khám */}
@@ -3125,31 +3340,46 @@ export default function BookingMethodSelector({
                                 📅 {formatVietnameseFullDate(bookingDate)}
                               </span>
                             </div>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                              {shiftSlots.map((slot, idx) => {
-                                const isSelected = selectedSlotTime === slot.time;
-                                return (
-                                  <button
-                                    key={idx}
-                                    type="button"
-                                    disabled={slot.disabled}
-                                    onClick={() => !slot.disabled && setSelectedSlotTime(slot.time)}
-                                    className={`py-1.5 px-2 text-xs font-bold rounded-xl border transition text-center flex flex-col items-center justify-center ${
-                                      slot.disabled
-                                        ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-60'
-                                        : isSelected
-                                        ? 'bg-purple-600 text-white border-purple-600 shadow-2xs cursor-pointer'
-                                        : 'bg-slate-50 hover:bg-purple-50 text-slate-700 border-slate-200 cursor-pointer'
-                                    }`}
-                                  >
-                                    <span>{slot.time}</span>
-                                    <span className={`text-[8.5px] ${isSelected ? 'text-purple-200' : slot.disabled ? 'text-slate-400' : 'text-emerald-600'}`}>
-                                      {slot.label}
-                                    </span>
-                                  </button>
-                                );
-                              })}
-                            </div>
+                            {isSlotsLoading ? (
+                              <div className="py-4 bg-purple-50/50 rounded-xl border border-dashed border-purple-200 text-center flex items-center justify-center gap-2">
+                                <Loader2 size={16} className="animate-spin text-purple-600" />
+                                <span className="text-[11px] font-semibold text-purple-700">
+                                  Đang đồng bộ ca khám khả dụng từ CSDL...
+                                </span>
+                              </div>
+                            ) : shiftSlots.length === 0 ? (
+                              <div className="py-4 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-center">
+                                <span className="text-[11px] text-slate-500">
+                                  Không có ca khám nào trong buổi này. Vui lòng chuyển buổi hoặc ngày khác.
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                                {shiftSlots.map((slot, idx) => {
+                                  const isSelected = selectedSlotTime === slot.time;
+                                  return (
+                                    <button
+                                      key={idx}
+                                      type="button"
+                                      disabled={slot.disabled}
+                                      onClick={() => !slot.disabled && setSelectedSlotTime(slot.time)}
+                                      className={`py-1.5 px-2 text-xs font-bold rounded-xl border transition text-center flex flex-col items-center justify-center ${
+                                        slot.disabled
+                                          ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-60'
+                                          : isSelected
+                                          ? 'bg-purple-600 text-white border-purple-600 shadow-2xs cursor-pointer'
+                                          : 'bg-slate-50 hover:bg-purple-50 text-slate-700 border-slate-200 cursor-pointer'
+                                      }`}
+                                    >
+                                      <span>{slot.time}</span>
+                                      <span className={`text-[8.5px] ${isSelected ? 'text-purple-200' : slot.disabled ? 'text-slate-400' : 'text-emerald-600'}`}>
+                                        {slot.label}
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
                           </div>
 
                           {/* Nút tiếp tục sang Bước 5 */}
