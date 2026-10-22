@@ -27,12 +27,19 @@ public class PaymentController {
     private static final java.util.concurrent.ConcurrentHashMap<String, Map<String, Object>> standalonePaymentMap = new java.util.concurrent.ConcurrentHashMap<>();
     private static final java.util.concurrent.ConcurrentHashMap<String, Long> standaloneOrderMap = new java.util.concurrent.ConcurrentHashMap<>();
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.medsched.persistence.repository.DoctorJpaRepository doctorJpaRepository;
+
     public PaymentController(AppointmentJpaRepository appointmentJpaRepository,
                              PaymentJpaRepository paymentJpaRepository,
                              PayOsService payOsService) {
         this.appointmentJpaRepository = appointmentJpaRepository;
         this.paymentJpaRepository = paymentJpaRepository;
         this.payOsService = payOsService;
+    }
+
+    public void setDoctorJpaRepository(com.medsched.persistence.repository.DoctorJpaRepository doctorJpaRepository) {
+        this.doctorJpaRepository = doctorJpaRepository;
     }
 
     public record CreatePaymentRequest(
@@ -145,10 +152,20 @@ public class PaymentController {
                 ? "DEPOSIT" 
                 : "FULL";
 
-        // Mặc định: Giữ chỗ = 2.000đ, Thanh toán đủ = 200.000đ (hoặc theo số tiền gửi lên)
+        // Mặc định: Giữ chỗ = 2.000đ, Thanh toán đủ = phí khám thực tế của bác sĩ (hoặc 200.000đ fallback)
         BigDecimal finalAmount = req.amount();
         if (finalAmount == null || finalAmount.compareTo(BigDecimal.ZERO) <= 0) {
-            finalAmount = "DEPOSIT".equals(type) ? new BigDecimal("2000") : new BigDecimal("200000");
+            if ("DEPOSIT".equals(type)) {
+                finalAmount = new BigDecimal("2000");
+            } else {
+                BigDecimal docFee = null;
+                if (appointment != null && appointment.getDoctorId() != null && doctorJpaRepository != null) {
+                    docFee = doctorJpaRepository.findById(appointment.getDoctorId())
+                            .map(com.medsched.persistence.entity.DoctorEntity::getConsultationFee)
+                            .orElse(null);
+                }
+                finalAmount = (docFee != null && docFee.compareTo(BigDecimal.ZERO) > 0) ? docFee : new BigDecimal("200000");
+            }
         }
 
         long orderCode = System.currentTimeMillis() % 1000000000L;

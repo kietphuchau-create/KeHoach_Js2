@@ -260,6 +260,19 @@ export default function DoctorScheduleView() {
     }
   }, [showCreateModal, workDate, startTime, endTime, checkOccupancy]);
 
+  // Tìm ca trực đã có trong ngày làm việc đã chọn
+  const myExistingShiftOnDate = useMemo(() => {
+    if (!workDate) return null;
+    return schedules.find((s) => s.workDate === workDate && s.status === 'ACTIVE');
+  }, [workDate, schedules]);
+
+  // Nếu trong ngày đó bác sĩ đã có ca trực -> tự động cố định buồng khám
+  useEffect(() => {
+    if (myExistingShiftOnDate?.roomNumber) {
+      setSelectedRoom(myExistingShiftOnDate.roomNumber);
+    }
+  }, [myExistingShiftOnDate]);
+
   const handleOpenCreateModal = () => {
     const nextDate = getNextValidWorkingDate();
     setWorkDate(nextDate);
@@ -325,12 +338,18 @@ export default function DoctorScheduleView() {
 
     const finalRoom = selectedRoom;
 
+    // Chặn thay đổi buồng nếu đã có ca trực trong cùng ngày
+    if (myExistingShiftOnDate && myExistingShiftOnDate.roomNumber && finalRoom.toUpperCase() !== myExistingShiftOnDate.roomNumber.toUpperCase()) {
+      setError(`Theo quy định phòng khám, tất cả ca trực trong ngày ${workDate} phải diễn ra tại 1 buồng duy nhất [${myExistingShiftOnDate.roomNumber}]. Nếu muốn trực buồng khác, vui lòng chọn ngày khác!`);
+      return;
+    }
+
     try {
       setSubmitting(true);
       setError(null);
 
-      // Nếu bác sĩ đổi phòng trực khác phòng cũ, tự động cập nhật hồ sơ chuyên môn
-      if (finalRoom && finalRoom !== currentUser?.roomNumber) {
+      // Nếu bác sĩ đổi phòng trực khác phòng cũ (và chưa có ca nào trong ngày cố định), cập nhật hồ sơ chuyên môn
+      if (!myExistingShiftOnDate && finalRoom && finalRoom !== currentUser?.roomNumber) {
         try {
           await api.updateDoctorProfile({ roomNumber: finalRoom });
           setCurrentUser((prev: any) => ({ ...prev, roomNumber: finalRoom }));
@@ -1075,16 +1094,21 @@ export default function DoctorScheduleView() {
                   {/* Buồng khám */}
                   <div className="space-y-1">
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-semibold text-slate-600">Buồng khám:</span>
+                      <span className="text-[11px] font-semibold text-slate-600">
+                        Buồng khám: {myExistingShiftOnDate && <span className="text-teal-700 font-bold">(Cố định trong ngày)</span>}
+                      </span>
                       {checkingRooms && <RefreshCw size={11} className="animate-spin text-teal-600" />}
                     </div>
                     <select
                       value={selectedRoom}
+                      disabled={Boolean(myExistingShiftOnDate)}
                       onChange={(e) => setSelectedRoom(e.target.value)}
-                      className={`w-full p-2.5 border rounded-xl text-xs outline-none focus:ring-2 font-bold cursor-pointer transition ${
-                        occupiedRooms.some((o) => o.roomNumber.toUpperCase() === selectedRoom.toUpperCase())
-                          ? 'border-rose-300 bg-rose-50/50 text-rose-900 focus:ring-rose-500/20'
-                          : 'border-slate-200 bg-slate-50 text-slate-800 focus:ring-teal-700/20'
+                      className={`w-full p-2.5 border rounded-xl text-xs outline-none focus:ring-2 font-bold transition ${
+                        myExistingShiftOnDate
+                          ? 'border-teal-300 bg-teal-50/80 text-teal-900 cursor-not-allowed opacity-90'
+                          : occupiedRooms.some((o) => o.roomNumber.toUpperCase() === selectedRoom.toUpperCase())
+                          ? 'border-rose-300 bg-rose-50/50 text-rose-900 focus:ring-rose-500/20 cursor-pointer'
+                          : 'border-slate-200 bg-slate-50 text-slate-800 focus:ring-teal-700/20 cursor-pointer'
                       }`}
                     >
                       {availableRooms.map((room) => {
@@ -1105,6 +1129,18 @@ export default function DoctorScheduleView() {
                     </select>
                   </div>
                 </div>
+
+                {myExistingShiftOnDate && (
+                  <div className="p-3 bg-teal-50 border border-teal-200 rounded-xl text-teal-900 text-xs flex items-start gap-2">
+                    <CheckCircle2 size={16} className="text-teal-700 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold">Quy định phòng khám (Khóa đa buồng/chi nhánh trong ngày):</span>
+                      <p className="text-[11px] text-teal-800 mt-0.5 leading-relaxed">
+                        Trong ngày <strong>{workDate}</strong>, Bác sĩ đã có ca trực tại buồng <strong>[{myExistingShiftOnDate.roomNumber || 'P.208'}]</strong> ({myExistingShiftOnDate.startTime} - {myExistingShiftOnDate.endTime}). Ca tiếp theo trong ngày được tự động cố định tại buồng này để bảo đảm đón tiếp người bệnh chu đáo. Bác sĩ có thể chọn buồng khám khác vào các ngày làm việc khác!
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Thông báo kiểm tra tính hợp lệ */}

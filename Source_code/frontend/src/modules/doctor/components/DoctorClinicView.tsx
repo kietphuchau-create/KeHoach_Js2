@@ -49,6 +49,7 @@ import { api, getAuthUser, getAuthToken } from '@/shared/lib/api';
 import AlertMessage from '@/shared/components/Feedback/AlertMessage';
 import LoginForm from '@/modules/auth/components/LoginForm';
 import { getClinicRooms, ClinicRoom } from '@/shared/lib/clinicRooms';
+import { getClinicScheduleConfig } from '@/shared/lib/scheduleConfig';
 import { Bot } from 'lucide-react';
 import UniversalAiAssistantModal from '@/shared/components/Feedback/UniversalAiAssistantModal';
 
@@ -802,15 +803,25 @@ export default function DoctorClinicView() {
           }
         }
 
-        // CHẶN ĐỨNG NẾU KHOẢNG TRỐNG < 15 PHÚT (Bảo vệ ca hẹn không bị trễ)
-        if (earliestSlotGap !== Infinity && earliestSlotGap < 15) {
+        // Đọc cấu hình chen ngang & khoảng trống an toàn từ Admin
+        const clinicCfg = typeof window !== 'undefined' ? getClinicScheduleConfig() : null;
+        const minBuffer = clinicCfg?.walkinMinBufferMinutes ?? 15;
+        const isInterleaveEnabled = clinicCfg?.walkinInterleaveEnabled ?? true;
+
+        if (!isInterleaveEnabled) {
+          setNotification('⚠️ TẠM DỪNG GỌI VÃNG LAI: Quản trị viên (Admin) hiện đang tắt tính năng xen kẽ ca vãng lai toàn hệ thống.');
+          return prev;
+        }
+
+        // CHẶN ĐỨNG NẾU KHOẢNG TRỐNG < minBuffer (Bảo vệ ca hẹn không bị trễ)
+        if (earliestSlotGap !== Infinity && earliestSlotGap < minBuffer) {
           setNotification(
-            `⚠️ TẠM DỪNG GỌI VÃNG LAI: Chỉ còn ${earliestSlotGap} phút trước ca hẹn kế tiếp (${nextUpcomingPatientName} - ${nextUpcomingTimeStr}). Quy định cần tối thiểu 15 phút để đảm bảo đón ca hẹn đúng giờ!`
+            `⚠️ TẠM DỪNG GỌI VÃNG LAI: Chỉ còn ${earliestSlotGap} phút trước ca hẹn kế tiếp (${nextUpcomingPatientName} - ${nextUpcomingTimeStr}). Cấu hình phòng khám quy định cần tối thiểu ${minBuffer} phút để đảm bảo đón ca hẹn đúng giờ!`
           );
           return prev;
         }
 
-        // Đủ điều kiện xen kẽ ca vãng lai (khoảng trống >= 15 phút hoặc không còn ca hẹn nào trong ngày)
+        // Đủ điều kiện xen kẽ ca vãng lai (khoảng trống >= minBuffer hoặc không còn ca hẹn nào trong ngày)
         const walkinAfter = walkinCandidates.filter(({ idx }) => idx > activePatientIndex);
         chosenCandidate = walkinAfter.length > 0 ? walkinAfter[0] : walkinCandidates[0];
         const gapInfo = earliestSlotGap !== Infinity ? `dư trống ${earliestSlotGap} phút (trước ca ${nextUpcomingTimeStr})` : 'buồng khám đã hoàn tất ca hẹn';
@@ -1242,13 +1253,19 @@ export default function DoctorClinicView() {
       }
     }
 
+    const clinicCfg = typeof window !== 'undefined' ? getClinicScheduleConfig() : null;
+    const minBuffer = clinicCfg?.walkinMinBufferMinutes ?? 15;
+    const isInterleaveEnabled = clinicCfg?.walkinInterleaveEnabled ?? true;
+
     const waitingBookedCount = queue.filter(p => !p.queueNumber?.startsWith('W-') && p.status === 'WAITING').length;
     const waitingWalkinCount = queue.filter(p => p.queueNumber?.startsWith('W-') && p.status === 'WAITING').length;
-    const canInterleave = earliestSlotGap === Infinity || earliestSlotGap >= 15;
+    const canInterleave = isInterleaveEnabled && (earliestSlotGap === Infinity || earliestSlotGap >= minBuffer);
 
     return {
       hasUpcomingAppointment: earliestSlotGap !== Infinity,
       gapMinutes: earliestSlotGap !== Infinity ? Math.max(0, earliestSlotGap) : null,
+      minBuffer,
+      isInterleaveEnabled,
       nextUpcomingTimeStr,
       nextUpcomingPatient,
       waitingBookedCount,
@@ -1266,11 +1283,11 @@ export default function DoctorClinicView() {
       if (!confirmSwitch) return;
     }
 
-    // Cảnh báo nếu chọn ca vãng lai khi khoảng trống đến ca hẹn tiếp theo < 15 phút (Quy tắc A2)
+    // Cảnh báo nếu chọn ca vãng lai khi khoảng trống đến ca hẹn tiếp theo < minBuffer (Quy tắc A2)
     const targetPatient = queue[index];
     if (targetPatient?.queueNumber?.startsWith('W-') && !slotGapInfo.canInterleaveWalkin && targetPatient.status === 'WAITING') {
       const confirmWalkin = window.confirm(
-        `⚠️ CẢNH BÁO LỊCH HẸN ĐÚNG GIỜ:\nKhoảng cách đến ca hẹn kế tiếp (${slotGapInfo.nextUpcomingTimeStr}) chỉ còn ${slotGapInfo.gapMinutes} phút (< 15 phút).\n\nNếu tiếp nhận ca vãng lai #${targetPatient.queueNumber} (${targetPatient.patientName}) bây giờ, có thể làm trễ ca hẹn của bệnh nhân đặt trước.\n\nBạn có chắc chắn muốn tiếp nhận ca này không?`
+        `⚠️ CẢNH BÁO LỊCH HẸN ĐÚNG GIỜ:\nKhoảng cách đến ca hẹn kế tiếp (${slotGapInfo.nextUpcomingTimeStr}) chỉ còn ${slotGapInfo.gapMinutes} phút (< ${slotGapInfo.minBuffer} phút theo cấu hình viện).\n\nNếu tiếp nhận ca vãng lai #${targetPatient.queueNumber} (${targetPatient.patientName}) bây giờ, có thể làm trễ ca hẹn của bệnh nhân đặt trước.\n\nBạn có chắc chắn muốn tiếp nhận ca này không?`
       );
       if (!confirmWalkin) return;
     }
@@ -1660,9 +1677,9 @@ export default function DoctorClinicView() {
                         : 'Phòng khám bắt đầu đón lượt khám sáng từ lúc 08:00'
                     : slotGapInfo.canInterleaveWalkin
                       ? (slotGapInfo.gapMinutes !== null 
-                          ? `Khoảng trống ≥15p trước ca ${slotGapInfo.nextUpcomingTimeStr} • Có thể xen kẽ ca W` 
+                          ? `Khoảng trống ≥${slotGapInfo.minBuffer}p trước ca ${slotGapInfo.nextUpcomingTimeStr} • Có thể xen kẽ ca W` 
                           : 'Không có ca hẹn sắp tới • Sẵn sàng đón ca A và W')
-                      : `Sắp tới ca hẹn ${slotGapInfo.nextUpcomingTimeStr} (dưới 15p) • Chặn gọi vãng lai để đón đúng giờ`
+                      : `Sắp tới ca hẹn ${slotGapInfo.nextUpcomingTimeStr} (dưới ${slotGapInfo.minBuffer}p) • Chặn gọi vãng lai để đón đúng giờ`
                   }
                 </p>
               </div>

@@ -240,4 +240,52 @@ class ReceptionControllerTest {
         assertThat(res.getBody()).isNotNull();
         assertThat(res.getBody().queueNumber()).isEqualTo("W-06");
     }
+
+    @Test
+    @DisplayName("Tiếp nhận vãng lai tự động phân giải chi nhánh cơ sở theo chuyên khoa của bác sĩ")
+    void registerWalkin_resolvesBranchFromSpecialty() {
+        ZonedDateTime morningTime = ZonedDateTime.of(2026, 10, 14, 9, 15, 0, 0, VN_ZONE);
+        receptionController.setClock(Clock.fixed(morningTime.toInstant(), VN_ZONE));
+
+        com.medsched.persistence.repository.SpecialtyJpaRepository mockSpecRepo =
+                org.mockito.Mockito.mock(com.medsched.persistence.repository.SpecialtyJpaRepository.class);
+        receptionController.setSpecialtyJpaRepository(mockSpecRepo);
+
+        DoctorEntity doctor = new DoctorEntity(
+                "doc-b2", "user-doc-2", "spec-b2", "BS", new BigDecimal("300000"),
+                "P.101", "Chuyên khoa Ngoại", null, morningTime.toInstant(), morningTime.toInstant()
+        );
+        UserEntity doctorUser = new UserEntity(
+                "user-doc-2", "doc2@medsched.vn", "hash", "Lê Bác Sĩ", "0901234568", true,
+                morningTime.toInstant(), morningTime.toInstant()
+        );
+
+        when(doctorJpaRepository.findById("doc-b2")).thenReturn(Optional.of(doctor));
+        when(userJpaRepository.findById("user-doc-2")).thenReturn(Optional.of(doctorUser));
+        when(userJpaRepository.findByPhone("0912345679")).thenReturn(Optional.empty());
+        when(userJpaRepository.findByEmail("0912345679@medsched.vn")).thenReturn(Optional.empty());
+        when(passwordEncoder.encode(any())).thenReturn("encodedPassword");
+        when(userJpaRepository.save(any(UserEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(patientProfileJpaRepository.findByUserId(any())).thenReturn(List.of());
+        when(patientProfileJpaRepository.save(any(PatientProfileEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(appointmentJpaRepository.countByDoctorIdAndQueueTypeAndCreatedAtBetween(any(), any(), any(), any())).thenReturn(0L);
+        when(appointmentJpaRepository.countByDoctorIdAndCreatedAtBetween(any(), any(), any())).thenReturn(2L);
+
+        com.medsched.persistence.entity.SpecialtyEntity specialty = new com.medsched.persistence.entity.SpecialtyEntity(
+                "spec-b2", "branch-dist-5", "Ngoại khoa", "NGOAI", null, null, morningTime.toInstant(), morningTime.toInstant()
+        );
+        when(mockSpecRepo.findById("spec-b2")).thenReturn(Optional.of(specialty));
+
+        org.mockito.ArgumentCaptor<AppointmentEntity> appCaptor = org.mockito.ArgumentCaptor.forClass(AppointmentEntity.class);
+        when(appointmentJpaRepository.save(appCaptor.capture())).thenAnswer(inv -> inv.getArgument(0));
+
+        ReceptionController.WalkinRequest req = new ReceptionController.WalkinRequest(
+                "Trần Văn B", "0912345679", "079201007788", "doc-b2", "Ngoại khoa", "Pass123"
+        );
+
+        ResponseEntity<ReceptionController.WalkinResponse> res = receptionController.registerWalkinPatient(req);
+
+        assertThat(res.getStatusCode().is2xxSuccessful()).isTrue();
+        assertThat(appCaptor.getValue().getMedicalCenterId()).isEqualTo("branch-dist-5");
+    }
 }

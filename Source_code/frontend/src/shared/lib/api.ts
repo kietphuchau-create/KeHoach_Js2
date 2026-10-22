@@ -914,11 +914,21 @@ export const api = {
   },
 
   // --- 8. QUẢN LÝ LỊCH TRỰC BÁC SĨ (DOCTOR SCHEDULE CRUD) ---
-  async getDoctorSchedules(doctorId?: string, from?: string, to?: string) {
+  async getDoctorSchedules(
+    doctorIdOrParams?: string | { doctorId?: string; from?: string; to?: string },
+    from?: string,
+    to?: string
+  ) {
     const query = new URLSearchParams();
-    if (doctorId) query.append("doctorId", doctorId);
-    if (from) query.append("from", from);
-    if (to) query.append("to", to);
+    if (typeof doctorIdOrParams === "object" && doctorIdOrParams !== null) {
+      if (doctorIdOrParams.doctorId) query.append("doctorId", doctorIdOrParams.doctorId);
+      if (doctorIdOrParams.from) query.append("from", doctorIdOrParams.from);
+      if (doctorIdOrParams.to) query.append("to", doctorIdOrParams.to);
+    } else {
+      if (doctorIdOrParams) query.append("doctorId", doctorIdOrParams);
+      if (from) query.append("from", from);
+      if (to) query.append("to", to);
+    }
     const qs = query.toString() ? `?${query.toString()}` : "";
     return request<any[]>(`/doctor/schedules${qs}`);
   },
@@ -938,6 +948,7 @@ export const api = {
   },
 
   async createDoctorSchedule(payload: {
+    doctorId?: string;
     workDate: string;
     startTime: string;
     endTime: string;
@@ -954,6 +965,10 @@ export const api = {
     return request<any>(`/doctor/slots/${slotId}/toggle-lock`, {
       method: "PATCH",
     });
+  },
+
+  async toggleDoctorSlot(slotId: string) {
+    return this.toggleDoctorSlotLock(slotId);
   },
 
   async deleteDoctorSchedule(scheduleId: string) {
@@ -996,13 +1011,17 @@ export const api = {
   },
 
   async triggerAutoScheduleTomorrow() {
+    return this.triggerAutoScheduleWeek();
+  },
+
+  async triggerAutoScheduleWeek() {
     return request<{
       workDate: string;
       doctorsScheduledCount: number;
       totalShiftsCreated: number;
       totalSlotsCreated: number;
       message: string;
-    }>("/doctor/schedules/auto-generate-tomorrow", {
+    }>("/doctor/schedules/auto-generate-week", {
       method: "POST",
     });
   },

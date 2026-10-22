@@ -8,7 +8,7 @@ export const metadata = {
 
 export default function BookingMethodPage() {
   return (
-    <div className="flex-1 flex flex-col items-center justify-center p-2 sm:p-6 py-2 sm:py-10">
+    <div className="flex-1 min-h-0 flex flex-col items-center justify-center w-full h-full max-h-full overflow-hidden p-0">
       <Suspense fallback={<div className="text-center py-12 text-xs text-slate-400">Đang tải bảng chọn phương thức...</div>}>
         <BookingMethodSelector isModal={false} />
       </Suspense>

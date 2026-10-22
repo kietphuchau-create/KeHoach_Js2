@@ -303,8 +303,8 @@ export default function RegisterForm() {
         </p>
       </div>
 
-      {error && <AlertMessage type="error" message={error} className="mb-2 py-1.5 text-xs" onClose={() => setError('')} />}
-      {successMessage && <AlertMessage type="success" message={successMessage} className="mb-2 py-1.5 text-xs" />}
+      {error && <AlertMessage type="error" message={error} className="mb-3 py-2 px-3 text-xs" onClose={() => setError('')} />}
+      {successMessage && <AlertMessage type="success" message={successMessage} center className="mb-3 py-2.5 px-4 text-xs font-semibold shadow-xs animate-in fade-in zoom-in-95" />}
 
       <form onSubmit={handleSubmit} className="space-y-2 sm:space-y-2.5">
         {/* ── 1. HỌ VÀ TÊN ── */}

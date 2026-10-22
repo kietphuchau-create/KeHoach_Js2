@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -46,6 +47,15 @@ public class DoctorScheduleService {
     private final AppointmentJpaRepository appointmentJpaRepository;
     private final PatientProfileJpaRepository patientProfileJpaRepository;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.medsched.persistence.repository.SpecialtyJpaRepository specialtyJpaRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.medsched.persistence.repository.MedicalCenterJpaRepository medicalCenterJpaRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.medsched.persistence.repository.UserMedicalCenterRoleJpaRepository userMedicalCenterRoleJpaRepository;
+
     @org.springframework.beans.factory.annotation.Autowired
     public DoctorScheduleService(DoctorScheduleJpaRepository doctorScheduleRepository,
                                  TimeSlotJpaRepository timeSlotRepository,
@@ -68,6 +78,29 @@ public class DoctorScheduleService {
         this(doctorScheduleRepository, timeSlotRepository, doctorRepository, userJpaRepository, null, null);
     }
 
+    public void setSpecialtyJpaRepository(com.medsched.persistence.repository.SpecialtyJpaRepository specialtyJpaRepository) {
+        this.specialtyJpaRepository = specialtyJpaRepository;
+    }
+
+    private boolean isSameBranch(DoctorEntity doc1, DoctorEntity doc2) {
+        if (specialtyJpaRepository == null || doc1 == null || doc2 == null) {
+            return true;
+        }
+        if (doc1.getSpecialtyId() == null || doc2.getSpecialtyId() == null) {
+            return true;
+        }
+        String branch1 = specialtyJpaRepository.findById(doc1.getSpecialtyId())
+                .map(com.medsched.persistence.entity.SpecialtyEntity::getMedicalCenterId)
+                .orElse(null);
+        String branch2 = specialtyJpaRepository.findById(doc2.getSpecialtyId())
+                .map(com.medsched.persistence.entity.SpecialtyEntity::getMedicalCenterId)
+                .orElse(null);
+        if (branch1 != null && branch2 != null) {
+            return branch1.equals(branch2);
+        }
+        return true;
+    }
+
     private String resolveDoctorId(String userId, String queryDoctorId) {
         if (queryDoctorId != null && !queryDoctorId.isBlank()) {
             return queryDoctorId;
@@ -87,17 +120,46 @@ public class DoctorScheduleService {
 
     @Transactional
     public List<DoctorScheduleDtos.DoctorScheduleDto> getDoctorSchedules(String userId, String queryDoctorId, LocalDate from, LocalDate to) {
-        String targetDoctorId = resolveDoctorId(userId, queryDoctorId);
         LocalDate today = LocalDate.now(VN_ZONE);
 
-        // Quy tắc giáo viên: Nếu bác sĩ chưa đăng ký lịch trước, hệ thống tự động xếp lịch trực hôm nay
-        ensureDefaultTodaySchedule(targetDoctorId, today);
+        // 1. Trường hợp truy vấn đích danh 1 Bác sĩ cụ thể
+        if (queryDoctorId != null && !queryDoctorId.isBlank() && !queryDoctorId.equalsIgnoreCase("ALL")) {
+            ensureDefaultTodaySchedule(queryDoctorId, today);
+            List<DoctorScheduleEntity> schedules;
+            if (from != null && to != null) {
+                schedules = doctorScheduleRepository.findByDoctorIdAndWorkDateBetweenOrderByWorkDateAscStartTimeAsc(queryDoctorId, from, to);
+            } else {
+                schedules = doctorScheduleRepository.findByDoctorIdOrderByWorkDateAscStartTimeAsc(queryDoctorId);
+            }
+            return schedules.stream().map(this::mapToDto).toList();
+        }
 
+        // 2. Không truyền queryDoctorId, nhưng người gọi là Bác sĩ đang xem ca trực của chính mình
+        if (userId != null && !userId.isBlank()) {
+            List<DoctorEntity> userDocs = doctorRepository.findByUserId(userId);
+            if (!userDocs.isEmpty()) {
+                String myDoctorId = userDocs.get(0).getId();
+                ensureDefaultTodaySchedule(myDoctorId, today);
+                List<DoctorScheduleEntity> schedules;
+                if (from != null && to != null) {
+                    schedules = doctorScheduleRepository.findByDoctorIdAndWorkDateBetweenOrderByWorkDateAscStartTimeAsc(myDoctorId, from, to);
+                } else {
+                    schedules = doctorScheduleRepository.findByDoctorIdOrderByWorkDateAscStartTimeAsc(myDoctorId);
+                }
+                return schedules.stream().map(this::mapToDto).toList();
+            }
+        }
+
+        // 3. Quản trị viên (Admin), Lễ tân hoặc điều phối xem toàn bộ ca trực của TẤT CẢ Bác sĩ trong viện
         List<DoctorScheduleEntity> schedules;
         if (from != null && to != null) {
-            schedules = doctorScheduleRepository.findByDoctorIdAndWorkDateBetweenOrderByWorkDateAscStartTimeAsc(targetDoctorId, from, to);
+            if (from.equals(to)) {
+                schedules = doctorScheduleRepository.findByWorkDateOrderByStartTimeAsc(from);
+            } else {
+                schedules = doctorScheduleRepository.findByWorkDateBetweenOrderByWorkDateAscStartTimeAsc(from, to);
+            }
         } else {
-            schedules = doctorScheduleRepository.findByDoctorIdOrderByWorkDateAscStartTimeAsc(targetDoctorId);
+            schedules = doctorScheduleRepository.findAll();
         }
 
         return schedules.stream().map(this::mapToDto).toList();
@@ -108,9 +170,26 @@ public class DoctorScheduleService {
      * Ca sáng: 08:00 - 12:00, Ca chiều: 13:30 - 17:00
      */
     private void ensureDefaultTodaySchedule(String doctorId, LocalDate targetDate) {
-        List<DoctorScheduleEntity> existing = doctorScheduleRepository.findByDoctorIdAndWorkDate(doctorId, targetDate);
-        if (!existing.isEmpty()) {
+        DoctorEntity currentDoctor = doctorRepository.findById(doctorId).orElse(null);
+        if (currentDoctor == null) {
             return;
+        }
+
+        // Kiểm tra xem chính bác sĩ này hoặc cùng user_id ở chi nhánh khác đã có ca trực trong targetDate chưa
+        if (currentDoctor.getUserId() != null) {
+            List<DoctorEntity> userDocs = doctorRepository.findByUserId(currentDoctor.getUserId());
+            List<String> docIds = userDocs.stream().map(DoctorEntity::getId).toList();
+            List<DoctorScheduleEntity> existingUserSchedules = doctorScheduleRepository.findByDoctorIdInAndWorkDateBetween(
+                    docIds, targetDate, targetDate
+            );
+            if (!existingUserSchedules.isEmpty()) {
+                return;
+            }
+        } else {
+            List<DoctorScheduleEntity> existing = doctorScheduleRepository.findByDoctorIdAndWorkDate(doctorId, targetDate);
+            if (!existing.isEmpty()) {
+                return;
+            }
         }
 
         Instant now = Instant.now();
@@ -198,9 +277,13 @@ public class DoctorScheduleService {
         DoctorEntity currentDoctor = doctorRepository.findById(targetDoctorId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông tin Bác sĩ trong hệ thống."));
 
+        String currentAssignedRoom = (currentDoctor.getRoomNumber() != null && !currentDoctor.getRoomNumber().isBlank())
+                ? currentDoctor.getRoomNumber().trim().toUpperCase()
+                : "P.208";
+
         String targetRoom = (request.roomNumber() != null && !request.roomNumber().isBlank())
                 ? request.roomNumber().trim().toUpperCase()
-                : (currentDoctor.getRoomNumber() != null ? currentDoctor.getRoomNumber().trim().toUpperCase() : "P.208");
+                : currentAssignedRoom;
 
         // Chặn không cho phép tự ý nhập buồng khám ngoài danh mục do Admin phê duyệt
         if (!APPROVED_CLINIC_ROOMS.contains(targetRoom)) {
@@ -209,22 +292,45 @@ public class DoctorScheduleService {
                     + String.join(", ", APPROVED_CLINIC_ROOMS));
         }
 
-        // Cập nhật lại buồng khám chuyên môn của bác sĩ nếu có thay đổi
-        if (request.roomNumber() != null && !request.roomNumber().isBlank()
-                && !targetRoom.equalsIgnoreCase(currentDoctor.getRoomNumber())) {
-            currentDoctor.setRoomNumber(targetRoom);
-            currentDoctor.setUpdatedAt(Instant.now());
-            doctorRepository.save(currentDoctor);
-        }
-
-        // 1. Kiểm tra chồng chéo ca trực trong ngày của CHÍNH bác sĩ đó
+        // 1. Kiểm tra chồng chéo ca trực & QUY ĐỊNH 1 CHI NHÁNH / NGÀY của CHÍNH bác sĩ đó
         List<DoctorScheduleEntity> existingInDate = doctorScheduleRepository.findByDoctorIdAndWorkDate(targetDoctorId, request.workDate());
         for (DoctorScheduleEntity ex : existingInDate) {
             if (ex.getStatus() == ScheduleStatus.ACTIVE) {
+                // a. Kiểm tra chồng chéo giờ
                 boolean overlap = request.startTime().isBefore(ex.getEndTime()) && request.endTime().isAfter(ex.getStartTime());
                 if (overlap) {
                     throw new IllegalArgumentException("Bác sĩ đã có ca trực trùng khung giờ ("
                             + ex.getStartTime() + " - " + ex.getEndTime() + ") trong ngày " + request.workDate());
+                }
+
+                // b. [KHÓA ĐA CHI NHÁNH / ĐA BUỒNG TRONG NGÀY]: Chỉ cho phép 1 chi nhánh / 1 buồng khám trong 1 ngày làm việc
+                if (!targetRoom.equalsIgnoreCase(currentAssignedRoom)) {
+                    throw new IllegalArgumentException(String.format(
+                            "Quy định phòng khám: Trong cùng một ngày làm việc (%s), Bác sĩ chỉ được trực tại 1 CHI NHÁNH / 1 BUỒNG DUY NHẤT (Buồng %s) " +
+                            "để đảm bảo chất lượng tiếp đón và người bệnh không phải di chuyển giữa các buổi. " +
+                            "Nếu muốn chuyển sang chi nhánh/buồng khác (%s), vui lòng xếp lịch sang ngày khác!",
+                            request.workDate(), currentAssignedRoom, targetRoom
+                    ));
+                }
+            }
+        }
+
+        // c. Kiểm tra đa chi nhánh theo user_id nếu bác sĩ có hồ sơ ở nhiều chi nhánh
+        if (currentDoctor.getUserId() != null) {
+            List<DoctorEntity> userDocs = doctorRepository.findByUserId(currentDoctor.getUserId());
+            List<String> docIds = userDocs.stream().map(DoctorEntity::getId).toList();
+            if (docIds.size() > 1) {
+                List<DoctorScheduleEntity> otherBranchSchedules = doctorScheduleRepository.findByDoctorIdInAndWorkDateBetween(
+                        docIds, request.workDate(), request.workDate()
+                );
+                for (DoctorScheduleEntity obs : otherBranchSchedules) {
+                    if (obs.getStatus() == ScheduleStatus.ACTIVE && !obs.getDoctorId().equals(targetDoctorId)) {
+                        throw new IllegalArgumentException(String.format(
+                                "Quy định phòng khám: Bác sĩ đã có ca trực tại chi nhánh khác trong ngày %s. " +
+                                "Hệ thống chỉ cho phép Bác sĩ trực tại 1 CHI NHÁNH DUY NHẤT trong một ngày làm việc!",
+                                request.workDate()
+                        ));
+                    }
                 }
             }
         }
@@ -235,6 +341,10 @@ public class DoctorScheduleService {
             if (ex.getStatus() == ScheduleStatus.ACTIVE && !ex.getDoctorId().equals(targetDoctorId)) {
                 DoctorEntity otherDoctor = doctorRepository.findById(ex.getDoctorId()).orElse(null);
                 if (otherDoctor != null) {
+                    if (!isSameBranch(currentDoctor, otherDoctor)) {
+                        // Khác chi nhánh -> buồng khám vật lý không xung đột
+                        continue;
+                    }
                     String otherRoom = otherDoctor.getRoomNumber() != null ? otherDoctor.getRoomNumber().trim().toUpperCase() : "";
                     if (targetRoom.equalsIgnoreCase(otherRoom)) {
                         boolean overlap = request.startTime().isBefore(ex.getEndTime()) && request.endTime().isAfter(ex.getStartTime());
@@ -254,6 +364,14 @@ public class DoctorScheduleService {
                     }
                 }
             }
+        }
+
+        // Cập nhật lại buồng khám chuyên môn của bác sĩ nếu có thay đổi và đã vượt qua toàn bộ kiểm tra hợp lệ
+        if (request.roomNumber() != null && !request.roomNumber().isBlank()
+                && !targetRoom.equalsIgnoreCase(currentDoctor.getRoomNumber())) {
+            currentDoctor.setRoomNumber(targetRoom);
+            currentDoctor.setUpdatedAt(Instant.now());
+            doctorRepository.save(currentDoctor);
         }
 
         Instant now = Instant.now();
@@ -296,7 +414,7 @@ public class DoctorScheduleService {
         }
 
         timeSlotRepository.saveAll(createdSlots);
-        return mapToDto(schedule);
+        return mapToDto(schedule, createdSlots);
     }
 
     @Transactional
@@ -403,6 +521,11 @@ public class DoctorScheduleService {
             if (ex.getStatus() == ScheduleStatus.ACTIVE && !ex.getDoctorId().equals(schedule.getDoctorId())) {
                 DoctorEntity otherDoctor = doctorRepository.findById(ex.getDoctorId()).orElse(null);
                 if (otherDoctor != null) {
+                    DoctorEntity curDoctor = doctorRepository.findById(schedule.getDoctorId()).orElse(null);
+                    if (!isSameBranch(curDoctor, otherDoctor)) {
+                        // Khác chi nhánh -> buồng khám vật lý không xung đột
+                        continue;
+                    }
                     String otherRoom = otherDoctor.getRoomNumber() != null ? otherDoctor.getRoomNumber().trim().toUpperCase() : "";
                     if (targetRoom.equalsIgnoreCase(otherRoom)) {
                         boolean overlap = schedule.getStartTime().isBefore(ex.getEndTime()) && schedule.getEndTime().isAfter(ex.getStartTime());
@@ -634,11 +757,11 @@ public class DoctorScheduleService {
     @Transactional
     public DoctorScheduleDtos.AutoScheduleResultDto autoGenerateScheduleForTargetDate(LocalDate targetDate) {
         DayOfWeek dow = targetDate.getDayOfWeek();
-        if (dow == DayOfWeek.SATURDAY || dow == DayOfWeek.SUNDAY) {
+        if (dow == DayOfWeek.SUNDAY) {
             return new DoctorScheduleDtos.AutoScheduleResultDto(
                     targetDate,
                     0, 0, 0,
-                    "Ngày " + targetDate + " là cuối tuần (" + dow + "), phòng khám nghỉ theo quy định."
+                    "Ngày " + targetDate + " là Chủ Nhật, phòng khám nghỉ theo quy định."
             );
         }
 
@@ -646,15 +769,42 @@ public class DoctorScheduleService {
         int doctorsCount = 0;
         int shiftsCount = 0;
         int slotsCount = 0;
+        Set<String> processedUserIds = new HashSet<>();
 
         for (DoctorEntity doc : doctors) {
-            List<DoctorScheduleEntity> existing = doctorScheduleRepository.findByDoctorIdAndWorkDate(doc.getId(), targetDate);
-            if (!existing.isEmpty()) {
-                // Bác sĩ đã chủ động đăng ký trước 17h -> Không can thiệp
+            if (doc.getUserId() != null && processedUserIds.contains(doc.getUserId())) {
                 continue;
             }
 
+            List<DoctorScheduleEntity> existing = doctorScheduleRepository.findByDoctorIdAndWorkDate(doc.getId(), targetDate);
+            if (!existing.isEmpty()) {
+                if (doc.getUserId() != null) {
+                    processedUserIds.add(doc.getUserId());
+                }
+                // Nếu ca trực đã tồn tại nhưng chưa có slots, tự động sinh bù slots ngay lập tức
+                for (DoctorScheduleEntity ex : existing) {
+                    generateSlotsForSchedule(ex);
+                }
+                continue;
+            }
+
+            // Nếu bác sĩ có hồ sơ ở chi nhánh khác và chi nhánh kia đã có lịch trong targetDate -> bỏ qua
+            if (doc.getUserId() != null) {
+                List<DoctorEntity> userDocs = doctorRepository.findByUserId(doc.getUserId());
+                List<String> docIds = userDocs.stream().map(DoctorEntity::getId).toList();
+                List<DoctorScheduleEntity> otherSchedules = doctorScheduleRepository.findByDoctorIdInAndWorkDateBetween(
+                        docIds, targetDate, targetDate
+                );
+                if (!otherSchedules.isEmpty()) {
+                    processedUserIds.add(doc.getUserId());
+                    continue;
+                }
+            }
+
             ensureDefaultTodaySchedule(doc.getId(), targetDate);
+            if (doc.getUserId() != null) {
+                processedUserIds.add(doc.getUserId());
+            }
             doctorsCount++;
             shiftsCount += 2;
             slotsCount += 15; // 8 ca sáng + 7 ca chiều
@@ -674,8 +824,61 @@ public class DoctorScheduleService {
         );
     }
 
+    /**
+     * Tự động sinh lịch trực cho toàn bộ Bác sĩ trong vòng 7 ngày (1 tuần) tới.
+     * Áp dụng cơ chế cuốn chiếu (Rolling 7 days), tự động sinh đầy đủ ca trực cho toàn bộ các ngày làm việc.
+     */
+    @Transactional
+    public DoctorScheduleDtos.AutoScheduleResultDto autoGenerateScheduleForNextNDays(int daysAhead) {
+        LocalDate today = LocalDate.now(VN_ZONE);
+        int totalDoctors = 0;
+        int totalShifts = 0;
+        int totalSlots = 0;
+        int scheduledDaysCount = 0;
+
+        for (int i = 0; i < daysAhead; i++) {
+            LocalDate date = today.plusDays(i);
+            DayOfWeek dow = date.getDayOfWeek();
+            if (dow == DayOfWeek.SUNDAY) {
+                // Nghỉ chủ nhật theo quy định phòng khám
+                continue;
+            }
+
+            DoctorScheduleDtos.AutoScheduleResultDto dayResult = autoGenerateScheduleForTargetDate(date);
+            totalDoctors = Math.max(totalDoctors, dayResult.doctorsScheduledCount());
+            totalShifts += dayResult.totalShiftsCreated();
+            totalSlots += dayResult.totalSlotsCreated();
+            scheduledDaysCount++;
+        }
+
+        String message = String.format(
+                "Đã tự động rà soát & đảm bảo lịch trực 1 tuần tới (%d ngày làm việc) cho toàn bộ Bác sĩ: Đã tạo %d ca trực và %d khung giờ khám.",
+                scheduledDaysCount, totalShifts, totalSlots
+        );
+
+        return new DoctorScheduleDtos.AutoScheduleResultDto(
+                today,
+                totalDoctors,
+                totalShifts,
+                totalSlots,
+                message
+        );
+    }
+
     private DoctorScheduleDtos.DoctorScheduleDto mapToDto(DoctorScheduleEntity schedule) {
-        List<TimeSlotEntity> slots = timeSlotRepository.findByScheduleIdOrderByStartTimeAsc(schedule.getId());
+        return mapToDto(schedule, null);
+    }
+
+    private DoctorScheduleDtos.DoctorScheduleDto mapToDto(DoctorScheduleEntity schedule, List<TimeSlotEntity> preloadedSlots) {
+        List<TimeSlotEntity> slots;
+        if (preloadedSlots != null) {
+            slots = preloadedSlots;
+        } else {
+            slots = timeSlotRepository.findByScheduleIdOrderByStartTimeAsc(schedule.getId());
+            if (slots.isEmpty() && schedule.getStatus() == ScheduleStatus.ACTIVE) {
+                slots = generateSlotsForSchedule(schedule);
+            }
+        }
         int total = slots.size();
         int available = (int) slots.stream().filter(s -> s.getStatus() == SlotStatus.AVAILABLE).count();
         int booked = (int) slots.stream().filter(s -> s.getStatus() == SlotStatus.BOOKED).count();
@@ -694,6 +897,42 @@ public class DoctorScheduleService {
                 ? doc.getRoomNumber().trim().toUpperCase()
                 : null;
 
+        String doctorName = "Bác sĩ chuyên khoa";
+        String academicTitle = null;
+        String specialtyName = "Đa khoa";
+        String medicalCenterName = "Hệ thống MedSched";
+
+        if (doc != null) {
+            academicTitle = doc.getAcademicTitle();
+            if (doc.getUserId() != null) {
+                UserEntity u = userJpaRepository.findById(doc.getUserId()).orElse(null);
+                if (u != null) {
+                    doctorName = u.getFullName();
+                    if (academicTitle != null && !academicTitle.isBlank()) {
+                        String cleanTitle = academicTitle.trim();
+                        if (!doctorName.toLowerCase().startsWith(cleanTitle.toLowerCase())) {
+                            doctorName = cleanTitle + " " + doctorName;
+                        }
+                    }
+                    if (userMedicalCenterRoleJpaRepository != null && medicalCenterJpaRepository != null) {
+                        var roleList = userMedicalCenterRoleJpaRepository.findByUserIdAndActiveTrue(u.getId());
+                        if (!roleList.isEmpty()) {
+                            var center = medicalCenterJpaRepository.findById(roleList.get(0).getMedicalCenterId()).orElse(null);
+                            if (center != null) {
+                                medicalCenterName = center.getName();
+                            }
+                        }
+                    }
+                }
+            }
+            if (doc.getSpecialtyId() != null && specialtyJpaRepository != null) {
+                var spec = specialtyJpaRepository.findById(doc.getSpecialtyId()).orElse(null);
+                if (spec != null) {
+                    specialtyName = spec.getName();
+                }
+            }
+        }
+
         return new DoctorScheduleDtos.DoctorScheduleDto(
                 schedule.getId(),
                 schedule.getDoctorId(),
@@ -706,8 +945,96 @@ public class DoctorScheduleService {
                 available,
                 booked,
                 slotDtos,
-                room
+                room,
+                doctorName,
+                academicTitle,
+                specialtyName,
+                medicalCenterName
         );
+    }
+
+    private List<TimeSlotEntity> generateSlotsForSchedule(DoctorScheduleEntity schedule) {
+        List<TimeSlotEntity> existing = timeSlotRepository.findByScheduleIdOrderByStartTimeAsc(schedule.getId());
+        if (!existing.isEmpty()) {
+            return existing;
+        }
+
+        Instant now = Instant.now();
+        int duration = (schedule.getSlotDurationMinutes() != null && schedule.getSlotDurationMinutes() > 0)
+                ? schedule.getSlotDurationMinutes()
+                : 30;
+
+        LocalTime start = schedule.getStartTime();
+        LocalTime end = schedule.getEndTime();
+        LocalDate workDate = schedule.getWorkDate();
+
+        List<TimeSlotEntity> createdSlots = new ArrayList<>();
+
+        // Nếu ca kéo dài qua giờ trưa (ví dụ 08:00 - 17:00), chia thành ca sáng và chiều (nghỉ trưa 12:00 - 13:30)
+        if (start.isBefore(LocalTime.of(12, 0)) && end.isAfter(LocalTime.of(13, 0))) {
+            // Ca sáng
+            LocalTime cursor = start;
+            LocalTime morningEnd = LocalTime.of(12, 0);
+            while (cursor.plusMinutes(duration).isBefore(morningEnd) || cursor.plusMinutes(duration).equals(morningEnd)) {
+                LocalTime next = cursor.plusMinutes(duration);
+                Instant slotStart = workDate.atTime(cursor).atZone(VN_ZONE).toInstant();
+                Instant slotEnd = workDate.atTime(next).atZone(VN_ZONE).toInstant();
+                createdSlots.add(new TimeSlotEntity(
+                        UUID.randomUUID().toString(),
+                        schedule.getId(),
+                        schedule.getDoctorId(),
+                        slotStart,
+                        slotEnd,
+                        SlotStatus.AVAILABLE,
+                        now,
+                        now
+                ));
+                cursor = next;
+            }
+
+            // Ca chiều
+            cursor = LocalTime.of(13, 30);
+            while (cursor.plusMinutes(duration).isBefore(end) || cursor.plusMinutes(duration).equals(end)) {
+                LocalTime next = cursor.plusMinutes(duration);
+                Instant slotStart = workDate.atTime(cursor).atZone(VN_ZONE).toInstant();
+                Instant slotEnd = workDate.atTime(next).atZone(VN_ZONE).toInstant();
+                createdSlots.add(new TimeSlotEntity(
+                        UUID.randomUUID().toString(),
+                        schedule.getId(),
+                        schedule.getDoctorId(),
+                        slotStart,
+                        slotEnd,
+                        SlotStatus.AVAILABLE,
+                        now,
+                        now
+                ));
+                cursor = next;
+            }
+        } else {
+            // Ca bình thường
+            LocalTime cursor = start;
+            while (cursor.plusMinutes(duration).isBefore(end) || cursor.plusMinutes(duration).equals(end)) {
+                LocalTime next = cursor.plusMinutes(duration);
+                Instant slotStart = workDate.atTime(cursor).atZone(VN_ZONE).toInstant();
+                Instant slotEnd = workDate.atTime(next).atZone(VN_ZONE).toInstant();
+                createdSlots.add(new TimeSlotEntity(
+                        UUID.randomUUID().toString(),
+                        schedule.getId(),
+                        schedule.getDoctorId(),
+                        slotStart,
+                        slotEnd,
+                        SlotStatus.AVAILABLE,
+                        now,
+                        now
+                ));
+                cursor = next;
+            }
+        }
+
+        if (!createdSlots.isEmpty()) {
+            timeSlotRepository.saveAll(createdSlots);
+        }
+        return createdSlots;
     }
 
     /**

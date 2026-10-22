@@ -54,7 +54,9 @@ export default function BookingMethodModal({
   if (!isModalOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/60 backdrop-blur-md animate-fadeIn">
+    <div className={`fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-md animate-fadeIn transition-all ${
+      viewMode === 'ai' ? 'p-0 sm:p-2 lg:p-3 xl:p-4' : 'p-3 sm:p-6'
+    }`}>
       <BookingMethodSelector
         isModal={true}
         onClose={handleClose}

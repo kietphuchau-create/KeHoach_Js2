@@ -16,6 +16,10 @@ public interface AppointmentJpaRepository extends JpaRepository<AppointmentEntit
     List<AppointmentEntity> findByDoctorIdAndStatusInOrderByQueueNumberAsc(String doctorId,
                                                                            Collection<AppointmentStatus> statuses);
 
+    /** Nguồn dữ liệu hàng đợi cho bác sĩ phụ trách nhiều chi nhánh hoặc lọc theo nhóm bác sĩ */
+    List<AppointmentEntity> findByDoctorIdInAndStatusInOrderByQueueNumberAsc(Collection<String> doctorIds,
+                                                                             Collection<AppointmentStatus> statuses);
+
     /** Toàn bộ hàng đợi điều phối phòng khám không phân biệt bác sĩ (cho quầy Tiếp đón) */
     List<AppointmentEntity> findByStatusInOrderByQueueNumberAsc(Collection<AppointmentStatus> statuses);
 
