@@ -213,7 +213,7 @@ const SYMPTOM_CATEGORIES: Record<string, SymptomCategory> = {
   },
   SKIN: {
     id: 'SKIN',
-    label: '🔴 Ngứa, dị ứng da',
+    label: '🧴 Ngứa, dị ứng da',
     specialtyCode: 'DERMATOLOGY',
     specialtyName: 'Chuyên Khoa Da Liễu & Thẩm Mỹ',
     recommendedService: 'Gói Khám & Soi Da Kỹ Thuật Số',
@@ -1161,8 +1161,8 @@ export default function BookingMethodSelector({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatScrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // Dữ liệu người dùng chọn
-  const [selectedCategoryKey, setSelectedCategoryKey] = useState<string>('HEADACHE');
+  // Dữ liệu người dùng chọn (mặc định chưa chọn để bệnh nhân tự bấm chọn hoặc gõ triệu chứng)
+  const [selectedCategoryKey, setSelectedCategoryKey] = useState<string>('');
   const [customSymptomInput, setCustomSymptomInput] = useState<string>('');
   
   // Trạng thái gọi Gemini 2.5 AI Triage thực tế
@@ -1673,7 +1673,7 @@ export default function BookingMethodSelector({
 
   // Làm mới cuộc hội thoại
   const handleResetConversation = () => {
-    setSelectedCategoryKey('HEADACHE');
+    setSelectedCategoryKey('');
     setAiClinicalSummary('');
     setAiPreparationAdvice('');
     setAiStep('CHOOSE_SYMPTOM');
