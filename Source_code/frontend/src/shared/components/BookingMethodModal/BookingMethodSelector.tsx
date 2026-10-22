@@ -675,114 +675,6 @@ const DEMO_DOCTORS: DemoDoctor[] = [
     gender: 'female',
     isExpert: false,
   },
-
-  // -------------------------------------------------------------------------
-  // 7. KHOA MẮT - NHÃN KHOA (EYE: Mắt mờ, cộm rát)
-  // -------------------------------------------------------------------------
-  // Chi Nhánh 1: Bình Tân
-  {
-    id: 'doc-04',
-    name: 'BS.CKII Phạm Quỳnh Chi',
-    title: 'Chuyên gia Mắt & Khúc Xạ Giác Mạc (16 năm kinh nghiệm)',
-    specialtyCode: 'OPHTHALMOLOGY',
-    categoryKeys: ['EYE'],
-    centerId: 'a1b2c3d4-0001-4000-8000-000000000001',
-    room: 'Phòng P.205 - Tầng 2',
-    fee: 200000,
-    gender: 'female',
-    isExpert: true,
-  },
-  {
-    id: 'doc-eye-01',
-    name: 'ThS.BS Hoàng Đức Trọng',
-    title: 'Bác sĩ Nhãn Khoa Tổng Quát (12 năm kinh nghiệm)',
-    specialtyCode: 'OPHTHALMOLOGY',
-    categoryKeys: ['EYE'],
-    centerId: 'a1b2c3d4-0001-4000-8000-000000000001',
-    room: 'Phòng P.212 - Tầng 2',
-    fee: 200000,
-    gender: 'male',
-    isExpert: false,
-  },
-  // Chi Nhánh 2: ITC Tân Phú
-  {
-    id: 'doc-04b',
-    name: 'ThS.BS Nguyễn Thanh Tùng',
-    title: 'Bác sĩ Nhãn Khoa Tổng Quát & Đáy Mắt (11 năm kinh nghiệm)',
-    specialtyCode: 'OPHTHALMOLOGY',
-    categoryKeys: ['EYE'],
-    centerId: 'a1b2c3d4-0002-4000-8000-000000000002',
-    room: 'Phòng P.105 - Tầng 1',
-    fee: 200000,
-    gender: 'male',
-    isExpert: false,
-  },
-  {
-    id: 'doc-eye-02',
-    name: 'BS.CKI Lê Mỹ Hạnh',
-    title: 'Chuyên gia Khúc Xạ & Nhãn Khoa Trẻ Em (14 năm kinh nghiệm)',
-    specialtyCode: 'OPHTHALMOLOGY',
-    categoryKeys: ['EYE'],
-    centerId: 'a1b2c3d4-0002-4000-8000-000000000002',
-    room: 'Phòng P.112 - Tầng 1',
-    fee: 200000,
-    gender: 'female',
-    isExpert: true,
-  },
-
-  // -------------------------------------------------------------------------
-  // 8. KHOA RĂNG HÀM MẶT (DENTAL: Đau răng, sưng nướu)
-  // -------------------------------------------------------------------------
-  // Chi Nhánh 1: Bình Tân
-  {
-    id: 'doc-den-01',
-    name: 'BS.CKII Huỳnh Bích Trâm',
-    title: 'Trưởng Khoa Nha Khoa Kỹ Thuật Cao (18 năm kinh nghiệm)',
-    specialtyCode: 'ODONTO_STOMATOLOGY',
-    categoryKeys: ['DENTAL'],
-    centerId: 'a1b2c3d4-0001-4000-8000-000000000001',
-    room: 'Phòng P.214 - Tầng 2',
-    fee: 150000,
-    gender: 'female',
-    isExpert: true,
-  },
-  {
-    id: 'doc-05',
-    name: 'ThS.BS Vũ Minh Đức',
-    title: 'Bác sĩ Răng Hàm Mặt & Phục Hình (10 năm kinh nghiệm)',
-    specialtyCode: 'ODONTO_STOMATOLOGY',
-    categoryKeys: ['DENTAL'],
-    centerId: 'a1b2c3d4-0001-4000-8000-000000000001',
-    room: 'Phòng P.209 - Tầng 2',
-    fee: 150000,
-    gender: 'male',
-    isExpert: false,
-  },
-  // Chi Nhánh 2: ITC Tân Phú
-  {
-    id: 'doc-05b',
-    name: 'BS.CKI Đỗ Bích Ngọc',
-    title: 'Chuyên gia Chỉnh Nha & Nha Khoa Trẻ Em (13 năm kinh nghiệm)',
-    specialtyCode: 'ODONTO_STOMATOLOGY',
-    categoryKeys: ['DENTAL'],
-    centerId: 'a1b2c3d4-0002-4000-8000-000000000002',
-    room: 'Phòng P.104 - Tầng 1',
-    fee: 150000,
-    gender: 'female',
-    isExpert: true,
-  },
-  {
-    id: 'doc-den-02',
-    name: 'ThS.BS Bùi Thế Hùng',
-    title: 'Bác sĩ Răng Hàm Mặt & Tiểu Phẫu Răng Khôn (11 năm kinh nghiệm)',
-    specialtyCode: 'ODONTO_STOMATOLOGY',
-    categoryKeys: ['DENTAL'],
-    centerId: 'a1b2c3d4-0002-4000-8000-000000000002',
-    room: 'Phòng P.115 - Tầng 1',
-    fee: 150000,
-    gender: 'male',
-    isExpert: false,
-  },
 ];
 
 interface ClinicTimeSlot {
@@ -901,13 +793,14 @@ const VIETQR_BANK_CONFIG = {
 // 5. COMPONENT CHÍNH — KHUNG CHAT ZALO FULL MÀN HÌNH LIỀN MẠCH
 // ---------------------------------------------------------------------------
 type AiWizardStep =
-  | 'CHOOSE_SYMPTOM'      // Bước 1: Chọn triệu chứng ban đầu hoặc gõ
-  | 'CLARIFY_DETAILS'     // Bước 2: Chọn chi tiết: Đau như thế nào, Đau bao lâu, Kèm theo gì
-  | 'INPUT_LOCATION'      // Bước 3: Chọn Chi nhánh phòng khám MedSched
-  | 'SELECT_DOCTOR_SLOT'  // Bước 4: Chọn Bác sĩ & Giờ khám khả dụng còn trống
-  | 'CONFIRM_PAYMENT'     // Bước 5: Quét mã chuyển 2k hoặc nhập mã khuyến mãi
-  | 'COMPLETED'           // Bước 6: Hoàn tất đặt chỗ & cấp mã hẹn
-  | 'EMERGENCY';          // Cảnh báo cấp cứu khẩn cấp 115
+  | 'CHOOSE_SYMPTOM'          // Bước 1: Chọn triệu chứng ban đầu hoặc gõ
+  | 'CLARIFY_DETAILS'         // Bước 2: Chọn chi tiết: Đau như thế nào, Đau bao lâu, Kèm theo gì
+  | 'UNSUPPORTED_SPECIALTY'   // Thông báo an toàn: Phòng khám chưa có bác sĩ chuyên môn này
+  | 'INPUT_LOCATION'          // Bước 3: Chọn Chi nhánh phòng khám MedSched
+  | 'SELECT_DOCTOR_SLOT'      // Bước 4: Chọn Bác sĩ & Giờ khám khả dụng còn trống
+  | 'CONFIRM_PAYMENT'         // Bước 5: Quét mã chuyển 2k hoặc nhập mã khuyến mãi
+  | 'COMPLETED'               // Bước 6: Hoàn tất đặt chỗ & cấp mã hẹn
+  | 'EMERGENCY';              // Cảnh báo cấp cứu khẩn cấp 115
 
 const VALID_PROMO_CODES = ['MEDSCHED2026', 'VIP', 'GIAOVIEN', 'MEDFREE', 'TESTER', 'DEMO2K', 'UDAI2K', 'GIAM100', 'FREE'];
 
@@ -1290,20 +1183,19 @@ export default function BookingMethodSelector({
             const academicTitle = d.academicTitle || '';
             const formattedName = formatDoctorFullName(academicTitle, rawName);
 
-            // Tự động phân tích danh mục triệu chứng tương ứng
             const catKeys: string[] = [];
             const specName = (d.specialtyName || '').toLowerCase();
             if (specName.includes('thần kinh') || specName.includes('nội')) {
-              catKeys.push('HEADACHE', 'FATIGUE');
+              catKeys.push('HEADACHE', 'FATIGUE', 'RESPIRATORY', 'ABDOMINAL', 'BONE_JOINT');
             }
             if (specName.includes('tiêu hóa') || specName.includes('gan mật')) {
-              catKeys.push('ABDOMINAL');
+              if (!catKeys.includes('ABDOMINAL')) catKeys.push('ABDOMINAL');
             }
             if (specName.includes('hô hấp') || specName.includes('nhiễm')) {
-              catKeys.push('RESPIRATORY');
+              if (!catKeys.includes('RESPIRATORY')) catKeys.push('RESPIRATORY');
             }
             if (specName.includes('xương') || specName.includes('khớp')) {
-              catKeys.push('BONE_JOINT');
+              if (!catKeys.includes('BONE_JOINT')) catKeys.push('BONE_JOINT');
             }
             if (specName.includes('da')) {
               catKeys.push('SKIN');
@@ -1313,9 +1205,6 @@ export default function BookingMethodSelector({
             }
             if (specName.includes('mắt') || specName.includes('nhãn')) {
               catKeys.push('EYE');
-            }
-            if (catKeys.length === 0) {
-              catKeys.push('HEADACHE', 'FATIGUE');
             }
 
             const lowerName = rawName.toLowerCase();
@@ -1621,12 +1510,8 @@ export default function BookingMethodSelector({
     if (matched.length === 0) {
       matched = doctorPool.filter(d => d.specialtyCode === activeCategory.specialtyCode);
     }
-    if (matched.length === 0 && selectedBranch) {
-      matched = doctorPool.filter(d => !d.centerId || d.centerId === selectedBranch.id || d.centerId === selectedBranch.code);
-    }
-    if (matched.length === 0) {
-      matched = doctorPool.slice(0, 3);
-    }
+    // RÀNG BUỘC Y KHOA: TUYỆT ĐỐI KHÔNG GÁN ÉP BÁC SĨ TRÁI CHUYÊN KHOA
+    // Nếu phòng khám không có bác sĩ chuyên môn, giữ matched = [] để kích hoạt thông báo giới hạn chuyên môn
 
     if (doctorFilter === 'EXPERT') {
       const filtered = matched.filter(d => d.isExpert);
@@ -1641,14 +1526,35 @@ export default function BookingMethodSelector({
     return matched;
   }, [dbDoctors, selectedCategoryKey, activeCategory, selectedBranch, doctorFilter]);
 
+  // Danh sách bác sĩ thực tế đang có mặt tại phòng khám (không trùng lặp) để hiển thị minh bạch
+  const activeClinicDoctors = useMemo(() => {
+    const pool = dbDoctors.length > 0 ? dbDoctors : DEMO_DOCTORS;
+    const seen = new Set<string>();
+    const list: DemoDoctor[] = [];
+    for (const d of pool) {
+      const key = (d.name || '').trim().toLowerCase();
+      if (key && !seen.has(key)) {
+        seen.add(key);
+        list.push(d);
+      }
+    }
+    return list;
+  }, [dbDoctors]);
+
   // Cập nhật bác sĩ mặc định khi danh sách thay đổi theo cơ sở
   useEffect(() => {
+    if (aiStep === 'UNSUPPORTED_SPECIALTY' || aiStep === 'EMERGENCY' || aiStep === 'CHOOSE_SYMPTOM' || aiStep === 'CLARIFY_DETAILS') {
+      setSelectedDoctor(null);
+      return;
+    }
     if (availableDoctors.length > 0) {
       if (!selectedDoctor || !availableDoctors.some(d => d.id === selectedDoctor.id)) {
         setSelectedDoctor(availableDoctors[0]);
       }
+    } else {
+      setSelectedDoctor(null);
     }
-  }, [availableDoctors, selectedDoctor]);
+  }, [availableDoctors, selectedDoctor, aiStep]);
 
   // --- CÁC HÀM XỬ LÝ SỰ KIỆN LIỀN MẠCH (ZALO CHAT FLOW) ---
 
@@ -1871,21 +1777,53 @@ export default function BookingMethodSelector({
 
       setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg, aiMsg]);
     } else {
-      // ĐÃ HOÀN TẤT CÁC CÂU HỎI -> TỔNG HỢP VÀ CHUYỂN SANG BƯỚC 3 (INPUT_LOCATION)
-      setAiStep('INPUT_LOCATION');
+      // ĐÃ HOÀN TẤT CÁC CÂU HỎI -> TỔNG HỢP VÀ ĐÁNH GIÁ TÍNH PHÙ HỢP CỦA BÁC SĨ TẠI PHÒNG KHÁM
+      const doctorPool = dbDoctors.length > 0 ? dbDoctors : DEMO_DOCTORS;
+      const matchingDoctors = doctorPool.filter(d => {
+        return (
+          d.categoryKeys?.includes(selectedCategoryKey) ||
+          (d.specialtyCode && d.specialtyCode === activeCategory.specialtyCode) ||
+          (d.specialtyName && activeCategory.specialtyName && (
+            d.specialtyName.toLowerCase().includes(activeCategory.specialtyName.toLowerCase()) ||
+            activeCategory.specialtyName.toLowerCase().includes(d.specialtyName.toLowerCase())
+          ))
+        );
+      });
 
       const summaryNote = [
-        `• **Biểu hiện:** ${currentNature || 'Bình thường'}`,
-        `• **Thời gian:** ${currentDuration || 'Mới bị'}`,
-        `• **Kèm theo:** ${currentAssociated || 'Không có'}`,
+        `• **Biểu hiện lâm sàng:** ${currentNature || 'Bình thường'}`,
+        `• **Thời gian diễn tiến:** ${currentDuration || 'Mới bị'}`,
+        `• **Dấu hiệu kèm theo:** ${currentAssociated || 'Không có'}`,
         currentFollowup ? `• **Tiền sử / Thuốc:** ${currentFollowup}` : null,
       ].filter(Boolean).join('\n');
+
+      if (matchingDoctors.length === 0) {
+        // TRƯỜNG HỢP: PHÒNG KHÁM CHƯA CÓ BÁC SĨ CHUYÊN MÔN PHÙ HỢP VỚI TÌNH TRẠNG NÀY (VD: RĂNG HÀM MẶT, MẮT...)
+        setAiStep('UNSUPPORTED_SPECIALTY');
+        setSelectedDoctor(null);
+
+        const aiMsg: ChatMessage = {
+          id: 'msg-' + (Date.now() + 1),
+          sender: 'ai',
+          time: getFormattedTime(),
+          text: `⚠️ **THÔNG BÁO GIỚI HẠN CHUYÊN MÔN Y TẾ TẠI PHÒNG KHÁM**\n\nDạ sau khi ghi nhận đầy đủ biểu hiện của bạn:\n${summaryNote}\n\nTheo định hướng chuyên môn, tình trạng của bạn cần được thăm khám tại **${activeCategory.specialtyName}**.\n\nTuy nhiên, **hiện tại hệ thống MedSched CHƯA CÓ Bác sĩ chuyên môn phụ trách chuyên khoa này**. Để bảo đảm an toàn tuyệt đối và hiệu quả chẩn đoán chính xác nhất, hệ thống **không thể gán ghép bác sĩ chuyên khoa khác** để khám cho bạn.\n\n👉 **Khuyến nghị y tế:** Bạn nên đến trực tiếp các **bệnh viện chuyên khoa hoặc cơ sở y tế tuyến trên** để được thăm khám đầy đủ máy móc chuyên dụng.\n\n📌 **Phòng khám MedSched hiện CHỈ HỖ TRỢ ĐẶT LỊCH với các chuyên khoa có Bác sĩ chuyên môn phụ trách thực tế:**\n• **Chuyên khoa Da liễu:** BSNT Trương Văn A, BS.CKII Nguyễn Minh Anh, BS. Đỗ Quang Vinh, BS. Lê Thị Thu Hà (điều trị viêm da, dị ứng, mẩn ngứa, mụn nhọt...)\n• **Chuyên khoa Nội tổng quát:** PGS.TS Trần Văn Hùng (chẩn đoán suy nhược cơ thể, mệt mỏi kéo dài, đau đầu tiền đình, tiêu hóa, hô hấp...)\n\nBạn có thể tham khảo danh sách bác sĩ chuyên môn đang khám tại phòng khám bên dưới hoặc bấm nút **"Mô tả triệu chứng khác"** nếu bạn cần khám vấn đề sức khỏe khác:`,
+          widget: 'UNSUPPORTED_SPECIALTY',
+          isTypingComplete: false,
+        };
+
+        setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg, aiMsg]);
+        return;
+      }
+
+      // TRƯỜNG HỢP: PHÒNG KHÁM CÓ BÁC SĨ CHUYÊN MÔN PHỤ TRÁCH (VÍ DỤ NỘI TỔNG QUÁT: PGS.TS TRẦN VĂN HÙNG, DA LIỄU: BS.CKII NGUYỄN MINH ANH...)
+      setAiStep('INPUT_LOCATION');
+      const doctorNames = matchingDoctors.map(d => d.name).slice(0, 3).join(', ');
 
       const aiMsg: ChatMessage = {
         id: 'msg-' + (Date.now() + 1),
         sender: 'ai',
         time: getFormattedTime(),
-        text: `Dạ rất rõ ràng và chi tiết! 🩺 Em đã ghi nhận đầy đủ hồ sơ triệu chứng của bạn:\n\n${summaryNote}\n\nTheo định hướng chuyên môn, bạn nên khám tại **${activeCategory.specialtyName}** (Độ khớp AI: 100%).\n\nMời bạn chọn cơ sở phòng khám MedSched thuận tiện và ngày khám mong muốn bên dưới.\n\n💡 **Gợi ý từ AI:** Bạn có thể bấm vào từng chi nhánh để xem thông tin chi tiết và mở **Google Maps** để tra cứu khoảng cách từ vị trí của bạn nhằm chọn cơ sở gần nhất nhé! Hoặc bạn có thể nhắn trực tiếp vào ô chat chi nhánh và giờ muốn khám (ví dụ: "tôi chọn itc khám lúc 2h chiều"), em sẽ chọn giúp bạn ngay!`,
+        text: `Dạ rất rõ ràng và chi tiết! 🩺 Em đã ghi nhận đầy đủ hồ sơ triệu chứng của bạn:\n\n${summaryNote}\n\nTheo định hướng chuyên môn, tình trạng của bạn hoàn toàn phù hợp thăm khám tại **${activeCategory.specialtyName}** (Độ khớp AI: 100%).\n\n👨‍⚕️ **Bác sĩ chuyên môn phụ trách tại MedSched:** **${doctorNames}**.\n\nMời bạn chọn cơ sở phòng khám MedSched thuận tiện và ngày khám mong muốn bên dưới để em sắp xếp ca khám sớm nhất cho bạn nhé!\n\n💡 **Gợi ý từ AI:** Bạn có thể bấm vào từng chi nhánh để xem thông tin chi tiết và mở **Google Maps** để tra cứu khoảng cách từ vị trí của bạn nhằm chọn cơ sở gần nhất nhé! Hoặc bạn có thể nhắn trực tiếp vào ô chat chi nhánh và giờ muốn khám, em sẽ chọn giúp bạn ngay!`,
         widget: 'INPUT_LOCATION',
         actionOptions: branches.slice(0, 3).map(b => ({
           label: `🏥 Chọn ${b.shortName}`,
@@ -1900,31 +1838,57 @@ export default function BookingMethodSelector({
     }
   };
 
-  // Người dùng chọn bỏ qua các câu hỏi chi tiết
-  const handleSkipToLocation = () => {
+  // Đặt lại khảo sát để người dùng mô tả lại triệu chứng khác
+  const handleResetToSymptomChoice = () => {
+    setSelectedCategoryKey('');
+    setSelectedNature('');
+    setSelectedDuration('');
+    setSelectedAssociated('');
+    setSelectedFollowup('');
+    setCustomNatureInput('');
+    setClarifyQuestionIndex(1);
+    setTotalClarifyQuestions(3);
+    setSelectedDoctor(null);
+    setAiStep('CHOOSE_SYMPTOM');
+
+    const resetMsg: ChatMessage = {
+      id: 'msg-' + Date.now(),
+      sender: 'ai',
+      time: getFormattedTime(),
+      text: 'Dạ vâng, em đã làm mới khảo sát. Mời bạn chọn triệu chứng sức khỏe bên dưới hoặc mô tả trực tiếp vào thanh chat để em hỗ trợ nhé!',
+      widget: 'CHOOSE_SYMPTOM',
+      isTypingComplete: false,
+    };
+    setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), resetMsg]);
+  };
+
+  // Chọn đặt khám trực tiếp với một trong các bác sĩ thực tế đang có mặt tại phòng khám
+  const handleSelectDoctorDirectly = (doc: DemoDoctor) => {
+    const targetKey = doc.categoryKeys?.[0] || (doc.specialtyCode === 'DERMATOLOGY' ? 'SKIN' : 'FATIGUE');
+    setSelectedCategoryKey(targetKey);
+    setSelectedDoctor(doc);
+    if (doc.centerId) {
+      const matchBranch = branches.find(b => b.id === doc.centerId || b.code === doc.centerId);
+      if (matchBranch) setSelectedBranch(matchBranch);
+    }
+    setAiStep('SELECT_DOCTOR_SLOT');
+
     const userMsg: ChatMessage = {
       id: 'msg-' + Date.now(),
       sender: 'user',
       time: getFormattedTime(),
-      text: 'Tôi muốn bỏ qua các câu hỏi và chọn phòng khám ngay.',
+      text: `Tôi muốn đặt lịch khám với ${doc.name}`,
     };
 
     const aiMsg: ChatMessage = {
       id: 'msg-' + (Date.now() + 1),
       sender: 'ai',
       time: getFormattedTime(),
-      text: `Dạ vâng! Dựa trên triệu chứng ban đầu **${activeCategory.label}**, hệ thống định hướng bạn đến khám tại **${activeCategory.specialtyName}**.\n\nMời bạn chọn cơ sở phòng khám MedSched và ngày khám mong muốn bên dưới.\n\n💡 **Gợi ý từ AI:** Bạn có thể bấm vào từng chi nhánh để xem thông tin chi tiết và mở **Google Maps** để tra cứu khoảng cách từ vị trí của bạn nhằm chọn cơ sở gần nhất nhé! Hoặc bạn có thể nhắn trực tiếp vào ô chat chi nhánh và giờ muốn khám, em sẽ chọn giúp bạn ngay!`,
-      widget: 'INPUT_LOCATION',
-      actionOptions: branches.slice(0, 3).map(b => ({
-        label: `🏥 Chọn ${b.shortName}`,
-        actionKey: 'SELECT_BRANCH',
-        variant: 'outline' as const,
-        payload: { branch: b },
-      })),
+      text: `Dạ vâng! Hệ thống đã ghi nhận bạn muốn khám với **${doc.name}** (${doc.room || 'Phòng khám chuyên khoa'}).\n\nMời bạn chọn ngày và khung giờ khám còn trống bên dưới để giữ chỗ nhé:`,
+      widget: 'SELECT_DOCTOR_SLOT',
       isTypingComplete: false,
     };
 
-    setAiStep('INPUT_LOCATION');
     setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg, aiMsg]);
   };
 
@@ -2395,8 +2359,8 @@ export default function BookingMethodSelector({
       return;
     }
 
-    // Nếu đang ở bước đầu hoặc người dùng muốn mô tả bệnh
-    if (aiStep === 'CHOOSE_SYMPTOM' || aiStep === 'EMERGENCY') {
+    // Nếu đang ở bước đầu, cấp cứu, hoặc vừa được cảnh báo giới hạn chuyên môn và muốn nhập triệu chứng khác
+    if (aiStep === 'CHOOSE_SYMPTOM' || aiStep === 'EMERGENCY' || aiStep === 'UNSUPPORTED_SPECIALTY') {
       setIsAiAnalyzing(true);
       setMessages(prev => [...prev, userMsg]);
       try {
@@ -3126,22 +3090,19 @@ export default function BookingMethodSelector({
                                 })}
                               </div>
 
-                              {/* Thanh công cụ dưới câu hỏi */}
+                              {/* Thanh công cụ dưới câu hỏi (BẮT BUỘC KHẢO SÁT LÂM SÀNG, KHÔNG CHO BỎ QUA ĐỂ ĐẢM BẢO AN TOÀN Y TẾ) */}
                               <div className="pt-2 flex items-center justify-between gap-2 border-t border-slate-100">
-                                <button
-                                  type="button"
-                                  onClick={handleSkipToLocation}
-                                  className="text-[10.5px] sm:text-[11px] text-slate-400 hover:text-purple-700 transition font-medium cursor-pointer"
-                                >
-                                  Bỏ qua &amp; Chọn cơ sở ngay ➔
-                                </button>
+                                <div className="flex items-center gap-1.5 text-[10.5px] sm:text-[11px] text-slate-500 font-medium">
+                                  <ShieldCheck size={13} className="text-purple-600 shrink-0" />
+                                  <span>Khảo sát bắt buộc ({msg.clarifyMeta.questionNumber}/{msg.clarifyMeta.totalQuestions})</span>
+                                </div>
 
                                 <button
                                   type="button"
                                   onClick={() => handleAdvanceClarify()}
                                   className="py-1.5 px-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
                                 >
-                                  <span>{msg.clarifyMeta.questionNumber === msg.clarifyMeta.totalQuestions ? 'Hoàn tất khảo sát' : 'Tiếp tục câu sau'}</span>
+                                  <span>{msg.clarifyMeta.questionNumber === msg.clarifyMeta.totalQuestions ? 'Xác nhận & Kiểm tra bác sĩ ➔' : 'Tiếp tục câu sau'}</span>
                                   <ArrowRight size={13} />
                                 </button>
                               </div>
@@ -3766,6 +3727,114 @@ export default function BookingMethodSelector({
                         </div>
                       )}
 
+                      {/* =================================================================== */}
+                      {/* TRƯỜNG HỢP: CHUYÊN KHOA PHÒNG KHÁM CHƯA CÓ BÁC SĨ (UNSUPPORTED)    */}
+                      {/* =================================================================== */}
+                      {msg.widget === 'UNSUPPORTED_SPECIALTY' && (
+                        <div className="p-3.5 sm:p-4 bg-gradient-to-br from-amber-50/90 via-orange-50/60 to-rose-50/40 border-2 border-amber-300 rounded-2xl space-y-3 mt-1.5 shadow-sm">
+                          {/* Banner cảnh báo an toàn y tế */}
+                          <div className="flex items-start gap-2.5 text-amber-900">
+                            <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm mt-0.5">
+                              <AlertCircle size={20} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h4 className="text-xs sm:text-sm font-extrabold text-amber-950">
+                                  Giới Hạn Chuyên Môn Y Tế Phòng Khám
+                                </h4>
+                                <span className="px-2 py-0.5 bg-amber-200/80 text-amber-900 text-[10px] font-bold rounded-full">
+                                  An toàn người bệnh
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-amber-800 font-medium mt-0.5 leading-relaxed">
+                                Phòng khám MedSched hiện <strong>chưa có Bác sĩ chuyên môn</strong> phụ trách chuyên khoa <strong>{activeCategory.specialtyName}</strong>. Hệ thống tuân thủ nguyên tắc y khoa không gán ghép bác sĩ trái chuyên môn.
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Khuyến nghị tuyến trên */}
+                          <div className="p-2.5 sm:p-3 bg-white/95 rounded-xl border border-amber-200 text-xs text-slate-800 space-y-1 shadow-xs">
+                            <p className="font-bold text-amber-900 flex items-center gap-1.5 text-xs">
+                              <Building2 size={14} className="text-amber-600 shrink-0" />
+                              Khuyến nghị chuyển viện chuyên khoa:
+                            </p>
+                            <p className="text-[11px] text-slate-600 leading-relaxed">
+                              Để đảm bảo an toàn tuyệt đối và hiệu quả chẩn đoán chính xác bằng trang thiết bị chuyên dụng, bạn nên thăm khám tại các <strong>bệnh viện chuyên khoa hoặc cơ sở y tế tuyến trên</strong>.
+                            </p>
+                          </div>
+
+                          {/* Danh sách các bác sĩ và chuyên khoa MedSched thực tế có mặt */}
+                          <div className="space-y-2 pt-1">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] sm:text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                                <Stethoscope size={13} className="text-purple-600" />
+                                Bác sĩ chuyên môn thực tế đang khám tại MedSched:
+                              </span>
+                              <span className="text-[10px] text-purple-700 font-bold bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200">
+                                {activeClinicDoctors.length} Bác sĩ
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {activeClinicDoctors.map((doc) => {
+                                const isInternal = doc.specialtyCode === 'INTERNAL_MEDICINE' || (doc.specialtyName || '').toLowerCase().includes('nội');
+                                return (
+                                  <div
+                                    key={doc.id}
+                                    className="p-2.5 bg-white rounded-xl border border-slate-200 hover:border-purple-300 hover:shadow-xs transition flex flex-col justify-between gap-2"
+                                  >
+                                    <div className="flex items-start gap-2">
+                                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 ${isInternal ? 'bg-indigo-600' : 'bg-emerald-600'}`}>
+                                        {doc.name.charAt(doc.name.lastIndexOf(' ') + 1) || 'B'}
+                                      </div>
+                                      <div className="min-w-0 flex-1">
+                                        <h5 className="font-bold text-slate-900 text-xs truncate" title={doc.name}>
+                                          {doc.name}
+                                        </h5>
+                                        <p className="text-[10.5px] text-purple-800 font-medium truncate">
+                                          {doc.specialtyName || (isInternal ? 'Khoa Nội tổng quát' : 'Khoa Da liễu')}
+                                        </p>
+                                        <p className="text-[10px] text-slate-500 truncate flex items-center gap-1 mt-0.5">
+                                          <MapPin size={10} className="shrink-0" />
+                                          <span>{doc.room}</span>
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSelectDoctorDirectly(doc)}
+                                      className="w-full py-1.5 px-2 bg-purple-50 hover:bg-purple-100 text-purple-800 font-bold text-[10.5px] rounded-lg transition flex items-center justify-center gap-1 cursor-pointer border border-purple-200"
+                                    >
+                                      <span>Đặt khám với bác sĩ này</span>
+                                      <ArrowRight size={11} />
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Các nút hành động */}
+                          <div className="pt-1.5 flex flex-wrap items-center gap-2 border-t border-amber-200/70">
+                            <button
+                              type="button"
+                              onClick={handleResetToSymptomChoice}
+                              className="flex-1 py-2 px-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+                            >
+                              <RefreshCw size={13} />
+                              <span>Mô tả triệu chứng khác</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleChooseManual}
+                              className="py-2 px-3 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1 cursor-pointer"
+                            >
+                              <span>Đặt lịch truyền thống</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
                         </div>
                       )}
 
@@ -3803,7 +3872,15 @@ export default function BookingMethodSelector({
                     }
                   }}
                   disabled={isAiAnalyzing}
-                  placeholder="Nhập triệu chứng hoặc tin nhắn của bạn... (Nhấn Enter để gửi)"
+                  placeholder={
+                    aiStep === 'CHOOSE_SYMPTOM'
+                      ? 'Nhập triệu chứng của bạn (VD: mệt mỏi, đau đầu, ngứa da...)'
+                      : aiStep === 'CLARIFY_DETAILS'
+                      ? 'Gõ câu trả lời của bạn hoặc bấm chọn phương án bên trên...'
+                      : aiStep === 'UNSUPPORTED_SPECIALTY'
+                      ? 'Nhập mô tả triệu chứng khác bạn muốn khám...'
+                      : 'Nhập tin nhắn trao đổi với trợ lý AI... (Nhấn Enter để gửi)'
+                  }
                   className="flex-1 py-2 sm:py-2 px-3 sm:px-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-purple-500 focus:outline-none text-xs sm:text-sm text-slate-800 transition"
                 />
                 <button
@@ -3884,9 +3961,17 @@ export default function BookingMethodSelector({
                 <div>
                   <span className="text-[9.5px] xl:text-[10px] text-slate-400 block font-medium">Bác sĩ phụ trách:</span>
                   <span className="font-bold text-slate-900 block text-xs">
-                    {selectedDoctor ? selectedDoctor.name : 'Đang chọn bác sĩ...'}
+                    {aiStep === 'UNSUPPORTED_SPECIALTY' ? (
+                      <span className="text-amber-700 font-semibold">⚠️ Chưa có BS chuyên khoa này</span>
+                    ) : aiStep === 'CHOOSE_SYMPTOM' || aiStep === 'CLARIFY_DETAILS' ? (
+                      <span className="text-purple-700 font-medium">🔍 Đang khảo sát triệu chứng...</span>
+                    ) : selectedDoctor ? (
+                      selectedDoctor.name
+                    ) : (
+                      'Đang tìm bác sĩ...'
+                    )}
                   </span>
-                  {selectedDoctor && (
+                  {selectedDoctor && aiStep !== 'UNSUPPORTED_SPECIALTY' && aiStep !== 'CHOOSE_SYMPTOM' && aiStep !== 'CLARIFY_DETAILS' && (
                     <p className="text-[9.5px] text-purple-700 font-medium">{selectedDoctor.room}</p>
                   )}
                 </div>
