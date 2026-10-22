@@ -6,7 +6,7 @@
 > **Chuyên đề báo cáo:** Giám Sát Hiệu Năng Thời Gian Thực Chuẩn Cloud-Native Với Prometheus & Grafana  
 > **Giảng viên hướng dẫn:** Thầy Trương Thanh Bình  
 > **Đơn vị thực hiện:** Nhóm phát triển MedSched  
-> **Phiên bản:** v1.3.1 - Production Release  
+> **Phiên bản:** v1.4.0 - Production Release  
 
 ---
 
@@ -28,7 +28,7 @@
 ### 1.1. Thông tin kho lưu trữ (Repository)
 * **Link GitHub:** `https://github.com/kietphuchau-create/KeHoach_Js2.git`
 * **Nhánh chính thức dùng thuyết trình:**  
-  👉 **`feature/clab-136-nang-cap-ai-triage-va-trieu-chung-v131`**  
+  👉 **`feature/clab-138-monitoring-presentation-deck`**  
   *(Tất cả slide HTML, kịch bản Word, cụm Docker Compose và dashboard Cloud đã đồng bộ tại nhánh này).*
 
 ---
@@ -40,8 +40,8 @@
 2. Chạy lần lượt 3 lệnh:
 ```bash
 git fetch origin
-git checkout feature/clab-136-nang-cap-ai-triage-va-trieu-chung-v131
-git pull origin feature/clab-136-nang-cap-ai-triage-va-trieu-chung-v131
+git checkout feature/clab-138-monitoring-presentation-deck
+git pull origin feature/clab-138-monitoring-presentation-deck
 ```
 3. Kiểm tra trạng thái: `git status` (Màn hình hiện *Your branch is up to date* là chuẩn).
 
@@ -49,7 +49,7 @@ git pull origin feature/clab-136-nang-cap-ai-triage-va-trieu-chung-v131
 1. Mở cửa sổ dòng lệnh tại ổ đĩa muốn lưu (ví dụ `D:\MonHocITC\Javaspring2`):
 2. Chạy lệnh clone:
 ```bash
-git clone -b feature/clab-136-nang-cap-ai-triage-va-trieu-chung-v131 https://github.com/kietphuchau-create/KeHoach_Js2.git DuAnChinhThuc
+git clone -b feature/clab-138-monitoring-presentation-deck https://github.com/kietphuchau-create/KeHoach_Js2.git DuAnChinhThuc
 cd DuAnChinhThuc
 ```
 

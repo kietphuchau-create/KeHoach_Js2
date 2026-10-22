@@ -14,6 +14,8 @@ import {
   Eye, 
   EyeOff, 
   Lock, 
+  Unlock,
+  ShieldCheck,
   X,
   Copy,
   Check,
@@ -24,7 +26,9 @@ import {
   Stethoscope,
   DoorOpen,
   AlertTriangle,
-  Info
+  Info,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { api, getAuthToken, getAuthUser } from '@/shared/lib/api';
 import LoadingSpinner from '@/shared/components/Feedback/LoadingSpinner';
@@ -60,7 +64,7 @@ export default function UserTable() {
   const [totalElements, setTotalElements] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [currentPage, setCurrentPage] = useState(0);
-  const [pageSize] = useState(10);
+  const [pageSize] = useState(5);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
@@ -184,11 +188,12 @@ export default function UserTable() {
       setMessage(null);
     }
     try {
+      const isLockedTab = role === 'LOCKED';
       const res = await api.getAdminUsers({
-        role: (role === 'ALL' || role === 'LOCKED') ? undefined : role,
+        role: (role === 'ALL' || isLockedTab) ? undefined : role,
         q: query.trim() || undefined,
-        page: page,
-        size: pageSize,
+        page: isLockedTab ? 0 : page,
+        size: isLockedTab ? 100 : pageSize,
       });
 
       const rawList = res?.items || res?.content || (Array.isArray(res) ? res : []);
@@ -217,21 +222,34 @@ export default function UserTable() {
       // Lọc bỏ tài khoản Quản trị viên (Admin) khỏi bảng quản trị nhân sự & bệnh nhân
       normalizedUsers = normalizedUsers.filter((u) => !u.roles.includes('ROLE_ADMIN'));
 
-      if (role === 'ROLE_DOCTOR') {
-        normalizedUsers = normalizedUsers.filter((u) => u.roles.includes('ROLE_DOCTOR'));
-      } else if (role === 'ROLE_STAFF') {
-        normalizedUsers = normalizedUsers.filter((u) => u.roles.includes('ROLE_STAFF'));
-      } else if (role === 'CUSTOMER') {
-        normalizedUsers = normalizedUsers.filter(
-          (u) => u.roles.includes('ROLE_PATIENT') || u.roles.length === 0 || (!u.roles.includes('ROLE_DOCTOR') && !u.roles.includes('ROLE_STAFF'))
-        );
-      } else if (role === 'LOCKED') {
-        normalizedUsers = normalizedUsers.filter((u) => !u.active);
-      }
+      if (isLockedTab) {
+        const lockedUsers = normalizedUsers.filter((u) => !u.active);
+        const total = lockedUsers.length;
+        setTotalElements(total);
+        setTotalPages(Math.max(1, Math.ceil(total / pageSize)));
+        setUsers(lockedUsers.slice(page * pageSize, (page + 1) * pageSize));
+      } else {
+        if (role === 'ROLE_DOCTOR') {
+          normalizedUsers = normalizedUsers.filter((u) => u.roles.includes('ROLE_DOCTOR'));
+        } else if (role === 'ROLE_STAFF') {
+          normalizedUsers = normalizedUsers.filter((u) => u.roles.includes('ROLE_STAFF'));
+        } else if (role === 'CUSTOMER') {
+          normalizedUsers = normalizedUsers.filter(
+            (u) => u.roles.includes('ROLE_PATIENT') || u.roles.length === 0 || (!u.roles.includes('ROLE_DOCTOR') && !u.roles.includes('ROLE_STAFF'))
+          );
+        }
 
-      setUsers(normalizedUsers);
-      setTotalElements(res?.totalElements !== undefined ? res.totalElements : normalizedUsers.length);
-      setTotalPages(res?.totalPages || 1);
+        const total = res?.totalItems !== undefined
+          ? res.totalItems
+          : (res?.totalElements !== undefined ? res.totalElements : normalizedUsers.length);
+        const calculatedTotalPages = res?.totalPages !== undefined && res.totalPages > 0
+          ? res.totalPages
+          : Math.max(1, Math.ceil(total / pageSize));
+
+        setUsers(normalizedUsers);
+        setTotalElements(total);
+        setTotalPages(calculatedTotalPages);
+      }
     } catch (err: any) {
       console.error(err);
       if (!silent) {
@@ -494,10 +512,10 @@ export default function UserTable() {
                 <tr className="bg-mint-soft border-b border-mint-light text-xs font-bold text-slate-700 uppercase tracking-wider">
                   <th className="py-3.5 px-3.5 whitespace-nowrap">Họ và Tên</th>
                   <th className="py-3.5 px-3.5 whitespace-nowrap">Email & SĐT</th>
-                  <th className="py-3.5 px-3 whitespace-nowrap text-center">Vai Trò</th>
+                  <th className="py-3.5 px-2 w-28 whitespace-nowrap text-center">Vai Trò</th>
                   <th className="py-3.5 px-3 whitespace-nowrap">Chi Nhánh</th>
-                  <th className="py-3.5 px-3 whitespace-nowrap text-center">Trạng Thái</th>
-                  <th className="py-3.5 px-3.5 text-right whitespace-nowrap">Thao Tác</th>
+                  <th className="py-3.5 px-2 w-20 whitespace-nowrap text-center">Trạng Thái</th>
+                  <th className="py-3.5 px-3.5 w-44 text-right whitespace-nowrap">Thao Tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-sm">
@@ -524,7 +542,7 @@ export default function UserTable() {
                       <div className="text-slate-700 font-medium text-xs sm:text-sm">{user.email}</div>
                       <div className="text-xs text-slate-400 font-mono">{user.phone || 'Chưa có SĐT'}</div>
                     </td>
-                    <td className="py-3.5 px-3 whitespace-nowrap text-center">
+                    <td className="py-3.5 px-2 w-28 whitespace-nowrap text-center">
                       {roleBadge(user.roles)}
                       {user.roles.includes('ROLE_DOCTOR') && (
                         <div className="mt-1">
@@ -547,87 +565,162 @@ export default function UserTable() {
                     <td className="py-3.5 px-3 whitespace-nowrap">
                       {user.medicalCenterName ? (
                         <span 
-                          className="inline-flex items-center px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 font-semibold text-xs border border-blue-100 max-w-[150px] truncate" 
+                          className="inline-flex items-center px-2.5 py-0.5 rounded-md bg-blue-50 text-blue-800 font-semibold text-xs border border-blue-100 whitespace-nowrap" 
                           title={user.medicalCenterName}
                         >
-                          {user.medicalCenterName.includes('Quận 1') ? 'CN Quận 1' : user.medicalCenterName.includes('Quận 7') ? 'CN Quận 7' : user.medicalCenterName.replace('Phòng Khám Đa Khoa MedSched - ', '')}
+                          {user.medicalCenterName.replace('Phòng Khám Đa Khoa MedSched - ', '')}
                         </span>
                       ) : (
                         <span className="text-slate-400 text-xs">—</span>
                       )}
                     </td>
-                    <td className="py-3.5 px-3 whitespace-nowrap text-center">
-                      {user.active ? (
-                        <span className="inline-flex items-center gap-1 text-xs font-semibold whitespace-nowrap text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 shadow-xs">
-                          <CheckCircle2 size={12} className="text-emerald-600 shrink-0" />
-                          <span>Hoạt động</span>
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-xs font-semibold whitespace-nowrap text-red-700 bg-red-50 px-2 py-0.5 rounded-full border border-red-200 shadow-xs">
-                          <XCircle size={12} className="text-red-600 shrink-0" />
-                          <span>Đã khóa</span>
-                        </span>
-                      )}
+                    {/* Cột Trạng Thái (Chỉ hiện icon, w-20 nhỏ gọn không chiếm diện tích) */}
+                    <td className="py-3.5 px-2 w-20 whitespace-nowrap text-center">
+                      <div className="inline-flex items-center justify-center">
+                        <div className="relative group/tooltip inline-flex items-center justify-center">
+                          {user.active ? (
+                            <div 
+                              className="w-7 h-7 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shadow-2xs hover:bg-emerald-100 hover:scale-110 transition-all duration-150 cursor-pointer"
+                              title="Trạng thái: Đang hoạt động"
+                            >
+                              <CheckCircle2 size={15} className="shrink-0" />
+                            </div>
+                          ) : (
+                            <div 
+                              className="w-7 h-7 rounded-full bg-red-50 text-red-600 border border-red-200 flex items-center justify-center shadow-2xs hover:bg-red-100 hover:scale-110 transition-all duration-150 cursor-pointer"
+                              title="Trạng thái: Đã bị khóa"
+                            >
+                              <XCircle size={15} className="shrink-0" />
+                            </div>
+                          )}
+                          {/* Tooltip sổ ra khi rê chuột */}
+                          <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 opacity-0 group-hover/tooltip:opacity-100 group-hover/tooltip:-translate-y-0.5 transition-all duration-200 z-50 flex flex-col items-center">
+                            <div className={`text-white text-[11px] font-bold py-1 px-2.5 rounded-md whitespace-nowrap shadow-md ${
+                              user.active ? 'bg-emerald-700' : 'bg-red-700'
+                            }`}>
+                              {user.active ? 'Đang hoạt động' : 'Tài khoản đã khóa'}
+                            </div>
+                            <div className={`w-2 h-1 border-x-4 border-x-transparent border-t-4 -mt-px ${
+                              user.active ? 'border-t-emerald-700' : 'border-t-red-700'
+                            }`} />
+                          </div>
+                        </div>
+                      </div>
                     </td>
-                    <td className="py-3.5 px-3.5 text-right whitespace-nowrap">
+
+                    {/* Cột Thao Tác (Chỉ hiện icon, rê chuột sổ ra tooltip chi tiết) */}
+                    <td className="py-3.5 px-3.5 w-44 text-right whitespace-nowrap">
                       <div className="inline-flex items-center justify-end gap-1.5 whitespace-nowrap">
                         {user.roles.includes('ROLE_DOCTOR') && (
-                          <button
-                            onClick={() => {
-                              setAssignModalUser(user);
-                              setAssignRoom(user.roomNumber || 'P.101');
-                              setCustomRoom(user.roomNumber || '');
-                              setIsCustomRoom(!['P.101', 'P.102', 'P.205', 'P.208', 'P.209'].includes(user.roomNumber || ''));
-                            }}
-                            className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg font-semibold transition bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 cursor-pointer shadow-2xs"
-                            title="Phân buồng khám / Giải quyết trùng buồng cho Bác sĩ"
-                          >
-                            <DoorOpen size={13} />
-                            <span>Phân buồng</span>
-                          </button>
+                          <div className="relative group/tooltip inline-flex items-center justify-center">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAssignModalUser(user);
+                                setAssignRoom(user.roomNumber || 'P.101');
+                                setCustomRoom(user.roomNumber || '');
+                                setIsCustomRoom(!['P.101', 'P.102', 'P.205', 'P.208', 'P.209'].includes(user.roomNumber || ''));
+                              }}
+                              className="w-8 h-8 rounded-lg flex items-center justify-center transition bg-purple-50 text-purple-700 hover:bg-purple-100 hover:scale-110 active:scale-95 border border-purple-200 cursor-pointer shadow-2xs"
+                              title="Phân buồng khám cho Bác sĩ"
+                              aria-label="Phân buồng"
+                            >
+                              <DoorOpen size={15} />
+                            </button>
+                            <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 opacity-0 group-hover/tooltip:opacity-100 group-hover/tooltip:-translate-y-0.5 transition-all duration-200 z-50 flex flex-col items-center">
+                              <div className="bg-purple-900 text-white text-[11px] font-semibold py-1 px-2.5 rounded-md whitespace-nowrap shadow-md">
+                                Phân buồng khám
+                              </div>
+                              <div className="w-2 h-1 border-x-4 border-x-transparent border-t-4 border-t-purple-900 -mt-px" />
+                            </div>
+                          </div>
                         )}
 
-                        <button
-                          onClick={() => { setDetailUser(user); setCopied(false); }}
-                          className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg font-medium transition bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 cursor-pointer shadow-2xs"
-                          title="Xem đầy đủ chi tiết người dùng này"
-                        >
-                          <Eye size={13} />
-                          <span>Chi tiết</span>
-                        </button>
+                        <div className="relative group/tooltip inline-flex items-center justify-center">
+                          <button
+                            type="button"
+                            onClick={() => { setDetailUser(user); setCopied(false); }}
+                            className="w-8 h-8 rounded-lg flex items-center justify-center transition bg-sky-50 text-sky-700 hover:bg-sky-100 hover:scale-110 active:scale-95 border border-sky-200 cursor-pointer shadow-2xs"
+                            title="Xem chi tiết tài khoản"
+                            aria-label="Xem chi tiết"
+                          >
+                            <Eye size={15} />
+                          </button>
+                          <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 opacity-0 group-hover/tooltip:opacity-100 group-hover/tooltip:-translate-y-0.5 transition-all duration-200 z-50 flex flex-col items-center">
+                            <div className="bg-sky-900 text-white text-[11px] font-semibold py-1 px-2.5 rounded-md whitespace-nowrap shadow-md">
+                              Xem chi tiết
+                            </div>
+                            <div className="w-2 h-1 border-x-4 border-x-transparent border-t-4 border-t-sky-900 -mt-px" />
+                          </div>
+                        </div>
 
-                        <button
-                          onClick={() => {
-                            setResetModalUser(user);
-                            setNewPassword('Medsched@123');
-                            setShowPassword(false);
-                          }}
-                          className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg font-medium transition bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 cursor-pointer shadow-2xs"
-                          title="Đặt lại mật khẩu cho tài khoản này"
-                        >
-                          <KeyRound size={13} />
-                          <span>Đặt lại MK</span>
-                        </button>
+                        <div className="relative group/tooltip inline-flex items-center justify-center">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setResetModalUser(user);
+                              setNewPassword('Medsched@123');
+                              setShowPassword(false);
+                            }}
+                            className="w-8 h-8 rounded-lg flex items-center justify-center transition bg-amber-50 text-amber-700 hover:bg-amber-100 hover:scale-110 active:scale-95 border border-amber-200 cursor-pointer shadow-2xs"
+                            title="Đặt lại mật khẩu"
+                            aria-label="Đặt lại mật khẩu"
+                          >
+                            <KeyRound size={15} />
+                          </button>
+                          <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 opacity-0 group-hover/tooltip:opacity-100 group-hover/tooltip:-translate-y-0.5 transition-all duration-200 z-50 flex flex-col items-center">
+                            <div className="bg-amber-900 text-white text-[11px] font-semibold py-1 px-2.5 rounded-md whitespace-nowrap shadow-md">
+                              Đặt lại mật khẩu
+                            </div>
+                            <div className="w-2 h-1 border-x-4 border-x-transparent border-t-4 border-t-amber-900 -mt-px" />
+                          </div>
+                        </div>
 
                         {user.id === currentUser?.id || user.email === currentUser?.email ? (
-                          <span
-                            className="inline-flex items-center text-xs px-2.5 py-1.5 rounded-lg font-medium bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
-                            title="Không thể tự khóa tài khoản quản trị viên của chính mình"
-                          >
-                            Chính bạn
-                          </span>
+                          <div className="relative group/tooltip inline-flex items-center justify-center">
+                            <span
+                              className="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
+                              title="Tài khoản của chính bạn (Không thể tự khóa)"
+                              aria-label="Chính bạn"
+                            >
+                              <ShieldCheck size={15} />
+                            </span>
+                            <div className="pointer-events-none absolute bottom-full right-0 mb-1.5 opacity-0 group-hover/tooltip:opacity-100 group-hover/tooltip:-translate-y-0.5 transition-all duration-200 z-50 flex flex-col items-end">
+                              <div className="bg-slate-800 text-white text-[11px] font-semibold py-1 px-2.5 rounded-md whitespace-nowrap shadow-md">
+                                Chính bạn (Không thể khóa)
+                              </div>
+                              <div className="w-2 h-1 mr-3 border-x-4 border-x-transparent border-t-4 border-t-slate-800 -mt-px" />
+                            </div>
+                          </div>
                         ) : (
-                          <button
-                            onClick={() => handleToggleStatus(user)}
-                            disabled={actionLoadingId === user.id}
-                            className={`inline-flex items-center text-xs px-2.5 py-1.5 rounded-lg font-semibold transition cursor-pointer shadow-2xs ${
-                              user.active
-                                ? 'bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200'
-                                : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
-                            }`}
-                          >
-                            {actionLoadingId === user.id ? '...' : user.active ? 'Khóa' : 'Mở khóa'}
-                          </button>
+                          <div className="relative group/tooltip inline-flex items-center justify-center">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleStatus(user)}
+                              disabled={actionLoadingId === user.id}
+                              className={`w-8 h-8 rounded-lg flex items-center justify-center transition cursor-pointer shadow-2xs hover:scale-110 active:scale-95 border ${
+                                user.active
+                                  ? 'bg-rose-50 text-rose-600 hover:bg-rose-100 border-rose-200'
+                                  : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+                              }`}
+                              title={user.active ? 'Khóa tài khoản' : 'Mở khóa tài khoản'}
+                              aria-label={user.active ? 'Khóa' : 'Mở khóa'}
+                            >
+                              {actionLoadingId === user.id ? (
+                                <RefreshCw size={13} className="animate-spin" />
+                              ) : user.active ? (
+                                <Lock size={14} />
+                              ) : (
+                                <Unlock size={14} />
+                              )}
+                            </button>
+                            <div className="pointer-events-none absolute bottom-full right-0 mb-1.5 opacity-0 group-hover/tooltip:opacity-100 group-hover/tooltip:-translate-y-0.5 transition-all duration-200 z-50 flex flex-col items-end">
+                              <div className={`${user.active ? 'bg-rose-800' : 'bg-emerald-800'} text-white text-[11px] font-semibold py-1 px-2.5 rounded-md whitespace-nowrap shadow-md`}>
+                                {user.active ? 'Khóa tài khoản' : 'Mở khóa tài khoản'}
+                              </div>
+                              <div className={`w-2 h-1 mr-3 border-x-4 border-x-transparent border-t-4 ${user.active ? 'border-t-rose-800' : 'border-t-emerald-800'} -mt-px`} />
+                            </div>
+                          </div>
                         )}
                       </div>
                     </td>
@@ -639,24 +732,72 @@ export default function UserTable() {
         )}
 
         {/* Pagination footer */}
-        {!loading && users.length > 0 && (
-          <div className="px-4 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
-            <span>Tổng cộng: <strong className="text-slate-700">{totalElements}</strong> tài khoản</span>
-            <div className="flex gap-2">
+        {!loading && totalElements > 0 && (
+          <div className="px-4 py-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span>Hiển thị</span>
+              <strong className="text-slate-800 font-bold">
+                {totalElements === 0 ? 0 : currentPage * pageSize + 1} - {Math.min((currentPage + 1) * pageSize, totalElements)}
+              </strong>
+              <span>trên tổng số</span>
+              <strong className="text-slate-800 font-bold">{totalElements}</strong>
+              <span>tài khoản</span>
+              <span className="text-slate-400 font-normal ml-1">({pageSize} tài khoản/trang)</span>
+            </div>
+
+            <div className="flex items-center gap-1.5">
               <button
+                type="button"
                 onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
                 disabled={currentPage === 0 || loading}
-                className="px-3 py-1 bg-white border border-slate-200 rounded-md disabled:opacity-40 hover:bg-slate-100 transition"
+                className="inline-flex items-center gap-1 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-700 font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 hover:text-pine-teal transition shadow-2xs cursor-pointer"
               >
-                Trang trước
+                <ChevronLeft size={14} />
+                <span>Trang trước</span>
               </button>
-              <span className="px-2 py-1 font-medium text-slate-700">Trang {currentPage + 1} / {Math.max(1, totalPages)}</span>
+
+              {/* Numbered page buttons */}
+              <div className="flex items-center gap-1">
+                {Array.from({ length: totalPages }, (_, i) => i).map((pageIdx) => {
+                  if (
+                    totalPages > 7 &&
+                    pageIdx !== 0 &&
+                    pageIdx !== totalPages - 1 &&
+                    Math.abs(pageIdx - currentPage) > 1
+                  ) {
+                    if (pageIdx === 1 || pageIdx === totalPages - 2) {
+                      return <span key={pageIdx} className="px-1 text-slate-400 select-none">...</span>;
+                    }
+                    return null;
+                  }
+
+                  const isActive = currentPage === pageIdx;
+                  return (
+                    <button
+                      key={pageIdx}
+                      type="button"
+                      onClick={() => setCurrentPage(pageIdx)}
+                      disabled={loading}
+                      className={`min-w-[32px] h-8 px-2 flex items-center justify-center rounded-lg text-xs font-bold transition shadow-2xs cursor-pointer ${
+                        isActive
+                          ? 'bg-pine-teal text-white border border-pine-teal'
+                          : 'bg-white text-slate-700 border border-slate-200 hover:bg-mint-soft hover:text-pine-teal'
+                      }`}
+                    >
+                      {pageIdx + 1}
+                    </button>
+                  );
+                })}
+              </div>
+
               <button
+                type="button"
                 onClick={() => setCurrentPage(p => Math.min(totalPages - 1, p + 1))}
                 disabled={currentPage >= totalPages - 1 || loading}
-                className="px-3 py-1 bg-white border border-slate-200 rounded-md disabled:opacity-40 hover:bg-slate-100 transition"
+                className="inline-flex items-center gap-1 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-700 font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 hover:text-pine-teal transition shadow-2xs cursor-pointer"
               >
-                Trang sau
+                <span>Trang sau</span>
+                <ChevronRight size={14} />
               </button>
             </div>
           </div>

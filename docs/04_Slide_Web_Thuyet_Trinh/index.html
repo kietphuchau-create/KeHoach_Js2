@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chủ Đề 5: Lương Cao vs Môi Trường Học Hỏi | Kỹ Năng Mềm ITC</title>
+    <meta name="description" content="Slide web thuyết trình thuyết phục Chủ đề 5: Sinh viên nên ưu tiên mức lương cao hay môi trường học hỏi ở công việc đầu tiên?">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,700&display=swap" rel="stylesheet">
+    <!-- Bootstrap 5.3 & Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- Background mesh decorative glow -->
+    <div class="bg-mesh-glow"></div>
+
+    <!-- Top Reading Progress -->
+    <div class="scroll-progress-container">
+        <div class="scroll-progress-bar" id="scrollProgressBar"></div>
+    </div>
+
+    <!-- Side Number Indicator List (Trái màn hình) -->
+    <nav class="side-number-indicator-list" id="sideNav" aria-label="Mục lục Slide">
+        <a href="#slide-00" class="side-number-item active" data-index="0" data-tooltip="00. Bìa Thuyết Trình">00</a>
+        <a href="#slide-01" class="side-number-item" data-index="1" data-tooltip="01. Lộ Trình Nội Dung">01</a>
+        <a href="#slide-02" class="side-number-item" data-index="2" data-tooltip="02. Tuyên Bố & Rào Chắn">02</a>
+        <a href="#slide-03" class="side-number-item" data-index="3" data-tooltip="03. Trụ Cột 1: Học Kỳ Thứ 9">03</a>
+        <a href="#slide-04" class="side-number-item" data-index="4" data-tooltip="04. Trụ Cột 2: Cánh Cửa Thực Tiễn">04</a>
+        <a href="#slide-05" class="side-number-item" data-index="5" data-tooltip="05. Trụ Cột 3: Mentor & Quan Hệ">05</a>
+        <a href="#slide-06" class="side-number-item" data-index="6" data-tooltip="06. Trụ Cột 4: Bẫy AI & Đào Thải">06</a>
+        <a href="#slide-07" class="side-number-item" data-index="7" data-tooltip="07. Phản Biện 1: Chi Phí Sống">07</a>
+        <a href="#slide-08" class="side-number-item" data-index="8" data-tooltip="08. Phản Biện 2: Bẫy Bóc Lột">08</a>
+        <a href="#slide-09" class="side-number-item" data-index="9" data-tooltip="09. Phản Biện 3: Lương Cao = Xịn?">09</a>
+        <a href="#slide-10" class="side-number-item" data-index="10" data-tooltip="10. Giải Pháp & Scorecard">10</a>
+        <a href="#slide-11" class="side-number-item" data-index="11" data-tooltip="11. Thảo Luận Mở (Q&A)">11</a>
+        <a href="#slide-12" class="side-number-item" data-index="12" data-tooltip="12. Kết Lại & Cảm Ơn">12</a>
+    </nav>
+
+    <!-- Main Presentation Container (Fullpage Snap) -->
+    <main class="snap-container" id="snapContainer">
+
+        <!-- ============================================================
+             SLIDE 00: BÌA BÀI THUYẾT TRÌNH (COVER)
+             ============================================================ -->
+        <section class="slide-section active" id="slide-00" 
+                 data-title="Bìa Thuyết Trình" 
+                 data-speaker="Nhóm 1" 
+                 data-stage-note="Đứng trang nghiêm, mỉm cười, dõng dạc chào Thầy và cả lớp."
+                 data-speech="Kính gửi Thầy Hồ Xuân Vinh và các bạn! Hôm nay Nhóm 1 xin bảo vệ quan điểm cho bài toán bước ngoặt đầu đời: Sinh viên nên ưu tiên mức lương cao hay môi trường học hỏi ở công việc đầu tiên?">
+            <div class="content-box text-center">
+                <!-- Logo ITC trong suốt không nền đặt ở góc trên bên trái của bảng -->
+                <img src="assets/logo_itc_clean.png" alt="ITC Logo" class="card-corner-logo">
+
+                <div class="fade-up-item delay-1">
+                    <h1 class="display-title mb-3">
+                        SINH VIÊN NÊN ƯU TIÊN MỨC LƯƠNG CAO<br>
+                        HAY MÔI TRƯỜNG HỌC HỎI?
+                    </h1>
+                    <p class="fs-5 text-muted mb-4 max-w-75 mx-auto">
+                        Định vị chiến lược sự nghiệp 10 năm đầu đời: Chọn <strong class="text-primary">"Thu Hoạch Sớm"</strong> hay <strong class="text-success">"Cắm Rễ Sâu"</strong>?
+                    </p>
+                </div>
+
+                <div class="row g-4 my-3 text-start justify-content-center fade-up-item delay-2">
+                    <!-- Cột 1: Giảng viên hướng dẫn -->
+                    <div class="col-lg-5 col-md-6">
+                        <div class="feature-card p-4 h-100 d-flex flex-column justify-content-between">
+                            <div>
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <span class="text-uppercase text-muted small fw-bold">Giảng Viên Hướng Dẫn</span>
+                                    <span class="badge bg-primary-subtle text-primary small">Bộ Môn Kỹ Năng Mềm</span>
+                                </div>
+                                <div class="d-flex align-items-center gap-3 mb-3">
+                                    <div class="rounded-circle bg-primary-subtle d-flex align-items-center justify-content-center text-primary" style="width: 52px; height: 52px; font-size: 1.5rem;">
+                                        <i class="bi bi-person-workspace"></i>
+                                    </div>
+                                    <div>
+                                        <h4 class="fw-800 text-primary mb-1">Thầy Hồ Xuân Vinh</h4>
+                                        <div class="text-muted small">Khoa Công Nghệ Thông Tin • ITC</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="p-3 rounded-3 bg-light-subtle border">
+                                <div class="d-flex align-items-center gap-2 text-dark small fw-semibold">
+                                    <i class="bi bi-mortarboard text-primary fs-5"></i>
+                                    <span>Học phần: Kỹ Năng Thuyết Trình &amp; Giao Tiếp</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Cột 2: Nhóm thực hiện (Chia đôi 2 cột, mỗi bên 3 người) -->
+                    <div class="col-lg-7 col-md-6">
+                        <div class="feature-card p-4 h-100 d-flex flex-column justify-content-between">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <span class="text-uppercase text-muted small fw-bold">Nhóm Thực Hiện — Nhóm 1 (Lớp CLC)</span>
+                                <span class="badge bg-success-subtle text-success small">06 Thành Viên</span>
+                            </div>
+
+                            <div class="row g-3">
+                                <!-- Cột bên trái: 3 Bạn Thuyết Trình -->
+                                <div class="col-sm-6">
+                                    <div class="small fw-bold text-primary mb-2">
+                                        <i class="bi bi-mic-fill me-1"></i> Thuyết trình sân khấu:
+                                    </div>
+                                    <div class="d-flex flex-column gap-2">
+                                        <span class="speaker-pill w-100"><span class="speaker-avatar spk-kiet">K</span> Tuấn Kiệt</span>
+                                        <span class="speaker-pill w-100"><span class="speaker-avatar spk-tai">T</span> Lê Thành Tài</span>
+                                        <span class="speaker-pill w-100"><span class="speaker-avatar spk-tan">T</span> Trần Nhật Tân</span>
+                                    </div>
+                                </div>
+
+                                <!-- Cột bên phải: 3 Bạn Chuẩn Bị Nội Dung -->
+                                <div class="col-sm-6">
+                                    <div class="small fw-bold text-muted mb-2">
+                                        <i class="bi bi-file-earmark-text-fill me-1"></i> Chuẩn bị nội dung:
+                                    </div>
+                                    <div class="d-flex flex-column gap-2">
+                                        <span class="speaker-pill w-100"><span class="speaker-avatar spk-hieu">H</span> Nguyễn Văn Hiếu</span>
+                                        <span class="speaker-pill w-100"><span class="speaker-avatar spk-bao">B</span> Nguyễn Duy Bảo</span>
+                                        <span class="speaker-pill w-100"><span class="speaker-avatar spk-quynh">Q</span> Thượng Mạnh Quỳnh</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+
+            </div>
+        </section>
+
+        <!-- ============================================================
+             SLIDE 01: LỘ TRÌNH THUYẾT TRÌNH (CẤU TRÚC 3 PHẦN NỘI DUNG)
+             ============================================================ -->
+        <!-- ============================================================
+             SLIDE 01: TÌNH HUỐNG MỞ ĐẦU: BẠN CHỌN LỜI MỜI NÀO? (THE HOOK)
+             ============================================================ -->
+        <section class="slide-section" id="slide-01" 
+                 data-title="Tình Huống Mở Đầu: Chọn Lời Mời Nào?" 
+                 data-speaker="Nội Dung Trình Bày" 
+                 data-stage-note="Đứng nhìn khán giả, dừng 2 giây sau câu hỏi mở đầu. Mời cả lớp giơ tay khảo sát."
+                 data-speech="Chào thầy cô và các bạn. Xin mời cả lớp tưởng tượng: tuần tới bạn nhận bằng tốt nghiệp và có hai lời mời làm việc. Công ty A trả 15 triệu nhưng việc lặp lại, không có người hướng dẫn. Công ty B trả 10 triệu nhưng có người kèm cặp trực tiếp và làm dự án thật. Cả hai mức lương đều đủ sống. Bạn chọn bên nào?">
+            <div class="content-box">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <span class="section-badge badge-p1">TÌNH HUỐNG MỞ ĐẦU</span>
+                        <h2 class="h3 fw-bold mb-1">Tình Huống Giả Định: Bạn Chọn Lời Mời Nào?</h2>
+                    </div>
+                    <span class="badge bg-light text-muted border">Khảo sát tương tác</span>
+                </div>
+
+                <p class="text-muted mb-3">
+                    Tuần tới bạn nhận bằng tốt nghiệp và đứng trước <strong>hai lời mời làm việc toàn thời gian</strong>:
+                </p>
+
+                <div class="row g-4 mb-4">
+                    <!-- Cột Công ty A -->
+                    <div class="col-md-6">
+                        <div class="p-4 rounded-4 border border-2 border-danger-subtle bg-light h-100">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h4 class="fw-bold text-danger mb-0">Công Ty A</h4>
+                                <span class="badge bg-danger text-white fs-6 px-3 py-2 rounded-pill">15 Triệu / Tháng</span>
+                            </div>
+                            <ul class="list-unstyled mb-0 d-flex flex-column gap-3 small text-muted">
+                                <li class="d-flex align-items-start gap-2">
+                                    <i class="bi bi-x-circle-fill text-danger mt-1 fs-6"></i>
+                                    <div><strong>Công việc:</strong> Chủ yếu lặp lại vài thao tác có sẵn, ít được chạm vào phần cốt lõi của dự án.</div>
+                                </li>
+                                <li class="d-flex align-items-start gap-2">
+                                    <i class="bi bi-x-circle-fill text-danger mt-1 fs-6"></i>
+                                    <div><strong>Người hướng dẫn:</strong> Gần như không có người kèm cặp, phải tự xoay xở.</div>
+                                </li>
+                                <li class="d-flex align-items-start gap-2">
+                                    <i class="bi bi-x-circle-fill text-danger mt-1 fs-6"></i>
+                                    <div><strong>Phản hồi &amp; Đánh giá:</strong> Hầu như không có phản hồi; kỳ hạn đánh giá năng lực không nêu rõ.</div>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Cột Công ty B -->
+                    <div class="col-md-6">
+                        <div class="p-4 rounded-4 border border-2 border-success-subtle bg-light h-100">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h4 class="fw-bold text-success mb-0">Công Ty B</h4>
+                                <span class="badge bg-success text-white fs-6 px-3 py-2 rounded-pill">10 Triệu / Tháng</span>
+                            </div>
+                            <ul class="list-unstyled mb-0 d-flex flex-column gap-3 small text-muted">
+                                <li class="d-flex align-items-start gap-2">
+                                    <i class="bi bi-check-circle-fill text-success mt-1 fs-6"></i>
+                                    <div><strong>Công việc:</strong> Tham gia dự án thật, tiếp cận quy trình chuẩn và công việc có độ khó tăng dần.</div>
+                                </li>
+                                <li class="d-flex align-items-start gap-2">
+                                    <i class="bi bi-check-circle-fill text-success mt-1 fs-6"></i>
+                                    <div><strong>Người hướng dẫn:</strong> Có người kèm cặp trực tiếp, hướng dẫn phương pháp làm việc chuẩn.</div>
+                                </li>
+                                <li class="d-flex align-items-start gap-2">
+                                    <i class="bi bi-check-circle-fill text-success mt-1 fs-6"></i>
+                                    <div><strong>Phản hồi &amp; Đánh giá:</strong> Nhận phản hồi mỗi tuần; được đánh giá năng lực rõ ràng sau 6 tháng.</div>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Thanh câu hỏi khảo sát giơ tay -->
+                <div class="p-3 rounded-4 bg-primary text-white text-center shadow-sm">
+                    <h5 class="fw-bold mb-0">
+                        <i class="bi bi-hand-index-thumb-fill me-2"></i>"Giả sử cả hai mức lương đều đủ để trang trải sinh hoạt cơ bản. Ai chọn Công ty A? Ai chọn Công ty B?"
+                    </h5>
+                </div>
+                <div class="text-end mt-2">
+                    <span class="badge bg-light text-muted border small">Ghi chú chân slide: Tình huống giả định dùng để minh họa và thảo luận, không phải dữ liệu khảo sát.</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             SLIDE 02: TUYÊN BỐ LẬP TRƯỜNG & THIẾT LẬP RÀO CHẮN
+             ============================================================
+<!-- ============================================================
+             SLIDE 03: TUYÊN BỐ LẬP TRƯỜNG & THIẾT LẬP RÀO CHẮN
+             ============================================================ -->
+        <section class="slide-section" id="slide-02" 
+                 data-title="Tuyên Bố Lập Trường & Rào Chắn" 
+                 data-speaker="Nội Dung Trình Bày" 
+                 data-stage-note="Giọng dứt khoát, tay đặt lên ngực khẳng định lập trường, sau đó giơ tay ra dấu rào chắn phản biện."
+                 data-speech="Nhóm tuyên bố dứt khoát: Sinh viên nên ưu tiên môi trường học hỏi! Nhưng chúng mình không cổ xúy làm việc không công. Lương phải vượt ngưỡng sinh tồn tối thiểu. Lương là điều kiện CẦN, học hỏi mới là điều kiện ĐỦ!">
+            <div class="content-box">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <span class="section-badge badge-p1">TUYÊN NGÔN LẬP TRƯỜNG</span>
+                        <h2 class="h3 fw-bold mb-1">Khẳng Định Quan Điểm & Rào Chắn Phản Biện</h2>
+                    </div>
+                    
+                </div>
+
+                <!-- Big Stand Callout -->
+                <div class="p-4 rounded-4 mb-4 text-center" style="background: linear-gradient(135deg, rgba(37,99,235,0.1), rgba(13,148,136,0.1)); border: 2px solid var(--primary);">
+                    <span class="badge bg-primary px-3 py-2 rounded-pill uppercase mb-2">Tuyên Bố Bất Biến</span>
+                    <h3 class="fw-800 text-primary mb-2">
+                        "SINH VIÊN MỚI RA TRƯỜNG NÊN DỨT KHOÁT ƯU TIÊN MÔI TRƯỜNG HỌC HỎI Ở CÔNG VIỆC ĐẦU TIÊN!"
+                    </h3>
+                    <p class="text-muted mb-0 small">
+                        Bảo đảm tiền đề: Môi trường làm việc lành mạnh và mức lương vượt qua ngưỡng sinh hoạt tối thiểu.
+                    </p>
+                </div>
+
+                <h5 class="fw-bold mb-3"><i class="bi bi-shield-lock-fill text-warning me-2"></i>Nguyên Tắc Rào Chắn Trọng Tâm</h5>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="feature-card border-danger">
+                            <div class="d-flex align-items-center gap-2 mb-2 text-danger fw-bold">
+                                <i class="bi bi-x-circle-fill fs-5"></i> VẤN ĐỀ CẦN TRÁNH:
+                            </div>
+                            <ul class="small text-muted ps-3 mb-0">
+                                <li>Làm việc không công hoặc nhận mức lương bóc lột dưới ngưỡng sống.</li>
+                                <li>Chấp nhận môi trường độc hại (Toxic workplace) dưới chiêu bài "thử thách".</li>
+                                <li>Đánh đổi sức khỏe thể chất hoặc sự an toàn bản thân.</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="feature-card border-success">
+                            <div class="d-flex align-items-center gap-2 mb-2 text-success fw-bold">
+                                <i class="bi bi-check-circle-fill fs-5"></i> ĐIỀU KIỆN CẦN & ĐIỀU KIỆN ĐỦ:
+                            </div>
+                            <div class="mb-2 p-2 rounded bg-success-subtle text-success small">
+                                <strong>1. Tiền Lương = ĐIỀU KIỆN CẦN:</strong> Đủ chi trả tiền trọ, ăn uống, xăng xe tối thiểu để sinh tồn.
+                            </div>
+                            <div class="p-2 rounded bg-primary-subtle text-primary small">
+                                <strong>2. Môi Trường Học Hỏi = ĐIỀU KIỆN ĐỦ:</strong> Tạo đòn bẩy bứt phá lãi kép sự nghiệp 5-10 năm tới.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             SLIDE 04: LUẬN ĐIỂM 1: CÔNG VIỆC ĐẦU LÀ HỌC KỲ THỨ 9 & LÃI KÉP
+             ============================================================ -->
+        <section class="slide-section" id="slide-03" 
+                 data-title="Luận Điểm 1: Học Kỳ Thứ 9" 
+                 data-speaker="Nội Dung Trình Bày" 
+                 data-stage-note="Mô tả khái niệm 'Học kỳ thứ 9' và nguyên lý Lãi Kép sự nghiệp một cách rõ ràng, thuyết phục."
+                 data-speech="Kính thưa Thầy và các bạn! Công việc đầu đời không phải lúc thu hoạch vội vã mà là Học Kỳ Thứ 9. Tiền lương tăng theo cấp số cộng tuyến tính, còn kiến thức và tư duy tích lũy theo cấp số nhân lãi kép!">
+            <div class="content-box">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <span class="section-badge badge-p2">TRỤ CỘT LUẬN ĐIỂM 1 / 4</span>
+                        <h2 class="h3 fw-bold mb-1">Công Việc Đầu Tiên Là "Học Kỳ Thứ 9" – Giai Đoạn ĐẦU TƯ</h2>
+                    </div>
+                    
+                </div>
+
+                <div class="row g-4 align-items-center">
+                    <div class="col-lg-6">
+                        <div class="p-4 rounded-4 bg-light-subtle border h-100">
+                            <h5 class="fw-bold text-success mb-3">
+                                <i class="bi bi-mortarboard-fill me-2"></i>Bản Chất Của "Học Kỳ Thứ 9"
+                            </h5>
+                            <p class="text-muted small mb-3">
+                                Suốt 8 học kỳ ở trường, bạn phải đóng học phí để học lý thuyết. Ở <strong>Học kỳ thứ 9</strong>, doanh nghiệp trả một khoản trợ cấp sinh hoạt để bạn <strong>vừa làm vừa học việc thực chiến</strong>.
+                            </p>
+                            <div class="alert alert-warning py-2 px-3 small mb-0">
+                                <strong>Nghịch lý thị trường:</strong> Những người vội vã đòi thu hoạch ngay năm đầu tiên thường là những người có vụ mùa nghèo nàn nhất sau 5 năm!
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-6">
+                        <div class="feature-card border-primary">
+                            <h5 class="fw-bold text-primary mb-3">
+                                <i class="bi bi-graph-up-arrow me-2"></i>Hiệu Ứng Lãi Kép Sự Nghiệp (Career Compounding)
+                            </h5>
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between small fw-bold mb-1">
+                                    <span>Tiền lương công việc đơn giản</span>
+                                    <span class="text-danger">Cấp số cộng tuyến tính (+5-10%/năm)</span>
+                                </div>
+                                <div class="progress" style="height: 10px;">
+                                    <div class="progress-bar bg-danger" style="width: 40%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="d-flex justify-content-between small fw-bold mb-1">
+                                    <span>Năng lực trong môi trường chuẩn</span>
+                                    <span class="text-success">Cấp số nhân Lãi Kép (x2, x3 sau 3 năm)</span>
+                                </div>
+                                <div class="progress" style="height: 10px;">
+                                    <div class="progress-bar bg-success" style="width: 85%"></div>
+                                </div>
+                            </div>
+                            <p class="small text-muted mt-3 mb-0">
+                                Kỹ năng năm 1 giúp làm việc hiệu quả gấp đôi ở năm 2. Đến năm 3, giá trị thị trường của bạn sẽ tạo ra cú nhảy vọt thu nhập không thể đảo ngược.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-3 mt-2">
+                    <div class="col-md-4 text-center">
+                        <div class="stat-box py-3">
+                            <div class="stat-number text-muted">Năm 1</div>
+                            <span class="small text-muted">Học việc, hấp thu quy chuẩn</span>
+                        </div>
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <div class="stat-box py-3">
+                            <div class="stat-number text-primary">Năm 2</div>
+                            <span class="small text-muted">Làm chủ dự án, tăng tốc</span>
+                        </div>
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <div class="stat-box py-3 border-success">
+                            <div class="stat-number text-success">Năm 3+</div>
+                            <span class="small fw-bold text-success">Bùng nổ thu nhập & Cơ hội lớn</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             SLIDE 05: LUẬN ĐIỂM 2: MÔI TRƯỜNG DẠY THỨ GIẢNG ĐƯỜNG KHÔNG DẠY HẾT
+             ============================================================ -->
+        <section class="slide-section" id="slide-04" 
+                 data-title="Luận Điểm 2: Cánh Cửa Thực Tiễn" 
+                 data-speaker="Nội Dung Trình Bày" 
+                 data-stage-note="Nhấn mạnh sự khác biệt giữa bài tập lớn trên lớp và áp lực thực tế ngoài thương trường."
+                 data-speech="Giảng đường cho ta chiếc chìa khóa lý thuyết, nhưng chỉ môi trường doanh nghiệp mới trao cánh cửa thực tiễn. Tác phong chuẩn mực, code review, xử lý sự cố trực tiếp sẽ trở thành bản năng nghề nghiệp cả đời.">
+            <div class="content-box">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <span class="section-badge badge-p2">TRỤ CỘT LUẬN ĐIỂM 2 / 4</span>
+                        <h2 class="h3 fw-bold mb-1">Môi Trường Tốt Dạy Thứ "Giảng Đường Không Dạy Hết"</h2>
+                    </div>
+                    
+                </div>
+
+                <p class="text-muted mb-3">
+                    Dù trường học có hiện đại đến đâu, nhà trường cũng không thể mô phỏng 100% áp lực và tính khắt khe của môi trường sản xuất thực tế:
+                </p>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <div class="feature-card border-secondary">
+                            <div class="card-icon-bubble bg-secondary-subtle text-secondary">
+                                <i class="bi bi-book-half"></i>
+                            </div>
+                            <h5 class="fw-bold">Ở Giảng Đường Đại Học</h5>
+                            <ul class="small text-muted ps-3 mb-0">
+                                <li>Viết bài tập lớn xong nộp thầy cô, chấm điểm là hết chu trình.</li>
+                                <li>Hệ thống gặp lỗi thì refresh lại máy hoặc sửa sau cũng không sao.</li>
+                                <li>Làm việc nhóm theo sở thích, thiếu kỷ luật thời gian và phân quyền nghiêm ngặt.</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="feature-card border-success">
+                            <div class="card-icon-bubble bg-success-subtle text-success">
+                                <i class="bi bi-buildings-fill"></i>
+                            </div>
+                            <h5 class="fw-bold">Tại Môi Trường Doanh Nghiệp Chuẩn</h5>
+                            <ul class="small text-muted ps-3 mb-0">
+                                <li>Quy trình kiểm soát chất lượng khắt khe: <strong>Code Review, QA/QC</strong>.</li>
+                                <li>Hệ thống dừng 5 phút là khách hàng khiếu nại, công ty mất tiền tỷ: Rèn luyện <strong>bản lĩnh xử lý khủng hoảng</strong>.</li>
+                                <li>Nghệ thuật giao tiếp liên phòng ban, kỹ năng báo cáo và văn hóa chịu trách nhiệm tập thể.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             SLIDE 06: LUẬN ĐIỂM 3: MENTOR & MẠNG LƯỚI QUAN HỆ (NETWORKING)
+             ============================================================ -->
+        <section class="slide-section" id="slide-05" 
+                 data-title="Luận Điểm 3: Mentor & Mạng Lưới" 
+                 data-speaker="Nội Dung Trình Bày" 
+                 data-stage-note="Đưa ra số liệu báo cáo Robert Walters Vietnam chứng minh giá trị của Mentor và On-the-job training."
+                 data-speech="Ở công việc đầu tiên, đi cùng ai quan trọng hơn nhận bao nhiêu tiền! Một người sếp có tâm sẽ uốn nắn tư duy và bảo vệ bạn trước sai lầm. 65% nhân sự trẻ xem đào tạo nội bộ là yếu tố gắn bó nhất.">
+            <div class="content-box">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <span class="section-badge badge-p2">TRỤ CỘT LUẬN ĐIỂM 3 / 4</span>
+                        <h2 class="h3 fw-bold mb-1">Tích Lũy "Tài Sản Vô Hình": Mentor & Mạng Lưới Quan Hệ</h2>
+                    </div>
+                    
+                </div>
+
+                <div class="row g-4 align-items-center mb-4">
+                    <div class="col-md-7">
+                        <div class="p-3 rounded-4 bg-light-subtle border">
+                            <h5 class="fw-bold text-primary mb-3">
+                                <i class="bi bi-people-fill me-2"></i>"Đi Cùng Ai Quan Trọng Hơn Nhận Bao Nhiêu Tiền"
+                            </h5>
+                            <div class="d-flex gap-3 mb-3">
+                                <div class="card-icon-bubble bg-primary-subtle text-primary mb-0" style="min-width: 48px;">
+                                    <i class="bi bi-person-check-fill"></i>
+                                </div>
+                                <div>
+                                    <h6 class="fw-bold mb-1">Người Dẫn Dắt (Mentor) Có Tầm:</h6>
+                                    <p class="small text-muted mb-0">Uốn nắn từ tác phong email, bản báo cáo, mở ra tầm nhìn chiến lược và bảo vệ bạn trước các vấp ngã nghề nghiệp ban đầu.</p>
+                                </div>
+                            </div>
+
+                            <div class="d-flex gap-3">
+                                <div class="card-icon-bubble bg-info-subtle text-info mb-0" style="min-width: 48px;">
+                                    <i class="bi bi-diagram-3-fill"></i>
+                                </div>
+                                <div>
+                                    <h6 class="fw-bold mb-1">Mạng Lưới Quan Hệ Tinh Hoa (Network):</h6>
+                                    <p class="small text-muted mb-0">Những đồng nghiệp xuất sắc hôm nay chính là những người sẽ giới thiệu các cơ hội việc làm đắt giá nhất cho bạn vào ngày mai.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-5">
+                        <div class="feature-card border-primary p-3 text-center">
+                            <span class="badge bg-primary-subtle text-primary small mb-2"><i class="bi bi-bar-chart-fill me-1"></i>Khảo Sát PwC Việt Nam (2024)</span>
+                            <div class="small fw-bold text-muted mb-3">Tỷ lệ đồng ý: "Công ty hỗ trợ phát triển kỹ năng qua cơ hội học tập"</div>
+                            
+                            <!-- Biểu đồ cột so sánh PwC -->
+                            <div class="d-flex justify-content-center align-items-end gap-4 my-2" style="height: 130px;">
+                                <div class="d-flex flex-column align-items-center">
+                                    <span class="fw-bold text-primary mb-1">75%</span>
+                                    <div class="bg-primary rounded-top shadow-sm" style="width: 52px; height: 98px;"></div>
+                                    <span class="small fw-bold text-dark mt-2">Việt Nam</span>
+                                </div>
+                                <div class="d-flex flex-column align-items-center">
+                                    <span class="fw-bold text-muted mb-1">52%</span>
+                                    <div class="bg-secondary-subtle border rounded-top" style="width: 52px; height: 68px;"></div>
+                                    <span class="small text-muted mt-2">Châu Á – TBD</span>
+                                </div>
+                            </div>
+                            
+                            <div class="p-2 rounded bg-light border mt-3 text-start">
+                                <div class="text-muted" style="font-size: 0.72rem;">
+                                    📌 <strong>Nguồn:</strong> PwC Việt Nam (29/07/2024), <em>Asia Pacific Workforce Hopes and Fears Survey 2024: Vietnam highlights</em>. Khảo sát 1.000 người lao động tại Việt Nam.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             SLIDE 07: LUẬN ĐIỂM 4: BẪY "LƯƠNG CAO VIỆC DỄ" & NGUY CƠ ĐÀO THẢI AI
+             ============================================================ -->
+        <section class="slide-section" id="slide-06" 
+                 data-title="Luận Điểm 4: Bẫy Đào Thải AI" 
+                 data-speaker="Nội Dung Trình Bày" 
+                 data-stage-note="Giọng cảnh báo sắc bén, chỉ ra nghịch lý tại sao doanh nghiệp trả lương bất thường cho sinh viên mới ra trường."
+                 data-speech="Tại sao công ty lại trả lương cao bất thường cho sinh viên chưa có kinh nghiệm? Vì đó là việc lặp lại nhàm chán hoặc vắt kiệt sức! Trong kỷ nguyên AI, làm việc lặp lại sau 2 năm là tự sát nghề nghiệp!">
+            <div class="content-box">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <span class="section-badge badge-p2">TRỤ CỘT LUẬN ĐIỂM 4 / 4</span>
+                        <h2 class="h3 fw-bold mb-1">Bẫy "Lương Cao Việc Dễ" & Nguy Cơ Bị Đào Thải Bởi AI</h2>
+                    </div>
+                    
+                </div>
+
+                <h5 class="fw-bold mb-3 text-danger">
+                    <i class="bi bi-question-diamond-fill me-2"></i>Tại Sao Doanh Nghiệp Lại Trả Lương Cao Cho Người Chưa Có Kinh Nghiệm?
+                </h5>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <div class="feature-card border-danger">
+                            <div class="text-danger fw-bold fs-5 mb-2">1. Công việc lặp lại cơ bắp</div>
+                            <p class="small text-muted mb-0">
+                                Nhập liệu, sửa giao diện tĩnh, trực tổng đài đơn giản... Người có kinh nghiệm không chịu làm vì không phát triển được gì. Doanh nghiệp dùng lương để câu kéo lao động tạm thời.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="feature-card border-warning">
+                            <div class="text-warning fw-bold fs-5 mb-2">2. Môi trường vắt kiệt sức (Burn-out)</div>
+                            <p class="small text-muted mb-0">
+                                Làm đêm làm ngày, OT triền miên không đào tạo, chỉ "vắt chanh bỏ vỏ". Sau 1-2 năm kiệt quệ sức khỏe và chán ghét ngành nghề.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="p-3 rounded-4 bg-danger-subtle border border-danger-subtle text-danger">
+                    <div class="row align-items-center g-3">
+                        <div class="col-md-4 text-center">
+                            <!-- Biểu đồ tròn Donut Chart WEF 44% -->
+                            <div class="chart-donut" style="background: conic-gradient(#ef4444 0% 44%, rgba(239, 68, 68, 0.2) 44% 100%);">
+                                <div class="chart-donut-inner">
+                                    <span class="fs-3 fw-bold text-danger">44%</span>
+                                    <div class="text-muted fw-bold" style="font-size: 0.65rem;">BỊ GIÁN ĐOẠN</div>
+                                </div>
+                            </div>
+                            <span class="badge bg-light text-danger border border-danger-subtle mt-2" style="font-size: 0.68rem;">Khảo sát 803 DN toàn cầu</span>
+                        </div>
+                        <div class="col-md-8">
+                            <h6 class="fw-bold mb-1 text-danger">
+                                <i class="bi bi-cpu-fill me-1"></i> Bi Kịch Nghề Nghiệp Trong Kỷ Nguyên Trí Tuệ Nhân Tạo (AI):
+                            </h6>
+                            <p class="small text-muted mb-2">
+                                Nếu 2 năm đầu chỉ làm việc lặp lại không có tư duy chuyên sâu: Khi AI tự động hóa công việc đó, bạn bị đào thải và bước ra thị trường với mức giá của người <strong>0 năm kinh nghiệm</strong>.
+                            </p>
+                            <div class="p-2 rounded bg-white border border-danger-subtle">
+                                <div class="text-muted" style="font-size: 0.72rem;">
+                                    📌 <strong>Nguồn:</strong> World Economic Forum (WEF) (30/04/2023), <em>The Future of Jobs Report 2023</em>, Chương 4 (Skills outlook). Khảo sát 803 doanh nghiệp (hơn 11,3 triệu lao động).
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             SLIDE 08: PHẢN BIỆN Ý KIẾN 1: CHI PHÍ SỐNG & ÁP LỰC TIỀN BẠC
+             ============================================================ -->
+        <section class="slide-section" id="slide-07" 
+                 data-title="Phản Biện 1: Chi Phí Sống" 
+                 data-speaker="Nội Dung Trình Bày" 
+                 data-stage-note="Phong thái điềm đạm, lắng nghe, đồng cảm với áp lực tài chính rồi phân tích bài toán 2 triệu chênh lệch."
+                 data-speech="Nhóm hoàn toàn đồng cảm với áp lực tiền trọ tiền ăn ở TP.HCM. Nhưng nếu lương đủ sống, khoản chênh lệch 2 triệu/tháng tương đương 24 triệu/năm. Đừng vì 24 triệu này mà đánh đổi cơ hội kiếm thêm hàng trăm triệu sau 3 năm!">
+            <div class="content-box">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <span class="section-badge badge-p3">PHẢN BIỆN ĐA CHIỀU 1 / 3</span>
+                        <h2 class="h3 fw-bold mb-1">Áp Lực Mưu Sinh: "Không Có Lương Cao Thì Sống Sao Nổi?"</h2>
+                    </div>
+                    
+                </div>
+
+                <div class="p-3 rounded-3 bg-light border mb-3">
+                    <span class="badge bg-danger small mb-1">Ý KIẾN PHẢN ĐỐI RẤT CÓ LÝ:</span>
+                    <p class="fst-italic text-muted mb-0">
+                        "Sống ở TP. HCM tiền trọ, ăn uống đắt đỏ, gia đình lại khó khăn. Sinh viên xa quê ngày mùng 5 phải đóng tiền phòng, không có lương cao thì bụng đói cồn cào làm sao học hỏi?"
+                    </p>
+                </div>
+
+                <div class="row g-4 align-items-center">
+                    <div class="col-md-5">
+                        <div class="feature-card border-success">
+                            <h6 class="fw-bold text-success mb-2"><i class="bi bi-check2-circle me-1"></i> Sự Thấu Hiểu Của Nhóm:</h6>
+                            <p class="small text-muted mb-2">
+                                Áp lực sinh tồn là có thật. Không ai có thể sáng tạo hay học tập khi dạ dày đói. Vì vậy, nhóm thiết lập nguyên tắc: <strong>Lương phải vượt qua ngưỡng chi phí sống cơ bản.</strong>
+                            </p>
+                            
+                            <!-- Biểu đồ Adecco Vietnam -->
+                            <div class="p-2 rounded bg-light border mb-2">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span class="small fw-bold text-dark" style="font-size: 0.78rem;">Yếu tố số 1 khi chọn việc (Adecco):</span>
+                                    <span class="badge bg-primary text-white" style="font-size: 0.72rem;">Top 1 Priority</span>
+                                </div>
+                                <div class="chart-bar-track mb-1" style="height: 12px;">
+                                    <div class="chart-bar-fill bg-primary" style="width: 100%;"></div>
+                                </div>
+                                <div class="text-muted" style="font-size: 0.68rem;">
+                                    📌 <strong>Nguồn:</strong> Adecco Vietnam (2023, 2025), <em>Vietnam Salary Guide</em> (Lương là tiêu chí số 1 khi cân nhắc cơ hội mới).
+                                </div>
+                            </div>
+
+                            <div class="p-2 rounded bg-success-subtle text-success small fw-semibold text-center">
+                                Điều Kiện Tiên Quyết: Lương cơ bản đủ sống tối thiểu.
+                            </div>
+                            <div class="text-center mt-1">
+                                <span class="badge bg-light text-muted border" style="font-size: 0.65rem;"><i class="bi bi-geo-alt-fill text-danger me-1"></i>Tham chiếu: Khảo sát mức sống TP.HCM (GSO) ~6.5 - 7.5 triệu/tháng</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-7">
+                        <div class="feature-card border-primary">
+                            <h6 class="fw-bold text-primary mb-2"><i class="bi bi-calculator me-1"></i> Bài Toán So Sánh 2 Triệu Chênh Lệch:</h6>
+                            <div class="row g-2 mb-2 text-center">
+                                <div class="col-6">
+                                    <div class="p-2 border rounded bg-light">
+                                        <div class="small text-muted">Công ty A (Đào tạo tốt)</div>
+                                        <div class="fw-bold text-primary fs-5">8 Triệu</div>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="p-2 border rounded bg-light">
+                                        <div class="small text-muted">Công ty B (Lặp lại)</div>
+                                        <div class="fw-bold text-danger fs-5">10 Triệu</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <p class="small text-muted mb-2">
+                                Chênh lệch 2 triệu/tháng = <strong>24 triệu đồng/năm</strong>.
+                            </p>
+                            <div class="alert alert-primary py-2 px-3 small mb-0">
+                                💡 <strong>Góc nhìn đầu tư:</strong> Nếu vì 24 triệu này mà mất đi bệ phóng sự nghiệp, thì sau 3 năm, bạn đang <strong>tự làm mất đi hàng trăm triệu đồng thu nhập chênh lệch</strong> ở các nấc thang thăng tiến tiếp theo!
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             SLIDE 09: PHẢN BIỆN Ý KIẾN 2: "MÔI TRƯỜNG HỌC HỎI" LÀ BÁNH VẼ BÓC LỘT?
+             ============================================================ -->
+        <section class="slide-section" id="slide-08" 
+                 data-title="Phản Biện 2: Bẫy Bóc Lột" 
+                 data-speaker="Nội Dung Trình Bày" 
+                 data-stage-note="Sắc bén phân tích sự tồn tại của công ty bóc lột không phải lý do từ bỏ học hỏi, mà là lý do ta phải lọc doanh nghiệp thông minh."
+                 data-speech="Đúng, có những công ty lợi dụng chữ 'học hỏi' để trả lương bèo bọt và bắt pha trà quét rác. Nhưng giải pháp không phải là từ bỏ học hỏi, mà là trang bị bộ 3 tiêu chí minh bạch để vạch trần bánh vẽ!">
+            <div class="content-box">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <span class="section-badge badge-p3">PHẢN BIỆN ĐA CHIỀU 2 / 3</span>
+                        <h2 class="h3 fw-bold mb-1">Môi Trường Học Hỏi Có Phải Là "Bánh Vẽ" Bóc Lột?</h2>
+                    </div>
+                    
+                </div>
+
+                <div class="p-3 rounded-3 bg-light border mb-3">
+                    <span class="badge bg-danger small mb-1">Ý KIẾN PHẢN ĐỐI GẮT GAO:</span>
+                    <p class="fst-italic text-muted mb-0">
+                        "Nhiều công ty viện cớ 'tạo điều kiện cho sinh viên thực tập học việc' để trả lương bèo bọt, bóc lột sức lao động, bắt làm chân sai vặt chạy vặt!"
+                    </p>
+                </div>
+
+                <h6 class="fw-bold mb-3"><i class="bi bi-funnel-fill text-primary me-2"></i>3 Tiêu Chí Vàng Phân Biệt Môi Trường Thực Sự vs "Bánh Vẽ":</h6>
+
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <div class="feature-card border-primary text-center">
+                            <div class="card-icon-bubble bg-primary-subtle text-primary mx-auto">
+                                <i class="bi bi-person-badge"></i>
+                            </div>
+                            <h6 class="fw-bold mb-1">1. Mentor Cụ Thể</h6>
+                            <p class="small text-muted mb-0">Có phân công người hướng dẫn trực tiếp, có lịch 1-on-1 hàng tuần chứ không thả nổi tự sinh tự diệt.</p>
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <div class="feature-card border-success text-center">
+                            <div class="card-icon-bubble bg-success-subtle text-success mx-auto">
+                                <i class="bi bi-clipboard2-check"></i>
+                            </div>
+                            <h6 class="fw-bold mb-1">2. KPIs / OKRs Minh Bạch</h6>
+                            <p class="small text-muted mb-0">Quy trình đánh giá sản phẩm rõ ràng, đo lường bằng kết quả học tập và đóng góp dự án thực chiến.</p>
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <div class="feature-card border-info text-center">
+                            <div class="card-icon-bubble bg-info-subtle text-info mx-auto">
+                                <i class="bi bi-cash-stack"></i>
+                            </div>
+                            <h6 class="fw-bold mb-1">3. Lộ Trình Tăng Lương</h6>
+                            <p class="small text-muted mb-0">Cam kết xét duyệt tăng lương sau 6 tháng dựa trên sự tiến bộ năng lực cụ thể, được ghi vào hợp đồng.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             SLIDE 10: PHẢN BIỆN Ý KIẾN 3: LƯƠNG CAO CÓ CHỨNG MINH CÔNG TY XỊN?
+             ============================================================ -->
+        <section class="slide-section" id="slide-09" 
+                 data-title="Phản Biện 3: Lương Cao = Xịn?" 
+                 data-speaker="Nội Dung Trình Bày" 
+                 data-stage-note="Giải thích thuật ngữ chuyên ngành HR 'Premium Pay' – mức lương bù trừ cho môi trường độc hại."
+                 data-speech="Nhiều người nghĩ trả lương cao thì công ty đó mặc định xịn. Không! Trong nhân sự có thuật ngữ Premium Pay – trả lương cao để bù đắp cho môi trường độc hại vắt kiệt sức và tỷ lệ nghỉ việc cao ngất ngưởng.">
+            <div class="content-box">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <span class="section-badge badge-p3">PHẢN BIỆN ĐA CHIỀU 3 / 3</span>
+                        <h2 class="h3 fw-bold mb-1">Lương Khởi Điểm Cao Có Đồng Nghĩa Môi Trường Tốt?</h2>
+                    </div>
+                    
+                </div>
+
+                <div class="p-3 rounded-3 bg-light border mb-4">
+                    <span class="badge bg-danger small mb-1">Ý KIẾN PHỔ BIẾN:</span>
+                    <p class="fst-italic text-muted mb-0">
+                        "Công ty trả lương cao chứng tỏ họ có tiềm lực tài chính lớn, chế độ đãi ngộ tốt thì dĩ nhiên môi trường phải xịn hơn công ty trả lương thấp!"
+                    </p>
+                </div>
+
+                <div class="row g-4 mb-3">
+                    <div class="col-md-6">
+                        <div class="feature-card border-danger">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h5 class="fw-bold text-danger mb-0">
+                                    <i class="bi bi-radioactive me-2"></i>Khái Niệm HR: "Premium Pay"
+                                </h5>
+                                <span class="badge bg-light text-muted border" style="font-size: 0.68rem;">Thuật ngữ Quản trị Nhân sự (HRM)</span>
+                            </div>
+                            <p class="small text-muted mb-2">
+                                Mức lương bù trừ độc hại: Doanh nghiệp sẵn sàng trả lương cao bất thường để bù đắp cho:
+                            </p>
+                            <ul class="small text-muted ps-3 mb-0">
+                                <li>Văn hóa độc hại (Toxic culture), đấu đá nội bộ.</li>
+                                <li>Cường độ áp lực quá tải, tỷ lệ nhân viên nghỉ việc (Turnover rate) quá cao.</li>
+                                <li>Không có kế hoạch bồi dưỡng nhân sự tương lai.</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="feature-card border-primary">
+                            <h5 class="fw-bold text-primary mb-2">
+                                <i class="bi bi-heart-pulse-fill me-2"></i>Tác Hại Đối Với Người Mới Ra Trường
+                            </h5>
+                            <p class="small text-muted mb-2">
+                                Người mới vào nghề cần nhất là sự tự tin, sự bao dung khi thử sai và sự hướng dẫn:
+                            </p>
+                            <ul class="small text-muted ps-3 mb-0">
+                                <li>Môi trường toxic sẽ bóp chết sự tự tin và đam mê nghề nghiệp chỉ sau vài tháng.</li>
+                                <li>Mắc kẹt vì lương cao nhưng sợ nhảy việc vì biết bản thân thiếu hụt năng lực cốt lõi.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             SLIDE 10: KẾT LUẬN: QUY TRÌNH 5 BƯỚC RA QUYẾT ĐỊNH (PDF SLIDE 10)
+             ============================================================ -->
+        <section class="slide-section" id="slide-10" 
+                 data-title="Quy Trình 5 Bước Ra Quyết Định" 
+                 data-speaker="Nội Dung Trình Bày" 
+                 data-stage-note="Trình bày lần lượt 5 bước thẩm định theo cấu trúc bậc thang, kết luận súc tích."
+                 data-speech="Nhóm đúc kết quy trình 5 bước khi đứng trước lời mời làm việc: xác định ngưỡng sống, loại việc không hợp lý, kiểm chứng đào tạo, so sánh toàn diện và ưu tiên nơi phát triển năng lực thực chất.">
+            <div class="content-box">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <span class="section-badge badge-p4">PHƯƠNG PHÁP HÀNH ĐỘNG</span>
+                        <h2 class="h3 fw-bold mb-1">Phương Pháp 5 Bước Thẩm Định Lời Mời Làm Việc</h2>
+                    </div>
+                    <span class="badge bg-success-subtle text-success">Sơ đồ bậc thang 5 bước</span>
+                </div>
+
+                <p class="text-muted small mb-3">
+                    Đứng trước hai lời mời làm việc, sinh viên hãy thẩm định theo đúng 5 bước kế tiếp nhau:
+                </p>
+
+                <!-- Bảng 5 bước bậc thang chuẩn PDF -->
+                <div class="d-flex flex-column gap-2 mb-3">
+                    <div class="p-3 rounded-3 border bg-light d-flex align-items-center justify-content-between">
+                        <div>
+                            <span class="badge bg-primary me-2">Bước 1</span>
+                            <strong>Xác định ngưỡng thu nhập tối thiểu thực nhận:</strong> Sau chi phí thiết yếu và nghĩa vụ tài chính, mức lương này có đủ sống không?
+                        </div>
+                        <span class="badge bg-secondary-subtle text-secondary small">Nếu không đạt: Chọn nơi đạt ngưỡng (lương cao hơn)</span>
+                    </div>
+
+                    <div class="p-3 rounded-3 border bg-light d-flex align-items-center justify-content-between">
+                        <div>
+                            <span class="badge bg-danger me-2">Bước 2</span>
+                            <strong>Loại công việc có điều kiện lao động không hợp lý:</strong> Giờ làm, hợp đồng có hợp pháp? Có bóc lột sức lao động dưới danh nghĩa đào tạo không?
+                        </div>
+                        <span class="badge bg-danger-subtle text-danger small">Nếu vi phạm: Loại bỏ ngay, bất kể lương hứa hẹn</span>
+                    </div>
+
+                    <div class="p-3 rounded-3 border bg-light d-flex align-items-center justify-content-between">
+                        <div>
+                            <span class="badge bg-warning text-dark me-2">Bước 3</span>
+                            <strong>Kiểm chứng cơ hội học hỏi:</strong> Ai hướng dẫn? Nhiệm vụ 3 tháng đầu là gì? Đánh giá tiến bộ ra sao? Người trong nghề nói gì?
+                        </div>
+                        <span class="badge bg-warning-subtle text-dark small">Nếu không có bằng chứng: Chọn theo mức lương</span>
+                    </div>
+
+                    <div class="p-3 rounded-3 border bg-light d-flex align-items-center justify-content-between">
+                        <div>
+                            <span class="badge bg-info text-dark me-2">Bước 4</span>
+                            <strong>So sánh toàn diện:</strong> Thu nhập ròng, người hướng dẫn, nhiệm vụ, cơ chế phản hồi, thời gian đi lại, lộ trình.
+                        </div>
+                        <span class="badge bg-info-subtle text-info small">So sánh theo trọng số cá nhân</span>
+                    </div>
+
+                    <div class="p-3 rounded-3 border border-2 border-success bg-success-subtle d-flex align-items-center justify-content-between">
+                        <div>
+                            <span class="badge bg-success me-2 fs-6">Bước 5</span>
+                            <strong class="text-success fs-6">Ưu tiên nơi phát triển năng lực thực chất:</strong> Hai nơi đều qua Bước 1 đến 3 thì chọn nơi giúp phát triển năng lực thực chất hơn!
+                        </div>
+                        <span class="badge bg-success text-white">Quyết định tối ưu</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             SLIDE 11: CÂU HỎI THẢO LUẬN CÙNG LỚP (PDF SLIDE 11)
+             ============================================================ -->
+        <section class="slide-section" id="slide-11" 
+                 data-title="Câu Hỏi Thảo Luận Cùng Lớp" 
+                 data-speaker="Thảo Luận Q&A" 
+                 data-stage-note="Chiếu slide, nêu 3 câu hỏi lớn, mời cả lớp chọn câu hỏi quan tâm để thảo luận phản biện."
+                 data-speech="Nhóm 1 xin mở phần thảo luận với 3 câu hỏi thực tế sát sườn dành cho cả lớp: xác minh chất lượng khi thiếu thông tin, ngưỡng tài chính tự lập và tình huống công ty A vừa lương cao vừa đào tạo tốt.">
+            <div class="content-box">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <span class="section-badge badge-p4">PHIÊN THẢO LUẬN &amp; HỎI ĐÁP</span>
+                        <h2 class="h3 fw-bold mb-1">Ba Câu Hỏi Thảo Luận Cùng Cả Lớp</h2>
+                    </div>
+                    <span class="badge bg-purple text-white" style="background-color: #8b5cf6;">Mở tương tác phản biện</span>
+                </div>
+
+                <p class="text-muted small mb-3">
+                    Mời thầy và các bạn cùng chọn câu hỏi để cùng đào sâu phản biện đa chiều:
+                </p>
+
+                <!-- 3 Thẻ câu hỏi lớn chuẩn PDF -->
+                <div class="row g-3 mb-3">
+                    <!-- Câu 1 -->
+                    <div class="col-md-4">
+                        <div class="feature-card border-primary h-100 p-4">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <span class="badge bg-primary fs-6">Câu Hỏi 1</span>
+                                <span class="badge bg-light text-muted border">Quản trị rủi ro</span>
+                            </div>
+                            <h5 class="fw-bold text-dark mb-3">Cách xác minh chất lượng đào tạo khi thiếu thông tin?</h5>
+                            <p class="text-muted mb-0">
+                                "Nếu hai công ty khác nhau đáng kể về mức lương nhưng bạn chưa đủ thông tin để xác minh chất lượng đào tạo của nơi trả thấp hơn, bạn sẽ tìm thêm những thông tin gì trước khi quyết định?"
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Câu 2 -->
+                    <div class="col-md-4">
+                        <div class="feature-card border-success h-100 p-4">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <span class="badge bg-success fs-6">Câu Hỏi 2</span>
+                                <span class="badge bg-light text-muted border">Hoàn cảnh cá nhân</span>
+                            </div>
+                            <h5 class="fw-bold text-dark mb-3">Ngưỡng tài chính tự lập thay đổi ưu tiên thế nào?</h5>
+                            <p class="text-muted mb-0">
+                                "Nếu bạn phải tự gánh 100% sinh hoạt phí ở thành phố lớn (tiền trọ, ăn uống) hoặc có nghĩa vụ hỗ trợ gia đình ngay khi ra trường, ngưỡng thu nhập tối thiểu ảnh hưởng thế nào đến lựa chọn của bạn?"
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Câu 3 -->
+                    <div class="col-md-4">
+                        <div class="feature-card border-warning h-100 p-4">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <span class="badge bg-warning text-dark fs-6">Câu Hỏi 3</span>
+                                <span class="badge bg-light text-muted border">Tình huống kiểm định</span>
+                            </div>
+                            <h5 class="fw-bold text-dark mb-3">Khi Công ty A vừa lương cao vừa đào tạo tốt?</h5>
+                            <p class="text-muted mb-0">
+                                "Nếu Công ty A trả lương cao hơn đáng kể (vừa lương cao vừa có người hướng dẫn tốt), còn Công ty B trả thấp hơn và chỉ hứa hẹn môi trường học hỏi, bạn sẽ chọn bên nào?"
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             SLIDE 13: KẾT LUẬN & LỜI CẢM ƠN (CLOSING)
+             ============================================================ -->
+        <section class="slide-section" id="slide-12" 
+                 data-title="Kết Lại & Cảm Ơn" 
+                 data-speaker="Đúc Kết & Kết Luận" 
+                 data-stage-note="Đứng trang trọng giữa sân khấu, cúi đầu chào Thầy Hồ Xuân Vinh và cả lớp trong sự tự tin, đón nhận nhận xét."
+                 data-speech="Nhóm 1 xin chân thành cảm ơn Thầy Hồ Xuân Vinh và toàn thể các bạn sinh viên đã chú ý lắng nghe! Chúc tất cả chúng ta sẽ tìm được công việc đầu đời là một bệ phóng sự nghiệp rực rỡ!">
+            <div class="content-box text-center">
+                <div class="fade-up-item delay-1">
+                    <span class="section-badge badge-p1">THÔNG ĐIỆP ĐÚC KẾT</span>
+                    <h2 class="display-title my-2">
+                        "Hãy Để Rễ Cây Cắm Thật Sâu Vào Lòng Đất<br>
+                        Trước Khi Đòi Đơm Hoa Kết Trái!"
+                    </h2>
+                    <p class="fs-6 text-muted max-w-75 mx-auto mb-3">
+                        Đừng bán rẻ tiềm năng 10 năm của sự nghiệp chỉ vì sự dư dả tạm thời của vài tháng đầu đời.
+                    </p>
+                </div>
+
+                <!-- 3 Thẻ đúc kết cân đối -->
+                <div class="row justify-content-center g-3 my-2 fade-up-item delay-2">
+                    <div class="col-md-4">
+                        <div class="stat-box py-3 border-primary">
+                            <i class="bi bi-shield-check text-primary fs-3 mb-1 d-block"></i>
+                            <h6 class="fw-bold mb-1">Mức Lương Đủ Sống</h6>
+                            <span class="small text-muted">Điều kiện <strong>CẦN</strong> để trang trải sinh tồn</span>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="stat-box py-3 border-success">
+                            <i class="bi bi-rocket-takeoff-fill text-success fs-3 mb-1 d-block"></i>
+                            <h6 class="fw-bold mb-1">Môi Trường Học Hỏi</h6>
+                            <span class="small text-muted">Điều kiện <strong>ĐỦ</strong> để bứt phá dài hạn</span>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="stat-box py-3 border-warning">
+                            <i class="bi bi-star-fill text-warning fs-3 mb-1 d-block"></i>
+                            <h6 class="fw-bold mb-1">Năng Lực Lãi Kép</h6>
+                            <span class="small text-muted">Bảo chứng thu nhập trọn vẹn tương lai</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Danh mục tài liệu tham khảo chính thức -->
+                <div class="p-3 rounded-4 bg-light border text-start my-3 fade-up-item delay-3">
+                    <div class="d-flex align-items-center gap-2 mb-2 text-primary fw-bold small">
+                        <i class="bi bi-journal-bookmark-fill"></i>
+                        <span>DANH MỤC NGUỒN TÀI LIỆU THAM KHẢO ĐÃ XÁC MINH:</span>
+                    </div>
+                    <ul class="list-unstyled mb-0 small text-muted d-flex flex-column gap-1">
+                        <li class="d-flex align-items-center gap-2">
+                            <i class="bi bi-check-circle-fill text-success"></i>
+                            <span><strong>PwC Việt Nam (2024):</strong> Báo cáo <em>Asia Pacific Workforce Hopes and Fears Survey 2024</em> (Mẫu 19.500 người lao động khu vực Châu Á - TBD, gồm 1.000 lao động tại Việt Nam).</span>
+                        </li>
+                        <li class="d-flex align-items-center gap-2">
+                            <i class="bi bi-check-circle-fill text-success"></i>
+                            <span><strong>World Economic Forum - WEF (2023):</strong> Báo cáo <em>The Future of Jobs Report 2023</em> (Khảo sát 803 doanh nghiệp toàn cầu trên 45 nền kinh tế).</span>
+                        </li>
+                        <li class="d-flex align-items-center gap-2">
+                            <i class="bi bi-check-circle-fill text-success"></i>
+                            <span><strong>Adecco Vietnam (2023 &amp; 2025):</strong> Báo cáo <em>Vietnam Salary Guide</em> (Khảo sát thị trường tuyển dụng &amp; kỳ vọng thu nhập tại Việt Nam).</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Lời tri ân trang trọng -->
+                <div class="fade-up-item delay-3 mt-2">
+                    <h5 class="fw-bold text-primary mb-1">XIN CHÂN THÀNH CẢM ƠN THẦY HỒ XUÂN VINH &amp; CẢ LỚP!</h5>
+                    <p class="text-muted small mb-0">Nhóm 1 xin trân trọng lắng nghe mọi ý kiến đóng góp và nhận xét.</p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Bottom Navigation Toolbar đã được xóa theo yêu cầu -->
+
+    <!-- Presenter Notes Modal (Phím 'P') -->
+    <div class="presenter-modal-backdrop" id="presenterModal" aria-hidden="true">
+        <div class="presenter-modal-content">
+            <div class="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-warning text-dark fw-bold px-3 py-1 rounded-pill">PRESENTER MODE</span>
+                    <h5 class="mb-0 fw-bold" id="modalSlideTitle">Slide 01</h5>
+                </div>
+                <button type="button" class="btn-close" id="closePresenterBtn" aria-label="Đóng"></button>
+            </div>
+
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="text-muted small">Người thuyết trình:</span>
+                <span class="badge bg-primary fs-6 px-3 py-1 rounded-pill" id="modalSpeakerName">Trình Bày</span>
+            </div>
+
+            <div class="presenter-stage-note">
+                <strong><i class="bi bi-person-video me-1"></i> Cử Chỉ Sân Khấu & Phong Thái:</strong><br>
+                <span id="modalStageNote">Tự tin, giữ kết nối mắt với Thầy và lớp.</span>
+            </div>
+
+            <h6 class="fw-bold mb-2 text-dark"><i class="bi bi-mic-fill text-danger me-1"></i> Lời Thoại Gợi Ý Cho Diễn Giả:</h6>
+            <div class="speech-text-box" id="modalSpeechScript">
+                Lời thoại diễn giả sẽ hiển thị tương ứng tại đây khi lướt qua từng slide.
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top">
+                <span class="text-muted small">Mẹo: Dùng phím <span class="key-badge">Space</span> hoặc <span class="key-badge">↓</span> để chuyển slide.</span>
+                <button class="btn btn-secondary btn-sm rounded-pill px-3" onclick="document.getElementById('presenterModal').classList.remove('show')">
+                    Đóng (Esc)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="script.js"></script>
+</body>
+</html>

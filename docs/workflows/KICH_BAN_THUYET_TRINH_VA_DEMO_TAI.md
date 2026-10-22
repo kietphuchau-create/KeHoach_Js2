@@ -25,7 +25,7 @@
 ### 1.1. Thông tin kho lưu trữ (Repository)
 * **Link GitHub:** `https://github.com/kietphuchau-create/KeHoach_Js2.git`
 * **Tên nhánh mới nhất chuẩn bị thuyết trình:**  
-  👉 **`feature/clab-136-nang-cap-ai-triage-va-trieu-chung-v131`**  
+  👉 **`feature/clab-138-monitoring-presentation-deck`**  
   *(Toàn bộ slide web, script demo 1-click và dashboard cloud đều nằm ở nhánh này!)*
 
 ---
@@ -40,16 +40,16 @@
 git fetch origin
 
 # 2. Chuyển sang đúng nhánh thuyết trình
-git checkout feature/clab-136-nang-cap-ai-triage-va-trieu-chung-v131
+git checkout feature/clab-138-monitoring-presentation-deck
 
 # 3. Kéo code mới nhất về
-git pull origin feature/clab-136-nang-cap-ai-triage-va-trieu-chung-v131
+git pull origin feature/clab-138-monitoring-presentation-deck
 ```
 3. Kiểm tra xem đã đúng chưa bằng lệnh:
 ```bash
 git status
 ```
-*(Nếu màn hình hiện: `On branch feature/clab-136-... Your branch is up to date` là hoàn toàn chuẩn xác!)*
+*(Nếu màn hình hiện: `On branch feature/clab-138-... Your branch is up to date` là hoàn toàn chuẩn xác!)*
 
 ---
 
@@ -57,7 +57,7 @@ git status
 1. Mở cửa sổ dòng lệnh tại ổ đĩa muốn lưu (ví dụ `D:\MonHocITC\Javaspring2`):
 2. Chạy lệnh clone đúng nhánh:
 ```bash
-git clone -b feature/clab-136-nang-cap-ai-triage-va-trieu-chung-v131 https://github.com/kietphuchau-create/KeHoach_Js2.git DuAnChinhThuc
+git clone -b feature/clab-138-monitoring-presentation-deck https://github.com/kietphuchau-create/KeHoach_Js2.git DuAnChinhThuc
 ```
 3. Đi vào thư mục vừa tải:
 ```bash

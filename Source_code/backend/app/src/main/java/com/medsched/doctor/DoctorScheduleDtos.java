@@ -37,8 +37,20 @@ public class DoctorScheduleDtos {
             int availableSlots,
             int bookedSlots,
             List<TimeSlotDto> slots,
-            String roomNumber
-    ) {}
+            String roomNumber,
+            String doctorName,
+            String academicTitle,
+            String specialtyName,
+            String medicalCenterName
+    ) {
+        public DoctorScheduleDto(
+                String id, String doctorId, LocalDate workDate, String startTime, String endTime,
+                int slotDurationMinutes, String status, int totalSlots, int availableSlots,
+                int bookedSlots, List<TimeSlotDto> slots, String roomNumber
+        ) {
+            this(id, doctorId, workDate, startTime, endTime, slotDurationMinutes, status, totalSlots, availableSlots, bookedSlots, slots, roomNumber, null, null, null, null);
+        }
+    }
 
     public record RoomOccupancyDto(
             String roomNumber,

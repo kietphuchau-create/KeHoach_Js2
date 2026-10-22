@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { QrCodeImage } from './QrCodeImage';
 import { api } from '@/shared/lib/api';
+import { validatePromotion } from '@/shared/lib/promotions';
 
 export interface BankConfig {
   bankId: string;
@@ -88,31 +89,67 @@ export const VietQrModal: React.FC<VietQrModalProps> = ({
     qrCode?: string;
   } | null>(null);
 
-  // 4. Mã khuyến mãi / Voucher ưu đãi (kế thừa từ bước 3)
+  // 4. Mã khuyến mãi / Voucher ưu đãi (kế thừa từ bước 3 hoặc từ hệ thống quản lý khuyến mãi Admin)
   const [appliedPromo, setAppliedPromo] = useState<{
     code: string;
     discountPercent: number;
     message: string;
+    finalAmount?: number;
+    isFree?: boolean;
+    discountAmount?: number;
   } | null>(() => {
-    if (initialPromoCode && VALID_PROMO_CODES[initialPromoCode.trim().toUpperCase()]) {
+    if (initialPromoCode) {
       const codeUpper = initialPromoCode.trim().toUpperCase();
-      return {
-        code: codeUpper,
-        discountPercent: VALID_PROMO_CODES[codeUpper].discountPercent,
-        message: VALID_PROMO_CODES[codeUpper].message,
-      };
+      const val = validatePromotion(codeUpper, OFFICIAL_BANK_CONFIG.depositAmount);
+      if (val.valid) {
+        return {
+          code: codeUpper,
+          discountPercent: val.promo?.discountType === 'FREE_DEPOSIT' ? 100 : (val.promo?.discountType === 'PERCENT' ? val.promo.discountValue : 0),
+          message: val.message,
+          finalAmount: val.finalDeposit,
+          isFree: val.isFree,
+          discountAmount: val.discountAmount,
+        };
+      }
+      if (VALID_PROMO_CODES[codeUpper]) {
+        return {
+          code: codeUpper,
+          discountPercent: VALID_PROMO_CODES[codeUpper].discountPercent,
+          message: VALID_PROMO_CODES[codeUpper].message,
+          finalAmount: 0,
+          isFree: true,
+          discountAmount: OFFICIAL_BANK_CONFIG.depositAmount,
+        };
+      }
     }
     return null;
   });
 
   useEffect(() => {
-    if (initialPromoCode && VALID_PROMO_CODES[initialPromoCode.trim().toUpperCase()]) {
+    if (initialPromoCode) {
       const codeUpper = initialPromoCode.trim().toUpperCase();
-      setAppliedPromo({
-        code: codeUpper,
-        discountPercent: VALID_PROMO_CODES[codeUpper].discountPercent,
-        message: VALID_PROMO_CODES[codeUpper].message,
-      });
+      const val = validatePromotion(codeUpper, OFFICIAL_BANK_CONFIG.depositAmount);
+      if (val.valid) {
+        setAppliedPromo({
+          code: codeUpper,
+          discountPercent: val.promo?.discountType === 'FREE_DEPOSIT' ? 100 : (val.promo?.discountType === 'PERCENT' ? val.promo.discountValue : 0),
+          message: val.message,
+          finalAmount: val.finalDeposit,
+          isFree: val.isFree,
+          discountAmount: val.discountAmount,
+        });
+        return;
+      }
+      if (VALID_PROMO_CODES[codeUpper]) {
+        setAppliedPromo({
+          code: codeUpper,
+          discountPercent: VALID_PROMO_CODES[codeUpper].discountPercent,
+          message: VALID_PROMO_CODES[codeUpper].message,
+          finalAmount: 0,
+          isFree: true,
+          discountAmount: OFFICIAL_BANK_CONFIG.depositAmount,
+        });
+      }
     }
   }, [initialPromoCode]);
 
@@ -122,8 +159,12 @@ export const VietQrModal: React.FC<VietQrModalProps> = ({
   // Tính số tiền thực tế theo mode đã chọn và mã khuyến mãi
   const fullAmount = Math.max(0, Math.round(amount || 200000));
   const baseDepositAmount = OFFICIAL_BANK_CONFIG.depositAmount;
-  const isDepositFree = appliedPromo !== null && paymentType === 'DEPOSIT';
-  const depositAmount = isDepositFree ? 0 : baseDepositAmount;
+  const isDepositFree = paymentType === 'DEPOSIT' && (
+    appliedPromo?.isFree === true || appliedPromo?.finalAmount === 0
+  );
+  const depositAmount = isDepositFree
+    ? 0
+    : (appliedPromo?.finalAmount !== undefined ? appliedPromo.finalAmount : baseDepositAmount);
   const activeAmount = paymentType === 'DEPOSIT' ? depositAmount : fullAmount;
 
   const handleConfirmFreePromo = async () => {
@@ -397,11 +438,19 @@ export const VietQrModal: React.FC<VietQrModalProps> = ({
                       <span className="text-emerald-950 font-bold block">
                         Voucher áp dụng: <span className="font-mono text-emerald-700 font-extrabold">{appliedPromo.code}</span>
                       </span>
-                      <span className="text-[10px] text-emerald-700 font-medium">Miễn phí 100% tiền đặt cọc giữ chỗ (0 đ)</span>
+                      <span className="text-[10px] text-emerald-700 font-medium">
+                        {appliedPromo.isFree
+                          ? 'Miễn phí 100% tiền đặt cọc giữ chỗ (0 đ)'
+                          : appliedPromo.message || `Đồng giá cọc: ${depositAmount.toLocaleString('vi-VN')} đ`}
+                      </span>
                     </div>
                   </div>
                   <span className="text-xs font-black text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-lg">
-                    -2.000 đ
+                    {appliedPromo.isFree
+                      ? 'Miễn phí'
+                      : (appliedPromo.discountAmount && appliedPromo.discountAmount > 0
+                          ? `-${appliedPromo.discountAmount.toLocaleString('vi-VN')} đ`
+                          : `${depositAmount.toLocaleString('vi-VN')} đ`)}
                   </span>
                 </div>
               )}
@@ -424,10 +473,10 @@ export const VietQrModal: React.FC<VietQrModalProps> = ({
                     <Sparkles size={24} className="text-emerald-600 animate-pulse" />
                   </div>
                   <div>
-                    <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block">Ưu Đãi Giảng Viên &amp; Kiểm Thử</span>
+                    <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block">Ưu Đãi Miễn Phí Giữ Chỗ</span>
                     <h4 className="text-base font-extrabold text-slate-800 mt-0.5">Miễn Phí 100% Tiền Đặt Cọc Giữ Chỗ</h4>
                     <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                      Mã <strong className="font-mono text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">{appliedPromo.code}</strong> đã kích hoạt. Bạn không cần chuyển khoản 2.000 đ tiền cọc.
+                      Mã <strong className="font-mono text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">{appliedPromo.code}</strong> đã kích hoạt. Bạn không cần chuyển khoản tiền cọc.
                     </p>
                   </div>
                   <div className="p-3 bg-white rounded-xl border border-emerald-200 flex items-center justify-between text-xs">
@@ -480,6 +529,60 @@ export const VietQrModal: React.FC<VietQrModalProps> = ({
                       <div className="text-[11px] text-slate-600 font-medium mt-2 flex items-center justify-center gap-1.5">
                         <ShieldCheck size={14} className="text-emerald-600" />
                         <span>Mở <strong>App Ngân hàng</strong> hoặc <strong>Ví MoMo</strong> quét mã</span>
+                      </div>
+                    </div>
+
+                    {/* Hộp thông tin tài khoản chuyển tiền nếu người dùng thao tác trên cùng thiết bị */}
+                    <div className="mt-3 bg-slate-50 rounded-2xl p-3 border border-slate-200 text-left text-xs space-y-2 max-w-sm mx-auto shadow-2xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500">Ngân hàng:</span>
+                        <strong className="text-slate-800 font-semibold">{bankConfig.bankName}</strong>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500">Số tài khoản:</span>
+                        <div className="flex items-center gap-1.5">
+                          <strong className="text-emerald-700 font-mono font-bold text-sm">{effectiveAccountNo}</strong>
+                          <button
+                            type="button"
+                            onClick={() => handleCopy(effectiveAccountNo, 'acc')}
+                            className="p-1 hover:bg-slate-200 rounded text-slate-500 hover:text-slate-800 transition cursor-pointer"
+                            title="Sao chép số tài khoản"
+                          >
+                            {copiedField === 'acc' ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
+                          </button>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500">Chủ tài khoản:</span>
+                        <strong className="text-slate-800 uppercase font-medium">{effectiveAccountName}</strong>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500">Số tiền:</span>
+                        <div className="flex items-center gap-1.5">
+                          <strong className="text-emerald-700 font-mono font-bold">{activeAmount.toLocaleString('vi-VN')} đ</strong>
+                          <button
+                            type="button"
+                            onClick={() => handleCopy(String(activeAmount), 'amount')}
+                            className="p-1 hover:bg-slate-200 rounded text-slate-500 hover:text-slate-800 transition cursor-pointer"
+                            title="Sao chép số tiền"
+                          >
+                            {copiedField === 'amount' ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
+                          </button>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between pt-1.5 border-t border-slate-200">
+                        <span className="text-slate-500">Nội dung CK:</span>
+                        <div className="flex items-center gap-1.5">
+                          <strong className="text-blue-700 font-mono font-bold">{transferContent}</strong>
+                          <button
+                            type="button"
+                            onClick={() => handleCopy(transferContent, 'content')}
+                            className="p-1 hover:bg-slate-200 rounded text-slate-500 hover:text-slate-800 transition cursor-pointer"
+                            title="Sao chép nội dung chuyển khoản"
+                          >
+                            {copiedField === 'content' ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>

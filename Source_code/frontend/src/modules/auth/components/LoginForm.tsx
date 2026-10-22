@@ -113,10 +113,20 @@ export default function LoginForm() {
 
       {/* Thông báo lỗi / thành công */}
       {errorMessage && (
-        <AlertMessage type="error" message={errorMessage} className="mb-2.5 py-1.5 text-xs animate-in fade-in zoom-in-95" onClose={() => setErrorMessage('')} />
+        <AlertMessage 
+          type="error" 
+          message={errorMessage} 
+          className="mb-3 py-2 px-3 text-xs animate-in fade-in zoom-in-95" 
+          onClose={() => setErrorMessage('')} 
+        />
       )}
       {successMessage && (
-        <AlertMessage type="success" message={successMessage} className="mb-2.5 py-1.5 text-xs" />
+        <AlertMessage 
+          type="success" 
+          message={successMessage} 
+          center
+          className="mb-3 py-2.5 px-4 text-xs font-semibold shadow-xs animate-in fade-in zoom-in-95" 
+        />
       )}
 
       {/* Form Đăng nhập */}

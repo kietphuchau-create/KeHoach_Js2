@@ -47,6 +47,7 @@ import SingleTabLockOverlay from '@/shared/components/Feedback/SingleTabLockOver
 import { QrCodeImage } from '@/shared/components/QrCodeImage';
 import { VietQrModal } from '@/shared/components/VietQrModal';
 import QRCode from 'qrcode';
+import { validatePromotion } from '@/shared/lib/promotions';
 
 // Trích xuất chữ cái đại diện chuẩn cho Avatar Bác sĩ (Ưu tiên chữ cái đầu tên chính, viết hoa)
 const getDoctorInitials = (name?: string): string => {
@@ -629,12 +630,13 @@ export default function BookingForm() {
       setPromoError('Vui lòng nhập mã khuyến mãi');
       return;
     }
+    const promoRes = validatePromotion(cleaned);
     const validCodes = ['GIAOVIEN', 'MEDFREE', 'GIAM100', 'TESTER', 'VIP', 'GV2026', 'BACSITHANH', 'KHOACNTT', 'DEMO'];
-    if (validCodes.includes(cleaned) || cleaned.startsWith('GV') || cleaned.startsWith('TEST') || cleaned.startsWith('FREE')) {
+    if (promoRes.valid || validCodes.includes(cleaned) || cleaned.startsWith('GV') || cleaned.startsWith('TEST') || cleaned.startsWith('FREE')) {
       setAppliedPromo(cleaned);
       setPromoError(null);
     } else {
-      setPromoError('Mã không hợp lệ. Vui lòng thử mã "GIAOVIEN" hoặc "MEDFREE".');
+      setPromoError(promoRes.message || 'Mã không hợp lệ. Vui lòng thử mã "GIAOVIEN" hoặc "MEDFREE".');
     }
   };
 
@@ -696,21 +698,27 @@ export default function BookingForm() {
       setResult(res);
 
       if (appliedPromo) {
-        // Tự động xác nhận cọc 0 đ cho Giảng viên / Tester
-        try {
-          await api.confirmRealPayment({
-            appointmentId: res.id,
-            bookingCode: res.bookingCode,
-            paymentType: 'PROMO_FREE',
-            amount: 0,
-            promoCode: appliedPromo,
-          });
-          setIsPaidOnline(true);
-          setPaidPromoCode(appliedPromo);
-          setShowPaymentModal(false);
-          setStep(4);
-        } catch (autoErr) {
-          console.warn('Auto confirm promo payment warning:', autoErr);
+        const promoVal = validatePromotion(appliedPromo, 2000);
+        if (promoVal.valid && promoVal.isFree) {
+          // Tự động xác nhận cọc 0 đ cho Giảng viên / Tester / Voucher miễn phí
+          try {
+            await api.confirmRealPayment({
+              appointmentId: res.id,
+              bookingCode: res.bookingCode,
+              paymentType: 'PROMO_FREE',
+              amount: 0,
+              promoCode: appliedPromo,
+            });
+            setIsPaidOnline(true);
+            setPaidPromoCode(appliedPromo);
+            setShowPaymentModal(false);
+            setStep(4);
+          } catch (autoErr) {
+            console.warn('Auto confirm promo payment warning:', autoErr);
+            setShowPaymentModal(true);
+          }
+        } else {
+          // Mã giảm giá về 2.000 đ hoặc giảm giá khác: Mở modal VietQR để quét QR chuyển khoản thật
           setShowPaymentModal(true);
         }
       } else {
@@ -741,9 +749,13 @@ export default function BookingForm() {
       const centerName = activeCenterObj?.name || 'Hệ thống phòng khám MedSched';
       const timeStr = `${selectedSlot.time} • Ngày ${selectedSlot.date}`;
       const feeStr = `${Number(selectedDoctor?.fee || 200000).toLocaleString('vi-VN')} đ`;
-      const depositStr = appliedPromo ? '0 đ (Ưu đãi)' : '2.000 đ';
+      const promoVal = appliedPromo ? validatePromotion(appliedPromo, 2000) : null;
+      const isFreePromo = promoVal ? promoVal.isFree : false;
+      const depositStr = appliedPromo
+        ? (isFreePromo ? '0 đ (Ưu đãi)' : `${(promoVal?.finalDeposit || 2000).toLocaleString('vi-VN')} đ`)
+        : '2.000 đ';
       const statusStr = isPaidOnline
-        ? (appliedPromo ? 'ĐÃ XÁC NHẬN GIỮ CHỖ (0 Đ)' : 'ĐÃ CHUYỂN CỌC 2.000 Đ')
+        ? (appliedPromo && isFreePromo ? 'ĐÃ XÁC NHẬN GIỮ CHỖ (0 Đ)' : 'ĐÃ CHUYỂN CỌC 2.000 Đ')
         : 'CHỜ CHUYỂN CỌC 2.000 Đ';
 
       const checkinUrl = typeof window !== 'undefined'
@@ -2631,22 +2643,30 @@ export default function BookingForm() {
                         </div>
                       </div>
                       <div className="text-left sm:text-right pt-2 sm:pt-0 border-t sm:border-t-0 border-blue-100">
-                        {appliedPromo ? (
-                          <div className="space-y-0.5">
-                            <div className="text-[11px] text-emerald-600 font-bold">
-                              ✓ Voucher [{appliedPromo}]: Miễn phí tiền cọc
+                        {appliedPromo ? (() => {
+                          const promoInfo = validatePromotion(appliedPromo, 2000);
+                          const isFree = promoInfo.valid ? promoInfo.isFree : true;
+                          const finalDep = promoInfo.valid ? promoInfo.finalDeposit : 0;
+                          return (
+                            <div className="space-y-0.5">
+                              <div className="text-[11px] text-emerald-600 font-bold">
+                                ✓ Voucher [{appliedPromo}]: {isFree ? 'Miễn phí tiền cọc' : 'Đồng giá cọc 2.000 đ (Demo Quét QR Thật)'}
+                              </div>
+                              <div>
+                                <span className="text-slate-500">Tiền cọc giữ chỗ: </span>
+                                <strong className="text-base text-emerald-600 font-extrabold">
+                                  {finalDep.toLocaleString('vi-VN')} đ{' '}
+                                  {finalDep < 2000 && (
+                                    <span className="line-through text-xs text-slate-400 font-normal">2.000 đ</span>
+                                  )}
+                                </strong>
+                              </div>
+                              <div className="text-[11px] text-slate-500">
+                                Giá khám niêm yết: <strong className="text-slate-700">{Number(selectedDoctor?.fee || 200000).toLocaleString('vi-VN')} đ</strong> (tại quầy)
+                              </div>
                             </div>
-                            <div>
-                              <span className="text-slate-500">Tiền cọc giữ chỗ: </span>
-                              <strong className="text-base text-emerald-600 font-extrabold">
-                                0 đ <span className="line-through text-xs text-slate-400 font-normal">2.000 đ</span>
-                              </strong>
-                            </div>
-                            <div className="text-[11px] text-slate-500">
-                              Giá khám niêm yết: <strong className="text-slate-700">{Number(selectedDoctor?.fee || 200000).toLocaleString('vi-VN')} đ</strong> (tại quầy)
-                            </div>
-                          </div>
-                        ) : (
+                          );
+                        })() : (
                           <div className="space-y-0.5">
                             <div>
                               <span className="text-slate-500">Tiền cọc giữ chỗ: </span>
@@ -3394,7 +3414,19 @@ export default function BookingForm() {
                   <span className="text-[11px] font-bold text-amber-900 block">
                     ⚡ Chọn nhanh mã kiểm thử hệ thống:
                   </span>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPromoInput('DEMO2K');
+                        setAppliedPromo('DEMO2K');
+                        setPromoError(null);
+                      }}
+                      className="p-2.5 bg-white border border-blue-300 hover:border-blue-500 rounded-xl text-left transition cursor-pointer hover:shadow-xs group"
+                    >
+                      <span className="font-mono font-bold text-blue-700 text-xs block group-hover:text-blue-800">DEMO2K</span>
+                      <span className="text-[10px] text-slate-500 block">Đồng giá 2.000 đ quét VietQR thật</span>
+                    </button>
                     <button
                       type="button"
                       onClick={() => {
@@ -3404,8 +3436,8 @@ export default function BookingForm() {
                       }}
                       className="p-2.5 bg-white border border-amber-300 hover:border-amber-500 rounded-xl text-left transition cursor-pointer hover:shadow-xs group"
                     >
-                      <span className="font-mono font-bold text-blue-700 text-xs block group-hover:text-blue-800">GIAOVIEN</span>
-                      <span className="text-[10px] text-slate-500 block">Dành cho Thầy/Cô chấm thi (0đ cọc)</span>
+                      <span className="font-mono font-bold text-amber-700 text-xs block group-hover:text-amber-800">GIAOVIEN</span>
+                      <span className="text-[10px] text-slate-500 block">Dành cho Thầy/Cô (0đ cọc)</span>
                     </button>
                     <button
                       type="button"
@@ -3414,10 +3446,10 @@ export default function BookingForm() {
                         setAppliedPromo('MEDFREE');
                         setPromoError(null);
                       }}
-                      className="p-2.5 bg-white border border-amber-300 hover:border-amber-500 rounded-xl text-left transition cursor-pointer hover:shadow-xs group"
+                      className="p-2.5 bg-white border border-emerald-300 hover:border-emerald-500 rounded-xl text-left transition cursor-pointer hover:shadow-xs group"
                     >
                       <span className="font-mono font-bold text-emerald-700 text-xs block group-hover:text-emerald-800">MEDFREE</span>
-                      <span className="text-[10px] text-slate-500 block">Miễn 100% tiền cọc kiểm thử</span>
+                      <span className="text-[10px] text-slate-500 block">Miễn 100% tiền cọc (0đ)</span>
                     </button>
                   </div>
                 </div>
