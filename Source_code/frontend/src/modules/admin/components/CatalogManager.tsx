@@ -24,6 +24,11 @@ import LoadingSpinner from '@/shared/components/Feedback/LoadingSpinner';
 import AlertMessage from '@/shared/components/Feedback/AlertMessage';
 import MapLocationPicker, { LocationData } from '@/shared/components/MapLocationPicker';
 import { 
+  getBranchLocation, 
+  saveBranchLocation, 
+  getBranchGoogleMapsUrl 
+} from '@/shared/lib/branchCoordinates';
+import { 
   ClinicRoom, 
   getClinicRooms, 
   addClinicRoom, 
@@ -89,22 +94,13 @@ export default function CatalogManager() {
     
     if (activeTab === 'centers') {
       const isEdit = mode === 'edit';
-      let initLat = 10.7769;
-      let initLng = 106.7009;
-
-      if (item) {
-        if (item.code?.includes('CN1') || item.name?.includes('Trần Đại Nghĩa') || item.address?.includes('Trần Đại Nghĩa')) {
-          initLat = 10.74852;
-          initLng = 106.59821;
-        } else if (item.code?.includes('CN2') || item.name?.includes('Trịnh Đình Thảo') || item.address?.includes('Trịnh Đình Thảo')) {
-          initLat = 10.77254;
-          initLng = 106.62672;
-        }
-      }
+      const savedLoc = getBranchLocation(item?.id || item?.code, item?.name, item?.address);
+      const initLat = savedLoc?.lat || 10.7769;
+      const initLng = savedLoc?.lng || 106.7009;
 
       setFormData(item || { code: '', name: '', address: '', phone: '' });
-      setCenterCoordinates(isEdit ? { lat: initLat, lng: initLng } : {});
-      setHasPinnedLocation(isEdit);
+      setCenterCoordinates({ lat: initLat, lng: initLng });
+      setHasPinnedLocation(isEdit || Boolean(savedLoc));
     } else if (activeTab === 'specialties') {
       setFormData(item || { code: '', name: '', description: '', medicalCenterId: centers[0]?.id || '' });
     } else if (activeTab === 'services') {
@@ -145,9 +141,26 @@ export default function CatalogManager() {
           return;
         }
 
-        if (modalMode === 'create') await api.createMedicalCenter(formData);
-        else await api.updateMedicalCenter(editingId!, formData);
-        setMessage({ type: 'success', text: `Lưu chi nhánh phòng khám thành công!` });
+        let savedRes: any = null;
+        if (modalMode === 'create') {
+          savedRes = await api.createMedicalCenter(formData);
+        } else {
+          savedRes = await api.updateMedicalCenter(editingId!, formData);
+        }
+
+        // Lưu vĩnh viễn tọa độ GPS của chi nhánh vào LocalStorage & broadcast
+        if (centerCoordinates.lat && centerCoordinates.lng) {
+          const targetKey = savedRes?.id || editingId || formData.code;
+          saveBranchLocation(targetKey, {
+            lat: centerCoordinates.lat,
+            lng: centerCoordinates.lng,
+            address: formData.address,
+            name: formData.name,
+            code: formData.code
+          });
+        }
+
+        setMessage({ type: 'success', text: `Lưu chi nhánh phòng khám và cập nhật vị trí bản đồ thành công!` });
         loadData();
       } else if (activeTab === 'specialties') {
         if (modalMode === 'create') await api.createSpecialty(formData);
@@ -267,11 +280,11 @@ export default function CatalogManager() {
                 <td className="py-3 px-3.5 text-slate-600 text-xs">
                   <div>{c.address}</div>
                   <a 
-                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.address)}`}
+                    href={getBranchGoogleMapsUrl(c)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple-600 hover:text-purple-800 hover:underline mt-1"
-                    title="Mở Google Maps kiểm tra vị trí thực tế"
+                    title="Mở Google Maps kiểm tra vị trí tọa độ GPS thực tế"
                   >
                     <MapPin size={11} className="text-red-500" />
                     <span>Xem Trên Google Maps</span>

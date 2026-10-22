@@ -34,6 +34,10 @@ import {
 } from 'lucide-react';
 import { api, getAuthToken, getAuthUser } from '@/shared/lib/api';
 import { validatePromotion } from '@/shared/lib/promotions';
+import { 
+  getBranchGoogleMapsUrl, 
+  getBranchDirectionUrl 
+} from '@/shared/lib/branchCoordinates';
 
 export interface BookingMethodSelectorProps {
   isModal?: boolean;
@@ -3703,9 +3707,9 @@ export default function BookingMethodSelector({
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-2 pt-1">
-                  {/* Nút chỉ đường từ vị trí nhập vào */}
+                  {/* Nút chỉ đường từ vị trí nhập vào (theo tọa độ GPS chính xác) */}
                   <a
-                    href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(selectedBranchForModal.address)}${userCustomLocation.trim() ? `&origin=${encodeURIComponent(userCustomLocation.trim())}` : ''}`}
+                    href={getBranchDirectionUrl(selectedBranchForModal, userCustomLocation)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex-1 py-2 px-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer text-center"
@@ -3715,9 +3719,9 @@ export default function BookingMethodSelector({
                     <ExternalLink size={12} />
                   </a>
 
-                  {/* Nút mở trực tiếp vị trí trên Google Maps */}
+                  {/* Nút mở trực tiếp vị trí trên Google Maps (theo tọa độ GPS chính xác) */}
                   <a
-                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedBranchForModal.address)}`}
+                    href={getBranchGoogleMapsUrl(selectedBranchForModal)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="py-2 px-3 bg-white hover:bg-purple-50 text-purple-700 font-bold text-xs rounded-xl border border-purple-300 transition flex items-center justify-center gap-1.5 cursor-pointer text-center"

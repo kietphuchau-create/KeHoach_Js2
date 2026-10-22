@@ -59,6 +59,7 @@ export default function MapLocationPicker({
   const [hasPinned, setHasPinned] = useState<boolean>(Boolean(initialLat && initialLng));
   const [reverseGeocoding, setReverseGeocoding] = useState(false);
   const [detectedAddress, setDetectedAddress] = useState<string>(initialAddress);
+  const [justApplied, setJustApplied] = useState(false);
 
   // Load Leaflet dynamically
   const initLeafletLibraries = async (): Promise<any> => {
@@ -104,28 +105,20 @@ export default function MapLocationPicker({
     });
   };
 
-  // Perform reverse geocode via Nominatim OSM
+  // Perform reverse geocode via Nominatim OSM (safe for browser - without forbidden User-Agent header)
   const performReverseGeocode = async (lat: number, lng: number) => {
     setReverseGeocoding(true);
+    let resolvedAddress = '';
     try {
       const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`, {
         headers: {
-          'Accept-Language': 'vi,en;q=0.9',
-          'User-Agent': 'MedSchedClinicApp/1.0'
+          'Accept-Language': 'vi,en;q=0.9'
         }
       });
       if (res.ok) {
         const data = await res.json();
         if (data && data.display_name) {
-          const addr = data.display_name;
-          setDetectedAddress(addr);
-          onLocationChange({
-            lat,
-            lng,
-            address: addr,
-            isPinned: true
-          });
-          return addr;
+          resolvedAddress = data.display_name;
         }
       }
     } catch (e) {
@@ -134,31 +127,37 @@ export default function MapLocationPicker({
       setReverseGeocoding(false);
     }
 
-    // Default notification if reverse geocode fails or rate limits
+    const fallbackAddr = `Tọa độ (${lat.toFixed(5)}, ${lng.toFixed(5)}), TP. Hồ Chí Minh`;
+    const finalAddress = resolvedAddress || detectedAddress || fallbackAddr;
+    setDetectedAddress(finalAddress);
     onLocationChange({
       lat,
       lng,
-      address: detectedAddress || undefined,
+      address: finalAddress,
       isPinned: true
     });
-    return null;
+    return finalAddress;
   };
 
-  // Handle location update when marker is moved
+  // Handle location update when marker is moved or map clicked
   const handleLocationUpdate = useCallback((lat: number, lng: number, shouldGeocode = true) => {
     setCurrentLat(lat);
     setCurrentLng(lng);
     setHasPinned(true);
+    setJustApplied(true);
+    setTimeout(() => setJustApplied(false), 2000);
+
+    // Call onLocationChange immediately with coordinates and existing address to ensure form is always populated
+    const immediateAddr = detectedAddress || `Tọa độ (${lat.toFixed(5)}, ${lng.toFixed(5)}), TP. Hồ Chí Minh`;
+    onLocationChange({
+      lat,
+      lng,
+      address: immediateAddr,
+      isPinned: true
+    });
 
     if (shouldGeocode) {
       performReverseGeocode(lat, lng);
-    } else {
-      onLocationChange({
-        lat,
-        lng,
-        address: detectedAddress,
-        isPinned: true
-      });
     }
   }, [detectedAddress, onLocationChange]);
 
@@ -255,6 +254,11 @@ export default function MapLocationPicker({
         setIsMapReady(true);
         setMapError(null);
 
+        // Force recalculate map container size for modal dialogs with animations
+        setTimeout(() => map.invalidateSize(), 150);
+        setTimeout(() => map.invalidateSize(), 400);
+        setTimeout(() => map.invalidateSize(), 800);
+
         // If initial coordinate was provided, announce it
         if (initialLat && initialLng) {
           setHasPinned(true);
@@ -275,6 +279,25 @@ export default function MapLocationPicker({
       }
     };
   }, []);
+
+  // Update map and marker when initial coordinates change (e.g. switching branch in modal)
+  useEffect(() => {
+    if (initialLat !== undefined && initialLng !== undefined) {
+      setCurrentLat(initialLat);
+      setCurrentLng(initialLng);
+      setHasPinned(true);
+      if (initialAddress) {
+        setDetectedAddress(initialAddress);
+      }
+      if (mapInstanceRef.current && markerRef.current) {
+        markerRef.current.setLatLng([initialLat, initialLng]);
+        mapInstanceRef.current.setView([initialLat, initialLng], 16);
+        setTimeout(() => {
+          mapInstanceRef.current?.invalidateSize();
+        }, 150);
+      }
+    }
+  }, [initialLat, initialLng, initialAddress]);
 
   // Switch between Street and Satellite Map Layer
   const toggleMapLayer = () => {
@@ -316,8 +339,7 @@ export default function MapLocationPicker({
     try {
       const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery.trim())}&limit=5&countrycodes=vn`, {
         headers: {
-          'Accept-Language': 'vi,en;q=0.9',
-          'User-Agent': 'MedSchedClinicApp/1.0'
+          'Accept-Language': 'vi,en;q=0.9'
         }
       });
       if (res.ok) {
@@ -569,8 +591,32 @@ export default function MapLocationPicker({
             </span>
           </div>
 
-          {/* Real Google Maps Verification Link */}
-          <div className="flex items-center gap-2">
+          {/* Action buttons: Apply to form & Google Maps preview */}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                const finalAddr = detectedAddress || `Tọa độ (${currentLat.toFixed(5)}, ${currentLng.toFixed(5)}), TP. Hồ Chí Minh`;
+                setHasPinned(true);
+                setJustApplied(true);
+                setTimeout(() => setJustApplied(false), 2500);
+                onLocationChange({
+                  lat: currentLat,
+                  lng: currentLng,
+                  address: finalAddr,
+                  isPinned: true
+                });
+              }}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer ${
+                justApplied
+                  ? 'bg-emerald-600 text-white'
+                  : 'bg-purple-600 hover:bg-purple-700 text-white'
+              }`}
+              title="Đồng bộ ngay tọa độ và địa chỉ này vào biểu mẫu chi nhánh"
+            >
+              <CheckCircle2 size={13} className={justApplied ? 'animate-bounce' : ''} />
+              <span>{justApplied ? '✓ Đã Áp Dụng Vào Form' : 'Áp Dụng Tọa Độ Này'}</span>
+            </button>
             <a
               href={googleMapsSearchUrl}
               target="_blank"
@@ -578,7 +624,7 @@ export default function MapLocationPicker({
               className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-lg text-xs font-semibold shadow-2xs transition"
               title="Mở Google Maps thực tế để kiểm tra vị trí vừa ghim"
             >
-              <span>Xem Thử Trên Google Maps</span>
+              <span>Xem Thử Google Maps</span>
               <ExternalLink size={12} />
             </a>
             <a
