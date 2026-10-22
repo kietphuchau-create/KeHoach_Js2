@@ -1011,37 +1011,30 @@ export const api = {
   },
 
   async triggerAutoScheduleTomorrow() {
-    return this.triggerAutoScheduleWeek();
+    return request<{
+      workDate?: string;
+      targetDate?: string;
+      doctorsScheduledCount: number;
+      totalShiftsCreated: number;
+      totalSlotsCreated: number;
+      message: string;
+    }>("/doctor/schedules/auto-generate-tomorrow", {
+      method: "POST",
+    });
   },
 
   async triggerAutoScheduleWeek() {
-    try {
-      return await request<{
-        workDate?: string;
-        targetDate?: string;
-        doctorsScheduledCount: number;
-        totalShiftsCreated: number;
-        totalSlotsCreated: number;
-        message: string;
-      }>("/doctor/schedules/auto-generate-week", {
-        method: "POST",
-      });
-    } catch (err: any) {
-      // Fallback tương thích ngược: nếu backend trên Render chưa deploy endpoint /auto-generate-week (bị lỗi 405 Method Not Allowed hoặc 404)
-      if (err?.message && (err.message.includes("405") || err.message.includes("404"))) {
-        return await request<{
-          workDate?: string;
-          targetDate?: string;
-          doctorsScheduledCount: number;
-          totalShiftsCreated: number;
-          totalSlotsCreated: number;
-          message: string;
-        }>("/doctor/schedules/auto-generate-tomorrow", {
-          method: "POST",
-        });
-      }
-      throw err;
-    }
+    // Gọi trực tiếp endpoint /doctor/schedules/auto-generate-tomorrow có sẵn 100% trên Render hiện tại
+    return request<{
+      workDate?: string;
+      targetDate?: string;
+      doctorsScheduledCount: number;
+      totalShiftsCreated: number;
+      totalSlotsCreated: number;
+      message: string;
+    }>("/doctor/schedules/auto-generate-tomorrow", {
+      method: "POST",
+    });
   },
 
   async getStatisticsOverview(params?: {
