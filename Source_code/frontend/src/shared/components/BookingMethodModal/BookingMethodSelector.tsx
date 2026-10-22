@@ -1331,26 +1331,30 @@ export default function BookingMethodSelector({
 
             const catKeys: string[] = [];
             const specName = (d.specialtyName || '').toLowerCase();
-            if (specName.includes('thần kinh') || specName.includes('nội')) {
-              catKeys.push('HEADACHE', 'FATIGUE', 'RESPIRATORY', 'ABDOMINAL', 'BONE_JOINT');
+            if (specName.includes('thần kinh') || specName.includes('não')) {
+              catKeys.push('HEADACHE');
             }
-            if (specName.includes('tiêu hóa') || specName.includes('gan mật')) {
-              if (!catKeys.includes('ABDOMINAL')) catKeys.push('ABDOMINAL');
+            if (specName.includes('tiêu hóa') || specName.includes('gan mật') || specName.includes('dạ dày')) {
+              catKeys.push('ABDOMINAL');
             }
-            if (specName.includes('hô hấp') || specName.includes('nhiễm')) {
-              if (!catKeys.includes('RESPIRATORY')) catKeys.push('RESPIRATORY');
+            if (specName.includes('hô hấp') || specName.includes('truyền nhiễm') || specName.includes('phổi')) {
+              catKeys.push('RESPIRATORY');
             }
-            if (specName.includes('xương') || specName.includes('khớp')) {
-              if (!catKeys.includes('BONE_JOINT')) catKeys.push('BONE_JOINT');
+            if (specName.includes('xương') || specName.includes('khớp') || specName.includes('cơ xương khớp')) {
+              catKeys.push('BONE_JOINT');
             }
-            if (specName.includes('da')) {
+            if (specName.includes('da') || specName.includes('da liễu') || specName.includes('thẩm mỹ')) {
               catKeys.push('SKIN');
             }
-            if (specName.includes('răng') || specName.includes('hàm')) {
+            if (specName.includes('răng') || specName.includes('hàm') || specName.includes('mặt')) {
               catKeys.push('DENTAL');
             }
-            if (specName.includes('mắt') || specName.includes('nhãn')) {
+            if (specName.includes('mắt') || specName.includes('nhãn khoa')) {
               catKeys.push('EYE');
+            }
+            // Khoa Nội Tổng Quát phụ trách suy nhược, mệt mỏi, khám tổng quát ban đầu
+            if (specName.includes('nội tổng quát') || specName.includes('tổng quát') || specName.includes('khám sức khỏe')) {
+              catKeys.push('FATIGUE');
             }
 
             const lowerName = rawName.toLowerCase();
@@ -1629,35 +1633,31 @@ export default function BookingMethodSelector({
     };
   }, [aiStep, transferBookingCode]);
 
-  // Danh sách bác sĩ phù hợp với chuyên khoa, cơ sở và bộ lọc (RÀNG BUỘC NGHIÊM NGẶT THEO TRIỆU CHỨNG)
+  // Danh sách bác sĩ phù hợp với chuyên khoa, cơ sở và bộ lọc (RÀNG BUỘC NGHIÊM NGẶT THEO TRIỆU CHỨNG & CƠ SỞ)
   const availableDoctors = useMemo(() => {
     const doctorPool = dbDoctors.length > 0 ? dbDoctors : DEMO_DOCTORS;
-    // 1. Ràng buộc nghiêm ngặt: Chỉ lấy đúng các bác sĩ chuyên khoa tương ứng với triệu chứng bệnh nhân đã chọn
-    let matched = doctorPool.filter(d => {
+    
+    // 1. Ràng buộc nghiêm ngặt: Bác sĩ PHẢI thuộc cơ sở được chọn VÀ đúng chuyên khoa
+    const matched = doctorPool.filter(d => {
+      // a. RÀNG BUỘC CƠ SỞ: Tuyệt đối không lấy bác sĩ cơ sở này gán sang cơ sở khác
+      if (selectedBranch) {
+        const matchesBranch = d.centerId && (
+          d.centerId === selectedBranch.id ||
+          d.centerId === selectedBranch.code ||
+          (d.centerId && selectedBranch.id && d.centerId.toLowerCase() === selectedBranch.id.toLowerCase())
+        );
+        if (!matchesBranch) return false;
+      }
+
+      // b. RÀNG BUỘC CHUYÊN KHOA ĐÚNG TRIỆU CHỨNG
       const matchesCategory = d.categoryKeys?.includes(selectedCategoryKey) ||
         (d.specialtyCode && d.specialtyCode === activeCategory.specialtyCode) ||
         (d.specialtyName && activeCategory.specialtyName && (
           d.specialtyName.toLowerCase().includes(activeCategory.specialtyName.toLowerCase()) ||
           activeCategory.specialtyName.toLowerCase().includes(d.specialtyName.toLowerCase())
         ));
-      if (!matchesCategory) return false;
-
-      if (!selectedBranch) return true;
-      if (!d.centerId) return true;
-      return d.centerId === selectedBranch.id || d.centerId === selectedBranch.code;
+      return matchesCategory;
     });
-
-    if (matched.length === 0) {
-      matched = doctorPool.filter(d =>
-        d.categoryKeys?.includes(selectedCategoryKey) ||
-        (d.specialtyCode && d.specialtyCode === activeCategory.specialtyCode)
-      );
-    }
-    if (matched.length === 0) {
-      matched = doctorPool.filter(d => d.specialtyCode === activeCategory.specialtyCode);
-    }
-    // RÀNG BUỘC Y KHOA: TUYỆT ĐỐI KHÔNG GÁN ÉP BÁC SĨ TRÁI CHUYÊN KHOA
-    // Nếu phòng khám không có bác sĩ chuyên môn, giữ matched = [] để kích hoạt thông báo giới hạn chuyên môn
 
     if (doctorFilter === 'EXPERT') {
       const filtered = matched.filter(d => d.isExpert);
@@ -1687,9 +1687,15 @@ export default function BookingMethodSelector({
     return list;
   }, [dbDoctors]);
 
-  // Cập nhật bác sĩ mặc định khi danh sách thay đổi theo cơ sở
+  // Cập nhật bác sĩ mặc định khi danh sách thay đổi theo cơ sở (Chỉ gán khi người dùng đã bước sang bước chọn Bác sĩ)
   useEffect(() => {
-    if (aiStep === 'UNSUPPORTED_SPECIALTY' || aiStep === 'EMERGENCY' || aiStep === 'CHOOSE_SYMPTOM' || aiStep === 'CLARIFY_DETAILS') {
+    if (
+      aiStep === 'UNSUPPORTED_SPECIALTY' || 
+      aiStep === 'EMERGENCY' || 
+      aiStep === 'CHOOSE_SYMPTOM' || 
+      aiStep === 'CLARIFY_DETAILS' ||
+      aiStep === 'INPUT_LOCATION'
+    ) {
       setSelectedDoctor(null);
       return;
     }
@@ -2885,6 +2891,45 @@ export default function BookingMethodSelector({
       text: `Chọn cơ sở: ${selectedBranch?.shortName || 'Phòng khám'} • Ngày khám: ${formatVietnameseFullDate(bookingDate)} • Buổi: ${selectedShiftId === 'MORNING' ? 'Buổi Sáng' : 'Buổi Chiều'}`,
     };
 
+    // Kiểm tra tính sẵn sàng của Bác sĩ tại cơ sở đã chọn
+    if (availableDoctors.length === 0) {
+      const pool = dbDoctors.length > 0 ? dbDoctors : DEMO_DOCTORS;
+      const docOtherBranch = pool.find(d => 
+        d.categoryKeys?.includes(selectedCategoryKey) ||
+        (d.specialtyCode && d.specialtyCode === activeCategory.specialtyCode) ||
+        (d.specialtyName && activeCategory.specialtyName && d.specialtyName.toLowerCase().includes(activeCategory.specialtyName.toLowerCase()))
+      );
+      const branchWithDoc = docOtherBranch && docOtherBranch.centerId
+        ? branches.find(b => b.id === docOtherBranch.centerId || b.code === docOtherBranch.centerId)
+        : branches.find(b => b.id !== selectedBranch?.id);
+
+      const aiMsg: ChatMessage = {
+        id: 'msg-' + (Date.now() + 1),
+        sender: 'ai',
+        time: getFormattedTime(),
+        text: `⚠️ **THÔNG BÁO TÌNH TRẠNG BÁC SĨ TẠI CƠ SỞ:**\n\nDạ, hiện tại cơ sở **${selectedBranch?.shortName || 'phòng khám'}** chưa có Bác sĩ chuyên khoa **${activeCategory.specialtyName}** trực tiếp khám trong ngày ${formatVietnameseFullDate(bookingDate)}.\n\n👉 Bác sĩ chuyên khoa hiện đang làm việc và tiếp đón bệnh nhân tại **${branchWithDoc?.shortName || 'Chi Nhánh TĐN'}**.\n\nĐể đảm bảo bạn được bác sĩ chuyên khoa thăm khám đúng hẹn, bạn hãy bấm nút bên dưới để chuyển sang cơ sở có bác sĩ nhé:`,
+        actionOptions: branchWithDoc ? [
+          {
+            label: `🏥 Chuyển sang ${branchWithDoc.shortName}`,
+            actionKey: 'CONFIRM_PROPOSAL_TO_DOCTOR',
+            variant: 'primary',
+            payload: {
+              branch: branchWithDoc,
+              shiftId: selectedShiftId,
+              slotTime: selectedShiftId === 'MORNING' ? '08:00 - 08:30' : '13:30 - 14:00',
+              date: bookingDate,
+            },
+          },
+        ] : undefined,
+        widget: 'SELECT_DOCTOR_SLOT',
+        isTypingComplete: false,
+      };
+
+      setAiStep('SELECT_DOCTOR_SLOT');
+      setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg, aiMsg]);
+      return;
+    }
+
     const aiMsg: ChatMessage = {
       id: 'msg-' + (Date.now() + 1),
       sender: 'ai',
@@ -3643,10 +3688,27 @@ export default function BookingMethodSelector({
                                 </span>
                               </div>
                             ) : availableDoctors.length === 0 ? (
-                              <div className="py-6 px-4 bg-slate-50 rounded-xl border border-dashed border-slate-300 text-center">
-                                <p className="text-xs font-semibold text-slate-600">
-                                  Hiện chưa có bác sĩ trực theo bộ lọc này. Vui lòng chọn &quot;Tất Cả Bác Sĩ&quot; hoặc chọn cơ sở khác.
+                              <div className="py-5 px-4 bg-amber-50 rounded-2xl border border-amber-200 text-center space-y-2.5">
+                                <p className="text-xs font-bold text-amber-900 flex items-center justify-center gap-1.5">
+                                  <AlertCircle size={15} className="text-amber-600 shrink-0" />
+                                  <span>Cơ sở &quot;{selectedBranch?.shortName}&quot; hiện chưa có Bác sĩ chuyên khoa {activeCategory.specialtyName} làm việc!</span>
                                 </p>
+                                <p className="text-[11px] text-amber-800 leading-relaxed">
+                                  Bác sĩ chuyên môn hiện đang làm việc và tiếp đón bệnh nhân tại <strong>Chi Nhánh TĐN</strong>. Bạn vui lòng chuyển cơ sở để tiếp tục đặt lịch:
+                                </p>
+                                <div className="flex flex-wrap justify-center gap-2 pt-1">
+                                  {branches.filter(b => b.id !== selectedBranch?.id).map(b => (
+                                    <button
+                                      key={b.id}
+                                      type="button"
+                                      onClick={() => setSelectedBranch(b)}
+                                      className="inline-flex items-center gap-1 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer"
+                                    >
+                                      <Building2 size={12} />
+                                      <span>Chuyển sang {b.shortName} ➔</span>
+                                    </button>
+                                  ))}
+                                </div>
                               </div>
                             ) : (
                               availableDoctors.map((doc) => {
@@ -3748,8 +3810,13 @@ export default function BookingMethodSelector({
                           {/* Nút tiếp tục sang Bước 5 */}
                           <button
                             type="button"
+                            disabled={!selectedDoctor}
                             onClick={handleProceedToPayment}
-                            className="w-full py-2.5 px-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer mt-2"
+                            className={`w-full py-2.5 px-4 font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 mt-2 ${
+                              !selectedDoctor
+                                ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                                : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white cursor-pointer'
+                            }`}
                           >
                             <span>Tiếp Tục: Xác Nhận &amp; Giữ Chỗ (Cọc 2k / Ưu Đãi)</span>
                             <ArrowRight size={14} />
@@ -4260,26 +4327,34 @@ export default function BookingMethodSelector({
                       <span className="text-amber-700 font-semibold">⚠️ Chưa có BS chuyên khoa này</span>
                     ) : aiStep === 'CHOOSE_SYMPTOM' || aiStep === 'CLARIFY_DETAILS' ? (
                       <span className="text-purple-700 font-medium">🔍 Đang khảo sát triệu chứng...</span>
+                    ) : aiStep === 'INPUT_LOCATION' ? (
+                      <span className="text-slate-500 font-medium">⏳ Chờ chọn bác sĩ ở bước tiếp theo</span>
                     ) : selectedDoctor ? (
                       selectedDoctor.name
                     ) : (
-                      'Đang tìm bác sĩ...'
+                      <span className="text-amber-600 font-medium">⚠️ Chưa có bác sĩ tại cơ sở này</span>
                     )}
                   </span>
-                  {selectedDoctor && aiStep !== 'UNSUPPORTED_SPECIALTY' && aiStep !== 'CHOOSE_SYMPTOM' && aiStep !== 'CLARIFY_DETAILS' && (
+                  {selectedDoctor && aiStep !== 'UNSUPPORTED_SPECIALTY' && aiStep !== 'CHOOSE_SYMPTOM' && aiStep !== 'CLARIFY_DETAILS' && aiStep !== 'INPUT_LOCATION' && (
                     <p className="text-[9.5px] text-purple-700 font-medium">{selectedDoctor.room}</p>
                   )}
                 </div>
                 <div>
                   <span className="text-[9.5px] xl:text-[10px] text-slate-400 block font-medium">Ngày &amp; Giờ khám:</span>
                   <span className="font-bold text-purple-700 block text-xs">
-                    {selectedSlotTime} • {formatVietnameseFullDate(bookingDate)}
+                    {aiStep === 'INPUT_LOCATION' ? (
+                      `${selectedShiftId === 'MORNING' ? 'Buổi Sáng (08:00 - 11:30)' : 'Buổi Chiều (13:30 - 16:00)'} • ${formatVietnameseFullDate(bookingDate)}`
+                    ) : (
+                      `${selectedSlotTime} • ${formatVietnameseFullDate(bookingDate)}`
+                    )}
                   </span>
                 </div>
                 <div className="pt-1.5 border-t border-slate-200/70 flex items-center justify-between">
                   <div>
                     <span className="text-[9.5px] text-slate-400 block font-medium">Chi phí khám:</span>
-                    <span className="font-extrabold text-slate-900 text-xs">200.000 đ</span>
+                    <span className="font-extrabold text-slate-900 text-xs">
+                      {selectedDoctor?.fee ? `${selectedDoctor.fee.toLocaleString('vi-VN')} đ` : '200.000 đ'}
+                    </span>
                   </div>
                   <div className="text-right">
                     <span className="text-[9.5px] text-slate-400 block font-medium">Tiền cọc giữ chỗ:</span>
