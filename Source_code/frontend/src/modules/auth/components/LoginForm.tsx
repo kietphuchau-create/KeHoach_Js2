@@ -13,6 +13,7 @@ export default function LoginForm() {
   const redirectParam = searchParams.get('redirect');
   const redirectUrl = redirectParam || '/booking-method';
   const isAuthRequired = searchParams.get('reason') === 'auth_required';
+  const isAiRequired = searchParams.get('reason') === 'ai_required';
 
   const emailInputRef = React.useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
@@ -101,12 +102,31 @@ export default function LoginForm() {
         />
       )}
 
+      {/* Thông báo yêu cầu đăng nhập nếu từ Trợ lý AI */}
+      {isAiRequired && !errorMessage && !successMessage && (
+        <AlertMessage 
+          type="info" 
+          message="Vui lòng đăng nhập tài khoản MedSched để sử dụng Trợ lý Sức Khỏe AI & phân loại triệu chứng." 
+          className="mb-2.5 py-1.5 text-xs" 
+        />
+      )}
+
       {/* Thông báo lỗi / thành công */}
       {errorMessage && (
-        <AlertMessage type="error" message={errorMessage} className="mb-2.5 py-1.5 text-xs animate-in fade-in zoom-in-95" onClose={() => setErrorMessage('')} />
+        <AlertMessage 
+          type="error" 
+          message={errorMessage} 
+          className="mb-3 py-2 px-3 text-xs animate-in fade-in zoom-in-95" 
+          onClose={() => setErrorMessage('')} 
+        />
       )}
       {successMessage && (
-        <AlertMessage type="success" message={successMessage} className="mb-2.5 py-1.5 text-xs" />
+        <AlertMessage 
+          type="success" 
+          message={successMessage} 
+          center
+          className="mb-3 py-2.5 px-4 text-xs font-semibold shadow-xs animate-in fade-in zoom-in-95" 
+        />
       )}
 
       {/* Form Đăng nhập */}

@@ -1,10 +1,16 @@
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
+import { usePathname } from 'next/navigation';
 
 export default function Footer() {
+  const pathname = usePathname();
   const [isVisible, setIsVisible] = useState(false);
   const footerRef = useRef<HTMLElement>(null);
+
+  if (pathname === '/booking-method') {
+    return null;
+  }
 
   useEffect(() => {
     const observer = new IntersectionObserver(

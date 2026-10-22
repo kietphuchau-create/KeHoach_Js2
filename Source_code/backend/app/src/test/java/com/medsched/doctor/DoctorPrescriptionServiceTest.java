@@ -490,5 +490,38 @@ class DoctorPrescriptionServiceTest {
                 doctorPrescriptionService.completeConsultation("ap000001-xxxx", request));
         assertThat(ex.getMessage()).contains("Số lượng thuốc kê đơn phải lớn hơn 0");
     }
+
+    @Test
+    @DisplayName("getDoctorQueue hỗ trợ bác sĩ có nhiều profile (đa chi nhánh) qua findByDoctorIdIn")
+    void getDoctorQueue_supportsMultiProfileDoctor() {
+        DoctorEntity docBranch1 = new DoctorEntity(
+                "doc-b1", "user-doc-1", "spec-1", "BS",
+                new BigDecimal("200000"), "101", "Bio", null, Instant.now(), Instant.now()
+        );
+        DoctorEntity docBranch2 = new DoctorEntity(
+                "doc-b2", "user-doc-1", "spec-2", "BS",
+                new BigDecimal("250000"), "102", "Bio", null, Instant.now(), Instant.now()
+        );
+
+        when(doctorRepository.findByUserId("user-doc-1")).thenReturn(List.of(docBranch1, docBranch2));
+
+        AppointmentEntity app1 = new AppointmentEntity(
+                "app-1", "MED-001", "b1", "p1", "doc-b1", null, "A-01",
+                QueueType.ONLINE_BOOKED, "Đau đầu", AppointmentStatus.CHECKED_IN, Instant.now(), Instant.now()
+        );
+        AppointmentEntity app2 = new AppointmentEntity(
+                "app-2", "MED-002", "b2", "p2", "doc-b2", null, "W-01",
+                QueueType.WALKIN, "Đau bụng", AppointmentStatus.CHECKED_IN, Instant.now(), Instant.now()
+        );
+
+        when(appointmentRepository.findByDoctorIdInAndStatusInOrderByQueueNumberAsc(eq(List.of("doc-b1", "doc-b2")), any()))
+                .thenReturn(List.of(app1, app2));
+
+        var queue = doctorPrescriptionService.getDoctorQueue("user-doc-1", null);
+
+        assertThat(queue).hasSize(2);
+        assertThat(queue.get(0).id()).isEqualTo("app-1");
+        assertThat(queue.get(1).id()).isEqualTo("app-2");
+    }
 }
 

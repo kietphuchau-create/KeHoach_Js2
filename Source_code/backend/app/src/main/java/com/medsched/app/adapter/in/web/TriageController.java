@@ -739,10 +739,17 @@ public class TriageController {
         };
     }
 
+    private static final Pattern SYMPTOM_WORD_PATTERN = Pattern.compile(
+            "(?<!\\p{L})(ho|sốt|đau|nhức|ngứa|buốt)(?!\\p{L})",
+            Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CHARACTER_CLASS);
+
     private boolean looksLikeSymptomTriage(String lower) {
-        return lower.contains("đau") || lower.contains("nhức") || lower.contains("sốt") || lower.contains("khó chịu")
-                || lower.contains("ho") || lower.contains("ngứa") || lower.contains("buốt") || lower.contains("chóng mặt")
-                || lower.contains("buồn nôn") || lower.contains("khám gì") || lower.contains("triệu chứng");
+        return SYMPTOM_WORD_PATTERN.matcher(lower).find()
+                || lower.contains("khó chịu")
+                || lower.contains("chóng mặt")
+                || lower.contains("buồn nôn")
+                || lower.contains("khám gì")
+                || lower.contains("triệu chứng");
     }
 
     private String authenticatedRole() {

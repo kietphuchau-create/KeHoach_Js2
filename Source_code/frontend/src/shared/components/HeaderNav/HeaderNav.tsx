@@ -21,7 +21,8 @@ import {
   DoorOpen,
   Phone,
   Clock,
-  Sparkles
+  Sparkles,
+  Ticket
 } from 'lucide-react';
 import { getAuthToken, getAuthUser, clearAuthSession, api } from '@/shared/lib/api';
 
@@ -177,6 +178,8 @@ export default function HeaderNav() {
   if (isAdmin) {
     navLinks = [
       { href: '/admin', label: 'Quản Trị Người Dùng', icon: ShieldCheck },
+      { href: '/admin/schedule-config', label: 'Cấu Hình Giờ Khám', icon: Clock },
+      { href: '/admin/promotions', label: 'Mã Khuyến Mãi', icon: Ticket },
       { href: '/admin/catalog', label: 'Danh Mục & Phòng Khám', icon: DoorOpen },
       { href: '/admin/create-user', label: 'Cấp Tài Khoản Mới', icon: UserPlus },
       { href: '/statistics', label: 'Báo Cáo Thống Kê', icon: BarChart3 },
@@ -316,7 +319,7 @@ export default function HeaderNav() {
                 MedSched
               </span>
               <span className="text-[9px] text-teal-300/80 font-medium tracking-tight mt-0.5">
-                Phiên bản v1.3.0
+                Phiên bản v1.4.0
               </span>
             </div>
           </Link>
@@ -430,7 +433,7 @@ export default function HeaderNav() {
                   MedSched
                 </span>
                 <span className="text-[9px] sm:text-[10px] text-teal-300/80 font-medium tracking-tight mt-0.5">
-                  Phiên bản v1.3.0
+                  Phiên bản v1.4.0
                 </span>
               </div>
             </Link>

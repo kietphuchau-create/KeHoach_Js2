@@ -12,6 +12,10 @@ public interface DoctorScheduleJpaRepository extends JpaRepository<DoctorSchedul
 
     List<DoctorScheduleEntity> findByWorkDate(LocalDate workDate);
 
+    List<DoctorScheduleEntity> findByWorkDateOrderByStartTimeAsc(LocalDate workDate);
+
+    List<DoctorScheduleEntity> findByWorkDateBetweenOrderByWorkDateAscStartTimeAsc(LocalDate from, LocalDate to);
+
     List<DoctorScheduleEntity> findByDoctorIdOrderByWorkDateAscStartTimeAsc(String doctorId);
 
     List<DoctorScheduleEntity> findByDoctorIdAndWorkDateBetweenOrderByWorkDateAscStartTimeAsc(String doctorId, LocalDate from, LocalDate to);

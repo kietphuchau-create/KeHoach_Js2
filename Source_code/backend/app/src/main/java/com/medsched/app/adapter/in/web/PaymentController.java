@@ -23,12 +23,23 @@ public class PaymentController {
     private final PaymentJpaRepository paymentJpaRepository;
     private final PayOsService payOsService;
 
+    // Bộ nhớ đệm lưu trạng thái thanh toán theo bookingCode (hỗ trợ đặt lịch qua AI / Standalone trước khi lưu DB)
+    private static final java.util.concurrent.ConcurrentHashMap<String, Map<String, Object>> standalonePaymentMap = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final java.util.concurrent.ConcurrentHashMap<String, Long> standaloneOrderMap = new java.util.concurrent.ConcurrentHashMap<>();
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.medsched.persistence.repository.DoctorJpaRepository doctorJpaRepository;
+
     public PaymentController(AppointmentJpaRepository appointmentJpaRepository,
                              PaymentJpaRepository paymentJpaRepository,
                              PayOsService payOsService) {
         this.appointmentJpaRepository = appointmentJpaRepository;
         this.paymentJpaRepository = paymentJpaRepository;
         this.payOsService = payOsService;
+    }
+
+    public void setDoctorJpaRepository(com.medsched.persistence.repository.DoctorJpaRepository doctorJpaRepository) {
+        this.doctorJpaRepository = doctorJpaRepository;
     }
 
     public record CreatePaymentRequest(
@@ -132,7 +143,8 @@ public class PaymentController {
     public ResponseEntity<CreatePaymentResponse> createPayment(@RequestBody CreatePaymentRequest req) {
         AppointmentEntity appointment = findAppointment(req.appointmentId(), req.bookingCode()).orElse(null);
 
-        if (appointment == null) {
+        String effectiveBookingCode = appointment != null ? appointment.getBookingCode() : req.bookingCode();
+        if (appointment == null && (effectiveBookingCode == null || effectiveBookingCode.isBlank())) {
             return ResponseEntity.badRequest().build();
         }
 
@@ -140,14 +152,25 @@ public class PaymentController {
                 ? "DEPOSIT" 
                 : "FULL";
 
-        // Mặc định: Giữ chỗ = 2.000đ, Thanh toán đủ = 200.000đ (hoặc theo số tiền gửi lên)
+        // Mặc định: Giữ chỗ = 2.000đ, Thanh toán đủ = phí khám thực tế của bác sĩ (hoặc 200.000đ fallback)
         BigDecimal finalAmount = req.amount();
         if (finalAmount == null || finalAmount.compareTo(BigDecimal.ZERO) <= 0) {
-            finalAmount = "DEPOSIT".equals(type) ? new BigDecimal("2000") : new BigDecimal("200000");
+            if ("DEPOSIT".equals(type)) {
+                finalAmount = new BigDecimal("2000");
+            } else {
+                BigDecimal docFee = null;
+                if (appointment != null && appointment.getDoctorId() != null && doctorJpaRepository != null) {
+                    docFee = doctorJpaRepository.findById(appointment.getDoctorId())
+                            .map(com.medsched.persistence.entity.DoctorEntity::getConsultationFee)
+                            .orElse(null);
+                }
+                finalAmount = (docFee != null && docFee.compareTo(BigDecimal.ZERO) > 0) ? docFee : new BigDecimal("200000");
+            }
         }
 
-        long orderCode = System.currentTimeMillis();
-        String cleanBookingCode = appointment.getBookingCode().replaceAll("[^a-zA-Z0-9]", "").toUpperCase();
+        long orderCode = System.currentTimeMillis() % 1000000000L;
+        String cleanBookingCode = effectiveBookingCode.replaceAll("[^a-zA-Z0-9]", "").toUpperCase();
+        standaloneOrderMap.put(cleanBookingCode, orderCode);
         String transferContent = "MEDPAY " + cleanBookingCode;
         if (transferContent.length() > 25) {
             transferContent = transferContent.substring(0, 25);
@@ -186,6 +209,23 @@ public class PaymentController {
         PaymentMethod pMethod = PaymentMethod.BANK_TRANSFER;
         if (req.method() != null && req.method().equalsIgnoreCase("MOMO")) {
             pMethod = PaymentMethod.MOMO;
+        }
+
+        if (appointment == null) {
+            return ResponseEntity.ok(new CreatePaymentResponse(
+                    txnRef,
+                    null,
+                    effectiveBookingCode,
+                    finalAmount,
+                    type,
+                    transferContent,
+                    "PENDING",
+                    checkoutUrl,
+                    qrCode,
+                    accountNumber,
+                    accountName,
+                    bin
+            ));
         }
 
         // Tái sử dụng Payment PENDING nếu đã tồn tại cho lịch hẹn này
@@ -246,6 +286,38 @@ public class PaymentController {
             Optional<AppointmentEntity> appOpt = findAppointment(null, bookingCode);
             if (appOpt.isPresent()) {
                 targetAppId = appOpt.get().getId();
+            } else {
+                String clean = bookingCode.replaceAll("[^a-zA-Z0-9]", "").toUpperCase();
+                if (standalonePaymentMap.containsKey(clean)) {
+                    Map<String, Object> paid = standalonePaymentMap.get(clean);
+                    return ResponseEntity.ok(Map.of(
+                            "success", true,
+                            "status", "SUCCEEDED",
+                            "amountPaid", paid.getOrDefault("amount", new BigDecimal("2000")),
+                            "paymentType", paid.getOrDefault("paymentType", "DEPOSIT"),
+                            "transactionRef", paid.getOrDefault("transactionRef", "")
+                    ));
+                }
+                Long orderCode = standaloneOrderMap.get(clean);
+                if (orderCode != null && payOsService != null) {
+                    try {
+                        var infoOpt = payOsService.getPaymentInfo(orderCode);
+                        if (infoOpt.isPresent() && "PAID".equalsIgnoreCase(infoOpt.get().status())) {
+                            standalonePaymentMap.put(clean, Map.of(
+                                    "amount", new BigDecimal(infoOpt.get().amount()),
+                                    "paymentType", "DEPOSIT",
+                                    "transactionRef", String.valueOf(orderCode)
+                            ));
+                            return ResponseEntity.ok(Map.of(
+                                    "success", true,
+                                    "status", "SUCCEEDED",
+                                    "amountPaid", infoOpt.get().amount(),
+                                    "paymentType", "DEPOSIT",
+                                    "transactionRef", String.valueOf(orderCode)
+                            ));
+                        }
+                    } catch (Exception ignored) {}
+                }
             }
         }
 
@@ -409,6 +481,18 @@ public class PaymentController {
 
             // Trích xuất mã booking từ nội dung chuyển khoản
             String bookingCode = extractBookingCodeFromText(description);
+            if (!bookingCode.isBlank()) {
+                String clean = bookingCode.replaceAll("[^a-zA-Z0-9]", "").toUpperCase();
+                String txnRef = (data.containsKey("orderCode") && data.get("orderCode") != null)
+                        ? String.valueOf(data.get("orderCode"))
+                        : ("WEBHOOK" + System.currentTimeMillis());
+                standalonePaymentMap.put(clean, Map.of(
+                        "amount", amount,
+                        "transactionRef", txnRef,
+                        "paymentType", amount.compareTo(new BigDecimal("50000")) < 0 ? "DEPOSIT" : "FULL",
+                        "paidAt", Instant.now().toString()
+                ));
+            }
             AppointmentEntity appointment = null;
             if (!bookingCode.isBlank()) {
                 appointment = findAppointment(null, bookingCode).orElse(null);
@@ -473,6 +557,30 @@ public class PaymentController {
             AppointmentEntity appointment = findAppointment(req.appointmentId(), req.bookingCode()).orElse(null);
 
             if (appointment == null) {
+                if (req.bookingCode() != null && !req.bookingCode().isBlank()) {
+                    boolean isPromoFree = (req.promoCode() != null && !req.promoCode().isBlank())
+                            || "PROMO_FREE".equalsIgnoreCase(req.paymentType())
+                            || "VOUCHER".equalsIgnoreCase(req.paymentType());
+                    String type = isPromoFree ? "PROMO_FREE" : "DEPOSIT";
+                    BigDecimal finalAmount = isPromoFree ? BigDecimal.ZERO : new BigDecimal("2000");
+                    String clean = req.bookingCode().replaceAll("[^a-zA-Z0-9]", "").toUpperCase();
+                    String fallbackTxnRef = (req.transactionRef() != null && !req.transactionRef().isBlank())
+                            ? req.transactionRef().trim()
+                            : (isPromoFree ? ("VOUCHER-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase()) : ("CONFIRM" + System.currentTimeMillis()));
+                    standalonePaymentMap.put(clean, Map.of(
+                            "amount", finalAmount,
+                            "paymentType", type,
+                            "transactionRef", fallbackTxnRef,
+                            "paidAt", Instant.now().toString()
+                    ));
+                    return ResponseEntity.ok(Map.of(
+                            "success", true,
+                            "message", "Xác nhận thành công",
+                            "bookingCode", req.bookingCode(),
+                            "amountPaid", finalAmount,
+                            "paymentType", type
+                    ));
+                }
                 return ResponseEntity.badRequest().body(Map.of("success", false, "error", "Không tìm thấy lịch hẹn"));
             }
 
@@ -594,6 +702,16 @@ public class PaymentController {
         String bookingCode = req.getOrDefault("bookingCode", "").toString().trim();
         String amountStr = req.getOrDefault("amount", "2000").toString().trim();
         BigDecimal amount = new BigDecimal(amountStr);
+
+        if (!bookingCode.isBlank()) {
+            String clean = bookingCode.replaceAll("[^a-zA-Z0-9]", "").toUpperCase();
+            standalonePaymentMap.put(clean, Map.of(
+                    "amount", amount,
+                    "transactionRef", "SIM" + System.currentTimeMillis(),
+                    "paymentType", "DEPOSIT",
+                    "paidAt", Instant.now().toString()
+            ));
+        }
 
         Map<String, Object> payload = Map.of(
                 "data", Map.of(

@@ -53,6 +53,9 @@ class PaymentControllerTest {
     private PayOsService payOsService;
 
     @MockBean
+    private com.medsched.persistence.repository.DoctorJpaRepository doctorJpaRepository;
+
+    @MockBean
     private JwtService jwtService;
 
     @MockBean
@@ -195,5 +198,29 @@ class PaymentControllerTest {
                 .andExpect(jsonPath("$.promoCode").value("GIAOVIEN"));
 
         verify(appointmentJpaRepository).save(any(AppointmentEntity.class));
+    }
+
+    @Test
+    @DisplayName("Khởi tạo thanh toán FULL tự động lấy consultationFee của bác sĩ nếu amount trống")
+    void createPayment_full_usesDoctorConsultationFee() throws Exception {
+        AppointmentEntity app = createMockAppointment("app-1", "MED123456", AppointmentStatus.PENDING);
+        given(appointmentJpaRepository.findById("app-1")).willReturn(Optional.of(app));
+
+        com.medsched.persistence.entity.DoctorEntity doctor = new com.medsched.persistence.entity.DoctorEntity(
+                "doc-1", "user-doc-1", "spec-1", "TS.BS", new BigDecimal("350000"),
+                "P.101", "Bio", null, Instant.now(), Instant.now()
+        );
+        given(doctorJpaRepository.findById("doc-1")).willReturn(Optional.of(doctor));
+
+        PaymentController.CreatePaymentRequest req = new PaymentController.CreatePaymentRequest(
+                "app-1", "MED123456", "FULL", null, "BANK_TRANSFER"
+        );
+
+        mockMvc.perform(post("/api/v1/payments/create")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.amount").value(350000))
+                .andExpect(jsonPath("$.paymentType").value("FULL"));
     }
 }

@@ -27,7 +27,7 @@ public class GeminiGeneralAssistantService {
 
     public GeminiGeneralAssistantService(
             @Value("${app.gemini.api-key:${GEMINI_API_KEY:}}") String apiKey,
-            @Value("${app.gemini.model:gemini-3.5-flash-lite}") String model,
+            @Value("${app.gemini.model:gemini-2.5-flash}") String model,
             OpenRouterAiClient openRouter,
             ObjectMapper objectMapper) {
         this.apiKey = apiKey;
@@ -52,29 +52,38 @@ public class GeminiGeneralAssistantService {
         String prompt = "Lịch sử gần đây:\n" + safeContext
                 + "\n\nCâu hỏi mới cần trả lời:\n" + message.strip();
 
+        // Ưu tiên Gemini nếu được cấu hình API Key
+        if (isConfigured()) {
+            Map<String, Object> request = Map.of(
+                    "contents", List.of(Map.of("role", "user", "parts", List.of(Map.of("text", systemPrompt(role) + "\n\n" + prompt)))),
+                    "generationConfig", Map.of(
+                            "temperature", 0.35,
+                            "maxOutputTokens", 2048,
+                            "thinkingConfig", Map.of("thinkingBudget", 0)
+                    )
+            );
+            try {
+                String body = restClient.post()
+                        .uri("https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent", model)
+                        .header("x-goog-api-key", apiKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(request)
+                        .retrieve()
+                        .body(String.class);
+                var geminiAnswer = extractText(body);
+                if (geminiAnswer.isPresent()) {
+                    return Optional.of(new AiAnswer(geminiAnswer.get(), "GEMINI_API"));
+                }
+            } catch (Exception exception) {
+                log.warn("Gemini general assistant unavailable: {}", exception.getMessage());
+            }
+        }
+
         var openRouterAnswer = openRouter.complete(systemPrompt(role), prompt, 0.35, 1200, false);
         if (openRouterAnswer.isPresent()) {
             return Optional.of(new AiAnswer(openRouterAnswer.get(), "OPENROUTER_API"));
         }
-        if (!isConfigured()) return Optional.empty();
-
-        Map<String, Object> request = Map.of(
-                "contents", List.of(Map.of("role", "user", "parts", List.of(Map.of("text", systemPrompt(role) + "\n\n" + prompt)))),
-                "generationConfig", Map.of("temperature", 0.35, "maxOutputTokens", 1200)
-        );
-        try {
-            String body = restClient.post()
-                    .uri("https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent", model)
-                    .header("x-goog-api-key", apiKey)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(request)
-                    .retrieve()
-                    .body(String.class);
-            return extractText(body).map(text -> new AiAnswer(text, "GEMINI_API"));
-        } catch (Exception exception) {
-            log.warn("Gemini general assistant unavailable; using local fallback: {}", exception.getMessage());
-            return Optional.empty();
-        }
+        return Optional.empty();
     }
 
     public record AiAnswer(String text, String source) {}

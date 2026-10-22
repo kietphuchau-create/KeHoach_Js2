@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Calendar,
@@ -10,9 +10,34 @@ import {
   ArrowLeft,
   CheckCircle2,
   Bot,
-  AlertCircle
+  AlertCircle,
+  Phone,
+  MapPin,
+  Clock,
+  User,
+  QrCode,
+  Tag,
+  Check,
+  Building2,
+  RefreshCw,
+  Stethoscope,
+  ShieldAlert,
+  ChevronRight,
+  ShieldCheck,
+  Award,
+  Pencil,
+  Loader2,
+  Copy,
+  Send,
+  ExternalLink,
+  Navigation
 } from 'lucide-react';
-import { api } from '@/shared/lib/api';
+import { api, getAuthToken, getAuthUser } from '@/shared/lib/api';
+import { validatePromotion } from '@/shared/lib/promotions';
+import { 
+  getBranchGoogleMapsUrl, 
+  getBranchDirectionUrl 
+} from '@/shared/lib/branchCoordinates';
 
 export interface BookingMethodSelectorProps {
   isModal?: boolean;
@@ -20,14 +45,1131 @@ export interface BookingMethodSelectorProps {
   initialMode?: 'select' | 'ai';
 }
 
-const COMMON_SYMPTOMS = [
-  { label: '🔥 Sốt, ho, cảm cúm', query: 'Tôi bị sốt nhẹ, đau rát họng, ho có đờm và mệt mỏi toàn thân 2 hôm nay.' },
-  { label: '🤢 Đau bụng, buồn nôn', query: 'Tôi bị đau âm ỉ vùng bụng trên rốn, ợ chua, buồn nôn và ăn uống khó tiêu.' },
-  { label: '🤕 Đau đầu, chóng mặt', query: 'Tôi bị đau nhức nửa đầu, chóng mặt khi đứng lên ngồi xuống, mất ngủ.' },
-  { label: '🔴 Ngứa, dị ứng da', query: 'Da tôi bị nổi mẩn đỏ, ngứa ngáy dữ dội ở vùng cổ và cánh tay sau khi ăn hải sản.' },
-  { label: '🦷 Đau răng, sưng nướu', query: 'Tôi bị đau buốt răng hàm khi uống nước lạnh, nướu chân răng sưng đỏ và chảy máu.' },
-  { label: '👁️ Mắt mờ, cộm rát', query: 'Mắt tôi bị đỏ, cộm xốn như có cát, chảy nước mắt nhiều và nhìn mờ.' },
+// ---------------------------------------------------------------------------
+// 1. TỪ KHÓA NGUY HIỂM — CẤP CỨU KHẨN CẤP (SAFETY GUARDRAIL 115)
+// ---------------------------------------------------------------------------
+const EMERGENCY_KEYWORDS = [
+  'đau thắt ngực', 'đau ngực dữ dội', 'tức ngực dữ dội', 'bóp nghẹt ngực',
+  'khó thở dữ dội', 'thở dốc tím tái', 'ngưng thở', 'không thở được',
+  'ngất xỉu', 'ngất', 'mất ý thức', 'hôn mê', 'bất tỉnh',
+  'đột quỵ', 'tai biến', 'liệt nửa người', 'méo miệng', 'nói ngọng đột ngột',
+  'nôn ra máu', 'ho ra máu tươi', 'xuất huyết dữ dội', 'chảy máu không cầm',
+  'tai nạn giao thông', 'chấn thương sọ não', 'gãy xương hở', 'ngộ độc cấp',
+  'co giật', 'sốt co giật', 'lú lẫn đột ngột'
 ];
+
+function isEmergencySymptom(text: string): boolean {
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  return EMERGENCY_KEYWORDS.some(kw => lower.includes(kw));
+}
+
+// ---------------------------------------------------------------------------
+// 2. CÁC NHÓM TRIỆU CHỨNG BAN ĐẦU & CÂU HỎI TRẮC NGHIỆM CHI TIẾT
+// ---------------------------------------------------------------------------
+interface SymptomCategory {
+  id: string;
+  label: string;
+  specialtyCode: string;
+  specialtyName: string;
+  recommendedService: string;
+  estimatedFee: string;
+  natureOptions: string[];
+  durationOptions: string[];
+  associatedOptions: string[];
+}
+
+const SYMPTOM_CATEGORIES: Record<string, SymptomCategory> = {
+  HEADACHE: {
+    id: 'HEADACHE',
+    label: '🤕 Đau đầu, chóng mặt',
+    specialtyCode: 'INTERNAL_MEDICINE',
+    specialtyName: 'Khoa Nội Tổng Quát & Thần Kinh',
+    recommendedService: 'Gói Khám Thần Kinh & Đo Lưu Huyết Não',
+    estimatedFee: '200.000 VNĐ',
+    natureOptions: [
+      'Nhói nửa đầu theo nhịp mạch',
+      'Căng tức nặng cả đầu',
+      'Âm ỉ sau gáy hoặc vùng trán',
+      'Choáng váng khi đứng lên ngồi xuống'
+    ],
+    durationOptions: [
+      'Mới bị hôm nay',
+      'Được 2 - 3 ngày nay',
+      'Kéo dài hơn 1 tuần',
+      'Tái phát từng đợt nhiều tháng'
+    ],
+    associatedOptions: [
+      'Buồn nôn hoặc sợ ánh sáng',
+      'Mất ngủ, căng thẳng stress',
+      'Sốt nhẹ, mệt mỏi toàn thân',
+      'Không có triệu chứng đi kèm'
+    ]
+  },
+  ABDOMINAL: {
+    id: 'ABDOMINAL',
+    label: '🤢 Đau bụng, tiêu hóa',
+    specialtyCode: 'INTERNAL_MEDICINE',
+    specialtyName: 'Khoa Nội Tiêu Hóa & Gan Mật',
+    recommendedService: 'Gói Khám Tiêu Hóa & Siêu Âm Ổ Bụng',
+    estimatedFee: '200.000 VNĐ',
+    natureOptions: [
+      'Đau âm ỉ trên rốn (vùng thượng vị)',
+      'Quặn từng cơn quanh rốn',
+      'Đau tức vùng bụng dưới',
+      'Ợ chua, nóng rát thực quản'
+    ],
+    durationOptions: [
+      'Mới bị vài giờ gần đây',
+      'Được 1 - 2 ngày',
+      'Kéo dài hơn 1 tuần',
+      'Đau nhiều sau bữa ăn'
+    ],
+    associatedOptions: [
+      'Buồn nôn hoặc nôn mửa',
+      'Tiêu chảy hoặc phân lỏng',
+      'Đầy hơi, khó tiêu chướng bụng',
+      'Không có triệu chứng đi kèm'
+    ]
+  },
+  RESPIRATORY: {
+    id: 'RESPIRATORY',
+    label: '🔥 Sốt, ho, cảm cúm',
+    specialtyCode: 'INTERNAL_MEDICINE',
+    specialtyName: 'Khoa Nội Hô Hấp & Truyền Nhiễm',
+    recommendedService: 'Gói Khám Hô Hấp & Nội Soi Tai Mũi Họng',
+    estimatedFee: '200.000 VNĐ',
+    natureOptions: [
+      'Sốt cao trên 38.5°C kèm lạnh run',
+      'Ho khan, rát buốt cổ họng',
+      'Ho có đờm, nghẹt đờm mũi',
+      'Đau rát họng khi nuốt thức ăn'
+    ],
+    durationOptions: [
+      'Mới bị từ sáng hoặc đêm qua',
+      'Được 2 - 3 ngày nay',
+      'Kéo dài 4 - 7 ngày',
+      'Kéo dài trên 1 tuần'
+    ],
+    associatedOptions: [
+      'Sổ mũi, hắt hơi liên tục',
+      'Đau nhức mỏi cơ toàn thân',
+      'Khó thở nhẹ khi vận động',
+      'Không có triệu chứng đi kèm'
+    ]
+  },
+  FATIGUE: {
+    id: 'FATIGUE',
+    label: '😫 Mệt mỏi, suy nhược',
+    specialtyCode: 'INTERNAL_MEDICINE',
+    specialtyName: 'Khoa Nội Tổng Quát & Khám Sức Khỏe',
+    recommendedService: 'Gói Khám Sức Khỏe Tổng Quát & Tầm Soát Suy Nhược',
+    estimatedFee: '200.000 VNĐ',
+    natureOptions: [
+      'Người uể oải, kiệt sức không có lực',
+      'Hụt hơi, choáng váng hoa mắt khi vận động',
+      'Chán ăn, sụt cân, ngủ li bì hoặc mất ngủ',
+      'Mệt rã rời tay chân, đuối sức cả ngày'
+    ],
+    durationOptions: [
+      'Mới bị 1 - 2 ngày gần đây',
+      'Được khoảng 1 tuần nay',
+      'Kéo dài từ 2 - 4 tuần',
+      'Tình trạng suy nhược kéo dài nhiều tháng'
+    ],
+    associatedOptions: [
+      'Kèm chán ăn, đắng miệng, sụt cân',
+      'Kèm mất ngủ, trằn trọc, căng thẳng',
+      'Kèm hồi hộp, tim đập nhanh',
+      'Không có triệu chứng đi kèm'
+    ]
+  },
+  BONE_JOINT: {
+    id: 'BONE_JOINT',
+    label: '🦴 Đau nhức xương khớp',
+    specialtyCode: 'INTERNAL_MEDICINE',
+    specialtyName: 'Khoa Nội Tổng Quát & Cơ Xương Khớp',
+    recommendedService: 'Gói Khám Cơ Xương Khớp & Chụp X-Quang',
+    estimatedFee: '200.000 VNĐ',
+    natureOptions: [
+      'Đau mỏi vai gáy hoặc cột sống thắt lưng',
+      'Đau nhức khớp gối khi lên xuống cầu thang',
+      'Tê bì đầu ngón tay, bàn chân',
+      'Cứng khớp, khó vận động vào buổi sáng'
+    ],
+    durationOptions: [
+      'Mới đau 2 - 3 ngày nay',
+      'Kéo dài hơn 1 tuần',
+      'Đau âm ỉ từ 1 - 3 tháng',
+      'Tái phát kinh niên nhiều năm'
+    ],
+    associatedOptions: [
+      'Kèm sưng nóng đỏ tại khớp',
+      'Hạn chế cử động, khó cúi gập',
+      'Kèm tiếng lạo xạo khi co duỗi khớp',
+      'Không có triệu chứng đi kèm'
+    ]
+  },
+  SKIN: {
+    id: 'SKIN',
+    label: '🔴 Ngứa, dị ứng da',
+    specialtyCode: 'DERMATOLOGY',
+    specialtyName: 'Chuyên Khoa Da Liễu & Thẩm Mỹ',
+    recommendedService: 'Gói Khám & Soi Da Kỹ Thuật Số',
+    estimatedFee: '250.000 VNĐ',
+    natureOptions: [
+      'Nổi mẩn đỏ ngứa ngáy dữ dội',
+      'Nổi mề đay thành từng mảng',
+      'Mụn nước hoặc sưng viêm rát',
+      'Bong tróc, khô ngứa nứt nẻ'
+    ],
+    durationOptions: [
+      'Mới xuất hiện sau khi ăn thức ăn lạ',
+      'Được 2 - 3 ngày nay',
+      'Kéo dài hơn 1 tuần',
+      'Tái phát định kỳ khi thời tiết đổi'
+    ],
+    associatedOptions: [
+      'Ngứa nhiều vào ban đêm',
+      'Sưng phù mí mắt hoặc môi',
+      'Rát buốt tại vùng tổn thương',
+      'Không có triệu chứng đi kèm'
+    ]
+  },
+  DENTAL: {
+    id: 'DENTAL',
+    label: '🦷 Đau răng, sưng nướu',
+    specialtyCode: 'ODONTO_STOMATOLOGY',
+    specialtyName: 'Chuyên Khoa Răng Hàm Mặt',
+    recommendedService: 'Gói Khám Răng Toàn Diện & Chụp X-Quang',
+    estimatedFee: '150.000 VNĐ',
+    natureOptions: [
+      'Đau buốt nhói khi ăn đồ nóng lạnh',
+      'Đau nhức âm ỉ chân răng liên tục',
+      'Sưng đỏ nướu hoặc chảy máu chân răng',
+      'Đau răng khôn góc hàm trong cùng'
+    ],
+    durationOptions: [
+      'Mới bị 1 - 2 ngày gần đây',
+      'Được 3 - 5 ngày',
+      'Đau dữ dội về ban đêm',
+      'Kéo dài trên 1 tuần'
+    ],
+    associatedOptions: [
+      'Kèm sưng một bên má',
+      'Hơi thở có mùi khó chịu',
+      'Khó há miệng hoặc khó nhai',
+      'Không có triệu chứng đi kèm'
+    ]
+  },
+  EYE: {
+    id: 'EYE',
+    label: '👁️ Mắt mờ, cộm rát',
+    specialtyCode: 'OPHTHALMOLOGY',
+    specialtyName: 'Chuyên Khoa Mắt (Nhãn Khoa)',
+    recommendedService: 'Khám Mắt Tổng Quát & Kiểm Tra Thị Lực',
+    estimatedFee: '200.000 VNĐ',
+    natureOptions: [
+      'Cộm xốn, đỏ mắt như có cát',
+      'Mắt mờ, nhìn không rõ nét',
+      'Chảy nước mắt và đổ ghèn nhiều',
+      'Mỏi mắt, khô rát khi nhìn máy tính'
+    ],
+    durationOptions: [
+      'Mới bị hôm nay',
+      'Được 2 - 3 ngày nay',
+      'Kéo dài hơn 1 tuần',
+      'Tăng dần sau giờ làm việc'
+    ],
+    associatedOptions: [
+      'Sợ ánh sáng hoặc chói mắt',
+      'Ngứa và hay dụi mắt',
+      'Đau nhức quanh hốc mắt',
+      'Không có triệu chứng đi kèm'
+    ]
+  }
+};
+
+// ---------------------------------------------------------------------------
+// 3. CHI NHÁNH MEDSCHED & BẢNG ÁNH XẠ KHU VỰC GẦN NHẤT
+// ---------------------------------------------------------------------------
+interface ClinicBranch {
+  id: string;
+  code: string;
+  name: string;
+  shortName: string;
+  address: string;
+  phone: string;
+  districtKeywords: string[];
+}
+
+const CLINIC_BRANCHES: ClinicBranch[] = [
+  {
+    id: 'a1b2c3d4-0001-4000-8000-000000000001',
+    code: 'MED_CN1',
+    name: 'Phòng Khám Đa Khoa MedSched - Chi Nhánh Trần Đại Nghĩa',
+    shortName: 'Chi Nhánh Trần Đại Nghĩa (Bình Tân)',
+    address: 'TOTALE COFFEE TEA, 96 Đ. Trần Đại Nghĩa, Tân Tạo, Hồ Chí Minh, Việt Nam',
+    phone: '028 3912 3456 (Hotline tiếp đón)',
+    districtKeywords: [
+      'bình tân', 'tân tạo', 'trần đại nghĩa', 'an lạc', 'bình chánh', 'vĩnh lộc',
+      'tân kiên', 'tên lửa', 'quốc lộ 1a', 'kinh dương vương', 'quận 6', 'q6', 'q.6',
+      'quận 8', 'q8', 'q.8', 'long an'
+    ]
+  },
+  {
+    id: 'a1b2c3d4-0002-4000-8000-000000000002',
+    code: 'MED_CN2',
+    name: 'Phòng Khám Đa Khoa MedSched - Chi Nhánh Trịnh Đình Thảo (ITC)',
+    shortName: 'Chi Nhánh ITC Trịnh Đình Thảo (Tân Phú)',
+    address: 'Cao Đẳng Công Nghệ Thông Tin TP.HCM, 12 Đ. Trịnh Đình Thảo, Tân Phú, Hồ Chí Minh 700000, Việt Nam',
+    phone: '028 3999 8877 (Hotline tiếp đón)',
+    districtKeywords: [
+      'tân phú', 'trịnh đình thảo', 'hòa thạnh', 'itc', 'tân bình', 'quận 11', 'q11', 'q.11',
+      'quận 10', 'q10', 'q.10', 'đầm sen', 'lũy bán bích', 'thoại ngọc hầu', 'quận 5', 'q5', 'q.5',
+      'quận 3', 'q3', 'q.3', 'quận 1', 'q1', 'q.1', 'gò vấp', 'phú nhuận', 'bình thạnh',
+      'quận 12', 'q12', 'hóc môn', 'thủ đức', 'quận 7', 'q7', 'nhà bè'
+    ]
+  }
+];
+
+// ---------------------------------------------------------------------------
+// 4. DANH SÁCH BÁC SĨ MẪU CHUẨN & DỊCH VỤ PHÒNG KHÁM
+// ---------------------------------------------------------------------------
+interface ClinicServiceOption {
+  id: string;
+  label: string;
+  feeText: string;
+  icon: string;
+  desc: string;
+}
+
+const CLINIC_SERVICES: ClinicServiceOption[] = [
+  { id: 'STANDARD', label: 'Khám Chuyên Khoa Tiêu Chuẩn', feeText: '200.000 đ', icon: '🩺', desc: 'Khám lâm sàng, chẩn đoán và tư vấn phác đồ điều trị theo quy chuẩn phòng khám MedSched' },
+];
+
+interface TimeShiftOption {
+  id: string;
+  label: string;
+  timeRange: string;
+  icon: string;
+}
+
+const TIME_SHIFTS: TimeShiftOption[] = [
+  { id: 'MORNING', label: 'Buổi Sáng', timeRange: '08:00 - 11:30', icon: '🌅' },
+  { id: 'AFTERNOON', label: 'Buổi Chiều', timeRange: '13:30 - 16:00', icon: '🌇' },
+];
+
+interface DemoDoctor {
+  id: string;
+  name: string;
+  title: string;
+  specialtyCode: string;
+  categoryKeys: string[];
+  centerId: string;
+  room: string;
+  fee: number;
+  gender: 'male' | 'female';
+  isExpert?: boolean;
+}
+
+const DEMO_DOCTORS: DemoDoctor[] = [
+  // -------------------------------------------------------------------------
+  // 1. KHOA NỘI & THẦN KINH (HEADACHE: Đau đầu, chóng mặt, tiền đình, mất ngủ)
+  // -------------------------------------------------------------------------
+  // Chi Nhánh 1: Bình Tân
+  {
+    id: 'doc-head-01',
+    name: 'BS.CKII Nguyễn Văn An',
+    title: 'Trưởng Khoa Thần Kinh - Đau Đầu & Mạch Máu Não (20 năm kinh nghiệm)',
+    specialtyCode: 'INTERNAL_MEDICINE',
+    categoryKeys: ['HEADACHE'],
+    centerId: 'a1b2c3d4-0001-4000-8000-000000000001',
+    room: 'Phòng P.208 - Tầng 2',
+    fee: 200000,
+    gender: 'male',
+    isExpert: true,
+  },
+  {
+    id: 'doc-head-01b',
+    name: 'BS.CKI Hoàng Mỹ Linh',
+    title: 'Bác sĩ Nội Thần Kinh - Giấc Ngủ & Tiền Đình (14 năm kinh nghiệm)',
+    specialtyCode: 'INTERNAL_MEDICINE',
+    categoryKeys: ['HEADACHE'],
+    centerId: 'a1b2c3d4-0001-4000-8000-000000000001',
+    room: 'Phòng P.206 - Tầng 2',
+    fee: 200000,
+    gender: 'female',
+    isExpert: false,
+  },
+  // Chi Nhánh 2: ITC Tân Phú
+  {
+    id: 'doc-head-02',
+    name: 'BS.CKII Lê Quang Vinh',
+    title: 'Bác sĩ Chuyên Khoa Thần Kinh & Đau Đầu Mãn Tính (18 năm kinh nghiệm)',
+    specialtyCode: 'INTERNAL_MEDICINE',
+    categoryKeys: ['HEADACHE'],
+    centerId: 'a1b2c3d4-0002-4000-8000-000000000002',
+    room: 'Phòng P.103 - Tầng 1',
+    fee: 250000,
+    gender: 'male',
+    isExpert: true,
+  },
+  {
+    id: 'doc-head-02b',
+    name: 'ThS.BS Nguyễn Hoài Thu',
+    title: 'Bác sĩ Nội Thần Kinh & Trị Liệu Giấc Ngủ (13 năm kinh nghiệm)',
+    specialtyCode: 'INTERNAL_MEDICINE',
+    categoryKeys: ['HEADACHE'],
+    centerId: 'a1b2c3d4-0002-4000-8000-000000000002',
+    room: 'Phòng P.102 - Tầng 1',
+    fee: 200000,
+    gender: 'female',
+    isExpert: true,
+  },
+
+  // -------------------------------------------------------------------------
+  // 2. KHOA HÔ HẤP & TRUYỀN NHIỄM (RESPIRATORY: Sốt, ho, cảm cúm, phổi)
+  // -------------------------------------------------------------------------
+  // Chi Nhánh 1: Bình Tân
+  {
+    id: 'doc-resp-01',
+    name: 'ThS.BS Chu Đình Triều',
+    title: 'Trưởng Đơn Nguyên Hô Hấp & Dị Ứng Thời Tiết (16 năm kinh nghiệm)',
+    specialtyCode: 'INTERNAL_MEDICINE',
+    categoryKeys: ['RESPIRATORY'],
+    centerId: 'a1b2c3d4-0001-4000-8000-000000000001',
+    room: 'Phòng P.204 - Tầng 2',
+    fee: 200000,
+    gender: 'male',
+    isExpert: true,
+  },
+  {
+    id: 'doc-resp-01b',
+    name: 'BS.CKI Phạm Thúy Nga',
+    title: 'Bác sĩ Chuyên Khoa Hô Hấp & Tai Mũi Họng (12 năm kinh nghiệm)',
+    specialtyCode: 'INTERNAL_MEDICINE',
+    categoryKeys: ['RESPIRATORY'],
+    centerId: 'a1b2c3d4-0001-4000-8000-000000000001',
+    room: 'Phòng P.205 - Tầng 2',
+    fee: 200000,
+    gender: 'female',
+    isExpert: false,
+  },
+  // Chi Nhánh 2: ITC Tân Phú
+  {
+    id: 'doc-resp-02',
+    name: 'ThS.BS Trần Thị Mai',
+    title: 'Phó Khoa Nội - Chuyên gia Hô Hấp & Phổi (15 năm kinh nghiệm)',
+    specialtyCode: 'INTERNAL_MEDICINE',
+    categoryKeys: ['RESPIRATORY'],
+    centerId: 'a1b2c3d4-0002-4000-8000-000000000002',
+    room: 'Phòng P.101 - Tầng 1',
+    fee: 200000,
+    gender: 'female',
+    isExpert: true,
+  },
+  {
+    id: 'doc-resp-02b',
+    name: 'BS.CKII Đỗ Thành Trung',
+    title: 'Bác sĩ Hô Hấp & Cảm Cúm Truyền Nhiễm (14 năm kinh nghiệm)',
+    specialtyCode: 'INTERNAL_MEDICINE',
+    categoryKeys: ['RESPIRATORY'],
+    centerId: 'a1b2c3d4-0002-4000-8000-000000000002',
+    room: 'Phòng P.106 - Tầng 1',
+    fee: 200000,
+    gender: 'male',
+    isExpert: false,
+  },
+
+  // -------------------------------------------------------------------------
+  // 3. KHOA TIÊU HÓA & GAN MẬT (ABDOMINAL: Đau bụng, dạ dày, tiêu hóa)
+  // -------------------------------------------------------------------------
+  // Chi Nhánh 1: Bình Tân
+  {
+    id: 'doc-ab-01',
+    name: 'BS.CKII Trần Quốc Bảo',
+    title: 'Trưởng Khoa Tiêu Hóa - Gan Mật & Dạ Dày (19 năm kinh nghiệm)',
+    specialtyCode: 'INTERNAL_MEDICINE',
+    categoryKeys: ['ABDOMINAL'],
+    centerId: 'a1b2c3d4-0001-4000-8000-000000000001',
+    room: 'Phòng P.207 - Tầng 2',
+    fee: 200000,
+    gender: 'male',
+    isExpert: true,
+  },
+  {
+    id: 'doc-ab-01b',
+    name: 'BS.CKI Lê Thị Ánh Tuyết',
+    title: 'Bác sĩ Tiêu Hóa & Nội Soi Dạ Dày (11 năm kinh nghiệm)',
+    specialtyCode: 'INTERNAL_MEDICINE',
+    categoryKeys: ['ABDOMINAL'],
+    centerId: 'a1b2c3d4-0001-4000-8000-000000000001',
+    room: 'Phòng P.201 - Tầng 2',
+    fee: 200000,
+    gender: 'female',
+    isExpert: false,
+  },
+  // Chi Nhánh 2: ITC Tân Phú
+  {
+    id: 'doc-ab-02',
+    name: 'ThS.BS Đặng Thúy Hà',
+    title: 'Chuyên gia Tiêu Hóa & Dinh Dưỡng Đường Ruột (15 năm kinh nghiệm)',
+    specialtyCode: 'INTERNAL_MEDICINE',
+    categoryKeys: ['ABDOMINAL'],
+    centerId: 'a1b2c3d4-0002-4000-8000-000000000002',
+    room: 'Phòng P.107 - Tầng 1',
+    fee: 200000,
+    gender: 'female',
+    isExpert: true,
+  },
+  {
+    id: 'doc-ab-02b',
+    name: 'BS.CKI Nguyễn Minh Tuấn',
+    title: 'Bác sĩ Nội Tiêu Hóa & Đại Tràng (12 năm kinh nghiệm)',
+    specialtyCode: 'INTERNAL_MEDICINE',
+    categoryKeys: ['ABDOMINAL'],
+    centerId: 'a1b2c3d4-0002-4000-8000-000000000002',
+    room: 'Phòng P.108 - Tầng 1',
+    fee: 200000,
+    gender: 'male',
+    isExpert: false,
+  },
+
+  // -------------------------------------------------------------------------
+  // 4. KHOA CƠ XƯƠNG KHỚP (BONE_JOINT: Đau nhức xương khớp, cột sống)
+  // -------------------------------------------------------------------------
+  // Chi Nhánh 1: Bình Tân
+  {
+    id: 'doc-bj-01',
+    name: 'BS.CKII Phan Văn Nam',
+    title: 'Trưởng Khoa Cơ Xương Khớp & Thoái Hóa Cột Sống (21 năm kinh nghiệm)',
+    specialtyCode: 'INTERNAL_MEDICINE',
+    categoryKeys: ['BONE_JOINT'],
+    centerId: 'a1b2c3d4-0001-4000-8000-000000000001',
+    room: 'Phòng P.210 - Tầng 2',
+    fee: 200000,
+    gender: 'male',
+    isExpert: true,
+  },
+  {
+    id: 'doc-bj-01b',
+    name: 'BS.CKI Võ Thị Kim Oanh',
+    title: 'Bác sĩ Phục Hồi Chức Năng Cơ Xương Khớp (13 năm kinh nghiệm)',
+    specialtyCode: 'INTERNAL_MEDICINE',
+    categoryKeys: ['BONE_JOINT'],
+    centerId: 'a1b2c3d4-0001-4000-8000-000000000001',
+    room: 'Phòng P.211 - Tầng 2',
+    fee: 200000,
+    gender: 'female',
+    isExpert: false,
+  },
+  // Chi Nhánh 2: ITC Tân Phú
+  {
+    id: 'doc-bj-02',
+    name: 'ThS.BS Trịnh Khắc Duy',
+    title: 'Chuyên gia Cơ Xương Khớp & Thoát Vị Đĩa Đệm (16 năm kinh nghiệm)',
+    specialtyCode: 'INTERNAL_MEDICINE',
+    categoryKeys: ['BONE_JOINT'],
+    centerId: 'a1b2c3d4-0002-4000-8000-000000000002',
+    room: 'Phòng P.109 - Tầng 1',
+    fee: 200000,
+    gender: 'male',
+    isExpert: true,
+  },
+  {
+    id: 'doc-bj-02b',
+    name: 'BS.CKI Nguyễn Thanh Thủy',
+    title: 'Bác sĩ Chấn Thương Chỉnh Hình & Khớp (10 năm kinh nghiệm)',
+    specialtyCode: 'INTERNAL_MEDICINE',
+    categoryKeys: ['BONE_JOINT'],
+    centerId: 'a1b2c3d4-0002-4000-8000-000000000002',
+    room: 'Phòng P.110 - Tầng 1',
+    fee: 200000,
+    gender: 'female',
+    isExpert: false,
+  },
+
+  // -------------------------------------------------------------------------
+  // 5. KHOA NỘI TỔNG QUÁT & KHÁM SỨC KHỎE (FATIGUE: Mệt mỏi, suy nhược)
+  // -------------------------------------------------------------------------
+  // Chi Nhánh 1: Bình Tân
+  {
+    id: 'doc-fat-01',
+    name: 'BS.CKII Nguyễn Văn An',
+    title: 'Trưởng Khoa Nội Tổng Quát & Khám Sức Khỏe (20 năm kinh nghiệm)',
+    specialtyCode: 'INTERNAL_MEDICINE',
+    categoryKeys: ['FATIGUE'],
+    centerId: 'a1b2c3d4-0001-4000-8000-000000000001',
+    room: 'Phòng P.208 - Tầng 2',
+    fee: 200000,
+    gender: 'male',
+    isExpert: true,
+  },
+  {
+    id: 'doc-fat-01b',
+    name: 'BS.CKI Hoàng Mỹ Linh',
+    title: 'Bác sĩ Nội Khoa & Tầm Soát Suy Nhược (14 năm kinh nghiệm)',
+    specialtyCode: 'INTERNAL_MEDICINE',
+    categoryKeys: ['FATIGUE'],
+    centerId: 'a1b2c3d4-0001-4000-8000-000000000001',
+    room: 'Phòng P.206 - Tầng 2',
+    fee: 200000,
+    gender: 'female',
+    isExpert: false,
+  },
+  // Chi Nhánh 2: ITC Tân Phú
+  {
+    id: 'doc-fat-02',
+    name: 'BS.CKII Lê Quang Vinh',
+    title: 'Bác sĩ Nội Tổng Quát & Phục Hồi Thể Lực (18 năm kinh nghiệm)',
+    specialtyCode: 'INTERNAL_MEDICINE',
+    categoryKeys: ['FATIGUE'],
+    centerId: 'a1b2c3d4-0002-4000-8000-000000000002',
+    room: 'Phòng P.103 - Tầng 1',
+    fee: 250000,
+    gender: 'male',
+    isExpert: true,
+  },
+  {
+    id: 'doc-fat-02b',
+    name: 'ThS.BS Nguyễn Hoài Thu',
+    title: 'Bác sĩ Nội Khoa & Dinh Dưỡng Hồi Phục (13 năm kinh nghiệm)',
+    specialtyCode: 'INTERNAL_MEDICINE',
+    categoryKeys: ['FATIGUE'],
+    centerId: 'a1b2c3d4-0002-4000-8000-000000000002',
+    room: 'Phòng P.102 - Tầng 1',
+    fee: 200000,
+    gender: 'female',
+    isExpert: true,
+  },
+
+  // -------------------------------------------------------------------------
+  // 6. KHOA DA LIỄU & DỊ ỨNG (SKIN: Ngứa, dị ứng da)
+  // -------------------------------------------------------------------------
+  // Chi Nhánh 1: Bình Tân
+  {
+    id: 'doc-sk-01',
+    name: 'BS.CKII Nguyễn Tấn Phát',
+    title: 'Trưởng Khoa Da Liễu & Miễn Dịch (17 năm kinh nghiệm)',
+    specialtyCode: 'DERMATOLOGY',
+    categoryKeys: ['SKIN'],
+    centerId: 'a1b2c3d4-0001-4000-8000-000000000001',
+    room: 'Phòng P.203 - Tầng 2',
+    fee: 250000,
+    gender: 'male',
+    isExpert: true,
+  },
+  {
+    id: 'doc-03b',
+    name: 'ThS.BS Bùi Phương Thảo',
+    title: 'Chuyên gia Da Liễu & Dị Ứng (12 năm kinh nghiệm)',
+    specialtyCode: 'DERMATOLOGY',
+    categoryKeys: ['SKIN'],
+    centerId: 'a1b2c3d4-0001-4000-8000-000000000001',
+    room: 'Phòng P.202 - Tầng 2',
+    fee: 250000,
+    gender: 'female',
+    isExpert: false,
+  },
+  // Chi Nhánh 2: ITC Tân Phú
+  {
+    id: 'doc-03',
+    name: 'BS.CKI Lê Hoàng Nam',
+    title: 'Bác sĩ Da Liễu & Laser Thẩm Mỹ (15 năm kinh nghiệm)',
+    specialtyCode: 'DERMATOLOGY',
+    categoryKeys: ['SKIN'],
+    centerId: 'a1b2c3d4-0002-4000-8000-000000000002',
+    room: 'Phòng P.102 - Tầng 1',
+    fee: 250000,
+    gender: 'male',
+    isExpert: true,
+  },
+  {
+    id: 'doc-sk-02',
+    name: 'ThS.BS Trần Ngọc Lan',
+    title: 'Chuyên gia Da Liễu & Trị Liệu Dị Ứng Da (11 năm kinh nghiệm)',
+    specialtyCode: 'DERMATOLOGY',
+    categoryKeys: ['SKIN'],
+    centerId: 'a1b2c3d4-0002-4000-8000-000000000002',
+    room: 'Phòng P.111 - Tầng 1',
+    fee: 250000,
+    gender: 'female',
+    isExpert: false,
+  },
+
+  // -------------------------------------------------------------------------
+  // 7. KHOA MẮT - NHÃN KHOA (EYE: Mắt mờ, cộm rát)
+  // -------------------------------------------------------------------------
+  // Chi Nhánh 1: Bình Tân
+  {
+    id: 'doc-04',
+    name: 'BS.CKII Phạm Quỳnh Chi',
+    title: 'Chuyên gia Mắt & Khúc Xạ Giác Mạc (16 năm kinh nghiệm)',
+    specialtyCode: 'OPHTHALMOLOGY',
+    categoryKeys: ['EYE'],
+    centerId: 'a1b2c3d4-0001-4000-8000-000000000001',
+    room: 'Phòng P.205 - Tầng 2',
+    fee: 200000,
+    gender: 'female',
+    isExpert: true,
+  },
+  {
+    id: 'doc-eye-01',
+    name: 'ThS.BS Hoàng Đức Trọng',
+    title: 'Bác sĩ Nhãn Khoa Tổng Quát (12 năm kinh nghiệm)',
+    specialtyCode: 'OPHTHALMOLOGY',
+    categoryKeys: ['EYE'],
+    centerId: 'a1b2c3d4-0001-4000-8000-000000000001',
+    room: 'Phòng P.212 - Tầng 2',
+    fee: 200000,
+    gender: 'male',
+    isExpert: false,
+  },
+  // Chi Nhánh 2: ITC Tân Phú
+  {
+    id: 'doc-04b',
+    name: 'ThS.BS Nguyễn Thanh Tùng',
+    title: 'Bác sĩ Nhãn Khoa Tổng Quát & Đáy Mắt (11 năm kinh nghiệm)',
+    specialtyCode: 'OPHTHALMOLOGY',
+    categoryKeys: ['EYE'],
+    centerId: 'a1b2c3d4-0002-4000-8000-000000000002',
+    room: 'Phòng P.105 - Tầng 1',
+    fee: 200000,
+    gender: 'male',
+    isExpert: false,
+  },
+  {
+    id: 'doc-eye-02',
+    name: 'BS.CKI Lê Mỹ Hạnh',
+    title: 'Chuyên gia Khúc Xạ & Nhãn Khoa Trẻ Em (14 năm kinh nghiệm)',
+    specialtyCode: 'OPHTHALMOLOGY',
+    categoryKeys: ['EYE'],
+    centerId: 'a1b2c3d4-0002-4000-8000-000000000002',
+    room: 'Phòng P.112 - Tầng 1',
+    fee: 200000,
+    gender: 'female',
+    isExpert: true,
+  },
+
+  // -------------------------------------------------------------------------
+  // 8. KHOA RĂNG HÀM MẶT (DENTAL: Đau răng, sưng nướu)
+  // -------------------------------------------------------------------------
+  // Chi Nhánh 1: Bình Tân
+  {
+    id: 'doc-den-01',
+    name: 'BS.CKII Huỳnh Bích Trâm',
+    title: 'Trưởng Khoa Nha Khoa Kỹ Thuật Cao (18 năm kinh nghiệm)',
+    specialtyCode: 'ODONTO_STOMATOLOGY',
+    categoryKeys: ['DENTAL'],
+    centerId: 'a1b2c3d4-0001-4000-8000-000000000001',
+    room: 'Phòng P.214 - Tầng 2',
+    fee: 150000,
+    gender: 'female',
+    isExpert: true,
+  },
+  {
+    id: 'doc-05',
+    name: 'ThS.BS Vũ Minh Đức',
+    title: 'Bác sĩ Răng Hàm Mặt & Phục Hình (10 năm kinh nghiệm)',
+    specialtyCode: 'ODONTO_STOMATOLOGY',
+    categoryKeys: ['DENTAL'],
+    centerId: 'a1b2c3d4-0001-4000-8000-000000000001',
+    room: 'Phòng P.209 - Tầng 2',
+    fee: 150000,
+    gender: 'male',
+    isExpert: false,
+  },
+  // Chi Nhánh 2: ITC Tân Phú
+  {
+    id: 'doc-05b',
+    name: 'BS.CKI Đỗ Bích Ngọc',
+    title: 'Chuyên gia Chỉnh Nha & Nha Khoa Trẻ Em (13 năm kinh nghiệm)',
+    specialtyCode: 'ODONTO_STOMATOLOGY',
+    categoryKeys: ['DENTAL'],
+    centerId: 'a1b2c3d4-0002-4000-8000-000000000002',
+    room: 'Phòng P.104 - Tầng 1',
+    fee: 150000,
+    gender: 'female',
+    isExpert: true,
+  },
+  {
+    id: 'doc-den-02',
+    name: 'ThS.BS Bùi Thế Hùng',
+    title: 'Bác sĩ Răng Hàm Mặt & Tiểu Phẫu Răng Khôn (11 năm kinh nghiệm)',
+    specialtyCode: 'ODONTO_STOMATOLOGY',
+    categoryKeys: ['DENTAL'],
+    centerId: 'a1b2c3d4-0002-4000-8000-000000000002',
+    room: 'Phòng P.115 - Tầng 1',
+    fee: 150000,
+    gender: 'male',
+    isExpert: false,
+  },
+];
+
+interface ClinicTimeSlot {
+  time: string;
+  startMinutes: number;
+  session: 'MORNING' | 'AFTERNOON';
+}
+
+const BASE_TIME_SLOTS: ClinicTimeSlot[] = [
+  // Buổi Sáng (08:00 - 11:30)
+  { time: '08:00 - 08:30', startMinutes: 8 * 60, session: 'MORNING' },
+  { time: '08:30 - 09:00', startMinutes: 8 * 60 + 30, session: 'MORNING' },
+  { time: '09:00 - 09:30', startMinutes: 9 * 60, session: 'MORNING' },
+  { time: '09:30 - 10:00', startMinutes: 9 * 60 + 30, session: 'MORNING' },
+  { time: '10:00 - 10:30', startMinutes: 10 * 60, session: 'MORNING' },
+  { time: '10:30 - 11:00', startMinutes: 10 * 60 + 30, session: 'MORNING' },
+  // Buổi Chiều (13:30 - 16:00)
+  { time: '13:30 - 14:00', startMinutes: 13 * 60 + 30, session: 'AFTERNOON' },
+  { time: '14:00 - 14:30', startMinutes: 14 * 60, session: 'AFTERNOON' },
+  { time: '14:30 - 15:00', startMinutes: 14 * 60 + 30, session: 'AFTERNOON' },
+  { time: '15:00 - 15:30', startMinutes: 15 * 60, session: 'AFTERNOON' },
+  { time: '15:30 - 16:00', startMinutes: 15 * 60 + 30, session: 'AFTERNOON' },
+];
+
+// Helper xử lý ngày giờ đồng bộ chuẩn với BookingForm
+const getTodayISODate = (): string => {
+  const now = new Date();
+  const day = String(now.getDate()).padStart(2, '0');
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const year = now.getFullYear();
+  return `${year}-${month}-${day}`;
+};
+
+const isPastAllTodaySlots = (): boolean => {
+  const now = new Date();
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  return currentMinutes >= 15 * 60 + 30; // 15:30
+};
+
+const getNextAvailableWeekday = (baseDate?: Date): string => {
+  const d = baseDate ? new Date(baseDate) : new Date();
+  if (!baseDate && isPastAllTodaySlots()) {
+    d.setDate(d.getDate() + 1);
+  }
+  // Bỏ qua Thứ 7 (6) và Chủ Nhật (0)
+  while (d.getDay() === 0 || d.getDay() === 6) {
+    d.setDate(d.getDate() + 1);
+  }
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${year}-${month}-${day}`;
+};
+
+const formatVietnameseFullDate = (iso: string): string => {
+  if (!iso) return '';
+  const parts = iso.split('-');
+  if (parts.length !== 3) return iso;
+  const [y, m, d] = parts.map(Number);
+  const dateObj = new Date(y, m - 1, d);
+  const dayOfWeek = dateObj.getDay();
+  const dayNames = ['Chủ Nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
+  const dayName = dayNames[dayOfWeek] || '';
+  return `${dayName}, ${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
+};
+
+const getUpcomingWeekdays = (count: number = 5): Array<{ iso: string; label: string; subLabel: string }> => {
+  const result: Array<{ iso: string; label: string; subLabel: string }> = [];
+  const todayIso = getTodayISODate();
+  const cur = new Date();
+  if (isPastAllTodaySlots()) {
+    cur.setDate(cur.getDate() + 1);
+  }
+  while (result.length < count) {
+    if (cur.getDay() !== 0 && cur.getDay() !== 6) {
+      const day = String(cur.getDate()).padStart(2, '0');
+      const month = String(cur.getMonth() + 1).padStart(2, '0');
+      const year = cur.getFullYear();
+      const iso = `${year}-${month}-${day}`;
+      const dayNames = ['Chủ Nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
+      const dayName = dayNames[cur.getDay()];
+      
+      let label = `${dayName} (${day}/${month})`;
+      if (iso === todayIso) {
+        label = `Hôm nay (${day}/${month})`;
+      } else {
+        const tom = new Date();
+        tom.setDate(tom.getDate() + 1);
+        const tomDay = String(tom.getDate()).padStart(2, '0');
+        const tomMonth = String(tom.getMonth() + 1).padStart(2, '0');
+        const tomIso = `${tom.getFullYear()}-${tomMonth}-${tomDay}`;
+        if (iso === tomIso) {
+          label = `Ngày mai (${day}/${month})`;
+        }
+      }
+      result.push({ iso, label, subLabel: `${day}/${month}/${year}` });
+    }
+    cur.setDate(cur.getDate() + 1);
+  }
+  return result;
+};
+
+// Cấu hình ngân hàng VietQR chính thức của Trưởng nhóm (KienlongBank)
+const VIETQR_BANK_CONFIG = {
+  bankId: 'KLB',
+  bankName: 'KienlongBank - Ngân Hàng TMCP Kiên Long',
+  accountNo: '18112007',
+  accountName: 'CHAU TUAN KIET',
+  depositAmount: 2000,
+};
+
+// ---------------------------------------------------------------------------
+
+
+// ---------------------------------------------------------------------------
+// 5. COMPONENT CHÍNH — KHUNG CHAT ZALO FULL MÀN HÌNH LIỀN MẠCH
+// ---------------------------------------------------------------------------
+type AiWizardStep =
+  | 'CHOOSE_SYMPTOM'      // Bước 1: Chọn triệu chứng ban đầu hoặc gõ
+  | 'CLARIFY_DETAILS'     // Bước 2: Chọn chi tiết: Đau như thế nào, Đau bao lâu, Kèm theo gì
+  | 'INPUT_LOCATION'      // Bước 3: Chọn Chi nhánh phòng khám MedSched
+  | 'SELECT_DOCTOR_SLOT'  // Bước 4: Chọn Bác sĩ & Giờ khám khả dụng còn trống
+  | 'CONFIRM_PAYMENT'     // Bước 5: Quét mã chuyển 2k hoặc nhập mã khuyến mãi
+  | 'COMPLETED'           // Bước 6: Hoàn tất đặt chỗ & cấp mã hẹn
+  | 'EMERGENCY';          // Cảnh báo cấp cứu khẩn cấp 115
+
+const VALID_PROMO_CODES = ['MEDSCHED2026', 'VIP', 'GIAOVIEN', 'MEDFREE', 'TESTER', 'DEMO2K', 'UDAI2K', 'GIAM100', 'FREE'];
+
+export interface ClarifyQuestionMeta {
+  questionNumber: number;
+  totalQuestions: number;
+  questionTitle: string;
+  options: string[];
+  fieldKey: 'nature' | 'duration' | 'associated' | 'followup';
+}
+
+export interface ChatActionOption {
+  label: string;
+  actionKey: 'CONFIRM_PROPOSAL_TO_DOCTOR' | 'SELECT_BRANCH' | 'SELECT_SHIFT' | 'CUSTOM_TEXT';
+  payload?: any;
+  variant?: 'primary' | 'secondary' | 'outline';
+}
+
+export interface NurseProposal {
+  branch: ClinicBranch;
+  date?: string;
+  shiftId: 'MORNING' | 'AFTERNOON';
+  slotTime: string;
+  note?: string;
+}
+
+interface ChatMessage {
+  id: string;
+  sender: 'ai' | 'user';
+  time: string;
+  text?: string;
+  widget?: AiWizardStep;
+  isCompleteWidget?: boolean;
+  isTypingComplete?: boolean;
+  clarifyMeta?: ClarifyQuestionMeta;
+  actionOptions?: ChatActionOption[];
+}
+
+// Hàm hỗ trợ format chữ đậm **in đậm** trong tin nhắn
+function renderFormattedText(raw: string) {
+  if (!raw || !raw.includes('**')) {
+    return raw;
+  }
+  const parts = raw.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return (
+        <strong key={i} className="font-extrabold text-purple-950">
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+    return part;
+  });
+}
+
+// Helper phân tích ý định ngôn ngữ tự nhiên của bệnh nhân (NLU Receptionist Parser)
+function parsePatientBookingIntent(rawText: string, currentBranch: ClinicBranch, currentBookingDate: string) {
+  const text = rawText.toLowerCase().trim();
+
+  // 1. Nhận diện chi nhánh
+  let matchedBranch: ClinicBranch | null = null;
+  if (
+    text.includes('itc') ||
+    text.includes('trịnh đình thảo') ||
+    text.includes('trinh dinh thao') ||
+    text.includes('tân phú') ||
+    text.includes('tan phu') ||
+    text.includes('cơ sở 2') ||
+    text.includes('chi nhánh 2') ||
+    text.includes('cs2') ||
+    text.includes('cn2')
+  ) {
+    matchedBranch = CLINIC_BRANCHES[1]; // ITC Trịnh Đình Thảo
+  } else if (
+    text.includes('bình tân') ||
+    text.includes('binh tan') ||
+    text.includes('trần đại nghĩa') ||
+    text.includes('tran dai nghia') ||
+    text.includes('cơ sở 1') ||
+    text.includes('chi nhánh 1') ||
+    text.includes('cs1') ||
+    text.includes('cn1') ||
+    text.includes('an lạc') ||
+    text.includes('an lac')
+  ) {
+    matchedBranch = CLINIC_BRANCHES[0]; // Bình Tân
+  }
+
+  // 2. Nhận diện ca / buổi
+  let matchedShift: 'MORNING' | 'AFTERNOON' | null = null;
+  const isMorningMentioned = text.includes('sáng') || text.includes('sang') || text.includes('morning');
+  const isAfternoonMentioned = text.includes('chiều') || text.includes('chieu') || text.includes('afternoon') || text.includes('tối');
+
+  if (isMorningMentioned && !isAfternoonMentioned) matchedShift = 'MORNING';
+  if (isAfternoonMentioned && !isMorningMentioned) matchedShift = 'AFTERNOON';
+
+  // 3. Nhận diện xung đột giờ nghỉ trưa (Ca chiều bắt đầu lúc 13:30, bệnh nhân xin khám 1h - 2h hoặc 13h - 14h hoặc 1h chiều)
+  const is1h30 = text.includes('13:30') || text.includes('13h30') || text.includes('1h30');
+  const isLunchBreakOrEarlyAfternoon = !is1h30 && (
+    /1h\s*(?:đến|-|tới)?\s*2h/i.test(text) ||
+    /13h\s*(?:đến|-|tới)?\s*14h/i.test(text) ||
+    /từ\s*(?:1h|13h)/i.test(text) ||
+    /(?:1h|13h)\s*(?:chiều|trưa)/i.test(text) ||
+    /\b(?:1h|13h|13:00)\b/i.test(text) ||
+    text.includes('1h đến 2h') ||
+    text.includes('1h den 2h') ||
+    text.includes('1h-2h') ||
+    text.includes('13h-14h') ||
+    text.includes('13h đến 14h')
+  );
+
+  let proposedSlot: string | null = null;
+  let isEarlyAfternoonConflict = false;
+
+  if (isLunchBreakOrEarlyAfternoon) {
+    isEarlyAfternoonConflict = true;
+    matchedShift = 'AFTERNOON';
+    proposedSlot = '13:30 - 14:00';
+  } else if (is1h30) {
+    matchedShift = 'AFTERNOON';
+    proposedSlot = '13:30 - 14:00';
+  } else if (text.includes('14:00') || text.includes('14h') || text.includes('2h chiều') || text.includes('2h')) {
+    matchedShift = 'AFTERNOON';
+    proposedSlot = '14:00 - 14:30';
+  } else if (text.includes('14:30') || text.includes('14h30') || text.includes('2h30')) {
+    matchedShift = 'AFTERNOON';
+    proposedSlot = '14:30 - 15:00';
+  } else if (text.includes('15:00') || text.includes('15h') || text.includes('3h chiều') || text.includes('3h')) {
+    matchedShift = 'AFTERNOON';
+    proposedSlot = '15:00 - 15:30';
+  } else if (text.includes('15:30') || text.includes('15h30') || text.includes('3h30')) {
+    matchedShift = 'AFTERNOON';
+    proposedSlot = '15:30 - 16:00';
+  } else if (text.includes('8h') || text.includes('08:00') || text.includes('8:00')) {
+    matchedShift = 'MORNING';
+    proposedSlot = text.includes('8h30') || text.includes('8:30') ? '08:30 - 09:00' : '08:00 - 08:30';
+  } else if (text.includes('9h') || text.includes('09:00') || text.includes('9:00')) {
+    matchedShift = 'MORNING';
+    proposedSlot = text.includes('9h30') || text.includes('9:30') ? '09:30 - 10:00' : '09:00 - 09:30';
+  } else if (text.includes('10h') || text.includes('10:00')) {
+    matchedShift = 'MORNING';
+    proposedSlot = text.includes('10h30') || text.includes('10:30') ? '10:30 - 11:00' : '10:00 - 10:30';
+  } else if (text.includes('11h') || text.includes('11:00')) {
+    matchedShift = 'MORNING';
+    proposedSlot = '10:30 - 11:00';
+  }
+
+  // 4. Nhận diện ngày khám
+  let matchedDate: string | null = null;
+  if (text.includes('hôm nay') || text.includes('hom nay')) {
+    matchedDate = getTodayISODate();
+  } else if (text.includes('ngày mai') || text.includes('ngay mai') || text.includes('mai')) {
+    const tom = new Date();
+    tom.setDate(tom.getDate() + 1);
+    matchedDate = getNextAvailableWeekday(tom);
+  }
+
+  // 5. Nhận diện phản hồi đồng ý / xác nhận từ bệnh nhân
+  const isAgreement =
+    /^(đồng ý|dong y|ok|oke|okie|được|duoc|chốt|chot|vâng|vang|yes|yep|chuyển đi|chuyen di|đặt đi|dat di|tiếp tục|tiep tuc|chọn bác sĩ|xem bác sĩ|được nha|ok em|được chứ|duoc nha)/i.test(text) ||
+    text === 'ok' || text === 'oke' || text === 'được' || text === 'đồng ý' || text === 'chốt' ||
+    text.includes('chuyển sang') || text.includes('đặt từ 13:30');
+
+  return {
+    matchedBranch,
+    matchedShift,
+    proposedSlot,
+    isEarlyAfternoonConflict,
+    matchedDate,
+    isAgreement,
+  };
+}
+
+// Component gõ chữ từng từ kiểu Streaming Typewriter cho AI (Gemini 2.5)
+interface StreamingAiTextProps {
+  fullText: string;
+  isFinished?: boolean;
+  onFinish?: () => void;
+  onWordTyped?: () => void;
+}
+
+function StreamingAiText({ fullText, isFinished, onFinish, onWordTyped }: StreamingAiTextProps) {
+  const tokens = useMemo(() => {
+    return fullText.match(/\S+|\s+/g) || [fullText];
+  }, [fullText]);
+
+  const [displayedCount, setDisplayedCount] = useState<number>(isFinished ? tokens.length : 0);
+  const [isDone, setIsDone] = useState<boolean>(isFinished || false);
+
+  useEffect(() => {
+    if (isFinished) {
+      setDisplayedCount(tokens.length);
+      setIsDone(true);
+      return;
+    }
+
+    let current = 0;
+    const timer = setInterval(() => {
+      current++;
+      setDisplayedCount(current);
+
+      if (onWordTyped && current % 3 === 0) {
+        onWordTyped();
+      }
+
+      if (current >= tokens.length) {
+        clearInterval(timer);
+        setIsDone(true);
+        if (onFinish) onFinish();
+        if (onWordTyped) onWordTyped();
+      }
+    }, 18); // Nhịp gõ 18ms mỗi từ/khoảng trắng -> chữ nhảy ra từng từ cực kỳ sống động và tự nhiên
+
+    return () => clearInterval(timer);
+  }, [tokens, isFinished]);
+
+  const handleSkipTyping = () => {
+    if (!isDone) {
+      setDisplayedCount(tokens.length);
+      setIsDone(true);
+      if (onFinish) onFinish();
+      if (onWordTyped) onWordTyped();
+    }
+  };
+
+  const visibleTokens = isDone ? tokens : tokens.slice(0, displayedCount);
+  const visibleText = visibleTokens.join('');
+
+  return (
+    <div onClick={handleSkipTyping} className="cursor-pointer select-text" title="Bấm để xem nhanh toàn bộ">
+      <p className="whitespace-pre-line leading-relaxed">
+        {renderFormattedText(visibleText)}
+        {!isDone && (
+          <span className="inline-block w-1.5 h-3.5 bg-purple-600 ml-1 rounded-xs align-middle animate-pulse" />
+        )}
+      </p>
+    </div>
+  );
+}
 
 export default function BookingMethodSelector({
   isModal = false,
@@ -36,50 +1178,1278 @@ export default function BookingMethodSelector({
 }: BookingMethodSelectorProps) {
   const router = useRouter();
   const [viewMode, setViewMode] = useState<'select' | 'ai'>(initialMode);
-  const [symptomInput, setSymptomInput] = useState('');
-  const [analyzing, setAnalyzing] = useState(false);
-  const [aiResult, setAiResult] = useState<any>(null);
+
+  // Trạng thái từng bước của AI Wizard
+  const [aiStep, setAiStep] = useState<AiWizardStep>('CHOOSE_SYMPTOM');
+
+  // Lịch sử tin nhắn hội thoại dạng Zalo Stream liền mạch
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [inputMessage, setInputMessage] = useState<string>('');
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatScrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Dữ liệu người dùng chọn
+  const [selectedCategoryKey, setSelectedCategoryKey] = useState<string>('HEADACHE');
+  const [customSymptomInput, setCustomSymptomInput] = useState<string>('');
+  
+  // Trạng thái gọi Gemini 2.5 AI Triage thực tế
+  const [isAiAnalyzing, setIsAiAnalyzing] = useState<boolean>(false);
+  const [aiClinicalSummary, setAiClinicalSummary] = useState<string>('');
+  const [aiPreparationAdvice, setAiPreparationAdvice] = useState<string>('');
+
+  // Bước 2: Các lựa chọn chi tiết & ô nhập tình trạng khác
+  const [selectedNature, setSelectedNature] = useState<string>('');
+  const [customNatureInput, setCustomNatureInput] = useState<string>('');
+  const [selectedDuration, setSelectedDuration] = useState<string>('');
+  const [selectedAssociated, setSelectedAssociated] = useState<string>('');
+  const [selectedFollowup, setSelectedFollowup] = useState<string>('');
+  const [otherSymptomDetail, setOtherSymptomDetail] = useState<string>('');
+
+  // Quản lý khảo sát lâm sàng từng câu một có bộ đếm (Interactive 1-by-1 Conversational Triage)
+  const [clarifyQuestionIndex, setClarifyQuestionIndex] = useState<number>(1);
+  const [totalClarifyQuestions, setTotalClarifyQuestions] = useState<number>(3);
+
+  // Quản lý Popup chi tiết chi nhánh & So sánh khoảng cách Google Maps
+  const [selectedBranchForModal, setSelectedBranchForModal] = useState<ClinicBranch | null>(null);
+  const [userCustomLocation, setUserCustomLocation] = useState<string>('');
+
+  // Bước 3: Chi nhánh & Dịch vụ phòng khám & Ngày khám
+  const [selectedBranch, setSelectedBranch] = useState<ClinicBranch>(CLINIC_BRANCHES[0]);
+  const [selectedServiceId, setSelectedServiceId] = useState<string>('STANDARD');
+  const [bookingDate, setBookingDate] = useState<string>(() => getNextAvailableWeekday());
+  const [selectedShiftId, setSelectedShiftId] = useState<string>('MORNING');
+  // Đề xuất lịch khám thông minh từ Y tá / Lễ tân AI
+  const [nurseProposal, setNurseProposal] = useState<NurseProposal | null>(null);
+
+  // Danh sách 5 ngày làm việc sắp tới (Thứ 2 đến Thứ 6)
+  const upcomingWeekdays = useMemo(() => getUpcomingWeekdays(5), []);
+
+  // Lọc các khung giờ theo Buổi và Ngày khám
+  const shiftSlots = useMemo(() => {
+    const isToday = bookingDate === getTodayISODate();
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+    return BASE_TIME_SLOTS.filter(s => s.session === selectedShiftId).map(slot => {
+      const isPast = isToday && slot.startMinutes <= currentMinutes;
+      return {
+        ...slot,
+        disabled: isPast,
+        label: isPast ? 'Đã qua giờ' : 'Khả dụng',
+      };
+    });
+  }, [selectedShiftId, bookingDate]);
+
+  // Bước 4: Bác sĩ & Khung giờ & Bộ lọc
+  const [selectedDoctor, setSelectedDoctor] = useState<DemoDoctor | null>(null);
+  const [selectedSlotTime, setSelectedSlotTime] = useState<string>('08:00 - 08:30');
+  const [doctorFilter, setDoctorFilter] = useState<'ALL' | 'EXPERT' | 'MALE' | 'FEMALE'>('ALL');
+
+  // Bước 5: Thông tin bệnh nhân & Thanh toán cọc 2k / Mã ưu đãi
+  const [patientName, setPatientName] = useState<string>('');
+  const [patientPhone, setPatientPhone] = useState<string>('');
+  const [paymentTab, setPaymentTab] = useState<'vietqr' | 'promo'>('vietqr');
+  const [promoCode, setPromoCode] = useState<string>('');
+  const [promoSuccessMsg, setPromoSuccessMsg] = useState<string>('');
+  const [promoErrorMsg, setPromoErrorMsg] = useState<string>('');
+
+  // Mã định danh chuyển khoản cọc (duy nhất mỗi phiên đặt khám)
+  const [transferBookingCode, setTransferBookingCode] = useState<string>('');
+
+  // Trạng thái kiểm tra thanh toán
+  const [isCheckingManual, setIsCheckingManual] = useState<boolean>(false);
+  const [checkManualMessage, setCheckManualMessage] = useState<string>('');
+  const [qrCountdown, setQrCountdown] = useState<number>(300);
+  const [isCheckingAuto, setIsCheckingAuto] = useState<boolean>(false);
+
+  // Bước 6: Đặt chỗ thành công
+  const [bookingSuccessCode, setBookingSuccessCode] = useState<string>('');
+  const [isCopied, setIsCopied] = useState<boolean>(false);
+
+  // Chuyên mục triệu chứng hiện tại
+  const activeCategory = useMemo(() => {
+    return SYMPTOM_CATEGORIES[selectedCategoryKey] || SYMPTOM_CATEGORIES.HEADACHE;
+  }, [selectedCategoryKey]);
+
+  // Format giờ hiện tại cho tin nhắn
+  const getFormattedTime = () => {
+    const d = new Date();
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  };
+
+  // Tự động cuộn xuống tin nhắn mới nhất trong khung chat (KHÔNG làm cuộn cả cửa sổ trang web)
+  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+    setTimeout(() => {
+      if (chatScrollContainerRef.current) {
+        chatScrollContainerRef.current.scrollTo({
+          top: chatScrollContainerRef.current.scrollHeight,
+          behavior,
+        });
+      }
+    }, 60);
+  };
+
+  const handleMessageTypingComplete = (msgId: string) => {
+    setMessages(prev => prev.map(m => m.id === msgId ? { ...m, isTypingComplete: true } : m));
+    scrollToBottom('smooth');
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, aiStep, isAiAnalyzing]);
+
+  // Luôn reset vị trí cuộn của trang web về đỉnh khi vào/đổi giao diện hoặc chuyển bước
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' as any });
+    }
+  }, [viewMode, aiStep]);
+
+  // Khởi tạo cuộc hội thoại Zalo liền mạch khi mở chế độ AI
+  useEffect(() => {
+    if (viewMode === 'ai' && messages.length === 0) {
+      setMessages([
+        {
+          id: 'welcome-ai-1',
+          sender: 'ai',
+          time: getFormattedTime(),
+          text: `Dạ, MedSched chào bạn! 👋 Em là Trợ Lý Y Tế AI (Gemini 2.5) đồng hành trực tuyến 24/7 cùng bạn.\n\nHãy bấm chọn nhanh vấn đề sức khỏe bạn đang gặp phải bên dưới hoặc mô tả trực tiếp vào thanh chat cố định bên dưới. Em sẽ phân tích và tìm đúng chuyên khoa, chi nhánh và bác sĩ gần bạn nhất nhé!`,
+          widget: 'CHOOSE_SYMPTOM',
+          isTypingComplete: false,
+        }
+      ]);
+    }
+  }, [viewMode, messages.length]);
+
+  // Tự động điền thông tin người dùng nếu đã đăng nhập
+  useEffect(() => {
+    const u = getAuthUser();
+    if (u) {
+      if (u.fullName && !patientName) setPatientName(u.fullName);
+      if (u.phone && !patientPhone) setPatientPhone(u.phone);
+    }
+  }, [patientName, patientPhone]);
+
+  // Sinh mã chuyển khoản cọc 2k khi vào bước thanh toán
+  useEffect(() => {
+    if (aiStep === 'CONFIRM_PAYMENT' && !transferBookingCode) {
+      const randNum = Math.floor(100000 + Math.random() * 900000);
+      const code = `MED${randNum}`;
+      setTransferBookingCode(code);
+
+      // Khởi tạo payment cọc trên backend
+      api.createRealPayment({
+        bookingCode: code,
+        amount: 2000,
+        paymentType: 'DEPOSIT',
+        method: 'BANK_TRANSFER',
+      }).catch((err) => {
+        console.warn('Khởi tạo giao dịch cọc 2k AI booking:', err);
+      });
+    }
+  }, [aiStep, transferBookingCode]);
+
+  // Đếm ngược 5 phút QR và tự động polling kiểm tra tiền cọc qua checkRealPaymentStatus
+  useEffect(() => {
+    if (aiStep !== 'CONFIRM_PAYMENT' || !transferBookingCode) return;
+
+    const timer = setInterval(() => {
+      setQrCountdown(prev => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+
+    const polling = setInterval(async () => {
+      try {
+        setIsCheckingAuto(true);
+        const res = await api.checkRealPaymentStatus({ bookingCode: transferBookingCode });
+        if (res?.status === 'SUCCEEDED' || res?.success) {
+          clearInterval(polling);
+          clearInterval(timer);
+          handleConfirmFinalBooking();
+        }
+      } catch (err) {
+        // Tiếp tục polling ngầm
+      } finally {
+        setIsCheckingAuto(false);
+      }
+    }, 3000);
+
+    return () => {
+      clearInterval(timer);
+      clearInterval(polling);
+    };
+  }, [aiStep, transferBookingCode]);
+
+  // Danh sách bác sĩ phù hợp với chuyên khoa, cơ sở và bộ lọc (RÀNG BUỘC NGHIÊM NGẶT THEO TRIỆU CHỨNG)
+  const availableDoctors = useMemo(() => {
+    // 1. Ràng buộc nghiêm ngặt: Chỉ lấy đúng các bác sĩ chuyên khoa tương ứng với triệu chứng bệnh nhân đã chọn
+    let matched = DEMO_DOCTORS.filter(
+      d => d.categoryKeys?.includes(selectedCategoryKey) && d.centerId === selectedBranch.id
+    );
+    if (matched.length === 0) {
+      matched = DEMO_DOCTORS.filter(d => d.categoryKeys?.includes(selectedCategoryKey));
+    }
+    if (matched.length === 0) {
+      matched = DEMO_DOCTORS.filter(d => d.specialtyCode === activeCategory.specialtyCode);
+    }
+    if (matched.length === 0) matched = [DEMO_DOCTORS[0]];
+
+    if (doctorFilter === 'EXPERT') {
+      const filtered = matched.filter(d => d.isExpert);
+      return filtered.length > 0 ? filtered : matched;
+    } else if (doctorFilter === 'MALE') {
+      const filtered = matched.filter(d => d.gender === 'male');
+      return filtered.length > 0 ? filtered : matched;
+    } else if (doctorFilter === 'FEMALE') {
+      const filtered = matched.filter(d => d.gender === 'female');
+      return filtered.length > 0 ? filtered : matched;
+    }
+    return matched;
+  }, [selectedCategoryKey, activeCategory, selectedBranch, doctorFilter]);
+
+  // Cập nhật bác sĩ mặc định khi danh sách thay đổi theo cơ sở
+  useEffect(() => {
+    if (availableDoctors.length > 0) {
+      if (!selectedDoctor || !availableDoctors.some(d => d.id === selectedDoctor.id)) {
+        setSelectedDoctor(availableDoctors[0]);
+      }
+    }
+  }, [availableDoctors, selectedDoctor]);
+
+  // --- CÁC HÀM XỬ LÝ SỰ KIỆN LIỀN MẠCH (ZALO CHAT FLOW) ---
 
   const handleChooseManual = () => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('medsched_open_ai');
+    }
     if (onClose) onClose();
     router.push('/booking');
   };
 
-  const handleAnalyze = async (text?: string) => {
-    const textToAnalyze = (text || symptomInput).trim();
-    if (!textToAnalyze) return;
+  const handleSelectAiMode = () => {
+    const token = getAuthToken();
+    if (!token) {
+      if (onClose) onClose();
+      router.push('/login?reason=ai_required&redirect=/booking-method');
+      return;
+    }
+    setViewMode('ai');
+    setAiStep('CHOOSE_SYMPTOM');
+  };
 
-    setAnalyzing(true);
+  // Làm mới cuộc hội thoại
+  const handleResetConversation = () => {
+    setSelectedCategoryKey('HEADACHE');
+    setAiClinicalSummary('');
+    setAiPreparationAdvice('');
+    setAiStep('CHOOSE_SYMPTOM');
+    setClarifyQuestionIndex(1);
+    setTotalClarifyQuestions(3);
+    setSelectedNature('');
+    setSelectedDuration('');
+    setSelectedAssociated('');
+    setSelectedFollowup('');
+    setCustomNatureInput('');
+    setOtherSymptomDetail('');
+    setMessages([
+      {
+        id: 'msg-' + Date.now(),
+        sender: 'ai',
+        time: getFormattedTime(),
+        text: `Dạ, em đã làm mới cuộc trò chuyện. Hãy chọn vấn đề sức khỏe bạn đang gặp phải bên dưới hoặc gõ trực tiếp vào thanh chat nhé!`,
+        widget: 'CHOOSE_SYMPTOM',
+        isTypingComplete: false,
+      }
+    ]);
+  };
+
+  // Bước 1: Khi bấm chọn một triệu chứng ban đầu dạng thẻ
+  const handleSelectSymptomPill = (categoryKey: string) => {
+    setSelectedCategoryKey(categoryKey);
+    const cat = SYMPTOM_CATEGORIES[categoryKey];
+    setSelectedNature('');
+    setSelectedDuration('');
+    setSelectedAssociated('');
+    setSelectedFollowup('');
+    setCustomNatureInput('');
+    setClarifyQuestionIndex(1);
+    setTotalClarifyQuestions(3);
+
+    const userMsg: ChatMessage = {
+      id: 'msg-' + Date.now(),
+      sender: 'user',
+      time: getFormattedTime(),
+      text: `Tôi đang gặp vấn đề: ${cat ? cat.label : categoryKey}`,
+    };
+
+    const aiMsg: ChatMessage = {
+      id: 'msg-' + (Date.now() + 1),
+      sender: 'ai',
+      time: getFormattedTime(),
+      text: `Dạ MedSched đã ghi nhận bạn đang gặp triệu chứng **${cat ? cat.label : categoryKey}**.\n\nĐể hỗ trợ bác sĩ nắm rõ mức độ khó chịu và chẩn đoán chính xác nhất, em xin phép hỏi bạn một số câu hỏi nhanh nhé!`,
+      widget: 'CLARIFY_DETAILS',
+      clarifyMeta: {
+        questionNumber: 1,
+        totalQuestions: 3,
+        questionTitle: 'Cảm giác khó chịu hoặc biểu hiện cụ thể ra sao?',
+        options: cat ? cat.natureOptions : ['Khó chịu nhẹ', 'Đau vừa phải', 'Đau nhiều', 'Khó chịu không rõ'],
+        fieldKey: 'nature',
+      },
+      isTypingComplete: false,
+    };
+
+    setAiStep('CLARIFY_DETAILS');
+    setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg, aiMsg]);
+  };
+
+  // Khi người dùng bấm vào 1 trong 4 lựa chọn trắc nghiệm
+  const handleSelectClarifyOption = (optionText: string, fieldKey?: string) => {
+    if (fieldKey === 'nature') setSelectedNature(optionText);
+    else if (fieldKey === 'duration') setSelectedDuration(optionText);
+    else if (fieldKey === 'associated') setSelectedAssociated(optionText);
+    else if (fieldKey === 'followup') setSelectedFollowup(optionText);
+
+    // Tự động điền vào khung chat cố định ở đáy để người dùng có thể bấm Gửi hoặc gõ thêm
+    setInputMessage(optionText);
+  };
+
+  // Tiến trình hỏi từng câu trắc nghiệm lâm sàng (1-by-1 Conversational Triage)
+  const handleAdvanceClarify = (customAnswer?: string) => {
+    let answer = (customAnswer || inputMessage).trim();
+    if (!answer) {
+      if (clarifyQuestionIndex === 1) answer = selectedNature || activeCategory.natureOptions[0];
+      else if (clarifyQuestionIndex === 2) answer = selectedDuration || activeCategory.durationOptions[0];
+      else if (clarifyQuestionIndex === 3) answer = selectedAssociated || activeCategory.associatedOptions[0];
+      else answer = selectedFollowup || 'Không có';
+    }
+
+    setInputMessage('');
+
+    let currentNature = selectedNature;
+    let currentDuration = selectedDuration;
+    let currentAssociated = selectedAssociated;
+    let currentFollowup = selectedFollowup;
+
+    if (clarifyQuestionIndex === 1) {
+      setSelectedNature(answer);
+      currentNature = answer;
+    } else if (clarifyQuestionIndex === 2) {
+      setSelectedDuration(answer);
+      currentDuration = answer;
+    } else if (clarifyQuestionIndex === 3) {
+      setSelectedAssociated(answer);
+      currentAssociated = answer;
+    } else if (clarifyQuestionIndex === 4) {
+      setSelectedFollowup(answer);
+      currentFollowup = answer;
+    }
+
+    const userMsg: ChatMessage = {
+      id: 'msg-' + Date.now(),
+      sender: 'user',
+      time: getFormattedTime(),
+      text: answer,
+    };
+
+    // Kiểm tra xem có cần hỏi thêm câu 4 (Hỏi kỹ về tiền sử dùng thuốc / bệnh lý nền) hay không
+    const lower = answer.toLowerCase() + ' ' + (currentNature || '').toLowerCase();
+    const isSevereOrComplex = (
+      lower.includes('sốt') ||
+      lower.includes('đau') ||
+      lower.includes('nôn') ||
+      lower.includes('chảy máu') ||
+      lower.includes('buốt') ||
+      lower.includes('nặng') ||
+      lower.includes('khó chịu') ||
+      lower.includes('tái phát') ||
+      lower.includes('nhiều tháng') ||
+      lower.includes('nhiều năm')
+    );
+
+    if (clarifyQuestionIndex === 1) {
+      // Sang Câu 2: Thời gian
+      const targetTotal = isSevereOrComplex ? 4 : 3;
+      setTotalClarifyQuestions(targetTotal);
+      setClarifyQuestionIndex(2);
+
+      const aiMsg: ChatMessage = {
+        id: 'msg-' + (Date.now() + 1),
+        sender: 'ai',
+        time: getFormattedTime(),
+        text: `Dạ em đã ghi nhận biểu hiện: "${answer}".\n\nTiếp theo, bạn cho em biết triệu chứng này bạn đã bị kéo dài bao lâu rồi ạ?`,
+        widget: 'CLARIFY_DETAILS',
+        clarifyMeta: {
+          questionNumber: 2,
+          totalQuestions: targetTotal,
+          questionTitle: 'Triệu chứng này đã kéo dài bao lâu?',
+          options: activeCategory.durationOptions,
+          fieldKey: 'duration',
+        },
+        isTypingComplete: false,
+      };
+
+      setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg, aiMsg]);
+    } else if (clarifyQuestionIndex === 2) {
+      // Sang Câu 3: Triệu chứng kèm theo
+      setClarifyQuestionIndex(3);
+
+      const aiMsg: ChatMessage = {
+        id: 'msg-' + (Date.now() + 1),
+        sender: 'ai',
+        time: getFormattedTime(),
+        text: `Dạ, tình trạng đã diễn ra "${answer}".\n\nBạn có thấy xuất hiện thêm dấu hiệu bất thường nào khác đi kèm không ạ?`,
+        widget: 'CLARIFY_DETAILS',
+        clarifyMeta: {
+          questionNumber: 3,
+          totalQuestions: totalClarifyQuestions,
+          questionTitle: 'Bạn có kèm theo triệu chứng nào khác không?',
+          options: activeCategory.associatedOptions,
+          fieldKey: 'associated',
+        },
+        isTypingComplete: false,
+      };
+
+      setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg, aiMsg]);
+    } else if (clarifyQuestionIndex === 3 && totalClarifyQuestions === 4) {
+      // Sang Câu 4 (Hỏi kỹ về tiền sử & thuốc)
+      setClarifyQuestionIndex(4);
+
+      const aiMsg: ChatMessage = {
+        id: 'msg-' + (Date.now() + 1),
+        sender: 'ai',
+        time: getFormattedTime(),
+        text: `Dạ em đã lưu ghi nhận: "${answer}".\n\nĐể hỗ trợ bác sĩ kê đơn và chuẩn bị dụng cụ thăm khám chu đáo nhất, bạn cho em hỏi thêm: Bạn đã từng dùng thuốc gì hoặc có tiền sử bệnh lý cần lưu ý không?`,
+        widget: 'CLARIFY_DETAILS',
+        clarifyMeta: {
+          questionNumber: 4,
+          totalQuestions: 4,
+          questionTitle: 'Tiền sử dùng thuốc hoặc bệnh lý nền',
+          options: [
+            'Chưa dùng thuốc gì, không có bệnh nền',
+            'Đang tự uống thuốc hạ sốt / giảm đau',
+            'Đang điều trị bệnh nền (huyết áp, dạ dày...)',
+            'Từng bị triệu chứng tương tự trước đây',
+          ],
+          fieldKey: 'followup',
+        },
+        isTypingComplete: false,
+      };
+
+      setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg, aiMsg]);
+    } else {
+      // ĐÃ HOÀN TẤT CÁC CÂU HỎI -> TỔNG HỢP VÀ CHUYỂN SANG BƯỚC 3 (INPUT_LOCATION)
+      setAiStep('INPUT_LOCATION');
+
+      const summaryNote = [
+        `• **Biểu hiện:** ${currentNature || 'Bình thường'}`,
+        `• **Thời gian:** ${currentDuration || 'Mới bị'}`,
+        `• **Kèm theo:** ${currentAssociated || 'Không có'}`,
+        currentFollowup ? `• **Tiền sử / Thuốc:** ${currentFollowup}` : null,
+      ].filter(Boolean).join('\n');
+
+      const aiMsg: ChatMessage = {
+        id: 'msg-' + (Date.now() + 1),
+        sender: 'ai',
+        time: getFormattedTime(),
+        text: `Dạ rất rõ ràng và chi tiết! 🩺 Em đã ghi nhận đầy đủ hồ sơ triệu chứng của bạn:\n\n${summaryNote}\n\nTheo định hướng chuyên môn, bạn nên khám tại **${activeCategory.specialtyName}** (Độ khớp AI: 100%).\n\nMời bạn chọn cơ sở phòng khám MedSched thuận tiện và ngày khám mong muốn bên dưới.\n\n💡 **Gợi ý từ AI:** Bạn có thể bấm vào từng chi nhánh để xem thông tin chi tiết và mở **Google Maps** để tra cứu khoảng cách từ vị trí của bạn nhằm chọn cơ sở gần nhất nhé! Hoặc bạn có thể nhắn trực tiếp vào ô chat chi nhánh và giờ muốn khám (ví dụ: "tôi chọn itc khám lúc 2h chiều"), em sẽ chọn giúp bạn ngay!`,
+        widget: 'INPUT_LOCATION',
+        actionOptions: [
+          {
+            label: `🏥 Chọn ${CLINIC_BRANCHES[1].shortName}`,
+            actionKey: 'SELECT_BRANCH',
+            variant: 'outline',
+            payload: { branch: CLINIC_BRANCHES[1] },
+          },
+          {
+            label: `🏥 Chọn ${CLINIC_BRANCHES[0].shortName}`,
+            actionKey: 'SELECT_BRANCH',
+            variant: 'outline',
+            payload: { branch: CLINIC_BRANCHES[0] },
+          },
+        ],
+        isTypingComplete: false,
+      };
+
+      setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg, aiMsg]);
+    }
+  };
+
+  // Người dùng chọn bỏ qua các câu hỏi chi tiết
+  const handleSkipToLocation = () => {
+    const userMsg: ChatMessage = {
+      id: 'msg-' + Date.now(),
+      sender: 'user',
+      time: getFormattedTime(),
+      text: 'Tôi muốn bỏ qua các câu hỏi và chọn phòng khám ngay.',
+    };
+
+    const aiMsg: ChatMessage = {
+      id: 'msg-' + (Date.now() + 1),
+      sender: 'ai',
+      time: getFormattedTime(),
+      text: `Dạ vâng! Dựa trên triệu chứng ban đầu **${activeCategory.label}**, hệ thống định hướng bạn đến khám tại **${activeCategory.specialtyName}**.\n\nMời bạn chọn cơ sở phòng khám MedSched và ngày khám mong muốn bên dưới.\n\n💡 **Gợi ý từ AI:** Bạn có thể bấm vào từng chi nhánh để xem thông tin chi tiết và mở **Google Maps** để tra cứu khoảng cách từ vị trí của bạn nhằm chọn cơ sở gần nhất nhé! Hoặc bạn có thể nhắn trực tiếp vào ô chat chi nhánh và giờ muốn khám, em sẽ chọn giúp bạn ngay!`,
+      widget: 'INPUT_LOCATION',
+      actionOptions: [
+        {
+          label: `🏥 Chọn ${CLINIC_BRANCHES[1].shortName}`,
+          actionKey: 'SELECT_BRANCH',
+          variant: 'outline',
+          payload: { branch: CLINIC_BRANCHES[1] },
+        },
+        {
+          label: `🏥 Chọn ${CLINIC_BRANCHES[0].shortName}`,
+          actionKey: 'SELECT_BRANCH',
+          variant: 'outline',
+          payload: { branch: CLINIC_BRANCHES[0] },
+        },
+      ],
+      isTypingComplete: false,
+    };
+
+    setAiStep('INPUT_LOCATION');
+    setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg, aiMsg]);
+  };
+
+  // Xử lý khi người dùng bấm vào một nút tác vụ nhanh (Quick Action Chip) trong tin nhắn AI
+  const handleExecuteActionOption = (opt: ChatActionOption) => {
+    if (opt.actionKey === 'CONFIRM_PROPOSAL_TO_DOCTOR') {
+      const p = opt.payload as NurseProposal;
+      const targetBranch = p?.branch || selectedBranch;
+      const targetShift = p?.shiftId || selectedShiftId;
+      const targetSlot = p?.slotTime || selectedSlotTime;
+      const targetDate = p?.date || bookingDate;
+
+      setSelectedBranch(targetBranch);
+      setSelectedShiftId(targetShift);
+      setSelectedSlotTime(targetSlot);
+      if (p?.date) setBookingDate(p.date);
+      setNurseProposal(null);
+
+      const userMsg: ChatMessage = {
+        id: 'msg-' + Date.now(),
+        sender: 'user',
+        time: getFormattedTime(),
+        text: `Đồng ý: Chọn ${targetBranch.shortName} • Khung giờ: ${targetSlot} (${targetShift === 'AFTERNOON' ? 'Buổi Chiều' : 'Buổi Sáng'})`,
+      };
+
+      const aiMsg: ChatMessage = {
+        id: 'msg-' + (Date.now() + 1),
+        sender: 'ai',
+        time: getFormattedTime(),
+        text: `Dạ vâng tuyệt vời ạ! Em đã thiết lập thông tin giúp bạn:\n• 📍 Cơ sở: **${targetBranch.shortName}**\n• 📅 Ngày khám: **${formatVietnameseFullDate(targetDate)}**\n• ⏰ Khung giờ: **${targetSlot} (${targetShift === 'AFTERNOON' ? 'Buổi Chiều' : 'Buổi Sáng'})**\n\nDưới đây là danh sách các Bác sĩ chuyên khoa đang trực ca ${targetShift === 'AFTERNOON' ? 'chiều' : 'sáng'} tại ${targetBranch.shortName}. Em mời bạn xem qua và bấm chọn Bác sĩ phù hợp bên dưới nhé:`,
+        widget: 'SELECT_DOCTOR_SLOT',
+        isTypingComplete: false,
+      };
+
+      setAiStep('SELECT_DOCTOR_SLOT');
+      setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg, aiMsg]);
+    } else if (opt.actionKey === 'SELECT_BRANCH') {
+      const branch = opt.payload?.branch as ClinicBranch;
+      if (branch) {
+        setSelectedBranch(branch);
+        const userMsg: ChatMessage = {
+          id: 'msg-' + Date.now(),
+          sender: 'user',
+          time: getFormattedTime(),
+          text: `Tôi chọn ${branch.shortName}`,
+        };
+        const aiMsg: ChatMessage = {
+          id: 'msg-' + (Date.now() + 1),
+          sender: 'ai',
+          time: getFormattedTime(),
+          text: `Dạ em đã chuyển cơ sở sang **${branch.shortName}** giúp bạn rồi ạ! 🏥\n\nBạn dự định đến khám vào **Buổi Sáng (08:00 - 11:30)** hay **Buổi Chiều (13:30 - 16:00)** để em chuẩn bị danh sách bác sĩ cho bạn nhé?`,
+          actionOptions: [
+            {
+              label: '🌅 Buổi Sáng (08:00 - 11:30)',
+              actionKey: 'SELECT_SHIFT',
+              variant: 'outline',
+              payload: { branch, shift: 'MORNING' },
+            },
+            {
+              label: '🌇 Buổi Chiều (13:30 - 16:00)',
+              actionKey: 'SELECT_SHIFT',
+              variant: 'outline',
+              payload: { branch, shift: 'AFTERNOON' },
+            },
+          ],
+          isTypingComplete: false,
+        };
+        setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg, aiMsg]);
+      }
+    } else if (opt.actionKey === 'SELECT_SHIFT') {
+      const shift = opt.payload?.shift as 'MORNING' | 'AFTERNOON';
+      const branch = (opt.payload?.branch as ClinicBranch) || selectedBranch;
+      if (shift) {
+        setSelectedShiftId(shift);
+        if (opt.payload?.branch) setSelectedBranch(branch);
+        const userMsg: ChatMessage = {
+          id: 'msg-' + Date.now(),
+          sender: 'user',
+          time: getFormattedTime(),
+          text: `Tôi muốn khám vào ${shift === 'MORNING' ? 'Buổi Sáng' : 'Buổi Chiều'}`,
+        };
+        const defaultSlot = shift === 'MORNING' ? '08:00 - 08:30' : '13:30 - 14:00';
+        setSelectedSlotTime(defaultSlot);
+
+        const aiMsg: ChatMessage = {
+          id: 'msg-' + (Date.now() + 1),
+          sender: 'ai',
+          time: getFormattedTime(),
+          text: `Dạ em đã ghi nhận bạn khám **${shift === 'MORNING' ? 'Buổi Sáng (08:00 - 11:30)' : 'Buổi Chiều (13:30 - 16:00)'}** tại **${branch.shortName}**! 🩺\n\nDưới đây là danh sách bác sĩ và các khung giờ khả dụng. Bạn hãy bấm chọn bác sĩ phù hợp nhé:`,
+          widget: 'SELECT_DOCTOR_SLOT',
+          isTypingComplete: false,
+        };
+        setAiStep('SELECT_DOCTOR_SLOT');
+        setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg, aiMsg]);
+      }
+    } else if (opt.actionKey === 'CUSTOM_TEXT') {
+      const txt = opt.payload?.text;
+      if (txt) {
+        setInputMessage(txt);
+      }
+    }
+  };
+
+  // Xử lý ngôn ngữ tự nhiên như Y tá / Lễ tân thực tế ở Bước 3 (INPUT_LOCATION)
+  const handleLocationStepNaturalLanguage = (text: string, userMsg: ChatMessage) => {
+    const intent = parsePatientBookingIntent(text, selectedBranch, bookingDate);
+
+    // 1. Nếu người dùng phản hồi đồng ý với đề xuất của y tá
+    if (intent.isAgreement && nurseProposal) {
+      const p = nurseProposal;
+      const targetBranch = p.branch || selectedBranch;
+      const targetShift = p.shiftId || selectedShiftId;
+      const targetSlot = p.slotTime || selectedSlotTime;
+      const targetDate = p.date || bookingDate;
+
+      setSelectedBranch(targetBranch);
+      setSelectedShiftId(targetShift);
+      setSelectedSlotTime(targetSlot);
+      if (p.date) setBookingDate(p.date);
+      setNurseProposal(null);
+
+      const aiMsg: ChatMessage = {
+        id: 'msg-' + (Date.now() + 1),
+        sender: 'ai',
+        time: getFormattedTime(),
+        text: `Dạ vâng tuyệt vời ạ! Em đã thiết lập lịch khám giúp bạn:\n• 📍 Cơ sở: **${targetBranch.shortName}**\n• 📅 Ngày khám: **${formatVietnameseFullDate(targetDate)}**\n• ⏰ Khung giờ: **${targetSlot} (${targetShift === 'AFTERNOON' ? 'Buổi Chiều' : 'Buổi Sáng'})**\n\nDưới đây là danh sách các Bác sĩ chuyên khoa đang trực ca ${targetShift === 'AFTERNOON' ? 'chiều' : 'sáng'} tại ${targetBranch.shortName}. Em mời bạn xem qua và bấm chọn Bác sĩ phù hợp bên dưới nhé:`,
+        widget: 'SELECT_DOCTOR_SLOT',
+        isTypingComplete: false,
+      };
+
+      setAiStep('SELECT_DOCTOR_SLOT');
+      setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg, aiMsg]);
+      return;
+    }
+
+    // 2. Nếu người dùng nhập yêu cầu ca khám bị lệch vào giờ nghỉ trưa (1h - 2h chiều) -> Như yêu cầu của người dùng!
+    if (intent.isEarlyAfternoonConflict) {
+      const targetBranch = intent.matchedBranch || selectedBranch;
+      const targetSlot = intent.proposedSlot || '13:30 - 14:00';
+      const targetDate = intent.matchedDate || bookingDate;
+
+      setSelectedBranch(targetBranch);
+      setSelectedShiftId('AFTERNOON');
+      setSelectedSlotTime(targetSlot);
+      if (intent.matchedDate) setBookingDate(intent.matchedDate);
+
+      const proposal: NurseProposal = {
+        branch: targetBranch,
+        shiftId: 'AFTERNOON',
+        slotTime: targetSlot,
+        date: targetDate,
+      };
+      setNurseProposal(proposal);
+
+      const aiMsg: ChatMessage = {
+        id: 'msg-' + (Date.now() + 1),
+        sender: 'ai',
+        time: getFormattedTime(),
+        text: `Dạ em đã ghi nhận bạn chọn **${targetBranch.shortName}** ạ! 🏥\n\nVề giờ khám: Ca chiều của phòng khám bắt đầu đón tiếp từ **13:30** (từ 11:30 đến 13:30 là giờ nghỉ trưa của các bác sĩ).\n👉 Khung giờ sớm nhất và phù hợp nhất với mong muốn của bạn là **13:30 - 14:00**.\n\nBạn có muốn em chuyển sang đặt từ **13:30 đến 14:00** để chuyển sang bước chọn Bác sĩ luôn không ạ?`,
+        actionOptions: [
+          {
+            label: '✅ Đồng ý (13:30 - 14:00), chọn bác sĩ ngay ➔',
+            actionKey: 'CONFIRM_PROPOSAL_TO_DOCTOR',
+            variant: 'primary',
+            payload: proposal,
+          },
+          {
+            label: '🕒 Đổi sang 14:00 - 14:30',
+            actionKey: 'CONFIRM_PROPOSAL_TO_DOCTOR',
+            variant: 'secondary',
+            payload: { ...proposal, slotTime: '14:00 - 14:30' },
+          },
+          {
+            label: '🌅 Đổi sang Buổi Sáng (08:00 - 11:30)',
+            actionKey: 'SELECT_SHIFT',
+            variant: 'outline',
+            payload: { branch: targetBranch, shift: 'MORNING' },
+          },
+        ],
+        isTypingComplete: false,
+      };
+
+      setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg, aiMsg]);
+      return;
+    }
+
+    // 3. Nếu người dùng chọn được khung giờ hợp lệ cụ thể
+    if (intent.proposedSlot) {
+      const targetBranch = intent.matchedBranch || selectedBranch;
+      const targetShift = intent.matchedShift || (intent.proposedSlot.startsWith('13') || intent.proposedSlot.startsWith('14') || intent.proposedSlot.startsWith('15') ? 'AFTERNOON' : 'MORNING');
+      const targetSlot = intent.proposedSlot;
+      const targetDate = intent.matchedDate || bookingDate;
+
+      setSelectedBranch(targetBranch);
+      setSelectedShiftId(targetShift);
+      setSelectedSlotTime(targetSlot);
+      if (intent.matchedDate) setBookingDate(intent.matchedDate);
+      setNurseProposal(null);
+
+      const aiMsg: ChatMessage = {
+        id: 'msg-' + (Date.now() + 1),
+        sender: 'ai',
+        time: getFormattedTime(),
+        text: `Dạ tuyệt vời ạ! Em đã chọn giúp bạn:\n• 📍 Cơ sở: **${targetBranch.shortName}**\n• 📅 Ngày khám: **${formatVietnameseFullDate(targetDate)}**\n• ⏰ Khung giờ: **${targetSlot} (${targetShift === 'AFTERNOON' ? 'Buổi Chiều' : 'Buổi Sáng'})**\n\nDưới đây là danh sách các Bác sĩ chuyên khoa đang trực ca ${targetShift === 'AFTERNOON' ? 'chiều' : 'sáng'} tại ${targetBranch.shortName}. Em mời bạn xem qua và bấm chọn Bác sĩ phù hợp bên dưới nhé:`,
+        widget: 'SELECT_DOCTOR_SLOT',
+        isTypingComplete: false,
+      };
+
+      setAiStep('SELECT_DOCTOR_SLOT');
+      setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg, aiMsg]);
+      return;
+    }
+
+    // 4. Nếu người dùng chỉ nói tên chi nhánh
+    if (intent.matchedBranch && !intent.matchedShift) {
+      const targetBranch = intent.matchedBranch;
+      setSelectedBranch(targetBranch);
+      if (intent.matchedDate) setBookingDate(intent.matchedDate);
+
+      const aiMsg: ChatMessage = {
+        id: 'msg-' + (Date.now() + 1),
+        sender: 'ai',
+        time: getFormattedTime(),
+        text: `Dạ em đã chuyển sang **${targetBranch.shortName}** giúp bạn rồi ạ! 🏥\n\nBạn dự định đến khám vào **Buổi Sáng (08:00 - 11:30)** hay **Buổi Chiều (13:30 - 16:00)** để em chuẩn bị danh sách bác sĩ cho bạn nhé?`,
+        actionOptions: [
+          {
+            label: '🌅 Buổi Sáng (08:00 - 11:30)',
+            actionKey: 'SELECT_SHIFT',
+            variant: 'outline',
+            payload: { branch: targetBranch, shift: 'MORNING' },
+          },
+          {
+            label: '🌇 Buổi Chiều (13:30 - 16:00)',
+            actionKey: 'SELECT_SHIFT',
+            variant: 'outline',
+            payload: { branch: targetBranch, shift: 'AFTERNOON' },
+          },
+        ],
+        isTypingComplete: false,
+      };
+
+      setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg, aiMsg]);
+      return;
+    }
+
+    // 5. Nếu người dùng chỉ chọn buổi / ca
+    if (intent.matchedShift && !intent.matchedBranch) {
+      const targetShift = intent.matchedShift;
+      setSelectedShiftId(targetShift);
+      if (intent.matchedDate) setBookingDate(intent.matchedDate);
+
+      const aiMsg: ChatMessage = {
+        id: 'msg-' + (Date.now() + 1),
+        sender: 'ai',
+        time: getFormattedTime(),
+        text: `Dạ em đã ghi nhận bạn muốn khám vào **${targetShift === 'MORNING' ? 'Buổi Sáng (08:00 - 11:30)' : 'Buổi Chiều (13:30 - 16:00)'}** ạ! ⏰\n\nBạn muốn khám tại cơ sở nào của MedSched để em hiển thị danh sách bác sĩ tại cơ sở đó nhé?`,
+        actionOptions: [
+          {
+            label: `🏥 ${CLINIC_BRANCHES[1].shortName}`,
+            actionKey: 'CONFIRM_PROPOSAL_TO_DOCTOR',
+            variant: 'primary',
+            payload: {
+              branch: CLINIC_BRANCHES[1],
+              shiftId: targetShift,
+              slotTime: targetShift === 'MORNING' ? '08:00 - 08:30' : '13:30 - 14:00',
+              date: bookingDate,
+            },
+          },
+          {
+            label: `🏥 ${CLINIC_BRANCHES[0].shortName}`,
+            actionKey: 'CONFIRM_PROPOSAL_TO_DOCTOR',
+            variant: 'secondary',
+            payload: {
+              branch: CLINIC_BRANCHES[0],
+              shiftId: targetShift,
+              slotTime: targetShift === 'MORNING' ? '08:00 - 08:30' : '13:30 - 14:00',
+              date: bookingDate,
+            },
+          },
+        ],
+        isTypingComplete: false,
+      };
+
+      setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg, aiMsg]);
+      return;
+    }
+
+    // 6. Trường hợp chung / fallback
+    setOtherSymptomDetail(prev => prev ? `${prev}. ${text}` : text);
+    const aiMsg: ChatMessage = {
+      id: 'msg-' + (Date.now() + 1),
+      sender: 'ai',
+      time: getFormattedTime(),
+      text: `Dạ em đã ghi nhận thông tin: "${text}" vào hồ sơ gửi cho bác sĩ ạ! Bạn hãy bấm chọn cơ sở và buổi khám trên màn hình, hoặc nói cho em biết cơ sở bạn muốn đến (như ITC hoặc Bình Tân) nhé!`,
+      isTypingComplete: false,
+    };
+    setMessages(prev => [...prev, userMsg, aiMsg]);
+  };
+
+  // Xử lý ngôn ngữ tự nhiên ở Bước 4 (SELECT_DOCTOR_SLOT)
+  const handleDoctorSlotStepNaturalLanguage = (text: string, userMsg: ChatMessage) => {
+    const lower = text.toLowerCase();
+    const intent = parsePatientBookingIntent(text, selectedBranch, bookingDate);
+
+    // Kiểm tra đổi giờ
+    if (intent.proposedSlot) {
+      setSelectedSlotTime(intent.proposedSlot);
+      if (intent.matchedShift) setSelectedShiftId(intent.matchedShift);
+      const aiMsg: ChatMessage = {
+        id: 'msg-' + (Date.now() + 1),
+        sender: 'ai',
+        time: getFormattedTime(),
+        text: `Dạ em đã chuyển khung giờ khám của bạn sang **${intent.proposedSlot}** rồi nhé! Bạn hãy bấm chọn Bác sĩ bên dưới để tiếp tục nhé!`,
+        isTypingComplete: false,
+      };
+      setMessages(prev => [...prev, userMsg, aiMsg]);
+      return;
+    }
+
+    // Kiểm tra tìm bác sĩ
+    const matchedDoc = availableDoctors.find(d => 
+      lower.includes(d.name.toLowerCase()) ||
+      lower.includes(d.name.split(' ').slice(-2).join(' ').toLowerCase()) ||
+      lower.includes(d.name.split(' ').pop()?.toLowerCase() || '')
+    ) || (
+      lower.includes('trưởng khoa') || lower.includes('chuyên gia') 
+        ? availableDoctors.find(d => d.isExpert)
+        : lower.includes('nữ') 
+        ? availableDoctors.find(d => d.gender === 'female')
+        : lower.includes('nam')
+        ? availableDoctors.find(d => d.gender === 'male')
+        : null
+    );
+
+    if (matchedDoc) {
+      setSelectedDoctor(matchedDoc);
+      const aiMsg: ChatMessage = {
+        id: 'msg-' + (Date.now() + 1),
+        sender: 'ai',
+        time: getFormattedTime(),
+        text: `Dạ em đã chọn **${matchedDoc.name}** (${matchedDoc.title} - ${matchedDoc.room}) giúp bạn rồi ạ! 🩺\n\nEm đã chuẩn bị sẵn hồ sơ đặt khám bên dưới. Mời bạn kiểm tra lại thông tin và xác nhận đặt cọc 2.000đ (hoặc nhập mã ưu đãi) để giữ chỗ nhé!`,
+        widget: 'CONFIRM_PAYMENT',
+        isTypingComplete: false,
+      };
+      setAiStep('CONFIRM_PAYMENT');
+      setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg, aiMsg]);
+      return;
+    }
+
+    // Nếu người dùng nhắc đến bác sĩ thuộc chuyên khoa khác (ví dụ: đau đầu nhưng lại hỏi bác sĩ khoa Hô hấp)
+    const otherSpecialtyDoc = DEMO_DOCTORS.find(d =>
+      lower.includes(d.name.toLowerCase()) ||
+      lower.includes(d.name.split(' ').slice(-2).join(' ').toLowerCase()) ||
+      lower.includes(d.name.split(' ').pop()?.toLowerCase() || '')
+    );
+    if (otherSpecialtyDoc) {
+      const aiMsg: ChatMessage = {
+        id: 'msg-' + (Date.now() + 1),
+        sender: 'ai',
+        time: getFormattedTime(),
+        text: `Dạ, **${otherSpecialtyDoc.name}** là bác sĩ thuộc **${otherSpecialtyDoc.title}** ạ!\n\nVì bạn đang gặp vấn đề **${activeCategory.label}**, phòng khám MedSched đã tự động ràng buộc danh sách chỉ hiển thị các Bác sĩ chuyên khoa **${activeCategory.specialtyName}** bên dưới để thăm khám đúng triệu chứng nhất cho bạn. Bạn hãy bấm chọn bác sĩ chuyên khoa phù hợp bên dưới nhé!`,
+        isTypingComplete: false,
+      };
+      setMessages(prev => [...prev, userMsg, aiMsg]);
+      return;
+    }
+
+    // Nếu người dùng đồng ý với bác sĩ hiện tại
+    if (intent.isAgreement) {
+      handleProceedToPayment();
+      return;
+    }
+
+    // Fallback
+    setOtherSymptomDetail(prev => prev ? `${prev}. ${text}` : text);
+    const aiMsg: ChatMessage = {
+      id: 'msg-' + (Date.now() + 1),
+      sender: 'ai',
+      time: getFormattedTime(),
+      text: `Dạ em đã ghi nhận: "${text}". Bạn hãy bấm chọn Bác sĩ và khung giờ ưng ý trong danh sách bên dưới nhé!`,
+      isTypingComplete: false,
+    };
+    setMessages(prev => [...prev, userMsg, aiMsg]);
+  };
+
+  // Xử lý ngôn ngữ tự nhiên ở Bước 5 (CONFIRM_PAYMENT)
+  const handlePaymentStepNaturalLanguage = (text: string, userMsg: ChatMessage) => {
+    const upper = text.toUpperCase().trim();
+    // Kiểm tra mã ưu đãi
+    const foundPromo = VALID_PROMO_CODES.find(c => upper.includes(c));
+    if (foundPromo) {
+      setPromoCode(foundPromo);
+      setPaymentTab('promo');
+      const valRes = validatePromotion(foundPromo, 2000);
+      const isFree = valRes.valid ? valRes.isFree : (foundPromo !== 'DEMO2K' && foundPromo !== 'UDAI2K');
+      if (isFree) {
+        setPromoSuccessMsg(`Áp dụng thành công mã ${foundPromo}! Giảm 100% tiền cọc (0 VNĐ).`);
+        api.confirmRealPayment({
+          bookingCode: transferBookingCode,
+          paymentType: 'PROMO_FREE',
+        }).catch(console.warn);
+
+        const aiMsg: ChatMessage = {
+          id: 'msg-' + (Date.now() + 1),
+          sender: 'ai',
+          time: getFormattedTime(),
+          text: `Dạ em đã áp dụng mã ưu đãi **${foundPromo}** giúp bạn rồi ạ! 🎉 Bạn được miễn phí 100% tiền cọc (0 VNĐ). Bạn bấm nút **Xác Nhận & Đặt Lịch Miễn Phí** bên dưới để nhận mã số khám nhé!`,
+          isTypingComplete: false,
+        };
+        setMessages(prev => [...prev, userMsg, aiMsg]);
+      } else {
+        setPromoSuccessMsg(`Áp dụng thành công mã ${foundPromo}! Đồng giá cọc 2.000 đ. Vui lòng quét mã VietQR để chuyển tiền thật nhé.`);
+        const aiMsg: ChatMessage = {
+          id: 'msg-' + (Date.now() + 1),
+          sender: 'ai',
+          time: getFormattedTime(),
+          text: `Dạ em đã áp dụng mã **${foundPromo}** giúp bạn rồi ạ! 🎉 Tiền cọc được chốt ở mức **2.000 VNĐ** để bạn quét VietQR chuyển tiền kiểm thử thực tế.`,
+          isTypingComplete: false,
+        };
+        setMessages(prev => [...prev, userMsg, aiMsg]);
+      }
+      return;
+    }
+
+    // Nếu hỏi về tiền cọc
+    if (text.toLowerCase().includes('cọc') || text.toLowerCase().includes('tiền') || text.toLowerCase().includes('sao lại')) {
+      const aiMsg: ChatMessage = {
+        id: 'msg-' + (Date.now() + 1),
+        sender: 'ai',
+        time: getFormattedTime(),
+        text: `Dạ bạn hoàn toàn yên tâm nhé! Khoản đặt cọc 2.000 VNĐ nhằm tránh đặt ảo và đảm bảo giữ chỗ bác sĩ riêng cho bạn. Số tiền này sẽ được hoàn trả tự động 100% ngay khi bạn đến quầy tiếp đón của phòng khám ạ.\n\nNgoài ra, bạn có thể nhập mã ưu đãi **VIP** hoặc **MEDSCHED2026** để được miễn phí 100% tiền cọc nhé!`,
+        isTypingComplete: false,
+      };
+      setMessages(prev => [...prev, userMsg, aiMsg]);
+      return;
+    }
+
+    setOtherSymptomDetail(prev => prev ? `${prev}. ${text}` : text);
+    const aiMsg: ChatMessage = {
+      id: 'msg-' + (Date.now() + 1),
+      sender: 'ai',
+      time: getFormattedTime(),
+      text: `Dạ em đã lưu ghi chú: "${text}". Bạn vui lòng quét mã QR chuyển khoản 2.000đ hoặc nhập mã ưu đãi bên dưới để hoàn tất nhé!`,
+      isTypingComplete: false,
+    };
+    setMessages(prev => [...prev, userMsg, aiMsg]);
+  };
+
+  // Khi người dùng gửi tin nhắn từ thanh nhập cố định ở đáy
+  const handleSendInputMessage = async () => {
+    const text = inputMessage.trim();
+    if (!text || isAiAnalyzing) return;
+    setInputMessage('');
+
+    const userMsg: ChatMessage = {
+      id: 'msg-' + Date.now(),
+      sender: 'user',
+      time: getFormattedTime(),
+      text: text,
+    };
+
+    // Kiểm tra an toàn cấp cứu 115
+    if (isEmergencySymptom(text)) {
+      const emergencyMsg: ChatMessage = {
+        id: 'msg-' + (Date.now() + 1),
+        sender: 'ai',
+        time: getFormattedTime(),
+        text: `🚨 CẢNH BÁO NGUY HIỂM: DẤU HIỆU CẤP CỨU Y TẾ!`,
+        widget: 'EMERGENCY',
+        isTypingComplete: false,
+      };
+      setAiStep('EMERGENCY');
+      setMessages(prev => [...prev, userMsg, emergencyMsg]);
+      return;
+    }
+
+    // NẾU ĐANG Ở BƯỚC KHẢO SÁT LÂM SÀNG TỪNG CÂU (CLARIFY_DETAILS)
+    if (aiStep === 'CLARIFY_DETAILS') {
+      handleAdvanceClarify(text);
+      return;
+    }
+
+    // Nếu đang ở bước đầu hoặc người dùng muốn mô tả bệnh
+    if (aiStep === 'CHOOSE_SYMPTOM' || aiStep === 'EMERGENCY') {
+      setIsAiAnalyzing(true);
+      setMessages(prev => [...prev, userMsg]);
+      try {
+        const triage = await api.triageSymptoms(text);
+        if (triage?.isEmergency) {
+          const emergencyMsg: ChatMessage = {
+            id: 'msg-' + (Date.now() + 1),
+            sender: 'ai',
+            time: getFormattedTime(),
+            text: `🚨 CẢNH BÁO NGUY HIỂM: DẤU HIỆU CẤP CỨU Y TẾ!`,
+            widget: 'EMERGENCY',
+          };
+          setAiStep('EMERGENCY');
+          setMessages(prev => [...prev, emergencyMsg]);
+          setIsAiAnalyzing(false);
+          return;
+        }
+
+        const summary = triage?.clinicalSummary || triage?.summary || '';
+        const advice = triage?.preparationAdvice || '';
+        setAiClinicalSummary(summary);
+        setAiPreparationAdvice(advice);
+
+        // Map chuyên khoa
+        const code = triage?.specialtyCode || triage?.specialty || '';
+        let targetKey = 'FATIGUE';
+        if (code === 'DERMATOLOGY') targetKey = 'SKIN';
+        else if (code === 'ODONTO_STOMATOLOGY') targetKey = 'DENTAL';
+        else if (code === 'OPHTHALMOLOGY') targetKey = 'EYE';
+        else if (code === 'INTERNAL_MEDICINE') targetKey = 'HEADACHE';
+        else {
+          const lower = text.toLowerCase();
+          if (lower.includes('đầu') || lower.includes('chóng mặt')) targetKey = 'HEADACHE';
+          else if (lower.includes('bụng') || lower.includes('dạ dày') || lower.includes('tiêu')) targetKey = 'ABDOMINAL';
+          else if (lower.includes('sốt') || lower.includes('ho') || lower.includes('cảm')) targetKey = 'RESPIRATORY';
+          else if (lower.includes('xương') || lower.includes('khớp') || lower.includes('lưng')) targetKey = 'BONE_JOINT';
+          else if (lower.includes('da') || lower.includes('ngứa')) targetKey = 'SKIN';
+          else if (lower.includes('răng') || lower.includes('nướu')) targetKey = 'DENTAL';
+          else if (lower.includes('mắt')) targetKey = 'EYE';
+        }
+
+        setSelectedCategoryKey(targetKey);
+        const cat = SYMPTOM_CATEGORIES[targetKey];
+        setSelectedNature(text);
+        setSelectedDuration('');
+        setSelectedAssociated('');
+        setSelectedFollowup('');
+        setCustomNatureInput(text);
+        setClarifyQuestionIndex(1);
+        setTotalClarifyQuestions(3);
+
+        const aiMsg: ChatMessage = {
+          id: 'msg-' + (Date.now() + 1),
+          sender: 'ai',
+          time: getFormattedTime(),
+          text: summary 
+            ? `Dạ, Trợ lý AI (Gemini 2.5) đã phân tích triệu chứng của bạn:\n\n💬 ${summary}${advice ? `\n\n💡 Lời khuyên chuẩn bị: ${advice}` : ''}\n\nĐể định hướng chuyên khoa và bác sĩ chính xác nhất, bạn vui lòng cho em biết thêm chi tiết qua các câu hỏi nhanh dưới đây nhé:`
+            : `Dạ em đã ghi nhận mô tả "${text}". Để hỗ trợ bác sĩ chuẩn bị chu đáo, bạn vui lòng cho em biết thêm chi tiết nhé:`,
+          widget: 'CLARIFY_DETAILS',
+          clarifyMeta: {
+            questionNumber: 1,
+            totalQuestions: 3,
+            questionTitle: 'Cảm giác khó chịu hoặc biểu hiện cụ thể ra sao?',
+            options: cat ? cat.natureOptions : ['Khó chịu nhẹ', 'Đau vừa phải', 'Đau nhiều', 'Khó chịu không rõ'],
+            fieldKey: 'nature',
+          },
+          isTypingComplete: false,
+        };
+
+        setAiStep('CLARIFY_DETAILS');
+        setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), aiMsg]);
+      } catch (err) {
+        console.error(err);
+        const aiMsg: ChatMessage = {
+          id: 'msg-' + (Date.now() + 1),
+          sender: 'ai',
+          time: getFormattedTime(),
+          text: `Dạ em đã ghi nhận triệu chứng: "${text}". Để bác sĩ tiện theo dõi, bạn hãy cho em biết biểu hiện cụ thể bên dưới nhé:`,
+          widget: 'CLARIFY_DETAILS',
+          clarifyMeta: {
+            questionNumber: 1,
+            totalQuestions: 3,
+            questionTitle: 'Cảm giác khó chịu hoặc biểu hiện cụ thể ra sao?',
+            options: ['Khó chịu nhẹ', 'Đau vừa phải', 'Đau nhiều', 'Khó chịu không rõ'],
+            fieldKey: 'nature',
+          },
+          isTypingComplete: false,
+        };
+        setAiStep('CLARIFY_DETAILS');
+        setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), aiMsg]);
+      } finally {
+        setIsAiAnalyzing(false);
+      }
+    } else if (aiStep === 'INPUT_LOCATION') {
+      handleLocationStepNaturalLanguage(text, userMsg);
+    } else if (aiStep === 'SELECT_DOCTOR_SLOT') {
+      handleDoctorSlotStepNaturalLanguage(text, userMsg);
+    } else if (aiStep === 'CONFIRM_PAYMENT') {
+      handlePaymentStepNaturalLanguage(text, userMsg);
+    } else {
+      // Ở các bước sau, tin nhắn người dùng đóng vai trò là ghi chú bổ sung
+      setOtherSymptomDetail(prev => prev ? `${prev}. ${text}` : text);
+      const aiMsg: ChatMessage = {
+        id: 'msg-' + (Date.now() + 1),
+        sender: 'ai',
+        time: getFormattedTime(),
+        text: `Dạ MedSched em đã lưu ghi chú: "${text}" vào hồ sơ gửi cho bác sĩ. Bạn tiếp tục bấm chọn các bước đặt khám bên dưới nhé!`,
+        isTypingComplete: false,
+      };
+      setMessages(prev => [...prev, userMsg, aiMsg]);
+    }
+  };
+
+  // Bước 3 -> Bước 4: Chuyển sang chọn Bác sĩ & Giờ khám
+  const handleProceedToDoctorSlot = () => {
+    const userMsg: ChatMessage = {
+      id: 'msg-' + Date.now(),
+      sender: 'user',
+      time: getFormattedTime(),
+      text: `Chọn cơ sở: ${selectedBranch.shortName} • Ngày khám: ${formatVietnameseFullDate(bookingDate)} • Buổi: ${selectedShiftId === 'MORNING' ? 'Buổi Sáng' : 'Buổi Chiều'}`,
+    };
+
+    const aiMsg: ChatMessage = {
+      id: 'msg-' + (Date.now() + 1),
+      sender: 'ai',
+      time: getFormattedTime(),
+      text: `Tuyệt vời! Dưới đây là danh sách bác sĩ chuyên khoa và các khung giờ khám khả dụng tại ${selectedBranch.shortName}. Bạn hãy bấm chọn bác sĩ và giờ khám phù hợp nhất nhé:`,
+      widget: 'SELECT_DOCTOR_SLOT',
+      isTypingComplete: false,
+    };
+
+    setAiStep('SELECT_DOCTOR_SLOT');
+    setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg, aiMsg]);
+  };
+
+  // Bước 4 -> Bước 5: Chuyển sang Xác nhận & Giữ chỗ (Cọc 2k / Ưu đãi)
+  const handleProceedToPayment = () => {
+    const userMsg: ChatMessage = {
+      id: 'msg-' + Date.now(),
+      sender: 'user',
+      time: getFormattedTime(),
+      text: `Chọn bác sĩ: ${selectedDoctor?.name || 'Bác sĩ chuyên khoa'} (${selectedDoctor?.room || 'Phòng khám'}) • Khung giờ: ${selectedSlotTime}`,
+    };
+
+    const aiMsg: ChatMessage = {
+      id: 'msg-' + (Date.now() + 1),
+      sender: 'ai',
+      time: getFormattedTime(),
+      text: `Hồ sơ đặt khám của bạn đã sẵn sàng! 📋 Để tránh tình trạng đặt ảo và giữ chỗ đúng giờ hẹn, phòng khám cần bạn xác nhận thông tin và đặt cọc 2.000 VNĐ (sẽ tự động hoàn trả khi check-in, hoặc miễn phí với mã ưu đãi):`,
+      widget: 'CONFIRM_PAYMENT',
+      isTypingComplete: false,
+    };
+
+    setAiStep('CONFIRM_PAYMENT');
+    setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg, aiMsg]);
+  };
+
+  // Áp dụng mã ưu đãi
+  const handleApplyPromoCode = () => {
+    setPromoErrorMsg('');
+    setPromoSuccessMsg('');
+    const code = promoCode.trim().toUpperCase();
+    if (!code) {
+      setPromoErrorMsg('Vui lòng nhập mã ưu đãi.');
+      return;
+    }
+    const valRes = validatePromotion(code, 2000);
+    if (valRes.valid || VALID_PROMO_CODES.includes(code)) {
+      const isFree = valRes.valid ? valRes.isFree : (code !== 'DEMO2K' && code !== 'UDAI2K');
+      if (isFree) {
+        setPromoSuccessMsg(valRes.valid ? `Áp dụng thành công mã ${code}! ${valRes.message}` : `Áp dụng thành công mã ${code}! Giảm 100% tiền cọc (0 VNĐ).`);
+        api.confirmRealPayment({
+          bookingCode: transferBookingCode,
+          paymentType: 'PROMO_FREE',
+          amount: 0,
+          promoCode: code,
+        }).catch((err) => {
+          console.warn('Ghi nhận voucher 0đ AI booking:', err);
+        });
+        setTimeout(() => {
+          handleConfirmFinalBooking();
+        }, 1000);
+      } else {
+        setPaymentTab('vietqr');
+        setPromoSuccessMsg(`Áp dụng thành công mã ${code}! Đồng giá cọc 2.000 đ để quét VietQR thật. Vui lòng chuyển 2.000 đ bên tab Chuyển khoản.`);
+      }
+    } else {
+      setPromoErrorMsg(valRes.message || 'Mã ưu đãi không hợp lệ hoặc đã hết hạn.');
+    }
+  };
+
+  // Kiểm tra thanh toán thủ công
+  const handleCheckPaymentManual = async () => {
+    if (!transferBookingCode) return;
+    setIsCheckingManual(true);
+    setCheckManualMessage('');
     try {
-      const res = await api.triageSymptoms(textToAnalyze);
-      setAiResult(res);
+      const res = await api.checkRealPaymentStatus({ bookingCode: transferBookingCode });
+      if (res?.status === 'SUCCEEDED' || res?.success) {
+        handleConfirmFinalBooking();
+      } else {
+        setCheckManualMessage('Hệ thống chưa ghi nhận tiền vào tài khoản. Quý khách vui lòng chờ 5-10 giây sau khi chuyển khoản thành công.');
+      }
     } catch (err) {
-      console.error('Error analyzing symptoms:', err);
+      setCheckManualMessage('Đang kiểm tra kết nối với cổng ngân hàng...');
     } finally {
-      setAnalyzing(false);
+      setIsCheckingManual(false);
     }
   };
 
-  const handleApplyAiAndBook = () => {
-    if (onClose) onClose();
-    const params = new URLSearchParams();
-    if (aiResult?.specialtyCode) {
-      params.set('specialtyCode', aiResult.specialtyCode);
-    }
-    const symptomsToPass = symptomInput.trim() || aiResult?.clinicalSummary || '';
-    if (symptomsToPass) {
-      params.set('symptoms', symptomsToPass);
-    }
-    router.push(`/booking?${params.toString()}`);
+  // Hoàn tất đặt chỗ (Bước 6)
+  const handleConfirmFinalBooking = () => {
+    const successCode = transferBookingCode || 'MED' + Math.floor(100000 + Math.random() * 900000);
+    setBookingSuccessCode(successCode);
+
+    const userMsg: ChatMessage = {
+      id: 'msg-' + Date.now(),
+      sender: 'user',
+      time: getFormattedTime(),
+      text: `Đã hoàn tất xác nhận đặt hẹn và giữ chỗ`,
+    };
+
+    const aiMsg: ChatMessage = {
+      id: 'msg-' + (Date.now() + 1),
+      sender: 'ai',
+      time: getFormattedTime(),
+      text: `🎉 Chúc mừng bạn! Phiếu khám đã được xác nhận thành công trên hệ thống MedSched. Mã đặt hẹn của bạn là **${successCode}**.`,
+      widget: 'COMPLETED',
+      isTypingComplete: false,
+    };
+
+    setAiStep('COMPLETED');
+    setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg, aiMsg]);
   };
 
+  // Sao chép mã
+  const handleCopyCode = (code: string) => {
+    if (typeof navigator !== 'undefined') {
+      navigator.clipboard.writeText(code);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // GIAO DIỆN CHÍNH
+  // ---------------------------------------------------------------------------
   return (
     <div
-      className="relative w-full max-w-2xl mx-auto"
+      className={`relative w-full mx-auto transition-all duration-300 ${
+        viewMode === 'ai'
+          ? isModal
+            ? 'w-full h-[92vh] max-h-[94vh] max-w-full lg:max-w-6xl xl:max-w-7xl flex flex-col min-h-0'
+            : 'w-full h-full max-h-full max-w-full lg:max-w-6xl xl:max-w-7xl flex flex-col min-h-0'
+          : 'max-w-2xl my-auto'
+      }`}
       onClick={(e) => isModal && e.stopPropagation()}
     >
-      {/* Nút đóng modal khi ở chế độ Modal */}
-      {isModal && onClose && (
+      {/* Nút đóng modal khi ở chế độ Modal và viewMode === 'select' */}
+      {isModal && onClose && viewMode === 'select' && (
         <button
           onClick={onClose}
           aria-label="Đóng bảng chọn"
@@ -90,7 +2460,7 @@ export default function BookingMethodSelector({
       )}
 
       {/* ========================================================================= */}
-      {/* VIEW 1: CHỈ GIỮ LẠI 2 KHUNG SONG SONG (ĐẶT LỊCH TRỰC TIẾP VS TƯ VẤN CÙNG AI) */}
+      {/* VIEW 1: CHỌN PHƯƠNG THỨC (ĐẶT TRỰC TIẾP VS TƯ VẤN CÙNG AI)                */}
       {/* ========================================================================= */}
       {viewMode === 'select' ? (
         <div className="grid grid-cols-2 gap-2.5 sm:gap-5 w-full">
@@ -100,7 +2470,6 @@ export default function BookingMethodSelector({
             className="group relative bg-white rounded-3xl p-3 sm:p-5 border-2 border-slate-200/90 hover:border-emerald-500 shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col justify-between hover:-translate-y-1"
           >
             <div>
-              {/* Header card: Icon + Badge */}
               <div className="flex items-center justify-between mb-2 sm:mb-3">
                 <div className="w-8 h-8 sm:w-11 sm:h-11 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform shrink-0">
                   <Calendar size={16} className="text-emerald-600 sm:w-5 sm:h-5" />
@@ -109,19 +2478,13 @@ export default function BookingMethodSelector({
                   Chủ động
                 </span>
               </div>
-
-              {/* Tên phương thức */}
               <h2 className="text-[12px] sm:text-base font-bold text-slate-800 group-hover:text-emerald-700 transition-colors flex items-center gap-1 leading-tight">
                 <span>🩺</span>
                 <span>ĐẶT LỊCH TRỰC TIẾP</span>
               </h2>
-
-              {/* Mô tả ngắn */}
               <p className="text-[9.5px] sm:text-xs text-slate-500 mt-1 leading-snug">
                 Dành cho bạn đã biết rõ bác sĩ hoặc chuyên khoa cần khám.
               </p>
-
-              {/* Các điểm nổi bật */}
               <ul className="mt-2.5 sm:mt-3 space-y-1 sm:space-y-1.5 text-[9.5px] sm:text-[11px] text-slate-600">
                 <li className="flex items-center gap-1 sm:gap-1.5">
                   <CheckCircle2 size={12} className="text-emerald-500 shrink-0" />
@@ -133,8 +2496,6 @@ export default function BookingMethodSelector({
                 </li>
               </ul>
             </div>
-
-            {/* Nút hành động */}
             <button
               type="button"
               className="mt-3.5 sm:mt-5 w-full py-2 sm:py-2.5 px-2 sm:px-4 rounded-xl text-[10.5px] sm:text-xs font-bold text-emerald-800 bg-emerald-50 group-hover:bg-emerald-600 group-hover:text-white border border-emerald-200 group-hover:border-emerald-600 transition-all flex items-center justify-center gap-1 shadow-xs cursor-pointer"
@@ -147,17 +2508,14 @@ export default function BookingMethodSelector({
 
           {/* KHUNG 2: TƯ VẤN CÙNG TRỢ LÝ AI */}
           <div
-            onClick={() => setViewMode('ai')}
+            onClick={handleSelectAiMode}
             className="group relative bg-white rounded-3xl p-3 sm:p-5 border-2 border-purple-200 hover:border-purple-500 shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col justify-between hover:-translate-y-1 ring-2 ring-purple-100/60"
           >
-            {/* Huy hiệu khuyên dùng nổi trên góc */}
             <div className="absolute -top-2.5 right-2 sm:right-4 bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-[8px] sm:text-[10px] font-extrabold px-1.5 py-0.5 sm:px-2 rounded-full shadow-xs flex items-center gap-0.5">
               <Sparkles size={9} />
               <span>Khuyên Dùng</span>
             </div>
-
             <div>
-              {/* Header card: Icon + Badge */}
               <div className="flex items-center justify-between mb-2 sm:mb-3">
                 <div className="w-8 h-8 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-tr from-purple-100 to-indigo-100 text-purple-700 flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform shrink-0">
                   <Sparkles size={16} className="text-purple-600 sm:w-5 sm:h-5" />
@@ -166,38 +2524,30 @@ export default function BookingMethodSelector({
                   AI Triage
                 </span>
               </div>
-
-              {/* Tên phương thức */}
               <h2 className="text-[12px] sm:text-base font-bold text-slate-800 group-hover:text-purple-700 transition-colors flex items-center gap-1 leading-tight">
                 <span>✨</span>
                 <span>TƯ VẤN CÙNG AI</span>
               </h2>
-
-              {/* Mô tả ngắn */}
               <p className="text-[9.5px] sm:text-xs text-slate-500 mt-1 leading-snug">
-                Chưa rõ chuyên khoa? AI lắng nghe &amp; gợi ý bác sĩ tốt.
+                Chưa rõ chuyên khoa? AI gợi ý trắc nghiệm và bác sĩ gần nhất.
               </p>
-
-              {/* Các điểm nổi bật */}
               <ul className="mt-2.5 sm:mt-3 space-y-1 sm:space-y-1.5 text-[9.5px] sm:text-[11px] text-slate-600">
                 <li className="flex items-center gap-1 sm:gap-1.5">
                   <CheckCircle2 size={12} className="text-purple-500 shrink-0" />
-                  <span>Lắng nghe triệu chứng</span>
+                  <span>Trắc nghiệm triệu chứng nhanh</span>
                 </li>
                 <li className="flex items-center gap-1 sm:gap-1.5">
                   <CheckCircle2 size={12} className="text-purple-500 shrink-0" />
-                  <span>Gợi ý đúng chuyên khoa</span>
+                  <span>Tìm chi nhánh &amp; bác sĩ gần nhất</span>
                 </li>
               </ul>
             </div>
-
-            {/* Nút hành động */}
             <button
               type="button"
               className="mt-3.5 sm:mt-5 w-full py-2 sm:py-2.5 px-2 sm:px-4 rounded-xl text-[10.5px] sm:text-xs font-bold text-white bg-gradient-to-r from-purple-600 to-indigo-600 group-hover:from-purple-700 group-hover:to-indigo-700 transition-all flex items-center justify-center gap-1 shadow-sm shadow-purple-500/20 cursor-pointer"
             >
               <Bot size={13} className="shrink-0" />
-              <span className="hidden sm:inline">Trò Chuyện Với AI Ngay</span>
+              <span className="hidden sm:inline">Khám Phá Với AI Ngay</span>
               <span className="sm:hidden">Tư Vấn Với AI</span>
               <ArrowRight size={12} className="group-hover:translate-x-0.5 transition-transform shrink-0" />
             </button>
@@ -205,144 +2555,1205 @@ export default function BookingMethodSelector({
         </div>
       ) : (
         /* ========================================================================= */
-        /* VIEW 2: MÀN HÌNH TƯ VẤN TRIỆU CHỨNG TRỰC TIẾP VỚI TRỢ LÝ AI               */
+        /* VIEW 2: MÀN HÌNH KHUNG CHAT ZALO THÔNG MINH FULL MÀN HÌNH                 */
         /* ========================================================================= */
-        <div className="bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden flex flex-col h-full">
-          {/* Header AI */}
-          <div className="px-5 pt-4 pb-3 border-b border-purple-100 flex items-center justify-between bg-gradient-to-r from-purple-50/80 via-white to-indigo-50/80 shrink-0">
-            <div className="flex items-center gap-2.5">
-              <button
-                type="button"
-                onClick={() => setViewMode('select')}
-                className="p-1.5 rounded-lg hover:bg-purple-100 text-purple-700 transition cursor-pointer"
-                title="Quay lại chọn phương thức"
-              >
-                <ArrowLeft size={16} />
-              </button>
-              <div className="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-xs">
-                <Sparkles size={16} />
+        <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200/90 overflow-hidden flex flex-col lg:flex-row h-full w-full min-h-0 animate-fadeIn">
+          
+          {/* CỘT CHÍNH: KHUNG CHAT ZALO (CHIA 70% TRÊN LAPTOP / 100% TRÊN MOBILE) */}
+          <div className="flex-1 min-h-0 flex flex-col h-full bg-slate-50/60 relative overflow-hidden">
+            
+            {/* Header Chat Zalo - Cố định trên đỉnh, đảm bảo luôn hiển thị đầy đủ */}
+            <div className="px-3 sm:px-5 py-2 sm:py-3 border-b border-purple-100 flex items-center justify-between bg-gradient-to-r from-purple-50 via-white to-indigo-50 shrink-0 shadow-xs z-30 sticky top-0">
+              <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('select')}
+                  className="p-1.5 rounded-lg hover:bg-purple-100 text-purple-700 transition cursor-pointer"
+                  title="Quay lại chọn phương thức"
+                >
+                  <ArrowLeft size={16} />
+                </button>
+                <div className="relative">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center shadow-xs">
+                    <Sparkles size={18} />
+                  </div>
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white absolute -bottom-0.5 -right-0.5 animate-pulse" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-800 text-xs sm:text-sm flex items-center gap-1.5">
+                    Trợ Lý Y Tế AI MedSched
+                    <span className="text-[9px] bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded-full font-bold">
+                      Gemini 2.5
+                    </span>
+                  </h3>
+                  <p className="text-[10px] text-slate-500 flex items-center gap-1">
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    <span>Trực tuyến 24/7 • Luồng hội thoại liền mạch</span>
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-bold text-slate-800 text-xs sm:text-sm flex items-center gap-1.5">
-                  Trợ Lý Y Tế AI MedSched
-                  <span className="text-[9px] bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded-full font-bold">
-                    Spring AI
-                  </span>
-                </h3>
-                <p className="text-[10px] text-slate-500">Phân loại triệu chứng &amp; Định hướng chuyên khoa</p>
-              </div>
-            </div>
-          </div>
 
-          {/* Thân hộp thoại AI */}
-          <div className="p-4 sm:p-5 space-y-3.5 overflow-y-auto flex-1">
-            {/* Lời chào của AI */}
-            <div className="flex items-start gap-2.5 bg-purple-50/70 p-3 rounded-2xl border border-purple-200/80">
-              <div className="w-6 h-6 rounded-lg bg-purple-600 text-white flex items-center justify-center shrink-0 mt-0.5">
-                <Bot size={13} />
-              </div>
-              <div className="text-[11px] text-slate-700 leading-relaxed">
-                <p className="font-bold text-purple-900 mb-0.5">Dạ, MedSched chào bạn!</p>
-                <p>Hãy cho em biết bạn đang gặp phải triệu chứng hoặc cảm giác khó chịu nào nhé. Em sẽ phân tích và gợi ý bác sĩ chuyên khoa phù hợp nhất!</p>
-              </div>
-            </div>
+              {/* Các nút công cụ bên phải header */}
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={handleResetConversation}
+                  className="p-1.5 px-2.5 text-[11px] font-bold text-slate-600 hover:text-purple-700 hover:bg-purple-50 rounded-xl border border-slate-200 transition flex items-center gap-1 cursor-pointer"
+                  title="Làm mới cuộc trò chuyện"
+                >
+                  <RefreshCw size={12} />
+                  <span className="hidden sm:inline">Làm mới</span>
+                </button>
 
-            {/* Bong bóng triệu chứng chọn nhanh (Quick-reply Chips) */}
-            <div>
-              <span className="text-[10.5px] font-bold text-slate-600 block mb-1.5">
-                👉 Chạm chọn nhanh triệu chứng phổ biến:
-              </span>
-              <div className="flex flex-wrap gap-1.5">
-                {COMMON_SYMPTOMS.map((item, idx) => (
+                {isModal && onClose && (
                   <button
-                    key={idx}
                     type="button"
-                    onClick={() => {
-                      setSymptomInput(item.query);
-                      handleAnalyze(item.query);
-                    }}
-                    className="px-2 py-0.5 text-[10px] font-medium bg-slate-100 hover:bg-purple-100 text-slate-700 hover:text-purple-900 border border-slate-200/80 hover:border-purple-300 rounded-full transition cursor-pointer active:scale-95"
+                    onClick={onClose}
+                    className="p-1.5 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+                    title="Đóng khung chat"
                   >
-                    {item.label}
+                    <X size={18} />
                   </button>
-                ))}
+                )}
               </div>
             </div>
 
-            {/* Ô nhập triệu chứng bằng tay */}
-            <div className="space-y-1.5 pt-0.5">
-              <label className="block text-[11px] font-bold text-slate-700">
-                Mô tả triệu chứng của bạn:
-              </label>
-              <div className="flex gap-2">
-                <textarea
-                  rows={2}
-                  value={symptomInput}
-                  onChange={(e) => setSymptomInput(e.target.value)}
-                  placeholder="Ví dụ: Tôi bị đau bụng âm ỉ vùng dưới rốn, người hơi gai sốt từ sáng nay..."
-                  className="flex-1 p-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-purple-500 focus:outline-none text-[11px] text-slate-800"
+            {/* Vùng Tin Nhắn Chat Cuộn Liền Mạch */}
+            <div
+              ref={chatScrollContainerRef}
+              className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 sm:px-6 py-3 sm:py-4 space-y-3.5 sm:space-y-4 touch-pan-y"
+            >
+              
+              {/* Danh sách các bong bóng tin nhắn */}
+              {messages.map((msg) => {
+                const isAi = msg.sender === 'ai';
+                return (
+                  <div
+                    key={msg.id}
+                    className={`flex items-start sm:gap-2.5 gap-0 ${isAi ? 'justify-start w-full' : 'justify-end'} animate-fadeIn`}
+                  >
+                    {/* Avatar AI - Ẩn trên mobile để tiết kiệm diện tích tối đa, chỉ hiện trên tablet/desktop */}
+                    {isAi && (
+                      <div className="hidden sm:flex w-8 h-8 rounded-xl bg-purple-600 text-white items-center justify-center shrink-0 shadow-xs mt-0.5">
+                        <Bot size={16} />
+                      </div>
+                    )}
+
+                    {/* Khung nội dung tin nhắn */}
+                    <div className={`space-y-2.5 ${isAi ? 'w-full sm:max-w-[85%] text-left' : 'max-w-[90%] sm:max-w-[80%] text-right'}`}>
+                      
+                      {/* Bong bóng chữ */}
+                      <div
+                        className={`p-3.5 sm:p-4 rounded-2xl text-xs sm:text-[13px] leading-relaxed shadow-xs inline-block ${
+                          isAi
+                            ? 'bg-white border border-slate-200/90 text-slate-800 rounded-tl-xs'
+                            : 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-tr-xs'
+                        }`}
+                      >
+                        {isAi && msg.text ? (
+                          <StreamingAiText
+                            fullText={msg.text}
+                            isFinished={msg.isTypingComplete !== false}
+                            onFinish={() => handleMessageTypingComplete(msg.id)}
+                            onWordTyped={() => scrollToBottom('auto')}
+                          />
+                        ) : (
+                          <p className="whitespace-pre-line">{renderFormattedText(msg.text || '')}</p>
+                        )}
+                      </div>
+
+                      {/* Hiển thị các nút tương tác nhanh từ Y tá / Lễ tân AI */}
+                      {isAi && msg.actionOptions && msg.actionOptions.length > 0 && (msg.isTypingComplete !== false || msg.isCompleteWidget) && (
+                        <div className="flex flex-wrap gap-1.5 sm:gap-2 pt-0.5 animate-fadeIn">
+                          {msg.actionOptions.map((opt, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => handleExecuteActionOption(opt)}
+                              className={`px-3 py-2 text-[11px] sm:text-xs font-bold rounded-xl transition cursor-pointer flex items-center gap-1.5 shadow-2xs active:scale-95 ${
+                                opt.variant === 'secondary'
+                                  ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
+                                  : opt.variant === 'outline'
+                                  ? 'bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200'
+                                  : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-xs'
+                              }`}
+                            >
+                              <span>{opt.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      <span className="block text-[9px] text-slate-400 px-1 font-mono">
+                        {msg.time}
+                      </span>
+
+                      {/* =================================================================== */}
+                      {/* CÁC WIDGET TƯƠNG TÁC (CHỈ HIỆN KHI AI GÕ XONG HOẶC ĐÃ HOÀN TẤT)     */}
+                      {/* =================================================================== */}
+                      {msg.widget && (msg.isTypingComplete !== false || !isAi || msg.isCompleteWidget) && (
+                        <div className="animate-fadeIn">
+                          {/* WIDGET BƯỚC 1: LỰA CHỌN TRIỆU CHỨNG BAN ĐẦU */}
+                          {msg.widget === 'CHOOSE_SYMPTOM' && (
+                        <div className="p-2.5 sm:p-3 bg-white border border-slate-200 rounded-xl sm:rounded-2xl shadow-xs space-y-2 mt-1">
+                          <span className="text-[11px] sm:text-xs font-bold text-slate-700 block">
+                            👉 Bấm chọn nhanh vấn đề sức khỏe của bạn:
+                          </span>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2">
+                            {Object.values(SYMPTOM_CATEGORIES).map((cat) => (
+                              <button
+                                key={cat.id}
+                                type="button"
+                                onClick={() => handleSelectSymptomPill(cat.id)}
+                                className={`p-2 sm:p-2.5 text-left border rounded-xl sm:rounded-2xl transition duration-200 cursor-pointer flex flex-col justify-between group active:scale-98 ${
+                                  selectedCategoryKey === cat.id
+                                    ? 'bg-purple-100/90 border-purple-600 shadow-2xs'
+                                    : 'bg-slate-50 hover:bg-purple-50 text-slate-800 hover:text-purple-950 border-slate-200 hover:border-purple-300'
+                                }`}
+                              >
+                                <span className="text-[11px] sm:text-xs font-bold block mb-0.5 group-hover:text-purple-700 leading-snug">
+                                  {cat.label}
+                                </span>
+                                <span className="text-[9.5px] sm:text-[10px] text-slate-500 line-clamp-1">
+                                  {cat.specialtyName}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* =================================================================== */}
+                      {/* WIDGET BƯỚC 2: CÁC CÂU HỎI LÂM SÀNG TỪNG CÂU (1-BY-1 VỚI BỘ ĐẾM)    */}
+                      {/* =================================================================== */}
+                      {msg.widget === 'CLARIFY_DETAILS' && (
+                        <div className="space-y-2 mt-1.5 animate-fadeIn">
+                          {/* Đánh giá AI Triage nếu có ở câu hỏi đầu tiên */}
+                          {msg.clarifyMeta?.questionNumber === 1 && aiClinicalSummary && (
+                            <div className="bg-gradient-to-r from-purple-50 via-indigo-50/70 to-purple-50 border border-purple-200 rounded-xl p-2.5 sm:p-3 space-y-1">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[11px] sm:text-xs font-bold text-purple-900 flex items-center gap-1">
+                                  <Sparkles size={13} className="text-purple-600" />
+                                  Đánh giá sơ bộ Gemini 2.5:
+                                </span>
+                                <span className="text-[9px] bg-purple-200 text-purple-800 font-extrabold px-1.5 py-0.5 rounded">
+                                  AI Verified
+                                </span>
+                              </div>
+                              <p className="text-[11px] sm:text-xs text-slate-700 font-medium leading-relaxed">
+                                {aiClinicalSummary}
+                              </p>
+                              {aiPreparationAdvice && (
+                                <p className="text-[10px] sm:text-[10.5px] text-purple-800 italic pt-1 border-t border-purple-200/60">
+                                  💡 <strong>Chuẩn bị:</strong> {aiPreparationAdvice}
+                                </p>
+                              )}
+                            </div>
+                          )}
+
+                          {/* THẺ CÂU HỎI ĐANG HOẠT ĐỘNG (CHỈ HIỆN 1 CÂU KÈM BỘ ĐẾM) */}
+                          {msg.clarifyMeta && !msg.isCompleteWidget && (
+                            <div className="p-3 sm:p-4 bg-white border-2 border-purple-300 rounded-2xl shadow-sm space-y-2.5">
+                              {/* Header câu hỏi với Bộ Đếm (Counter Badge) */}
+                              <div className="flex items-center justify-between pb-2 border-b border-purple-100">
+                                <div className="flex items-center gap-2">
+                                  <span className="px-2 py-0.5 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-[10px] sm:text-xs font-black tracking-wide shadow-2xs">
+                                    Câu {msg.clarifyMeta.questionNumber}/{msg.clarifyMeta.totalQuestions}
+                                  </span>
+                                  <span className="text-xs sm:text-[13px] font-bold text-slate-900 leading-tight">
+                                    {msg.clarifyMeta.questionTitle}
+                                  </span>
+                                </div>
+                                <span className="text-[10px] text-purple-600 font-bold hidden sm:inline-block">
+                                  {msg.clarifyMeta.questionNumber === msg.clarifyMeta.totalQuestions ? 'Câu hỏi cuối' : 'Khảo sát lâm sàng'}
+                                </span>
+                              </div>
+
+                              <p className="text-[10.5px] sm:text-[11px] text-slate-500 italic">
+                                👉 Bấm chọn 1 trong 4 lựa chọn (sẽ tự điền vào ô chat bên dưới), sau đó bấm nút <strong>Gửi</strong> hoặc tự nhập miêu tả chi tiết:
+                              </p>
+
+                              {/* 4 Lựa chọn trắc nghiệm */}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 sm:gap-2">
+                                {msg.clarifyMeta.options.map((opt, idx) => {
+                                  const isSelected = (
+                                    (msg.clarifyMeta?.fieldKey === 'nature' && selectedNature === opt) ||
+                                    (msg.clarifyMeta?.fieldKey === 'duration' && selectedDuration === opt) ||
+                                    (msg.clarifyMeta?.fieldKey === 'associated' && selectedAssociated === opt) ||
+                                    (msg.clarifyMeta?.fieldKey === 'followup' && selectedFollowup === opt) ||
+                                    (inputMessage === opt)
+                                  );
+
+                                  return (
+                                    <button
+                                      key={idx}
+                                      type="button"
+                                      onClick={() => handleSelectClarifyOption(opt, msg.clarifyMeta?.fieldKey)}
+                                      className={`p-2.5 sm:p-3 text-xs text-left rounded-xl border transition-all cursor-pointer flex items-center justify-between group active:scale-98 ${
+                                        isSelected
+                                          ? 'bg-purple-100/90 border-purple-600 text-purple-950 font-bold shadow-2xs ring-1 ring-purple-400'
+                                          : 'bg-slate-50 hover:bg-purple-50/70 border-slate-200 text-slate-700 hover:text-purple-900 hover:border-purple-300'
+                                      }`}
+                                    >
+                                      <span className="leading-snug pr-1.5">{opt}</span>
+                                      <div className="shrink-0">
+                                        {isSelected ? (
+                                          <span className="w-5 h-5 rounded-full bg-purple-600 text-white flex items-center justify-center shadow-xs">
+                                            <Check size={12} />
+                                          </span>
+                                        ) : (
+                                          <span className="w-5 h-5 rounded-full border border-slate-300 group-hover:border-purple-400 flex items-center justify-center text-[10px] text-slate-400 group-hover:text-purple-600 font-bold">
+                                            {idx + 1}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+
+                              {/* Thanh công cụ dưới câu hỏi */}
+                              <div className="pt-2 flex items-center justify-between gap-2 border-t border-slate-100">
+                                <button
+                                  type="button"
+                                  onClick={handleSkipToLocation}
+                                  className="text-[10.5px] sm:text-[11px] text-slate-400 hover:text-purple-700 transition font-medium cursor-pointer"
+                                >
+                                  Bỏ qua &amp; Chọn cơ sở ngay ➔
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleAdvanceClarify()}
+                                  className="py-1.5 px-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                                >
+                                  <span>{msg.clarifyMeta.questionNumber === msg.clarifyMeta.totalQuestions ? 'Hoàn tất khảo sát' : 'Tiếp tục câu sau'}</span>
+                                  <ArrowRight size={13} />
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* KHI CÂU HỎI ĐÃ HOÀN TẤT: HIỂN THỊ TINH GỌN */}
+                          {msg.clarifyMeta && msg.isCompleteWidget && (
+                            <div className="p-2 sm:p-2.5 bg-slate-50/80 border border-slate-200/80 rounded-xl text-[11px] text-slate-500 flex items-center justify-between">
+                              <div className="flex items-center gap-1.5 truncate">
+                                <span className="w-4 h-4 rounded-full bg-emerald-500 text-white text-[9px] flex items-center justify-center font-bold shrink-0">✓</span>
+                                <span className="font-semibold text-slate-700 truncate">{msg.clarifyMeta.questionTitle}</span>
+                              </div>
+                              <span className="text-[10px] text-emerald-700 font-bold shrink-0 ml-2">Đã hoàn thành</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* =================================================================== */}
+                      {/* WIDGET BƯỚC 3: CÁC LỰA CHỌN PHÒNG KHÁM, DỊCH VỤ & NGÀY KHÁM          */}
+                      {/* =================================================================== */}
+                      {msg.widget === 'INPUT_LOCATION' && (
+                        <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs space-y-3.5 mt-1.5">
+                          {/* Chuyên khoa định hướng */}
+                          <div className="p-2.5 bg-purple-50 rounded-xl border border-purple-200 flex items-center justify-between">
+                            <div>
+                              <span className="text-[10px] text-purple-700 font-bold block uppercase">
+                                Chuyên khoa định hướng:
+                              </span>
+                              <span className="text-xs sm:text-sm font-extrabold text-purple-950">
+                                {activeCategory.specialtyName}
+                              </span>
+                            </div>
+                            <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
+                              Khớp 100%
+                            </span>
+                          </div>
+
+                          {/* Chọn Chi Nhánh */}
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-slate-800 block">
+                                1. Chọn cơ sở phòng khám MedSched:
+                              </span>
+                              <span className="text-[10px] text-purple-600 font-bold flex items-center gap-1">
+                                <MapPin size={11} />
+                                Bấm cơ sở để xem Google Maps
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {CLINIC_BRANCHES.map((branch) => {
+                                const isSelected = selectedBranch.id === branch.id;
+                                return (
+                                  <div
+                                    key={branch.id}
+                                    onClick={() => {
+                                      setSelectedBranch(branch);
+                                      setSelectedBranchForModal(branch);
+                                    }}
+                                    className={`p-3 text-left rounded-xl border-2 transition cursor-pointer flex flex-col justify-between group active:scale-98 ${
+                                      isSelected
+                                        ? 'bg-purple-50/90 border-purple-600 shadow-2xs'
+                                        : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700'
+                                    }`}
+                                  >
+                                    <div>
+                                      <div className="flex items-center justify-between gap-1 mb-1">
+                                        <span className="text-xs font-extrabold text-slate-900 line-clamp-1 group-hover:text-purple-700 transition">
+                                          {branch.shortName}
+                                        </span>
+                                        {isSelected && <CheckCircle2 size={15} className="text-purple-600 shrink-0" />}
+                                      </div>
+                                      <p className="text-[10px] text-slate-500 line-clamp-2">
+                                        📍 {branch.address}
+                                      </p>
+                                    </div>
+
+                                    {/* Nút xem bản đồ và chi tiết */}
+                                    <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
+                                      <span className="text-slate-400 group-hover:text-purple-600 font-medium flex items-center gap-1">
+                                        <Phone size={10} />
+                                        {branch.phone.split(' ')[0]}
+                                      </span>
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 font-bold hover:bg-purple-200 transition">
+                                        <span>Bản đồ &amp; So sánh</span>
+                                        <ExternalLink size={10} />
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Chọn Ngày khám */}
+                          <div className="space-y-1.5 pt-1">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-slate-800">
+                                2. Chọn ngày khám (Thứ 2 - Thứ 6):
+                              </span>
+                              <span className="text-[10px] text-purple-700 font-bold">
+                                {formatVietnameseFullDate(bookingDate)}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
+                              {upcomingWeekdays.map((item) => {
+                                const isSelected = bookingDate === item.iso;
+                                return (
+                                  <button
+                                    key={item.iso}
+                                    type="button"
+                                    onClick={() => setBookingDate(item.iso)}
+                                    className={`p-2 rounded-xl border text-center transition cursor-pointer ${
+                                      isSelected
+                                        ? 'bg-purple-600 text-white border-purple-600 font-bold shadow-2xs'
+                                        : 'bg-slate-50 hover:bg-purple-50 border-slate-200 text-slate-700'
+                                    }`}
+                                  >
+                                    <span className="block text-[11px] font-bold leading-tight">{item.label}</span>
+                                    <span className={`block text-[9px] mt-0.5 ${isSelected ? 'text-purple-100' : 'text-slate-400'}`}>
+                                      {item.subLabel}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Chọn Buổi khám */}
+                          <div className="space-y-1.5 pt-1">
+                            <span className="text-xs font-bold text-slate-800 block">
+                              3. Chọn buổi đến phòng khám:
+                            </span>
+                            <div className="grid grid-cols-2 gap-2">
+                              {TIME_SHIFTS.map((shift) => {
+                                const isSelected = selectedShiftId === shift.id;
+                                return (
+                                  <button
+                                    key={shift.id}
+                                    type="button"
+                                    onClick={() => setSelectedShiftId(shift.id)}
+                                    className={`p-2.5 text-center rounded-xl border-2 transition cursor-pointer ${
+                                      isSelected
+                                        ? 'bg-purple-600 text-white border-purple-600 font-bold shadow-2xs'
+                                        : 'bg-slate-50 hover:bg-purple-50 border-slate-200 text-slate-700'
+                                    }`}
+                                  >
+                                    <span className="block text-xs font-bold">{shift.icon} {shift.label}</span>
+                                    <span className={`text-[10px] block mt-0.5 ${isSelected ? 'text-purple-100' : 'text-slate-500'}`}>
+                                      {shift.timeRange}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Nút tiếp tục sang Bước 4 */}
+                          <button
+                            type="button"
+                            onClick={handleProceedToDoctorSlot}
+                            className="w-full py-2.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer mt-2"
+                          >
+                            <span>Tiếp Tục: Chọn Bác Sĩ Tại {selectedBranch.shortName}</span>
+                            <ArrowRight size={14} />
+                          </button>
+                        </div>
+                      )}
+
+                      {/* =================================================================== */}
+                      {/* WIDGET BƯỚC 4: LỰA CHỌN BÁC SĨ & KHUNG GIỜ KHẢ DỤNG                 */}
+                      {/* =================================================================== */}
+                      {msg.widget === 'SELECT_DOCTOR_SLOT' && (
+                        <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs space-y-3.5 mt-1.5">
+                          {/* Banner hiển thị chuyên khoa ràng buộc theo triệu chứng */}
+                          <div className="p-2.5 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl border border-purple-200 flex items-center justify-between">
+                            <div>
+                              <span className="text-[10px] text-purple-700 font-bold block uppercase tracking-wider">
+                                Chuyên khoa điều trị triệu chứng:
+                              </span>
+                              <span className="text-xs sm:text-sm font-extrabold text-purple-950 flex items-center gap-1.5 mt-0.5">
+                                <span>{activeCategory.label.split(' ')[0]}</span>
+                                <span>{activeCategory.specialtyName}</span>
+                              </span>
+                            </div>
+                            <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1 border border-emerald-200">
+                              <CheckCircle2 size={11} className="text-emerald-600" />
+                              Khớp đúng bệnh
+                            </span>
+                          </div>
+
+                          {/* Bộ lọc bác sĩ */}
+                          <div className="flex flex-wrap gap-1.5">
+                            {[
+                              { id: 'ALL', label: '✨ Tất Cả Bác Sĩ' },
+                              { id: 'EXPERT', label: '🏆 Trưởng Khoa / Chuyên Gia' },
+                              { id: 'MALE', label: '👨‍⚕️ Bác Sĩ Nam' },
+                              { id: 'FEMALE', label: '👩‍⚕️ Bác Sĩ Nữ' },
+                            ].map((f) => {
+                              const isActive = doctorFilter === f.id;
+                              return (
+                                <button
+                                  key={f.id}
+                                  type="button"
+                                  onClick={() => setDoctorFilter(f.id as any)}
+                                  className={`px-2.5 py-1 text-[11px] rounded-full border transition cursor-pointer ${
+                                    isActive
+                                      ? 'bg-purple-600 text-white border-purple-600 font-bold'
+                                      : 'bg-slate-100 hover:bg-purple-50 text-slate-700 border-slate-200'
+                                  }`}
+                                >
+                                  {f.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          {/* Danh sách Bác sĩ */}
+                          <div className="space-y-2">
+                            {availableDoctors.map((doc) => {
+                              const isSelected = selectedDoctor?.id === doc.id;
+                              return (
+                                <div
+                                  key={doc.id}
+                                  onClick={() => setSelectedDoctor(doc)}
+                                  className={`p-2.5 rounded-xl border-2 transition cursor-pointer flex items-center justify-between ${
+                                    isSelected
+                                      ? 'bg-purple-50/90 border-purple-600 shadow-2xs ring-1 ring-purple-300'
+                                      : 'bg-white hover:bg-slate-50 border-slate-200'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2.5">
+                                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-extrabold text-sm ${
+                                      isSelected ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-700'
+                                    }`}>
+                                      {doc.gender === 'female' ? '👩‍⚕️' : '👨‍⚕️'}
+                                    </div>
+                                    <div>
+                                      <h4 className="text-xs font-extrabold text-slate-900 flex items-center gap-1">
+                                        {doc.name}
+                                        {doc.isExpert && (
+                                          <span className="text-[8.5px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.2 rounded flex items-center gap-0.5">
+                                            <Award size={9} /> Chuyên Gia
+                                          </span>
+                                        )}
+                                      </h4>
+                                      <p className="text-[10px] text-slate-500 line-clamp-1">{doc.title}</p>
+                                      <p className="text-[9.5px] text-purple-700 font-bold">
+                                        📍 {doc.room} • Phí khám: {doc.fee.toLocaleString('vi-VN')} đ
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <div className={`w-4 h-4 rounded-full flex items-center justify-center border ${
+                                    isSelected ? 'bg-purple-600 border-purple-600 text-white' : 'border-slate-300'
+                                  }`}>
+                                    {isSelected && <Check size={10} />}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {/* Khung giờ khám */}
+                          <div className="space-y-1.5 pt-1">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-slate-800">
+                                Chọn Giờ khám khả dụng:
+                              </span>
+                              <span className="text-[10px] text-purple-700 font-bold">
+                                📅 {formatVietnameseFullDate(bookingDate)}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                              {shiftSlots.map((slot, idx) => {
+                                const isSelected = selectedSlotTime === slot.time;
+                                return (
+                                  <button
+                                    key={idx}
+                                    type="button"
+                                    disabled={slot.disabled}
+                                    onClick={() => !slot.disabled && setSelectedSlotTime(slot.time)}
+                                    className={`py-1.5 px-2 text-xs font-bold rounded-xl border transition text-center flex flex-col items-center justify-center ${
+                                      slot.disabled
+                                        ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-60'
+                                        : isSelected
+                                        ? 'bg-purple-600 text-white border-purple-600 shadow-2xs cursor-pointer'
+                                        : 'bg-slate-50 hover:bg-purple-50 text-slate-700 border-slate-200 cursor-pointer'
+                                    }`}
+                                  >
+                                    <span>{slot.time}</span>
+                                    <span className={`text-[8.5px] ${isSelected ? 'text-purple-200' : slot.disabled ? 'text-slate-400' : 'text-emerald-600'}`}>
+                                      {slot.label}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Nút tiếp tục sang Bước 5 */}
+                          <button
+                            type="button"
+                            onClick={handleProceedToPayment}
+                            className="w-full py-2.5 px-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer mt-2"
+                          >
+                            <span>Tiếp Tục: Xác Nhận &amp; Giữ Chỗ (Cọc 2k / Ưu Đãi)</span>
+                            <ArrowRight size={14} />
+                          </button>
+                        </div>
+                      )}
+
+                      {/* =================================================================== */}
+                      {/* WIDGET BƯỚC 5: XÁC NHẬN ĐẶT CHỖ & CỌC 2K / MÃ ƯU ĐÃI                */}
+                      {/* =================================================================== */}
+                      {msg.widget === 'CONFIRM_PAYMENT' && (
+                        <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs space-y-3.5 mt-1.5">
+                          {/* Tóm tắt phiếu khám */}
+                          <div className="p-3 bg-purple-50/70 rounded-xl border border-purple-200 space-y-1.5 text-[11px] text-slate-700">
+                            <div className="flex items-center justify-between pb-1 border-b border-purple-200">
+                              <span className="font-extrabold text-purple-950 flex items-center gap-1">
+                                <Stethoscope size={13} className="text-purple-600" />
+                                Tóm Tắt Phiếu Khám
+                              </span>
+                              <span className="font-bold text-purple-800 bg-purple-100 px-1.5 py-0.5 rounded">
+                                {activeCategory.specialtyName}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+                              <div>Bác sĩ: <strong>{selectedDoctor?.name}</strong></div>
+                              <div>Phòng: <strong>{selectedDoctor?.room}</strong></div>
+                              <div>Giờ: <strong className="text-purple-700">{selectedSlotTime}</strong></div>
+                              <div>Ngày: <strong>{formatVietnameseFullDate(bookingDate)}</strong></div>
+                              <div className="col-span-2">Cơ sở: <strong>{selectedBranch.shortName}</strong></div>
+                            </div>
+                          </div>
+
+                          {/* Thông tin bệnh nhân */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-[10.5px] font-bold text-slate-700 mb-0.5">
+                                Họ và tên người khám:
+                              </label>
+                              <input
+                                type="text"
+                                value={patientName}
+                                onChange={(e) => setPatientName(e.target.value)}
+                                placeholder="Nguyễn Văn A"
+                                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10.5px] font-bold text-slate-700 mb-0.5">
+                                Số điện thoại nhận vé:
+                              </label>
+                              <input
+                                type="text"
+                                value={patientPhone}
+                                onChange={(e) => setPatientPhone(e.target.value)}
+                                placeholder="0912 345 678"
+                                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Phần đặt cọc 2.000 đ hoặc ưu đãi */}
+                          <div className="p-3 bg-purple-50/80 rounded-xl border border-purple-200 space-y-2.5">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <h4 className="text-xs font-extrabold text-purple-950">
+                                  Đặt Cọc Giữ Chỗ (2.000 VNĐ)
+                                </h4>
+                                <p className="text-[10px] text-purple-700">
+                                  Tự động hoàn trả khi check-in hoặc dùng mã ưu đãi
+                                </p>
+                              </div>
+                              <span className="text-[9px] bg-purple-200 text-purple-900 font-bold px-2 py-0.5 rounded-full">
+                                Hoàn tiền 100%
+                              </span>
+                            </div>
+
+                            {/* Tabs VietQR / Mã ưu đãi */}
+                            <div className="flex rounded-lg bg-purple-100 p-0.5 gap-1">
+                              <button
+                                type="button"
+                                onClick={() => setPaymentTab('vietqr')}
+                                className={`flex-1 py-1 text-xs font-bold rounded-md transition cursor-pointer flex items-center justify-center gap-1 ${
+                                  paymentTab === 'vietqr' ? 'bg-white text-purple-900 shadow-2xs' : 'text-purple-700'
+                                }`}
+                              >
+                                <QrCode size={12} />
+                                <span>Quét Mã Chuyển 2K</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setPaymentTab('promo')}
+                                className={`flex-1 py-1 text-xs font-bold rounded-md transition cursor-pointer flex items-center justify-center gap-1 ${
+                                  paymentTab === 'promo' ? 'bg-white text-purple-900 shadow-2xs' : 'text-purple-700'
+                                }`}
+                              >
+                                <Tag size={12} />
+                                <span>Nhập Mã Ưu Đãi</span>
+                              </button>
+                            </div>
+
+                            {/* Tab 1: VietQR 2k */}
+                            {paymentTab === 'vietqr' && (
+                              <div className="flex flex-col sm:flex-row items-center gap-3 p-2 bg-white rounded-xl border border-purple-200">
+                                <img
+                                  src={`https://img.vietqr.io/image/${VIETQR_BANK_CONFIG.bankId}-${VIETQR_BANK_CONFIG.accountNo}-compact2.png?amount=2000&addInfo=MEDPAY%20${transferBookingCode}&accountName=${encodeURIComponent(VIETQR_BANK_CONFIG.accountName)}`}
+                                  alt="Mã VietQR cọc 2k"
+                                  className="w-28 h-28 object-contain rounded-lg border border-slate-200 shrink-0"
+                                />
+                                <div className="text-[10.5px] text-slate-700 space-y-1 flex-1">
+                                  <p>Ngân hàng: <strong>KienlongBank</strong></p>
+                                  <p>Số tài khoản: <strong>18112007</strong></p>
+                                  <p>Chủ TK: <strong>CHAU TUAN KIET</strong></p>
+                                  <p>Số tiền: <strong className="text-purple-700 font-bold">2.000 VNĐ</strong></p>
+                                  <p>Nội dung: <strong className="text-purple-800 bg-purple-100 px-1 py-0.5 rounded font-mono">MEDPAY {transferBookingCode}</strong></p>
+                                  <div className="flex items-center gap-1 text-[9.5px] text-slate-500 pt-1">
+                                    <Clock size={11} className="text-purple-600" />
+                                    <span>Hết hạn sau: {Math.floor(qrCountdown / 60)}:{(qrCountdown % 60).toString().padStart(2, '0')}</span>
+                                    {isCheckingAuto && <span className="text-purple-600 ml-1 font-semibold animate-pulse">(Đang đợi chuyển...)</span>}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Tab 2: Promo Code */}
+                            {paymentTab === 'promo' && (
+                              <div className="space-y-1.5 p-2 bg-white rounded-xl border border-purple-200">
+                                <div className="flex gap-1.5">
+                                  <input
+                                    type="text"
+                                    value={promoCode}
+                                    onChange={(e) => setPromoCode(e.target.value)}
+                                    placeholder="Ví dụ: MEDSCHED2026, VIP, GIAOVIEN..."
+                                    className="flex-1 p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs uppercase font-mono"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={handleApplyPromoCode}
+                                    className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-lg transition cursor-pointer"
+                                  >
+                                    Áp Dụng
+                                  </button>
+                                </div>
+                                {promoSuccessMsg && <p className="text-[10.5px] text-emerald-600 font-bold">✓ {promoSuccessMsg}</p>}
+                                {promoErrorMsg && <p className="text-[10.5px] text-red-600 font-medium">✕ {promoErrorMsg}</p>}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Nút hoàn tất đặt chỗ */}
+                          <div className="space-y-1.5 pt-1">
+                            <button
+                              type="button"
+                              onClick={handleConfirmFinalBooking}
+                              className="w-full py-3 px-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer"
+                            >
+                              <CheckCircle2 size={15} />
+                              <span>Xác Nhận Giữ Chỗ &amp; Cấp Vé Hẹn Ngay</span>
+                            </button>
+                            {checkManualMessage && (
+                              <p className="text-[10.5px] text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200 text-center">
+                                {checkManualMessage}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* =================================================================== */}
+                      {/* WIDGET BƯỚC 6: HOÀN TẤT ĐẶT CHỖ & CẤP MÃ HẸN (COMPLETED)            */}
+                      {/* =================================================================== */}
+                      {msg.widget === 'COMPLETED' && (
+                        <div className="p-4 bg-white border-2 border-emerald-500 rounded-2xl shadow-md space-y-3 mt-1.5 animate-fadeIn">
+                          <div className="flex items-center gap-2.5 text-emerald-700">
+                            <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0 shadow-xs">
+                              <CheckCircle2 size={24} className="text-emerald-600" />
+                            </div>
+                            <div>
+                              <h4 className="text-xs sm:text-sm font-extrabold text-emerald-900">
+                                ĐẶT LỊCH HẸN THÀNH CÔNG!
+                              </h4>
+                              <p className="text-[10.5px] text-emerald-700">
+                                Phòng khám MedSched hân hạnh được đón tiếp bạn.
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Thẻ vé hẹn điện tử */}
+                          <div className="p-3 bg-gradient-to-br from-slate-50 to-emerald-50/50 rounded-xl border border-slate-200 text-xs text-slate-800 space-y-1.5">
+                            <div className="flex items-center justify-between pb-1 border-b border-slate-200">
+                              <span className="text-slate-500 font-medium">Mã đặt hẹn khám:</span>
+                              <div className="flex items-center gap-1">
+                                <span className="font-mono font-black text-purple-700 text-sm">
+                                  {bookingSuccessCode || transferBookingCode}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopyCode(bookingSuccessCode || transferBookingCode)}
+                                  className="p-1 text-slate-400 hover:text-purple-700 transition cursor-pointer"
+                                  title="Sao chép mã"
+                                >
+                                  {isCopied ? <Check size={12} className="text-emerald-600" /> : <Copy size={12} />}
+                                </button>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-1 text-[11px]">
+                              <div>Bác sĩ: <strong>{selectedDoctor?.name}</strong></div>
+                              <div>Phòng: <strong>{selectedDoctor?.room}</strong></div>
+                              <div>Giờ: <strong className="text-purple-700">{selectedSlotTime}</strong></div>
+                              <div>Ngày: <strong>{formatVietnameseFullDate(bookingDate)}</strong></div>
+                              <div className="col-span-2">Cơ sở: <strong>{selectedBranch.shortName}</strong></div>
+                            </div>
+                          </div>
+
+                          {/* Nút điều hướng */}
+                          <div className="flex gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (onClose) onClose();
+                                router.push('/my-appointments');
+                              }}
+                              className="flex-1 py-2.5 px-3 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shadow-xs transition cursor-pointer text-center"
+                            >
+                              Xem Lịch Hẹn Của Tôi
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleResetConversation}
+                              className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition cursor-pointer"
+                            >
+                              Đặt Thêm Lịch Mới
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* =================================================================== */}
+                      {/* TRƯỜNG HỢP ĐẶC BIỆT: BÁO ĐỘNG CẤP CỨU 115 (EMERGENCY)               */}
+                      {/* =================================================================== */}
+                      {msg.widget === 'EMERGENCY' && (
+                        <div className="p-4 bg-red-50 border-2 border-red-500 rounded-2xl space-y-3 mt-1.5 animate-bounce-short">
+                          <div className="flex items-center gap-2.5 text-red-700">
+                            <div className="w-10 h-10 rounded-xl bg-red-600 text-white flex items-center justify-center shrink-0 shadow-md">
+                              <ShieldAlert size={22} />
+                            </div>
+                            <div>
+                              <h4 className="text-xs sm:text-sm font-extrabold text-red-900 leading-tight">
+                                🚨 CẢNH BÁO NGUY HIỂM: DẤU HIỆU CẤP CỨU Y TẾ!
+                              </h4>
+                              <p className="text-[10.5px] text-red-700 font-medium">
+                                Cần được can thiệp y khoa khẩn cấp tại Bệnh viện có ICU.
+                              </p>
+                            </div>
+                          </div>
+                          <div className="p-3 bg-white/90 rounded-xl border border-red-200 text-xs text-slate-800 space-y-1.5">
+                            <p className="font-bold text-red-800">
+                              ⚠️ Phòng khám ngoại trú MedSched KHÔNG tiếp nhận cấp cứu đe dọa tính mạng.
+                            </p>
+                            <p className="text-[11px] text-slate-600">
+                              Vui lòng giữ người bệnh thông thoáng đường thở và liên hệ cấp cứu khẩn cấp ngay:
+                            </p>
+                          </div>
+                          <a
+                            href="tel:115"
+                            className="py-3 px-4 bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-md flex items-center justify-center gap-2 transition cursor-pointer"
+                          >
+                            <Phone size={16} className="animate-bounce" />
+                            <span>GỌI CẤP CỨU 115 NGAY LẬP TỨC</span>
+                          </a>
+                        </div>
+                      )}
+
+                        </div>
+                      )}
+
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Chỉ báo AI đang suy nghĩ / gõ tin nhắn */}
+              {isAiAnalyzing && (
+                <div className="flex items-center gap-2 text-xs text-purple-700 bg-purple-50 p-2.5 rounded-xl border border-purple-200 w-fit animate-pulse">
+                  <Bot size={15} />
+                  <span>Gemini 2.5 đang phân tích triệu chứng...</span>
+                </div>
+              )}
+
+              {/* Điểm neo tự động cuộn xuống cuối */}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* =================================================================== */}
+            {/* THANH NHẬP CỐ ĐỊNH Ở ĐÁY (STICKY BOTTOM INPUT BAR - ZALO STYLE)     */}
+            {/* =================================================================== */}
+            {/* THANH NHẬP NỘI DUNG CHAT CỐ ĐỊNH Ở ĐÁY KHUNG (GIỐNG ZALO) */}
+            <div className="sticky bottom-0 bg-white/95 backdrop-blur-md p-1.5 sm:p-2.5 border-t border-slate-200/90 shadow-lg z-20 shrink-0">
+              <div className="flex items-center gap-1.5 sm:gap-2 max-w-4xl mx-auto">
+                <input
+                  type="text"
+                  value={inputMessage}
+                  onChange={(e) => setInputMessage(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleSendInputMessage();
+                    }
+                  }}
+                  disabled={isAiAnalyzing}
+                  placeholder="Nhập triệu chứng hoặc tin nhắn của bạn... (Nhấn Enter để gửi)"
+                  className="flex-1 py-2 sm:py-2 px-3 sm:px-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-purple-500 focus:outline-none text-xs sm:text-sm text-slate-800 transition"
                 />
                 <button
                   type="button"
-                  disabled={analyzing || !symptomInput.trim()}
-                  onClick={() => handleAnalyze()}
-                  className="px-3.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-[11px] rounded-xl shadow-xs transition disabled:opacity-50 flex items-center justify-center shrink-0 cursor-pointer"
+                  onClick={handleSendInputMessage}
+                  disabled={!inputMessage.trim() || isAiAnalyzing}
+                  className="py-2 px-3 sm:px-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition disabled:opacity-50 flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
+                  title="Gửi tin nhắn"
                 >
-                  {analyzing ? <Sparkles size={14} className="animate-spin" /> : 'Phân Tích'}
+                  <Send size={15} />
+                  <span className="hidden sm:inline">Gửi</span>
                 </button>
               </div>
             </div>
 
-            {/* KẾT QUẢ PHÂN TÍCH CỦA AI */}
-            {aiResult && (
-              <div className="p-3.5 bg-gradient-to-br from-purple-50/90 to-indigo-50/90 rounded-2xl border border-purple-200 space-y-2.5 animate-fadeIn">
-                {/* Cảnh báo cấp cứu nếu có */}
-                {aiResult.isEmergency && (
-                  <div className="p-2.5 bg-red-50 border border-red-300 rounded-xl text-red-800 text-[11px] font-bold flex items-start gap-1.5">
-                    <AlertCircle size={14} className="text-red-600 shrink-0 mt-0.5" />
-                    <span>{aiResult.emergencyWarning || '🚨 Cảnh báo: Triệu chứng có thể cần cấp cứu y tế khẩn cấp!'}</span>
-                  </div>
-                )}
+          </div>
 
-                {/* Chuyên khoa khuyến nghị */}
-                <div className="flex items-center justify-between pb-1.5 border-b border-purple-200/60">
-                  <div>
-                    <span className="text-[10px] text-purple-700 font-semibold block">Chuyên khoa khuyến nghị:</span>
-                    <span className="text-xs sm:text-sm font-extrabold text-purple-950">
-                      {aiResult.specialtyName || aiResult.specialty || 'Khoa Nội Tổng Quát'}
-                    </span>
-                  </div>
-                  <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
-                    Khớp Triệu Chứng
+          {/* =================================================================== */}
+          {/* CỘT PHỤ (CHỈ HIỆN TRÊN LAPTOP/DESKTOP LG: 30%): BẢNG TÓM TẮT HỒ SƠ */}
+          {/* =================================================================== */}
+          <div className="hidden lg:flex lg:w-72 xl:w-80 2xl:w-96 flex-col bg-white border-l border-slate-200/90 p-2.5 xl:p-4 overflow-y-auto shrink-0 justify-between h-full min-h-0">
+            <div className="space-y-2 xl:space-y-3">
+              <div className="flex items-center justify-between pb-1.5 xl:pb-2 border-b border-slate-100">
+                <h4 className="font-extrabold text-slate-900 text-xs xl:text-sm flex items-center gap-1.5">
+                  <Stethoscope size={15} className="text-purple-600" />
+                  Hồ Sơ Đặt Khám Trực Tiếp
+                </h4>
+                <span className="text-[9px] xl:text-[9.5px] bg-purple-100 text-purple-800 font-extrabold px-1.5 py-0.5 rounded-full">
+                  Live Snapshot
+                </span>
+              </div>
+
+              {/* Thẻ tóm tắt thông tin theo thời gian thực */}
+              <div className="p-2.5 xl:p-3 bg-gradient-to-br from-slate-50 to-purple-50/60 rounded-xl xl:rounded-2xl border border-slate-200 space-y-1.5 xl:space-y-2 text-xs text-slate-700">
+                <div>
+                  <span className="text-[9.5px] xl:text-[10px] text-slate-400 block font-medium">Chuyên khoa định hướng:</span>
+                  <span className="font-extrabold text-purple-950 text-xs xl:text-sm block">
+                    {activeCategory.specialtyName}
                   </span>
                 </div>
 
-                {/* Tóm tắt lâm sàng */}
-                <div className="text-[11px] text-slate-700 space-y-0.5">
-                  <span className="font-bold text-slate-800 block">Định hướng y khoa:</span>
-                  <p className="leading-relaxed bg-white/80 p-2 rounded-xl border border-purple-100">
-                    {aiResult.clinicalSummary || aiResult.summary}
+                {/* Chi tiết triệu chứng đang khảo sát theo thời gian thực */}
+                {(selectedNature || selectedDuration || selectedAssociated) && (
+                  <div className="pt-1.5 border-t border-slate-200/70 text-[10.5px] space-y-1">
+                    {selectedNature && (
+                      <div className="flex items-start justify-between gap-1">
+                        <span className="text-slate-400 text-[9.5px] shrink-0">Biểu hiện:</span>
+                        <span className="font-semibold text-slate-800 text-right truncate max-w-[170px]" title={selectedNature}>
+                          {selectedNature}
+                        </span>
+                      </div>
+                    )}
+                    {selectedDuration && (
+                      <div className="flex items-start justify-between gap-1">
+                        <span className="text-slate-400 text-[9.5px] shrink-0">Thời gian:</span>
+                        <span className="font-semibold text-purple-700 text-right truncate max-w-[170px]" title={selectedDuration}>
+                          {selectedDuration}
+                        </span>
+                      </div>
+                    )}
+                    {selectedAssociated && (
+                      <div className="flex items-start justify-between gap-1">
+                        <span className="text-slate-400 text-[9.5px] shrink-0">Kèm theo:</span>
+                        <span className="font-semibold text-slate-700 text-right truncate max-w-[170px]" title={selectedAssociated}>
+                          {selectedAssociated}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+                <div>
+                  <span className="text-[9.5px] xl:text-[10px] text-slate-400 block font-medium">Cơ sở MedSched:</span>
+                  <span className="font-bold text-slate-900 block text-xs">
+                    {selectedBranch.shortName}
+                  </span>
+                  <p className="text-[9.5px] text-slate-500 line-clamp-1">📍 {selectedBranch.address}</p>
+                </div>
+                <div>
+                  <span className="text-[9.5px] xl:text-[10px] text-slate-400 block font-medium">Bác sĩ phụ trách:</span>
+                  <span className="font-bold text-slate-900 block text-xs">
+                    {selectedDoctor ? selectedDoctor.name : 'Đang chọn bác sĩ...'}
+                  </span>
+                  {selectedDoctor && (
+                    <p className="text-[9.5px] text-purple-700 font-medium">{selectedDoctor.room}</p>
+                  )}
+                </div>
+                <div>
+                  <span className="text-[9.5px] xl:text-[10px] text-slate-400 block font-medium">Ngày &amp; Giờ khám:</span>
+                  <span className="font-bold text-purple-700 block text-xs">
+                    {selectedSlotTime} • {formatVietnameseFullDate(bookingDate)}
+                  </span>
+                </div>
+                <div className="pt-1.5 border-t border-slate-200/70 flex items-center justify-between">
+                  <div>
+                    <span className="text-[9.5px] text-slate-400 block font-medium">Chi phí khám:</span>
+                    <span className="font-extrabold text-slate-900 text-xs">200.000 đ</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[9.5px] text-slate-400 block font-medium">Tiền cọc giữ chỗ:</span>
+                    <span className="font-extrabold text-purple-700 text-xs">2.000 đ</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tiến trình 5 bước mini */}
+              <div className="space-y-1">
+                <span className="text-[10px] xl:text-[11px] font-bold text-slate-700 block">
+                  Tiến độ hoàn tất:
+                </span>
+                <div className="grid grid-cols-5 gap-1">
+                  {[
+                    { step: 'CHOOSE_SYMPTOM', label: '1. Triệu chứng' },
+                    { step: 'CLARIFY_DETAILS', label: '2. Biểu hiện' },
+                    { step: 'INPUT_LOCATION', label: '3. Cơ sở' },
+                    { step: 'SELECT_DOCTOR_SLOT', label: '4. Bác sĩ' },
+                    { step: 'CONFIRM_PAYMENT', label: '5. Cọc 2k' },
+                  ].map((s, idx) => {
+                    const stepOrder = ['CHOOSE_SYMPTOM', 'CLARIFY_DETAILS', 'INPUT_LOCATION', 'SELECT_DOCTOR_SLOT', 'CONFIRM_PAYMENT', 'COMPLETED'];
+                    const currentIdx = stepOrder.indexOf(aiStep);
+                    const thisIdx = idx;
+                    const isDone = currentIdx > thisIdx;
+                    const isCurrent = currentIdx === thisIdx;
+
+                    return (
+                      <div
+                        key={s.step}
+                        className={`h-1 xl:h-1.5 rounded-full transition-all ${
+                          isDone
+                            ? 'bg-emerald-500'
+                            : isCurrent
+                            ? 'bg-purple-600 animate-pulse'
+                            : 'bg-slate-200'
+                        }`}
+                        title={s.label}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Thông tin hỗ trợ & bảo mật phía dưới cột phụ */}
+            <div className="space-y-1.5 pt-2 border-t border-slate-100">
+              <div className="p-2 bg-slate-50 rounded-xl border border-slate-200 text-[9.5px] xl:text-[10px] text-slate-600 space-y-0.5">
+                <p className="flex items-center gap-1 text-slate-800 font-bold">
+                  <ShieldCheck size={12} className="text-emerald-600" />
+                  Bảo mật y tế 100%
+                </p>
+                <p className="line-clamp-2">Toàn bộ hồ sơ triệu chứng và thông tin đặt lịch được mã hóa an toàn theo tiêu chuẩn Bộ Y Tế.</p>
+              </div>
+              <div className="flex items-center justify-between text-[9.5px] xl:text-[10px] text-slate-500 px-0.5">
+                <span>Hotline: <strong>1900 1234</strong></span>
+                <span className="text-red-600 font-bold">Cấp cứu: 115</span>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* POPUP CHI TIẾT CHI NHÁNH & SO SÁNH KHOẢNG CÁCH GOOGLE MAPS                 */}
+      {/* ========================================================================= */}
+      {selectedBranchForModal && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fadeIn"
+          onClick={() => setSelectedBranchForModal(null)}
+        >
+          <div 
+            className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 max-w-lg w-full overflow-hidden flex flex-col max-h-[90vh] animate-scaleUp"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header Modal */}
+            <div className="px-4 sm:px-5 py-3 sm:py-4 bg-gradient-to-r from-purple-50 via-white to-indigo-50 border-b border-purple-100 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-xs">
+                  <MapPin size={18} />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-xs sm:text-sm leading-tight">
+                    Thông Tin Cơ Sở &amp; Bản Đồ Google Maps
+                  </h3>
+                  <p className="text-[10px] text-purple-700 font-medium mt-0.5">
+                    Hệ thống Phòng khám Đa khoa Quốc tế MedSched
                   </p>
                 </div>
-
-                {/* Lời khuyên chuẩn bị */}
-                {aiResult.preparationAdvice && (
-                  <p className="text-[10px] text-purple-800 italic">
-                    💡 {aiResult.preparationAdvice}
-                  </p>
-                )}
-
-                {/* Nút hành động áp dụng và đặt lịch */}
-                <button
-                  type="button"
-                  onClick={handleApplyAiAndBook}
-                  className="w-full py-2 px-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer mt-1"
-                >
-                  <span>Tiếp Tục Đặt Lịch Với Khoa Này</span>
-                  <ArrowRight size={12} />
-                </button>
               </div>
-            )}
+              <button
+                type="button"
+                onClick={() => setSelectedBranchForModal(null)}
+                className="w-7 h-7 rounded-full bg-white hover:bg-slate-100 text-slate-500 hover:text-slate-800 flex items-center justify-center transition cursor-pointer shadow-xs border border-slate-200"
+                title="Đóng popup"
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            {/* Nội dung chi tiết cơ sở */}
+            <div className="p-4 sm:p-5 overflow-y-auto space-y-3.5 text-xs text-slate-700">
+              {/* Tên & Địa chỉ */}
+              <div className="p-3 bg-purple-50/70 rounded-2xl border border-purple-200 space-y-1.5">
+                <span className="font-black text-purple-950 text-sm block">
+                  {selectedBranchForModal.name}
+                </span>
+                <p className="text-slate-700 flex items-start gap-1.5 text-xs">
+                  <MapPin size={14} className="text-purple-600 shrink-0 mt-0.5" />
+                  <span><strong>Địa chỉ chính xác:</strong> {selectedBranchForModal.address}</span>
+                </p>
+                <p className="text-slate-700 flex items-center gap-1.5 text-xs">
+                  <Phone size={13} className="text-emerald-600 shrink-0" />
+                  <span><strong>Hotline hỗ trợ &amp; tiếp đón:</strong> {selectedBranchForModal.phone}</span>
+                </p>
+                <p className="text-slate-700 flex items-center gap-1.5 text-xs">
+                  <Clock size={13} className="text-purple-600 shrink-0" />
+                  <span><strong>Giờ làm việc:</strong> Thứ 2 - Thứ 6 (08:00 - 17:30)</span>
+                </p>
+              </div>
+
+              {/* Tiện ích cơ sở */}
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 space-y-1.5 text-[11px] text-slate-600">
+                <span className="font-bold text-slate-800 block text-xs">
+                  ✨ Tiện ích dịch vụ tại chi nhánh:
+                </span>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <div className="flex items-center gap-1">
+                    <CheckCircle2 size={12} className="text-emerald-500 shrink-0" />
+                    <span>Tiếp đón 1s (QR/CCCD)</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <CheckCircle2 size={12} className="text-emerald-500 shrink-0" />
+                    <span>Bãi đỗ ô tô &amp; xe máy free</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <CheckCircle2 size={12} className="text-emerald-500 shrink-0" />
+                    <span>Máy đo sinh hiệu tự động</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <CheckCircle2 size={12} className="text-emerald-500 shrink-0" />
+                    <span>Phòng khám vô khuẩn Bộ Y Tế</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* KHUNG SO SÁNH KHOẢNG CÁCH GOOGLE MAPS */}
+              <div className="p-3.5 bg-gradient-to-br from-indigo-50/60 via-purple-50/40 to-white rounded-2xl border-2 border-purple-200/90 space-y-2.5">
+                <div className="flex items-center gap-1.5 text-purple-900 font-bold text-xs">
+                  <Navigation size={14} className="text-purple-600" />
+                  <span>Nhập địa chỉ của bạn để so sánh khoảng cách:</span>
+                </div>
+                <p className="text-[10.5px] text-slate-500">
+                  Nhập địa chỉ nhà, công ty hoặc quận/huyện của bạn để xem lộ trình di chuyển chi tiết nhất trên Google Maps:
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={userCustomLocation}
+                    onChange={(e) => setUserCustomLocation(e.target.value)}
+                    placeholder="Ví dụ: Quận 11, Tân Bình, 123 Lê Đại Hành..."
+                    className="flex-1 py-2 px-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:outline-none text-xs text-slate-800 shadow-2xs"
+                  />
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                  {/* Nút chỉ đường từ vị trí nhập vào (theo tọa độ GPS chính xác) */}
+                  <a
+                    href={getBranchDirectionUrl(selectedBranchForModal, userCustomLocation)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 py-2 px-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer text-center"
+                  >
+                    <Navigation size={13} />
+                    <span>{userCustomLocation.trim() ? 'Chỉ Đường & Đo Khoảng Cách' : 'Chỉ Đường Từ Vị Trí Của Tôi'}</span>
+                    <ExternalLink size={12} />
+                  </a>
+
+                  {/* Nút mở trực tiếp vị trí trên Google Maps (theo tọa độ GPS chính xác) */}
+                  <a
+                    href={getBranchGoogleMapsUrl(selectedBranchForModal)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="py-2 px-3 bg-white hover:bg-purple-50 text-purple-700 font-bold text-xs rounded-xl border border-purple-300 transition flex items-center justify-center gap-1.5 cursor-pointer text-center"
+                  >
+                    <span>Xem Vị Trí Chi Nhánh</span>
+                    <ExternalLink size={12} />
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer Modal */}
+            <div className="p-3 sm:p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setSelectedBranchForModal(null)}
+                className="py-2 px-4 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200 transition cursor-pointer"
+              >
+                Đóng
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedBranch(selectedBranchForModal);
+                  setSelectedBranchForModal(null);
+                }}
+                className="py-2 px-5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <Check size={14} />
+                <span>Chọn Cơ Sở Này Cho Lịch Hẹn</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -63,8 +63,44 @@ public class ReceptionController {
 
     private Clock clock = Clock.system(VN_ZONE);
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.medsched.persistence.repository.SpecialtyJpaRepository specialtyJpaRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.medsched.persistence.repository.UserMedicalCenterRoleJpaRepository userMedicalCenterRoleJpaRepository;
+
     public void setClock(Clock clock) {
         this.clock = clock;
+    }
+
+    public void setSpecialtyJpaRepository(com.medsched.persistence.repository.SpecialtyJpaRepository specialtyJpaRepository) {
+        this.specialtyJpaRepository = specialtyJpaRepository;
+    }
+
+    public void setUserMedicalCenterRoleJpaRepository(com.medsched.persistence.repository.UserMedicalCenterRoleJpaRepository userMedicalCenterRoleJpaRepository) {
+        this.userMedicalCenterRoleJpaRepository = userMedicalCenterRoleJpaRepository;
+    }
+
+    private String resolveMedicalCenterId(DoctorEntity doctor, String preferredCenterId) {
+        if (preferredCenterId != null && !preferredCenterId.isBlank()) {
+            return preferredCenterId;
+        }
+        if (doctor != null && doctor.getSpecialtyId() != null && specialtyJpaRepository != null) {
+            String centerId = specialtyJpaRepository.findById(doctor.getSpecialtyId())
+                    .map(com.medsched.persistence.entity.SpecialtyEntity::getMedicalCenterId)
+                    .orElse(null);
+            if (centerId != null && !centerId.isBlank()) {
+                return centerId;
+            }
+        }
+        if (userMedicalCenterRoleJpaRepository != null && doctor != null && doctor.getUserId() != null) {
+            List<com.medsched.persistence.entity.UserMedicalCenterRoleEntity> roles =
+                    userMedicalCenterRoleJpaRepository.findByUserIdAndActiveTrue(doctor.getUserId());
+            if (!roles.isEmpty() && roles.get(0).getMedicalCenterId() != null) {
+                return roles.get(0).getMedicalCenterId();
+            }
+        }
+        return "a1b2c3d4-0001-4000-8000-000000000001";
     }
 
     public ReceptionController(
@@ -182,15 +218,24 @@ public class ReceptionController {
     }
 
     public record QrCheckinRequest(String bookingCode) {}
-    public record CccdCheckinRequest(String cccdNumber, String fullName, String doctorId) {}
+    public record CccdCheckinRequest(String cccdNumber, String fullName, String doctorId, String medicalCenterId) {
+        public CccdCheckinRequest(String cccdNumber, String fullName, String doctorId) {
+            this(cccdNumber, fullName, doctorId, null);
+        }
+    }
     public record WalkinRequest(
             String fullName,
             String phone,
             String cccdNumber,
             String doctorId,
             String specialty,
-            String password
-    ) {}
+            String password,
+            String medicalCenterId
+    ) {
+        public WalkinRequest(String fullName, String phone, String cccdNumber, String doctorId, String specialty, String password) {
+            this(fullName, phone, cccdNumber, doctorId, specialty, password, null);
+        }
+    }
 
     public record WalkinResponse(
             String appointmentId,
@@ -215,8 +260,13 @@ public class ReceptionController {
             String slotTime,
             String appointmentDate,
             String specialty,
-            String bookingType // "PHONE" (Khách gọi hotline) hoặc "WALKIN" (Khách tại quầy)
-    ) {}
+            String bookingType, // "PHONE" (Khách gọi hotline) hoặc "WALKIN" (Khách tại quầy)
+            String medicalCenterId
+    ) {
+        public QuickBookRequest(String fullName, String phone, String email, String symptoms, String doctorId, String slotId, String slotTime, String appointmentDate, String specialty, String bookingType) {
+            this(fullName, phone, email, symptoms, doctorId, slotId, slotTime, appointmentDate, specialty, bookingType, null);
+        }
+    }
 
     public record QuickBookResponse(
             String appointmentId,
@@ -429,11 +479,12 @@ public class ReceptionController {
             long count = appointmentJpaRepository.countByDoctorIdAndCreatedAtBetween(docId, startOfDay, endOfDay);
             String queueNum = "W-" + String.format("%02d", count + 1);
             String bookingCode = "CCCD-" + (100000 + new Random().nextInt(900000));
+            String centerId = resolveMedicalCenterId(targetDoctor, req.medicalCenterId());
 
             AppointmentEntity walkinApp = new AppointmentEntity(
                     UUID.randomUUID().toString(),
                     bookingCode,
-                    "a1b2c3d4-0001-4000-8000-000000000001",
+                    centerId,
                     profile.getId(),
                     docId,
                     null,
@@ -572,12 +623,13 @@ public class ReceptionController {
         String queueNumber = "W-" + String.format("%02d", count + 1);
         String bookingCode = "WALK-" + (100000 + new Random().nextInt(900000));
         String specialty = req.specialty() != null && !req.specialty().isBlank() ? req.specialty() : "Khám chuyên khoa tiếp nhận tại quầy";
+        String centerId = resolveMedicalCenterId(doctor, req.medicalCenterId());
 
         // 5. Tạo AppointmentEntity thực tế vào MySQL
         AppointmentEntity app = new AppointmentEntity(
                 UUID.randomUUID().toString(),
                 bookingCode,
-                "a1b2c3d4-0001-4000-8000-000000000001",
+                centerId,
                 profile.getId(),
                 doctorId,
                 null,
@@ -786,12 +838,13 @@ public class ReceptionController {
         }
 
         String specialty = req.specialty() != null && !req.specialty().isBlank() ? req.specialty() : "Khám chuyên khoa";
+        String centerId = resolveMedicalCenterId(doctor, req.medicalCenterId());
 
         // 6. Tạo AppointmentEntity
         AppointmentEntity app = new AppointmentEntity(
                 UUID.randomUUID().toString(),
                 bookingCode,
-                "a1b2c3d4-0001-4000-8000-000000000001",
+                centerId,
                 profile.getId(),
                 doctorId,
                 slotId,

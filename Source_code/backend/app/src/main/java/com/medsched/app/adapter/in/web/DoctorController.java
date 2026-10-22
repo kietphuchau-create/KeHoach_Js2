@@ -260,13 +260,12 @@ public class DoctorController {
     }
 
     /**
-     * Kích hoạt thủ công tác vụ tự động xếp lịch ngày mai (dành cho Admin / Kiểm thử Job 17h).
+     * Kích hoạt thủ công tác vụ tự động xếp lịch 7 ngày (1 tuần) tới cho toàn bộ Bác sĩ (Admin / Lễ tân / Kiểm thử).
      */
-    @PostMapping("/schedules/auto-generate-tomorrow")
-    public ResponseEntity<DoctorScheduleDtos.AutoScheduleResultDto> triggerAutoScheduleTomorrow() {
-        LocalDate tomorrow = LocalDate.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh")).plusDays(1);
+    @PostMapping({"/schedules/auto-generate-tomorrow", "/schedules/auto-generate-week"})
+    public ResponseEntity<DoctorScheduleDtos.AutoScheduleResultDto> triggerAutoScheduleWeek() {
         DoctorScheduleDtos.AutoScheduleResultDto result =
-                doctorScheduleService.autoGenerateScheduleForTargetDate(tomorrow);
+                doctorScheduleService.autoGenerateScheduleForNextNDays(7);
         return ResponseEntity.ok(result);
     }
 }

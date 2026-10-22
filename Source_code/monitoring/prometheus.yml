@@ -4,8 +4,19 @@ global:
   evaluation_interval: 5s
 
 scrape_configs:
-  - job_name: 'medsched-backend'
+  # =========================================================================
+  # 1. THEO DÕI DỰ ÁN THẬT TRÊN MÁY CHỦ CLOUD (RENDER PRODUCTION)
+  # =========================================================================
+  - job_name: 'medsched-cloud-render'
+    scheme: https
     metrics_path: '/actuator/prometheus'
     static_configs:
-      # host.docker.internal trỏ về máy host chạy Backend Spring Boot (cổng 8080)
+      - targets: ['medsched-zu15.onrender.com:443']
+
+  # =========================================================================
+  # 2. THEO DÕI DỰ ÁN LOCAL TRÊN MÁY TÍNH CÁ NHÂN (KHI DEV / OFFLINE)
+  # =========================================================================
+  - job_name: 'medsched-local'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
       - targets: ['host.docker.internal:8080']

@@ -14,11 +14,20 @@ import {
   XCircle,
   AlertCircle,
   AlertTriangle,
-  Wrench
+  Wrench,
+  MapPin,
+  ExternalLink,
+  Navigation
 } from 'lucide-react';
 import { api } from '@/shared/lib/api';
 import LoadingSpinner from '@/shared/components/Feedback/LoadingSpinner';
 import AlertMessage from '@/shared/components/Feedback/AlertMessage';
+import MapLocationPicker, { LocationData } from '@/shared/components/MapLocationPicker';
+import { 
+  getBranchLocation, 
+  saveBranchLocation, 
+  getBranchGoogleMapsUrl 
+} from '@/shared/lib/branchCoordinates';
 import { 
   ClinicRoom, 
   getClinicRooms, 
@@ -47,6 +56,8 @@ export default function CatalogManager() {
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<any>({});
+  const [hasPinnedLocation, setHasPinnedLocation] = useState<boolean>(false);
+  const [centerCoordinates, setCenterCoordinates] = useState<{ lat?: number; lng?: number }>({});
 
   const loadData = async () => {
     setLoading(true);
@@ -82,7 +93,14 @@ export default function CatalogManager() {
     setEditingId(item?.id || null);
     
     if (activeTab === 'centers') {
+      const isEdit = mode === 'edit';
+      const savedLoc = getBranchLocation(item?.id || item?.code, item?.name, item?.address);
+      const initLat = savedLoc?.lat || 10.7769;
+      const initLng = savedLoc?.lng || 106.7009;
+
       setFormData(item || { code: '', name: '', address: '', phone: '' });
+      setCenterCoordinates({ lat: initLat, lng: initLng });
+      setHasPinnedLocation(isEdit || Boolean(savedLoc));
     } else if (activeTab === 'specialties') {
       setFormData(item || { code: '', name: '', description: '', medicalCenterId: centers[0]?.id || '' });
     } else if (activeTab === 'services') {
@@ -106,9 +124,43 @@ export default function CatalogManager() {
     setMessage(null);
     try {
       if (activeTab === 'centers') {
-        if (modalMode === 'create') await api.createMedicalCenter(formData);
-        else await api.updateMedicalCenter(editingId!, formData);
-        setMessage({ type: 'success', text: `Lưu chi nhánh phòng khám thành công!` });
+        if (!hasPinnedLocation) {
+          setMessage({ 
+            type: 'error', 
+            text: '⚠️ BẮT BUỘC: Bạn phải kéo ghim chọn vị trí chính xác trên bản đồ trước khi lưu chi nhánh! Hệ thống AI cần tọa độ này để dẫn đường chuẩn xác qua Google Maps.' 
+          });
+          setLoading(false);
+          return;
+        }
+        if (!formData.address || !formData.address.trim()) {
+          setMessage({ 
+            type: 'error', 
+            text: 'Vui lòng nhập địa chỉ đầy đủ của chi nhánh!' 
+          });
+          setLoading(false);
+          return;
+        }
+
+        let savedRes: any = null;
+        if (modalMode === 'create') {
+          savedRes = await api.createMedicalCenter(formData);
+        } else {
+          savedRes = await api.updateMedicalCenter(editingId!, formData);
+        }
+
+        // Lưu vĩnh viễn tọa độ GPS của chi nhánh vào LocalStorage & broadcast
+        if (centerCoordinates.lat && centerCoordinates.lng) {
+          const targetKey = savedRes?.id || editingId || formData.code;
+          saveBranchLocation(targetKey, {
+            lat: centerCoordinates.lat,
+            lng: centerCoordinates.lng,
+            address: formData.address,
+            name: formData.name,
+            code: formData.code
+          });
+        }
+
+        setMessage({ type: 'success', text: `Lưu chi nhánh phòng khám và cập nhật vị trí bản đồ thành công!` });
         loadData();
       } else if (activeTab === 'specialties') {
         if (modalMode === 'create') await api.createSpecialty(formData);
@@ -225,7 +277,20 @@ export default function CatalogManager() {
               <tr key={c.id} className="hover:bg-slate-50 transition">
                 <td className="py-3 px-3.5 font-mono font-medium whitespace-nowrap text-slate-700">{c.code}</td>
                 <td className="py-3 px-3.5 font-semibold text-slate-800">{c.name}</td>
-                <td className="py-3 px-3.5 text-slate-600 text-xs">{c.address}</td>
+                <td className="py-3 px-3.5 text-slate-600 text-xs">
+                  <div>{c.address}</div>
+                  <a 
+                    href={getBranchGoogleMapsUrl(c)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple-600 hover:text-purple-800 hover:underline mt-1"
+                    title="Mở Google Maps kiểm tra vị trí tọa độ GPS thực tế"
+                  >
+                    <MapPin size={11} className="text-red-500" />
+                    <span>Xem Trên Google Maps</span>
+                    <ExternalLink size={10} />
+                  </a>
+                </td>
                 <td className="py-3 px-3.5 whitespace-nowrap text-slate-700 font-mono text-xs">{c.phone || '—'}</td>
                 <td className="py-3 px-3.5 whitespace-nowrap text-center">
                   {c.active ? (
@@ -520,11 +585,16 @@ export default function CatalogManager() {
       {/* Modal Form */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-xl">
-            <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
-              <h2 className="text-lg font-bold text-slate-800">
+          <div className={`bg-white rounded-2xl w-full ${activeTab === 'centers' ? 'max-w-3xl' : 'max-w-lg'} max-h-[92vh] flex flex-col overflow-hidden shadow-2xl transition-all`}>
+            <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center shrink-0">
+              <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                 {modalMode === 'create' ? 'Thêm Mới' : 'Cập Nhật'}{' '}
-                {activeTab === 'centers' && 'Chi Nhánh Phòng Khám'}
+                {activeTab === 'centers' && (
+                  <span className="flex items-center gap-1.5 text-purple-700">
+                    <Building2 size={20} />
+                    <span>Chi Nhánh Phòng Khám (Định Vị Bản Đồ)</span>
+                  </span>
+                )}
                 {activeTab === 'specialties' && 'Chuyên Khoa'}
                 {activeTab === 'services' && 'Dịch Vụ Khám'}
                 {activeTab === 'rooms' && 'Phòng Khám (Clinic Room)'}
@@ -532,14 +602,82 @@ export default function CatalogManager() {
               <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer"><XCircle size={24} /></button>
             </div>
             
-            <form onSubmit={handleSave} className="p-6 space-y-4">
+            <form onSubmit={handleSave} className="p-6 space-y-4 overflow-y-auto flex-1">
               {activeTab === 'centers' && (
-                <>
-                  <div><label className="block text-xs font-bold mb-1">Mã Cơ Sở</label><input required className="w-full border p-2 rounded" value={formData.code} onChange={e => setFormData({...formData, code: e.target.value})} /></div>
-                  <div><label className="block text-xs font-bold mb-1">Tên Chi Nhánh</label><input required className="w-full border p-2 rounded" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} /></div>
-                  <div><label className="block text-xs font-bold mb-1">Địa Chỉ</label><input required className="w-full border p-2 rounded" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} /></div>
-                  <div><label className="block text-xs font-bold mb-1">SĐT</label><input className="w-full border p-2 rounded" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} /></div>
-                </>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                        Mã Cơ Sở <span className="text-red-500">*</span>
+                      </label>
+                      <input 
+                        required 
+                        placeholder="Ví dụ: MED_CN3" 
+                        className="w-full border border-slate-200 p-2.5 rounded-xl font-mono text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none" 
+                        value={formData.code} 
+                        onChange={e => setFormData({...formData, code: e.target.value})} 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                        Số Điện Thoại Hotline
+                      </label>
+                      <input 
+                        placeholder="Ví dụ: 02839998877" 
+                        className="w-full border border-slate-200 p-2.5 rounded-xl text-sm font-mono focus:ring-2 focus:ring-purple-500 focus:outline-none" 
+                        value={formData.phone || ''} 
+                        onChange={e => setFormData({...formData, phone: e.target.value})} 
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      Tên Chi Nhánh Phòng Khám <span className="text-red-500">*</span>
+                    </label>
+                    <input 
+                      required 
+                      placeholder="Ví dụ: Phòng Khám Đa Khoa MedSched - Chi Nhánh Quận 7" 
+                      className="w-full border border-slate-200 p-2.5 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-purple-500 focus:outline-none" 
+                      value={formData.name} 
+                      onChange={e => setFormData({...formData, name: e.target.value})} 
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1 flex items-center justify-between">
+                      <span>Địa Chỉ Chi Nhánh (Google Maps Navigation) <span className="text-red-500">*</span></span>
+                      <span className="text-[11px] text-purple-600 font-normal">Tự động cập nhật khi kéo ghim</span>
+                    </label>
+                    <input 
+                      required 
+                      placeholder="Kéo ghim trên bản đồ bên dưới để tự động lấy địa chỉ chính xác..." 
+                      className="w-full border border-slate-200 p-2.5 rounded-xl text-xs text-slate-800 focus:ring-2 focus:ring-purple-500 focus:outline-none" 
+                      value={formData.address || ''} 
+                      onChange={e => setFormData({...formData, address: e.target.value})} 
+                    />
+                  </div>
+
+                  {/* Bản đồ tương tác kéo thả ghim định vị chi nhánh */}
+                  <div className="pt-1">
+                    <MapLocationPicker
+                      initialAddress={formData.address}
+                      initialLat={centerCoordinates.lat}
+                      initialLng={centerCoordinates.lng}
+                      required={true}
+                      onLocationChange={(locData: LocationData) => {
+                        setHasPinnedLocation(locData.isPinned);
+                        setCenterCoordinates({ lat: locData.lat, lng: locData.lng });
+                        if (locData.address) {
+                          setFormData((prev: any) => ({
+                            ...prev,
+                            address: locData.address
+                          }));
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
               )}
               
               {activeTab === 'specialties' && (
@@ -639,11 +777,46 @@ export default function CatalogManager() {
                 </>
               )}
               
-              <div className="flex justify-end gap-3 pt-4 border-t">
-                <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer">Hủy</button>
-                <button type="submit" disabled={loading} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-sm cursor-pointer">
-                  {loading ? 'Đang lưu...' : 'Lưu Thay Đổi'}
-                </button>
+              <div className="flex items-center justify-between gap-3 pt-4 border-t border-slate-100 shrink-0">
+                <div className="text-xs">
+                  {activeTab === 'centers' && (
+                    hasPinnedLocation ? (
+                      <span className="text-emerald-600 font-semibold flex items-center gap-1">
+                        <CheckCircle2 size={14} />
+                        <span>Vị trí bản đồ đã xác thực</span>
+                      </span>
+                    ) : (
+                      <span className="text-amber-600 font-semibold flex items-center gap-1 animate-pulse">
+                        <AlertTriangle size={14} />
+                        <span>Kéo ghim trên bản đồ để mở khóa lưu</span>
+                      </span>
+                    )
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <button 
+                    type="button" 
+                    onClick={() => setShowModal(false)} 
+                    className="px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer text-sm"
+                  >
+                    Hủy
+                  </button>
+                  <button 
+                    type="submit" 
+                    disabled={loading || (activeTab === 'centers' && !hasPinnedLocation)} 
+                    className={`px-6 py-2 font-bold rounded-xl shadow-md transition flex items-center gap-2 cursor-pointer text-sm ${
+                      activeTab === 'centers' && !hasPinnedLocation 
+                        ? 'bg-slate-300 text-slate-500 cursor-not-allowed opacity-75' 
+                        : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white'
+                    }`}
+                  >
+                    {loading ? (
+                      <span>Đang lưu...</span>
+                    ) : (
+                      <span>{modalMode === 'create' ? 'Thêm Chi Nhánh' : 'Lưu Thay Đổi'}</span>
+                    )}
+                  </button>
+                </div>
               </div>
             </form>
           </div>

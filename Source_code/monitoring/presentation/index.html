@@ -1,0 +1,1560 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Giám Sát Hệ Thống MedSched | Prometheus &amp; Grafana</title>
+  <meta name="description" content="Slide web thuyết trình chuyên đề giám sát hiệu năng thời gian thực hệ thống phòng khám MedSched với Prometheus và Grafana.">
+
+  <!-- Google Fonts: Inter & Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,700&display=swap" rel="stylesheet">
+
+  <!-- Bootstrap 5.3 & Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+  <style>
+    :root {
+      --primary: #2563eb;         /* Royal Tech Blue */
+      --primary-light: #60a5fa;
+      --primary-dark: #1d4ed8;
+      --secondary: #0d9488;       /* Deep Teal */
+      --accent: #f59e0b;          /* Vibrant Amber Gold */
+      --danger: #ef4444;          /* Coral Red */
+      --success: #10b981;         /* Emerald Green */
+      --purple: #8b5cf6;          /* Indigo Violet */
+      --cyan: #0284c7;            /* Blue/Cyan Glow */
+
+      /* Pure Clean White Theme (Default) */
+      --bg-light: #ffffff;
+      --bg-surface: #ffffff;
+      --card-bg: #ffffff;
+      --card-border: #e2e8f0;
+      --text-main: #0f172a;
+      --text-muted: #475569;
+      --text-subtle: #64748b;
+
+      --font-heading: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-body: 'Inter', sans-serif;
+      --font-mono: 'Fira Code', 'Courier New', monospace;
+
+      --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+      --shadow-md: 0 4px 14px rgba(15, 23, 42, 0.06);
+      --shadow-lg: 0 10px 28px rgba(15, 23, 42, 0.08);
+      --shadow-xl: 0 20px 40px rgba(15, 23, 42, 0.1);
+
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 20px;
+      --radius-xl: 28px;
+      --transition-fast: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      --transition-smooth: 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+      font-family: var(--font-body);
+      background-color: var(--bg-light);
+      color: var(--text-main);
+      overflow: hidden;
+      scroll-behavior: smooth;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Subtle background ambient mesh for light theme */
+    .bg-mesh-glow {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      overflow: hidden;
+      background: #ffffff;
+    }
+    .bg-mesh-glow::before {
+      content: '';
+      position: absolute;
+      top: -15%;
+      right: -10%;
+      width: 55vw;
+      height: 55vw;
+      background: radial-gradient(circle, rgba(37, 99, 235, 0.06) 0%, rgba(6, 182, 212, 0.03) 50%, transparent 70%);
+      filter: blur(50px);
+      animation: floatOrb1 20s ease-in-out infinite alternate;
+    }
+    .bg-mesh-glow::after {
+      content: '';
+      position: absolute;
+      bottom: -15%;
+      left: -10%;
+      width: 55vw;
+      height: 55vw;
+      background: radial-gradient(circle, rgba(245, 158, 11, 0.04) 0%, rgba(139, 92, 246, 0.04) 50%, transparent 70%);
+      filter: blur(50px);
+      animation: floatOrb2 22s ease-in-out infinite alternate;
+    }
+
+    @keyframes floatOrb1 {
+      0% { transform: translate(0, 0) scale(1); }
+      100% { transform: translate(-6%, 8%) scale(1.08); }
+    }
+    @keyframes floatOrb2 {
+      0% { transform: translate(0, 0) scale(1); }
+      100% { transform: translate(8%, -6%) scale(1.12); }
+    }
+
+    /* Top Progress Bar */
+    .scroll-progress-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 3px;
+      background: rgba(0, 0, 0, 0.04);
+      z-index: 1000;
+    }
+    .scroll-progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #2563eb, #0284c7, #7c3aed);
+      transition: width 0.15s ease-out;
+      box-shadow: 0 0 8px rgba(37, 99, 235, 0.4);
+    }
+
+    /* Left Side Number Indicator List */
+    .side-number-indicator-list {
+      position: fixed;
+      left: 18px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      z-index: 800;
+    }
+    .side-number-item {
+      position: relative;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-heading);
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--text-subtle);
+      text-decoration: none;
+      box-shadow: var(--shadow-sm);
+      transition: all 0.25s ease;
+    }
+    .side-number-item:hover {
+      color: var(--primary);
+      transform: scale(1.1);
+      box-shadow: var(--shadow-md);
+      border-color: var(--primary-light);
+    }
+    .side-number-item.active {
+      background: var(--primary);
+      color: #ffffff;
+      border-color: var(--primary);
+      box-shadow: 0 0 14px rgba(37, 99, 235, 0.4);
+      transform: scale(1.15);
+    }
+    .side-number-item::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      left: 46px;
+      top: 50%;
+      transform: translateY(-50%) translateX(10px);
+      background: #0f172a;
+      color: #ffffff;
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 0.74rem;
+      font-weight: 500;
+      white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    .side-number-item:hover::after {
+      opacity: 1;
+      transform: translateY(-50%) translateX(0);
+    }
+
+    /* Snap Scroll Container */
+    .snap-container {
+      height: 100vh;
+      overflow-y: scroll;
+      scroll-snap-type: y mandatory;
+      scroll-behavior: smooth;
+      position: relative;
+      z-index: 10;
+    }
+    .slide-section {
+      min-height: 100vh;
+      height: 100vh;
+      scroll-snap-align: start;
+      scroll-snap-stop: always;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      padding: 40px 24px 60px 76px;
+    }
+
+    @media (max-width: 992px) {
+      .slide-section {
+        padding: 50px 16px 60px 16px;
+        height: auto;
+        min-height: 100vh;
+      }
+      .snap-container {
+        scroll-snap-type: none;
+      }
+      .side-number-indicator-list {
+        display: none;
+      }
+    }
+
+    /* Slide Card Box (Clean White Theme) */
+    .content-box {
+      width: 100%;
+      max-width: 1220px;
+      max-height: calc(100vh - 100px);
+      overflow-y: auto;
+      background: #ffffff;
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-xl);
+      padding: 2.4rem 3rem;
+      box-shadow: var(--shadow-lg);
+      position: relative;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
+    }
+    .content-box::-webkit-scrollbar {
+      width: 6px;
+    }
+    .content-box::-webkit-scrollbar-thumb {
+      background: rgba(148, 163, 184, 0.3);
+      border-radius: 4px;
+    }
+
+    /* Typography & Headers */
+    h1, h2, h3, h4, h5, h6 {
+      font-family: var(--font-heading);
+      letter-spacing: -0.5px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .display-title {
+      font-size: 2.6rem;
+      font-weight: 800;
+      line-height: 1.15;
+      background: linear-gradient(135deg, #0f172a 40%, var(--primary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero-gradient {
+      background: linear-gradient(135deg, #0284c7, #2563eb, #7c3aed);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .section-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 14px;
+      border-radius: 999px;
+      font-size: 0.76rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 0.65rem;
+    }
+    .badge-p1 {
+      background: rgba(37, 99, 235, 0.08);
+      color: var(--primary);
+      border: 1px solid rgba(37, 99, 235, 0.2);
+    }
+    .badge-p2 {
+      background: rgba(13, 148, 136, 0.08);
+      color: var(--secondary);
+      border: 1px solid rgba(13, 148, 136, 0.2);
+    }
+    .badge-p3 {
+      background: rgba(245, 158, 11, 0.08);
+      color: #d97706;
+      border: 1px solid rgba(245, 158, 11, 0.2);
+    }
+    .badge-p4 {
+      background: rgba(139, 92, 246, 0.08);
+      color: var(--purple);
+      border: 1px solid rgba(139, 92, 246, 0.2);
+    }
+
+    /* Feature Cards */
+    .feature-card {
+      background: #ffffff;
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-lg);
+      padding: 1.4rem;
+      transition: all 0.3s ease;
+      height: 100%;
+      box-shadow: var(--shadow-sm);
+      position: relative;
+      overflow: hidden;
+    }
+    .feature-card:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--shadow-md);
+      border-color: rgba(37, 99, 235, 0.3);
+    }
+    .card-icon-bubble {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+      margin-bottom: 0.8rem;
+    }
+
+    /* Agenda Grid (Slide 2) */
+    .agenda-card {
+      background: #ffffff;
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: all 0.25s ease;
+      height: 100%;
+      box-shadow: var(--shadow-sm);
+    }
+    .agenda-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+      border-color: var(--primary-light);
+    }
+    .agenda-num {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 800;
+      padding: 2px 8px;
+      border-radius: 6px;
+    }
+
+    /* Split IDE Window for Code Slides (9, 10, 11, 12) */
+    .ide-window {
+      background: #020617;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 14px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 10px 25px rgba(15, 23, 42, 0.2);
+      height: 100%;
+    }
+    .ide-header {
+      background: #0f172a;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .ide-dots { display: flex; gap: 6px; }
+    .ide-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .dot-red { background: #ef4444; }
+    .dot-yellow { background: #f59e0b; }
+    .dot-green { background: #10b981; }
+    .ide-tab {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: #94a3b8;
+      background: rgba(2, 6, 23, 0.7);
+      padding: 2px 10px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .ide-body {
+      padding: 14px;
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      line-height: 1.5;
+      color: #f1f5f9;
+      background: #020617;
+      overflow-x: auto;
+      flex: 1;
+    }
+    .ide-body .cm { color: #64748b; font-style: italic; }
+    .ide-body .kw { color: #f43f5e; font-weight: 700; }
+    .ide-body .str { color: #34d399; }
+    .ide-body .prop { color: #38bdf8; font-weight: 600; }
+    .ide-body .hl {
+      background: rgba(56, 189, 248, 0.15);
+      display: block;
+      border-left: 2px solid #38bdf8;
+      padding-left: 4px;
+      margin: 0 -14px;
+    }
+
+    /* Architecture Diagram (Slide 5) */
+    .arch-container {
+      background: #f8fafc;
+      border: 1px solid var(--card-border);
+      border-radius: 18px;
+      padding: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+    }
+    .arch-node {
+      flex: 1;
+      background: #ffffff;
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 16px 12px;
+      text-align: center;
+      transition: all 0.3s;
+      box-shadow: var(--shadow-sm);
+    }
+    .arch-node:hover {
+      border-color: var(--primary);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+    .arch-connector {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      min-width: 80px;
+    }
+    .arch-line {
+      width: 100%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--primary), transparent);
+      position: relative;
+      overflow: hidden;
+    }
+    .arch-line::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 50%;
+      height: 100%;
+      background: #2563eb;
+      animation: dataStream 1.5s infinite linear;
+    }
+    @keyframes dataStream {
+      0% { left: -50%; }
+      100% { left: 100%; }
+    }
+
+    /* Simulation Box (Slide 7) */
+    .sim-gauge {
+      background: #ffffff;
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 12px;
+      text-align: center;
+      box-shadow: var(--shadow-sm);
+    }
+    .sim-val {
+      font-family: var(--font-mono);
+      font-size: 24px;
+      font-weight: 800;
+      color: var(--primary);
+      margin: 4px 0;
+      transition: color 0.3s;
+    }
+
+    /* Q&A Accordion (Slide 8) */
+    .qna-accordion-item {
+      background: #ffffff;
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-md);
+      margin-bottom: 0.75rem;
+      overflow: hidden;
+      transition: all 0.2s ease;
+      box-shadow: var(--shadow-sm);
+    }
+    .qna-accordion-item:hover {
+      border-color: var(--primary-light);
+    }
+    .qna-header-btn {
+      width: 100%;
+      padding: 1rem 1.2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: none;
+      border: none;
+      color: var(--text-main);
+      font-weight: 600;
+      font-size: 0.95rem;
+      text-align: left;
+      cursor: pointer;
+    }
+    .qna-body-content {
+      display: none;
+      padding: 0 1.2rem 1rem 1.2rem;
+      font-size: 0.9rem;
+      line-height: 1.6;
+      color: var(--text-muted);
+    }
+    .qna-accordion-item.open .qna-body-content {
+      display: block;
+    }
+    .qna-accordion-item.open .qna-icon-chevron {
+      transform: rotate(180deg);
+    }
+    .qna-icon-chevron {
+      transition: transform 0.25s ease;
+    }
+
+    /* Bottom Floating Navigation Toolbar */
+    .bottom-nav-bar {
+      position: fixed;
+      bottom: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      background: #ffffff;
+      border: 1px solid var(--card-border);
+      border-radius: 999px;
+      box-shadow: var(--shadow-md);
+      z-index: 900;
+    }
+    .nav-arrow-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--card-border);
+      background: #ffffff;
+      color: var(--text-main);
+      cursor: pointer;
+      font-size: 1rem;
+      transition: var(--transition-fast);
+    }
+    .nav-arrow-btn:hover {
+      background: var(--primary);
+      color: #ffffff;
+      border-color: var(--primary);
+      transform: translateY(-1px);
+    }
+    .slide-indicator-label {
+      font-family: var(--font-heading);
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      padding: 0 8px;
+      min-width: 70px;
+      text-align: center;
+    }
+
+    /* Animation on enter */
+    .fade-up-item {
+      opacity: 0;
+      transform: translateY(16px);
+      transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1), transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .slide-section.active .fade-up-item {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .slide-section.active .delay-1 { transition-delay: 0.1s; }
+    .slide-section.active .delay-2 { transition-delay: 0.2s; }
+    .slide-section.active .delay-3 { transition-delay: 0.3s; }
+  </style>
+</head>
+<body>
+
+  <!-- Ambient Glow -->
+  <div class="bg-mesh-glow"></div>
+
+  <!-- Top Progress Bar -->
+  <div class="scroll-progress-container">
+    <div class="scroll-progress-bar" id="scrollProgressBar"></div>
+  </div>
+
+  <!-- Left Side Slide Number Indicators (12 Slides) -->
+  <nav class="side-number-indicator-list" id="sideNav" aria-label="Mục lục Slide">
+    <a href="#slide-01" class="side-number-item active" data-index="0" data-tooltip="01. Bìa Báo Cáo">01</a>
+    <a href="#slide-02" class="side-number-item" data-index="1" data-tooltip="02. Lộ Trình 6 Trụ Cột">02</a>
+    <a href="#slide-03" class="side-number-item" data-index="2" data-tooltip="03. Khái Niệm Nền Tảng">03</a>
+    <a href="#slide-04" class="side-number-item" data-index="3" data-tooltip="04. Thách Thức MedSched">04</a>
+    <a href="#slide-05" class="side-number-item" data-index="4" data-tooltip="05. Kiến Trúc 3 Tầng">05</a>
+    <a href="#slide-06" class="side-number-item" data-index="5" data-tooltip="06. 4 Chỉ Số Vàng SRE">06</a>
+    <a href="#slide-07" class="side-number-item" data-index="6" data-tooltip="07. Live Demo &amp; Giả Lập">07</a>
+    <a href="#slide-08" class="side-number-item" data-index="7" data-tooltip="08. Mã Nguồn [1/4] build.gradle">08</a>
+    <a href="#slide-09" class="side-number-item" data-index="8" data-tooltip="09. Cấu Hình [2/4] application.yml">09</a>
+    <a href="#slide-10" class="side-number-item" data-index="9" data-tooltip="10. Bảo Mật [3/4] SecurityConfig">10</a>
+    <a href="#slide-11" class="side-number-item" data-index="10" data-tooltip="11. Hạ Tầng [4/4] Docker Prometheus">11</a>
+    <a href="#slide-12" class="side-number-item" data-index="11" data-tooltip="12. Tổng Kết &amp; Production Ready">12</a>
+  </nav>
+
+  <!-- Main Presentation Container (Fullpage Snap) -->
+  <main class="snap-container" id="snapContainer">
+
+    <!-- ============================================================
+         SLIDE 01: TRANG BÌA (COVER - CLEAN MINIMALIST)
+         ============================================================ -->
+    <section class="slide-section active" id="slide-01">
+      <div class="content-box text-center py-5 d-flex flex-column justify-content-center align-items-center" style="min-height: 480px;">
+        <div class="fade-up-item delay-1">
+          <span class="section-badge badge-p1 mb-3">HỆ THỐNG ĐẶT LỊCH KHÁM MEDSCHED</span>
+          <h1 class="display-title mb-3" style="font-size: 3rem;">
+            Giám Sát Hệ Thống MedSched<br>
+            <span class="hero-gradient">Prometheus &amp; Grafana</span>
+          </h1>
+          <p class="fs-5 text-muted mb-4 max-w-75 mx-auto">
+            Chuẩn Vận Hành Đám Mây Cloud-Native • Quan Trắc Sức Khỏe Toàn Diện 24/7 • Sẵn Sàng Production
+          </p>
+          <div class="d-inline-flex align-items-center gap-3 px-4 py-2 rounded-pill bg-light border text-muted small">
+            <span><i class="bi bi-mortarboard-fill text-primary me-1"></i>Thầy Trương Thanh Bình</span>
+            <span>•</span>
+            <span><i class="bi bi-people-fill text-success me-1"></i>Nhóm Sinh Viên Thực Hiện</span>
+            <span>•</span>
+            <span class="font-monospace text-primary fw-bold">v1.4.0</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         SLIDE 02: TỔNG QUAN BÀI THUYẾT TRÌNH (AGENDA)
+         ============================================================ -->
+    <section class="slide-section" id="slide-02">
+      <div class="content-box">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <div>
+            <span class="section-badge badge-p1">LỘ TRÌNH NỘI DUNG</span>
+            <h2 class="h3 fw-bold mb-1">Tổng Quan Bài Thuyết Trình</h2>
+          </div>
+          <span class="badge bg-light text-muted border">6 Trụ Cột Triển Khai</span>
+        </div>
+
+        <div class="row g-3">
+          <!-- Trụ Cột 1 -->
+          <div class="col-md-4">
+            <div class="agenda-card">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="agenda-num" style="color: #0284c7; background: rgba(2, 132, 199, 0.1); border: 1px solid rgba(2, 132, 199, 0.25);">01</span>
+                <span class="small text-muted font-monospace">Slide 03 - 04</span>
+              </div>
+              <h5 class="fw-bold mb-2">⚡ Khái Niệm &amp; Thách Thức</h5>
+              <ul class="list-unstyled small text-muted mb-0 d-flex flex-column gap-1">
+                <li>• Bộ đôi Prometheus TSDB &amp; Grafana</li>
+                <li>• Bài toán nghẽn giờ cao điểm 7h - 9h</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Trụ Cột 2 -->
+          <div class="col-md-4">
+            <div class="agenda-card">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="agenda-num" style="color: #ea580c; background: rgba(234, 88, 12, 0.1); border: 1px solid rgba(234, 88, 12, 0.25);">02</span>
+                <span class="small text-muted font-monospace">Slide 05</span>
+              </div>
+              <h5 class="fw-bold mb-2">🏗️ Kiến Trúc 3 Tầng</h5>
+              <ul class="list-unstyled small text-muted mb-0 d-flex flex-column gap-1">
+                <li>• Backend Cloud Render &amp; Prometheus Pull</li>
+                <li>• Grafana Dashboard hiển thị trực quan</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Trụ Cột 3 -->
+          <div class="col-md-4">
+            <div class="agenda-card">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="agenda-num" style="color: #059669; background: rgba(5, 150, 105, 0.1); border: 1px solid rgba(5, 150, 105, 0.25);">03</span>
+                <span class="small text-muted font-monospace">Slide 06</span>
+              </div>
+              <h5 class="fw-bold mb-2">📈 4 Chỉ Số Vàng SRE</h5>
+              <ul class="list-unstyled small text-muted mb-0 d-flex flex-column gap-1">
+                <li>• Độ trễ P95, Lưu lượng &amp; Tỷ lệ mã lỗi</li>
+                <li>• Bộ nhớ RAM JVM Heap &amp; HikariCP Pool</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Trụ Cột 4 -->
+          <div class="col-md-4">
+            <div class="agenda-card">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="agenda-num" style="color: #7c3aed; background: rgba(124, 58, 237, 0.1); border: 1px solid rgba(124, 58, 237, 0.25);">04</span>
+                <span class="small text-muted font-monospace">Slide 07</span>
+              </div>
+              <h5 class="fw-bold mb-2">🚀 Live Demo Thực Nghiệm</h5>
+              <ul class="list-unstyled small text-muted mb-0 d-flex flex-column gap-1">
+                <li>• Khởi động 1-Click Zero-Config 15 giây</li>
+                <li>• Giả lập tải tăng đột biến trực tiếp</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Trụ Cột 5 -->
+          <div class="col-md-4">
+            <div class="agenda-card">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="agenda-num" style="color: #db2777; background: rgba(219, 39, 119, 0.1); border: 1px solid rgba(219, 39, 119, 0.25);">05</span>
+                <span class="small text-muted font-monospace">Slide 08 - 11</span>
+              </div>
+              <h5 class="fw-bold mb-2">💻 Mã Nguồn &amp; DevOps</h5>
+              <ul class="list-unstyled small text-muted mb-0 d-flex flex-column gap-1">
+                <li>• 4 Tầng code: Actuator, YAML, Security</li>
+                <li>• Docker Compose &amp; 12 câu lệnh PromQL</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Trụ Cột 6 -->
+          <div class="col-md-4">
+            <div class="agenda-card">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="agenda-num" style="color: #ca8a04; background: rgba(202, 138, 4, 0.1); border: 1px solid rgba(202, 138, 4, 0.25);">06</span>
+                <span class="small text-muted font-monospace">Slide 12</span>
+              </div>
+              <h5 class="fw-bold mb-2">🏁 Tổng Kết &amp; Vận Hành</h5>
+              <ul class="list-unstyled small text-muted mb-0 d-flex flex-column gap-1">
+                <li>• Đánh giá sẵn sàng Production Ready</li>
+                <li>• Truy cập trực tiếp hệ thống giám sát</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         SLIDE 03: KHÁI NIỆM NỀN TẢNG (PROMETHEUS & GRAFANA)
+         ============================================================ -->
+    <section class="slide-section" id="slide-03">
+      <div class="content-box">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <div>
+            <span class="section-badge badge-p1">KHÁI NIỆM NỀN TẢNG</span>
+            <h2 class="h3 fw-bold mb-1">Prometheus &amp; Grafana Là Gì?</h2>
+          </div>
+          <span class="badge bg-primary-subtle text-primary border">Bộ Đôi Giám Sát Cloud-Native</span>
+        </div>
+
+        <div class="row g-4">
+          <div class="col-md-4">
+            <div class="feature-card p-4">
+              <div class="card-icon-bubble" style="color: #ea580c; background: rgba(234, 88, 12, 0.1);">
+                <i class="bi bi-fire"></i>
+              </div>
+              <h4 class="fw-bold mb-2">Prometheus TSDB</h4>
+              <ul class="list-unstyled text-muted small d-flex flex-column gap-2 mb-3">
+                <li class="d-flex align-items-center gap-2"><i class="bi bi-check2 text-primary"></i>Mã nguồn mở chuẩn CNCF</li>
+                <li class="d-flex align-items-center gap-2"><i class="bi bi-check2 text-primary"></i>Cơ chế cào dữ liệu Pull</li>
+                <li class="d-flex align-items-center gap-2"><i class="bi bi-check2 text-primary"></i>Lưu chuỗi thời gian TSDB</li>
+                <li class="d-flex align-items-center gap-2"><i class="bi bi-check2 text-primary"></i>Truy vấn số liệu với PromQL</li>
+              </ul>
+              <div class="mt-auto pt-2 border-top text-primary font-monospace small fw-bold">
+                → Bộ não đo lường
+              </div>
+            </div>
+          </div>
+
+          <div class="col-md-4">
+            <div class="feature-card p-4">
+              <div class="card-icon-bubble" style="color: #d97706; background: rgba(217, 119, 6, 0.1);">
+                <i class="bi bi-graph-up-arrow"></i>
+              </div>
+              <h4 class="fw-bold mb-2">Grafana UI</h4>
+              <ul class="list-unstyled text-muted small d-flex flex-column gap-2 mb-3">
+                <li class="d-flex align-items-center gap-2"><i class="bi bi-check2 text-warning"></i>Nền tảng trực quan hóa đỉnh</li>
+                <li class="d-flex align-items-center gap-2"><i class="bi bi-check2 text-warning"></i>Kết nối trực tiếp vào Prometheus</li>
+                <li class="d-flex align-items-center gap-2"><i class="bi bi-check2 text-warning"></i>Bảng điều khiển động đa chiều</li>
+                <li class="d-flex align-items-center gap-2"><i class="bi bi-check2 text-warning"></i>Đồ thị và kim quay số</li>
+              </ul>
+              <div class="mt-auto pt-2 border-top text-warning font-monospace small fw-bold">
+                → Đôi mắt quan sát
+              </div>
+            </div>
+          </div>
+
+          <div class="col-md-4">
+            <div class="feature-card p-4">
+              <div class="card-icon-bubble" style="color: #0284c7; background: rgba(2, 132, 199, 0.1);">
+                <i class="bi bi-lightning-charge-fill"></i>
+              </div>
+              <h4 class="fw-bold mb-2">Sức Mạnh Kết Hợp</h4>
+              <ul class="list-unstyled text-muted small d-flex flex-column gap-2 mb-3">
+                <li class="d-flex align-items-center gap-2"><i class="bi bi-check2 text-info"></i>Vòng tròn quan trắc khép kín</li>
+                <li class="d-flex align-items-center gap-2"><i class="bi bi-check2 text-info"></i>Theo dõi sức khỏe 24/7</li>
+                <li class="d-flex align-items-center gap-2"><i class="bi bi-check2 text-info"></i>Phát hiện lỗi trước người dùng</li>
+                <li class="d-flex align-items-center gap-2"><i class="bi bi-check2 text-info"></i>Chuẩn vận hành SRE quốc tế</li>
+              </ul>
+              <div class="mt-auto pt-2 border-top text-info font-monospace small fw-bold">
+                ✓ Tiêu chuẩn vàng doanh nghiệp
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         SLIDE 04: THỰC TRẠNG & THÁCH THỨC
+         ============================================================ -->
+    <section class="slide-section" id="slide-04">
+      <div class="content-box">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <div>
+            <span class="section-badge badge-p1">BÀI TOÁN &amp; THÁCH THỨC</span>
+            <h2 class="h3 fw-bold mb-1">Vì Sao Hệ Thống MedSched Cần Giám Sát?</h2>
+          </div>
+          <span class="badge bg-danger-subtle text-danger border">Nguy Cơ Giờ Cao Điểm</span>
+        </div>
+
+        <div class="row g-4">
+          <div class="col-md-4">
+            <div class="feature-card p-4 border-danger">
+              <div class="card-icon-bubble" style="color: #ef4444; background: rgba(239, 68, 68, 0.1);">
+                <i class="bi bi-hospital-fill"></i>
+              </div>
+              <h4 class="fw-bold text-danger mb-2">Nghẽn Khám Giờ Cao Điểm</h4>
+              <ul class="list-unstyled text-muted small d-flex flex-column gap-2">
+                <li>• Khung giờ 7h đến 9h sáng</li>
+                <li>• Hàng trăm bệnh nhân đặt lịch</li>
+                <li>• Nguy cơ nghẽn hàng đợi MySQL</li>
+                <li>• Chậm trễ phục vụ người bệnh</li>
+              </ul>
+              <div class="mt-3 p-2 rounded bg-danger-subtle text-danger small fw-semibold">
+                ⚠️ Tắc nghẽn dịch vụ y tế
+              </div>
+            </div>
+          </div>
+
+          <div class="col-md-4">
+            <div class="feature-card p-4 border-warning">
+              <div class="card-icon-bubble" style="color: #d97706; background: rgba(217, 119, 6, 0.1);">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+              </div>
+              <h4 class="fw-bold text-warning mb-2">Nguy Cơ Sập Ứng Dụng</h4>
+              <ul class="list-unstyled text-muted small d-flex flex-column gap-2">
+                <li>• Rò rỉ bộ nhớ RAM JVM Heap</li>
+                <li>• Quá tải vi xử lý CPU do JWT</li>
+                <li>• Cạn kiệt kết nối HikariCP</li>
+                <li>• Nguy cơ OutOfMemoryError</li>
+              </ul>
+              <div class="mt-3 p-2 rounded bg-warning-subtle text-dark small fw-semibold">
+                ⚠️ Nguy cơ sập hệ thống ngầm
+              </div>
+            </div>
+          </div>
+
+          <div class="col-md-4">
+            <div class="feature-card p-4 border-primary">
+              <div class="card-icon-bubble" style="color: #2563eb; background: rgba(37, 99, 235, 0.1);">
+                <i class="bi bi-eye-slash-fill"></i>
+              </div>
+              <h4 class="fw-bold text-primary mb-2">Xóa Bỏ "Mù Kỹ Thuật"</h4>
+              <ul class="list-unstyled text-muted small d-flex flex-column gap-2">
+                <li>• Không thể sửa lỗi bằng đoán mò</li>
+                <li>• Cần con số định lượng độ trễ P95</li>
+                <li>• Phát hiện bất thường tức thì</li>
+                <li>• Cam kết chất lượng dịch vụ SLA</li>
+              </ul>
+              <div class="mt-3 p-2 rounded bg-primary-subtle text-primary small fw-semibold">
+                ✓ Minh bạch hóa hạ tầng 100%
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         SLIDE 05: KIẾN TRÚC HOẠT ĐỘNG (MÔ HÌNH 3 TẦNG)
+         ============================================================ -->
+    <section class="slide-section" id="slide-05">
+      <div class="content-box">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <div>
+            <span class="section-badge badge-p2">KIẾN TRÚC HOẠT ĐỘNG</span>
+            <h2 class="h3 fw-bold mb-1">Mô Hình Giám Sát 3 Tầng Của MedSched</h2>
+          </div>
+          <span class="badge bg-info-subtle text-info border">Luồng Dữ Liệu Thời Gian Thực</span>
+        </div>
+
+        <div class="arch-container mb-3">
+          <!-- Node 1: Cloud Render Backend -->
+          <div class="arch-node">
+            <div class="card-icon-bubble mx-auto" style="color: #0284c7; background: rgba(2, 132, 199, 0.1);">
+              <i class="bi bi-cloud-arrow-up-fill"></i>
+            </div>
+            <h5 class="fw-bold mb-1">Tầng 1: Backend Cloud</h5>
+            <div class="badge bg-primary-subtle text-primary small mb-2">Cloud Render (HTTPS)</div>
+            <p class="text-muted small mb-0">
+              Spring Boot Actuator &amp; Micrometer mở endpoint <code>/actuator/prometheus</code>
+            </p>
+          </div>
+
+          <!-- Connector 1 -> 2 -->
+          <div class="arch-connector">
+            <div class="arch-line"></div>
+            <span class="badge bg-secondary-subtle text-muted small font-monospace">PULL (5s/lần)</span>
+          </div>
+
+          <!-- Node 2: Prometheus Container -->
+          <div class="arch-node">
+            <div class="card-icon-bubble mx-auto" style="color: #ea580c; background: rgba(234, 88, 12, 0.1);">
+              <i class="bi bi-database-fill-gear"></i>
+            </div>
+            <h5 class="fw-bold mb-1">Tầng 2: Prometheus TSDB</h5>
+            <div class="badge bg-warning-subtle text-warning small mb-2">Docker Container :9090</div>
+            <p class="text-muted small mb-0">
+              Cào định kỳ, lưu trữ chuỗi thời gian nén cao, cung cấp PromQL API
+            </p>
+          </div>
+
+          <!-- Connector 2 -> 3 -->
+          <div class="arch-connector">
+            <div class="arch-line"></div>
+            <span class="badge bg-secondary-subtle text-muted small font-monospace">Query PromQL</span>
+          </div>
+
+          <!-- Node 3: Grafana UI -->
+          <div class="arch-node">
+            <div class="card-icon-bubble mx-auto" style="color: #059669; background: rgba(5, 150, 105, 0.1);">
+              <i class="bi bi-pie-chart-fill"></i>
+            </div>
+            <h5 class="fw-bold mb-1">Tầng 3: Grafana UI</h5>
+            <div class="badge bg-success-subtle text-success small mb-2">Docker Container :3100</div>
+            <p class="text-muted small mb-0">
+              Trực quan hóa 12 Panel, đồng hồ kim, biểu đồ răng cưa &amp; cảnh báo
+            </p>
+          </div>
+        </div>
+
+        <div class="p-3 rounded-3 bg-light border d-flex justify-content-between align-items-center">
+          <div class="small text-muted">
+            <i class="bi bi-shield-check text-success me-1"></i>
+            <strong>Tính độc lập:</strong> Cụm giám sát chạy tách rời trong Docker, nếu Grafana tắt thì hệ thống khám bệnh vẫn hoạt động 100% bình thường.
+          </div>
+          <span class="badge bg-primary text-white">Zero-Impact Architecture</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         SLIDE 06: THÔNG SỐ KỸ THUẬT (4 CHỈ SỐ VÀNG)
+         ============================================================ -->
+    <section class="slide-section" id="slide-06">
+      <div class="content-box">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <div>
+            <span class="section-badge badge-p2">CHỈ SỐ TIÊU CHUẨN</span>
+            <h2 class="h3 fw-bold mb-1">4 Nhóm Chỉ Số Vàng SRE Được Đo Lường</h2>
+          </div>
+          <span class="badge bg-warning-subtle text-warning border">Tiêu Chuẩn Giám Sát Quốc Tế</span>
+        </div>
+
+        <div class="row g-3">
+          <!-- Nhóm 1 -->
+          <div class="col-md-3">
+            <div class="feature-card p-3">
+              <div class="card-icon-bubble" style="color: #0284c7; background: rgba(2, 132, 199, 0.1);">
+                <i class="bi bi-speedometer"></i>
+              </div>
+              <h5 class="fw-bold mb-1">1. HTTP &amp; Độ Trễ P95</h5>
+              <p class="text-muted small mb-2">Đo đếm request và thời gian phản hồi.</p>
+              <ul class="list-unstyled small text-muted mb-0">
+                <li>• Tổng số lượt gọi API</li>
+                <li>• Phân loại mã 200, 4xx, 5xx</li>
+                <li>• Độ trễ P95 dưới 10ms</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Nhóm 2 -->
+          <div class="col-md-3">
+            <div class="feature-card p-3">
+              <div class="card-icon-bubble" style="color: #059669; background: rgba(5, 150, 105, 0.1);">
+                <i class="bi bi-memory"></i>
+              </div>
+              <h5 class="fw-bold mb-1">2. RAM JVM Heap</h5>
+              <p class="text-muted small mb-2">Theo dõi bộ nhớ Java Runtime.</p>
+              <ul class="list-unstyled small text-muted mb-0">
+                <li>• Mức RAM cấp phát &amp; sử dụng</li>
+                <li>• Tần suất dọn rác GC Pause</li>
+                <li>• Chống tràn bộ nhớ OOM</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Nhóm 3 -->
+          <div class="col-md-3">
+            <div class="feature-card p-3">
+              <div class="card-icon-bubble" style="color: #d97706; background: rgba(217, 119, 6, 0.1);">
+                <i class="bi bi-cpu-fill"></i>
+              </div>
+              <h5 class="fw-bold mb-1">3. Tải CPU Vi Xử Lý</h5>
+              <p class="text-muted small mb-2">Hiệu năng xử lý thuật toán.</p>
+              <ul class="list-unstyled small text-muted mb-0">
+                <li>• % CPU tiêu thụ của App</li>
+                <li>• Tải tổng thể máy chủ Cloud</li>
+                <li>• Luôn duy trì mức thấp &lt; 5%</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Nhóm 4 -->
+          <div class="col-md-3">
+            <div class="feature-card p-3">
+              <div class="card-icon-bubble" style="color: #7c3aed; background: rgba(124, 58, 237, 0.1);">
+                <i class="bi bi-database-check"></i>
+              </div>
+              <h5 class="fw-bold mb-1">4. Hồ Kết Nối HikariCP</h5>
+              <p class="text-muted small mb-2">Sức khỏe kết nối CSDL MySQL.</p>
+              <ul class="list-unstyled small text-muted mb-0">
+                <li>• Active Connections</li>
+                <li>• Idle Connections rảnh rỗi</li>
+                <li>• Chống nghẽn truy vấn SQL</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         SLIDE 07: THỰC NGHIỆM & LIVE DEMO
+         ============================================================ -->
+    <section class="slide-section" id="slide-07">
+      <div class="content-box">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <div>
+            <span class="section-badge badge-p3">THỰC NGHIỆM &amp; DEMO</span>
+            <h2 class="h3 fw-bold mb-1">Khởi Động 1-Click &amp; Giả Lập Tải Thời Gian Thực</h2>
+          </div>
+          <span class="badge bg-success-subtle text-success border">Zero-Config Automation</span>
+        </div>
+
+        <div class="p-4 rounded-4 border bg-light mb-3">
+          <div class="row align-items-center g-3">
+            <div class="col-lg-8">
+              <div class="row g-2">
+                <div class="col-4">
+                  <div class="sim-gauge">
+                    <div class="small text-muted text-uppercase fw-semibold">Tổng Request</div>
+                    <div class="sim-val" id="metric-req">1,428</div>
+                    <div class="small text-success">+12 req/min</div>
+                  </div>
+                </div>
+                <div class="col-4">
+                  <div class="sim-gauge">
+                    <div class="small text-muted text-uppercase fw-semibold">RAM Heap Sử Dụng</div>
+                    <div class="sim-val text-warning" id="metric-ram">342 MB</div>
+                    <div class="small text-muted">/ 512 MB Max</div>
+                  </div>
+                </div>
+                <div class="col-4">
+                  <div class="sim-gauge">
+                    <div class="small text-muted text-uppercase fw-semibold">Độ Trễ P95</div>
+                    <div class="sim-val text-info" id="metric-p95">64 ms</div>
+                    <div class="small text-success">Đạt chuẩn SLA</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-lg-4 text-center">
+              <p class="small text-muted mb-2">Tạo Lưu Lượng Bệnh Nhân Đặt Lịch:</p>
+              <button class="btn btn-primary w-100 py-3 fw-bold rounded-3 shadow-sm" id="btn-simulate-traffic" style="background: linear-gradient(135deg, #0284c7, #2563eb); border: none;">
+                <i class="bi bi-send-fill me-2"></i>Bắn 10 Request Đặt Lịch
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-3">
+          <div class="col-md-6">
+            <div class="p-3 rounded-3 bg-light border small">
+              <strong class="text-primary"><i class="bi bi-play-circle-fill me-1"></i>File start-monitoring.bat:</strong>
+              <div class="text-muted mt-1">Chỉ cần click đúp chuột: Tự kéo container, tự nạp datasource và tự mở 2 tab Grafana + Prometheus sẵn quyền Admin.</div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="p-3 rounded-3 bg-light border small">
+              <strong class="text-danger"><i class="bi bi-stop-circle-fill me-1"></i>File stop-monitoring.bat:</strong>
+              <div class="text-muted mt-1">Dừng toàn bộ container an toàn, giải phóng 100% RAM cho máy tính khi kết thúc buổi báo cáo.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         SLIDE 08: MÃ NGUỒN BACKEND [1/4] (build.gradle)
+         ============================================================ -->
+    <section class="slide-section" id="slide-08">
+      <div class="content-box">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div>
+            <span class="section-badge badge-p4">MÃ NGUỒN BACKEND [1/4]</span>
+            <h2 class="h3 fw-bold mb-1">Khai Báo Thư Viện Đo Lường Chuẩn TSDB</h2>
+          </div>
+          <span class="badge bg-light text-muted border font-monospace">Source_code/backend/app/build.gradle</span>
+        </div>
+
+        <div class="row g-3">
+          <!-- Cột Trái: IDE Window -->
+          <div class="col-lg-7">
+            <div class="ide-window">
+              <div class="ide-header">
+                <div class="ide-dots">
+                  <span class="ide-dot dot-red"></span>
+                  <span class="ide-dot dot-yellow"></span>
+                  <span class="ide-dot dot-green"></span>
+                </div>
+                <span class="ide-tab">build.gradle:23-25</span>
+              </div>
+              <div class="ide-body">
+<span class="cm">// --- MONITORING &amp; OBSERVABILITY ---</span>
+<span class="hl"><span class="kw">implementation</span> <span class="str">'org.springframework.boot:spring-boot-starter-actuator'</span></span>
+<span class="hl"><span class="kw">implementation</span> <span class="str">'io.micrometer:micrometer-registry-prometheus'</span></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Cột Phải: Thẻ Phân Tích -->
+          <div class="col-lg-5 d-flex flex-column gap-2">
+            <div class="feature-card p-3">
+              <h6 class="fw-bold text-primary mb-1"><i class="bi bi-cpu me-1"></i>spring-boot-starter-actuator</h6>
+              <p class="text-muted small mb-0">
+                Kích hoạt hệ thống cảm biến bên trong Spring Boot 3, tự động thu thập trạng thái sống còn (Health), bộ nhớ JVM, luồng xử lý và kết nối cơ sở dữ liệu.
+              </p>
+            </div>
+            <div class="feature-card p-3">
+              <h6 class="fw-bold text-success mb-1"><i class="bi bi-translate me-1"></i>micrometer-registry-prometheus</h6>
+              <p class="text-muted small mb-0">
+                Đóng vai trò "thông dịch viên định dạng": biên dịch dữ liệu Java nội bộ thành định dạng văn bản chuỗi thời gian TSDB để Prometheus hiểu và cào được.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         SLIDE 09: CẤU HÌNH ỨNG DỤNG [2/4] (application.yml)
+         ============================================================ -->
+    <section class="slide-section" id="slide-09">
+      <div class="content-box">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div>
+            <span class="section-badge badge-p4">CẤU HÌNH ỨNG DỤNG [2/4]</span>
+            <h2 class="h3 fw-bold mb-1">Kích Hoạt Endpoint &amp; Nhãn Tag Ứng Dụng</h2>
+          </div>
+          <span class="badge bg-light text-muted border font-monospace">src/main/resources/application.yml</span>
+        </div>
+
+        <div class="row g-3">
+          <div class="col-lg-7">
+            <div class="ide-window">
+              <div class="ide-header">
+                <div class="ide-dots">
+                  <span class="ide-dot dot-red"></span>
+                  <span class="ide-dot dot-yellow"></span>
+                  <span class="ide-dot dot-green"></span>
+                </div>
+                <span class="ide-tab">application.yml:104-117</span>
+              </div>
+              <div class="ide-body">
+<span class="prop">management:</span>
+  <span class="prop">endpoints:</span>
+    <span class="prop">web:</span>
+      <span class="prop">exposure:</span>
+<span class="hl">        <span class="prop">include:</span> <span class="str">health, info, prometheus, metrics</span></span>
+  <span class="prop">endpoint:</span>
+    <span class="prop">prometheus:</span>
+<span class="hl">      <span class="prop">enabled:</span> <span class="kw">true</span></span>
+  <span class="prop">metrics:</span>
+    <span class="prop">tags:</span>
+<span class="hl">      <span class="prop">application:</span> <span class="str">medsched</span></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-5 d-flex flex-column gap-2">
+            <div class="feature-card p-3">
+              <h6 class="fw-bold text-primary mb-1"><i class="bi bi-door-open-fill me-1"></i>Mở Cổng HTTP /actuator/prometheus</h6>
+              <p class="text-muted small mb-0">
+                Thuộc tính <code>exposure.include</code> công khai endpoint qua giao thức web. Mặc định Spring Boot ẩn đi để bảo mật, cần mở tường minh cho Prometheus cào.
+              </p>
+            </div>
+            <div class="feature-card p-3">
+              <h6 class="fw-bold text-warning mb-1"><i class="bi bi-tag-fill me-1"></i>Gắn Nhãn application: medsched</h6>
+              <p class="text-muted small mb-0">
+                Tự động đóng dấu nhãn <code>application="medsched"</code> vào từng dòng số liệu xuất ra, giúp phân biệt rõ ràng khi chạy chung cụm với các dịch vụ khác.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         SLIDE 10: BẢO MẬT HỆ THỐNG [3/4] (SecurityConfig.java)
+         ============================================================ -->
+    <section class="slide-section" id="slide-10">
+      <div class="content-box">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div>
+            <span class="section-badge badge-p4">BẢO MẬT HỆ THỐNG [3/4]</span>
+            <h2 class="h3 fw-bold mb-1">Cấu Hình Quyền Truy Cập An Toàn Cho Prometheus</h2>
+          </div>
+          <span class="badge bg-light text-muted border font-monospace">com.medsched.security.SecurityConfig.java</span>
+        </div>
+
+        <div class="row g-3">
+          <div class="col-lg-7">
+            <div class="ide-window">
+              <div class="ide-header">
+                <div class="ide-dots">
+                  <span class="ide-dot dot-red"></span>
+                  <span class="ide-dot dot-yellow"></span>
+                  <span class="ide-dot dot-green"></span>
+                </div>
+                <span class="ide-tab">SecurityConfig.java:66-78</span>
+              </div>
+              <div class="ide-body">
+<span class="prop">.authorizeHttpRequests</span>(auth -&gt; auth
+  <span class="prop">.requestMatchers</span>(<span class="str">"/api/auth/**"</span>).<span class="kw">permitAll</span>()
+  <span class="cm">// Cho phép Prometheus Server cào dữ liệu đo lường định kỳ</span>
+<span class="hl">  <span class="prop">.requestMatchers</span>(<span class="str">"/actuator/**"</span>).<span class="kw">permitAll</span>()</span>
+  <span class="cm">// Toàn bộ API đặt lịch &amp; hồ sơ bệnh án bắt buộc có Token JWT</span>
+  <span class="prop">.requestMatchers</span>(<span class="str">"/api/appointments/**"</span>).<span class="kw">authenticated</span>()
+  <span class="prop">.anyRequest</span>().<span class="kw">authenticated</span>()
+)
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-5 d-flex flex-column gap-2">
+            <div class="feature-card p-3">
+              <h6 class="fw-bold text-success mb-1"><i class="bi bi-shield-lock-fill me-1"></i>Cơ Chế permitAll() Không Cần JWT</h6>
+              <p class="text-muted small mb-0">
+                Cho phép máy chủ Prometheus cào số liệu mà không bị chặn lỗi <code>401 Unauthorized</code>, do bot cào chạy ngầm không có phiên đăng nhập của người dùng.
+              </p>
+            </div>
+            <div class="feature-card p-3">
+              <h6 class="fw-bold text-primary mb-1"><i class="bi bi-file-earmark-medical-fill me-1"></i>Dữ Liệu Bệnh Án An Toàn 100%</h6>
+              <p class="text-muted small mb-0">
+                Endpoint <code>/actuator/prometheus</code> chỉ xuất chỉ số kỹ thuật phần cứng, hoàn toàn không chứa dữ liệu cá nhân người bệnh hay hồ sơ y tế.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         SLIDE 11: HẠ TẦNG DEVOPS [4/4] (prometheus.yml & Docker)
+         ============================================================ -->
+    <section class="slide-section" id="slide-11">
+      <div class="content-box">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div>
+            <span class="section-badge badge-p4">HẠ TẦNG DEVOPS [4/4]</span>
+            <h2 class="h3 fw-bold mb-1">Cào Dữ Liệu Cloud Render &amp; Tự Động Hóa Docker</h2>
+          </div>
+          <span class="badge bg-light text-muted border font-monospace">Source_code/monitoring/prometheus.yml</span>
+        </div>
+
+        <div class="row g-3">
+          <div class="col-lg-7">
+            <div class="ide-window">
+              <div class="ide-header">
+                <div class="ide-dots">
+                  <span class="ide-dot dot-red"></span>
+                  <span class="ide-dot dot-yellow"></span>
+                  <span class="ide-dot dot-green"></span>
+                </div>
+                <span class="ide-tab">prometheus.yml</span>
+              </div>
+              <div class="ide-body">
+<span class="prop">scrape_configs:</span>
+  - <span class="prop">job_name:</span> <span class="str">'medsched-cloud-render'</span>
+<span class="hl">    <span class="prop">metrics_path:</span> <span class="str">'/actuator/prometheus'</span></span>
+<span class="hl">    <span class="prop">scrape_interval:</span> <span class="str">5s</span></span>
+    <span class="prop">scheme:</span> <span class="str">https</span>
+    <span class="prop">static_configs:</span>
+<span class="hl">      - <span class="prop">targets:</span> [<span class="str">'medsched-zu15.onrender.com:443'</span>]</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-5 d-flex flex-column gap-2">
+            <div class="feature-card p-3">
+              <h6 class="fw-bold text-info mb-1"><i class="bi bi-cloud-arrow-down-fill me-1"></i>Cào Cloud Render Qua HTTPS</h6>
+              <p class="text-muted small mb-0">
+                Thu thập dữ liệu thực tế từ máy chủ triển khai trên Internet, không cần cài MySQL hay chạy server giả lập trên máy tính cá nhân.
+              </p>
+            </div>
+            <div class="feature-card p-3">
+              <h6 class="fw-bold text-warning mb-1"><i class="bi bi-boxes me-1"></i>Zero-Config Provisioning</h6>
+              <p class="text-muted small mb-0">
+                Thư mục <code>provisioning/</code> tự động kết nối Data Source và nạp sẵn 12 Panel từ file <code>medsched-cloud-dashboard.json</code>.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         SLIDE 12: TỔNG KẾT & ACTION LINKS
+         ============================================================ -->
+    <section class="slide-section" id="slide-12">
+      <div class="content-box text-center">
+        <span class="section-badge mb-2" style="background: rgba(16, 185, 129, 0.1); color: #059669; border: 1px solid rgba(16, 185, 129, 0.25);">
+          TỔNG KẾT BÁO CÁO • PRODUCTION READY
+        </span>
+        <h2 class="display-title mb-2">Hệ Thống Đã Sẵn Sàng Vận Hành</h2>
+        <p class="text-muted fs-6 mb-4 max-w-75 mx-auto">
+          MedSched hoàn thiện năng lực tự bảo vệ, phát hiện sự cố trước người bệnh và đáp ứng chuẩn vận hành quốc tế.
+        </p>
+
+        <!-- 2 Action Buttons -->
+        <div class="d-flex gap-3 justify-content-center mb-4 flex-wrap">
+          <a href="http://localhost:3100/d/medsched-cloud/medsched-cloud-production-realtime-monitoring" target="_blank" class="btn btn-primary px-4 py-3 rounded-pill fw-bold shadow-sm" style="background: linear-gradient(135deg, #0284c7, #2563eb); border: none;">
+            <i class="bi bi-speedometer2 me-2"></i>Mở Grafana Dashboard (Cổng 3100)
+          </a>
+          <a href="http://localhost:9090/targets" target="_blank" class="btn btn-outline-secondary px-4 py-3 rounded-pill fw-bold">
+            <i class="bi bi-hdd-network me-2"></i>Kiểm Tra Prometheus Targets (Cổng 9090)
+          </a>
+        </div>
+
+        <div class="row g-3 text-start justify-content-center">
+          <div class="col-md-4">
+            <div class="p-3 rounded-3 bg-light border">
+              <div class="fw-bold text-primary mb-1"><i class="bi bi-check-circle-fill me-1"></i>100% Zero-Config</div>
+              <div class="small text-muted">Chỉ cần 1-Click là khởi chạy toàn bộ cụm công cụ giám sát trong 15 giây.</div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="p-3 rounded-3 bg-light border">
+              <div class="fw-bold text-success mb-1"><i class="bi bi-cloud-check-fill me-1"></i>Cloud Render Realtime</div>
+              <div class="small text-muted">Thu thập trực tiếp số liệu từ máy chủ thực tế triển khai trên Internet qua HTTPS.</div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="p-3 rounded-3 bg-light border">
+              <div class="fw-bold text-warning mb-1"><i class="bi bi-award-fill me-1"></i>Chuẩn SRE Quốc Tế</div>
+              <div class="small text-muted">Đo lường 4 nhóm chỉ số vàng (Latency P95, Traffic, Errors, JVM/HikariCP).</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Bottom Floating Navigation Toolbar -->
+  <div class="bottom-nav-bar">
+    <button class="nav-arrow-btn" id="prevSlideBtn" title="Slide trước (← / Phím mũi tên trái)"><i class="bi bi-chevron-left"></i></button>
+    <div class="slide-indicator-label">
+      <span id="currentSlideNum">01</span> / <span id="totalSlideNum">12</span>
+    </div>
+    <button class="nav-arrow-btn" id="nextSlideBtn" title="Slide sau (→ / Phím mũi tên phải)"><i class="bi bi-chevron-right"></i></button>
+  </div>
+
+  <!-- Interactive Logic Script -->
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const snapContainer = document.querySelector('.snap-container');
+      const slides = Array.from(document.querySelectorAll('.slide-section'));
+      const sideNavItems = Array.from(document.querySelectorAll('.side-number-item'));
+      const currentSlideNumEl = document.getElementById('currentSlideNum');
+      const totalSlideNumEl = document.getElementById('totalSlideNum');
+      const scrollProgressBar = document.getElementById('scrollProgressBar');
+      const prevSlideBtn = document.getElementById('prevSlideBtn');
+      const nextSlideBtn = document.getElementById('nextSlideBtn');
+
+      let currentSlideIndex = 0;
+      const totalSlides = slides.length;
+      if (totalSlideNumEl) totalSlideNumEl.textContent = totalSlides.toString().padStart(2, '0');
+
+      // 1. Go to specific slide
+      function goToSlide(index) {
+        if (index < 0) index = 0;
+        if (index >= totalSlides) index = totalSlides - 1;
+        currentSlideIndex = index;
+        slides[index].scrollIntoView({ behavior: 'smooth' });
+        updateUI();
+      }
+
+      // 2. Update UI indicators
+      function updateUI() {
+        if (currentSlideNumEl) {
+          currentSlideNumEl.textContent = (currentSlideIndex + 1).toString().padStart(2, '0');
+        }
+
+        // Side dot active state
+        sideNavItems.forEach((item, idx) => {
+          if (idx === currentSlideIndex) {
+            item.classList.add('active');
+          } else {
+            item.classList.remove('active');
+          }
+        });
+
+        // Slides active class
+        slides.forEach((slide, idx) => {
+          if (idx === currentSlideIndex) {
+            slide.classList.add('active');
+          } else {
+            slide.classList.remove('active');
+          }
+        });
+
+        // Progress bar
+        if (scrollProgressBar && totalSlides > 1) {
+          const pct = (currentSlideIndex / (totalSlides - 1)) * 100;
+          scrollProgressBar.style.width = pct + '%';
+        }
+      }
+
+      // 3. Intersection Observer for scroll snap
+      const observerOptions = {
+        root: snapContainer,
+        threshold: 0.55
+      };
+
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            const index = slides.indexOf(entry.target);
+            if (index !== -1 && index !== currentSlideIndex) {
+              currentSlideIndex = index;
+              updateUI();
+            }
+          }
+        });
+      }, observerOptions);
+
+      slides.forEach(slide => observer.observe(slide));
+
+      // 4. Click Side Nav Items
+      sideNavItems.forEach((item) => {
+        item.addEventListener('click', (e) => {
+          e.preventDefault();
+          const targetIndex = parseInt(item.getAttribute('data-index'), 10);
+          goToSlide(targetIndex);
+        });
+      });
+
+      // 5. Prev / Next Buttons
+      if (prevSlideBtn) prevSlideBtn.addEventListener('click', () => goToSlide(currentSlideIndex - 1));
+      if (nextSlideBtn) nextSlideBtn.addEventListener('click', () => goToSlide(currentSlideIndex + 1));
+
+      // 6. Keyboard Navigation
+      document.addEventListener('keydown', (e) => {
+        if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+
+        switch (e.key) {
+          case 'ArrowDown':
+          case 'ArrowRight':
+          case 'PageDown':
+          case ' ':
+            e.preventDefault();
+            goToSlide(currentSlideIndex + 1);
+            break;
+          case 'ArrowUp':
+          case 'ArrowLeft':
+          case 'PageUp':
+            e.preventDefault();
+            goToSlide(currentSlideIndex - 1);
+            break;
+          case 'Home':
+            e.preventDefault();
+            goToSlide(0);
+            break;
+          case 'End':
+            e.preventDefault();
+            goToSlide(totalSlides - 1);
+            break;
+          case 'f':
+          case 'F':
+            e.preventDefault();
+            toggleFullScreen();
+            break;
+        }
+      });
+
+      // 7. Fullscreen Toggle (Phím F)
+      function toggleFullScreen() {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen().catch(() => {});
+        } else {
+          if (document.exitFullscreen) document.exitFullscreen();
+        }
+      }
+
+      // 8. Live Traffic Simulation (Slide 7)
+      let reqCount = 1428;
+      let ramUsage = 342;
+      const reqEl = document.getElementById('metric-req');
+      const ramEl = document.getElementById('metric-ram');
+      const p95El = document.getElementById('metric-p95');
+      const btnSim = document.getElementById('btn-simulate-traffic');
+
+      if (btnSim) {
+        btnSim.addEventListener('click', () => {
+          reqCount += 10;
+          ramUsage += Math.floor(Math.random() * 8) + 2;
+          const fakeP95 = Math.floor(Math.random() * 25) + 45;
+
+          if (reqEl) {
+            reqEl.textContent = reqCount.toLocaleString();
+            reqEl.style.color = '#059669';
+          }
+          if (ramEl) ramEl.textContent = `${ramUsage} MB`;
+          if (p95El) p95El.textContent = `${fakeP95} ms`;
+
+          setTimeout(() => {
+            if (reqEl) reqEl.style.color = 'var(--primary)';
+          }, 600);
+        });
+      }
+
+      // Init UI
+      goToSlide(0);
+    });
+  </script>
+</body>
+</html>

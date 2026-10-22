@@ -31,6 +31,7 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -390,38 +391,42 @@ public class DoctorPrescriptionService {
     public List<DoctorPrescriptionDtos.QueuePatientDto> getDoctorQueue(String userId, String queryDoctorId, LocalDate queryDate) {
         String targetDoctorId = queryDoctorId;
         boolean isAllDoctors = false;
+        List<String> doctorIds = new ArrayList<>();
         if (targetDoctorId == null || targetDoctorId.isBlank()) {
             List<DoctorEntity> doctors = doctorRepository.findByUserId(userId);
             if (!doctors.isEmpty()) {
-                targetDoctorId = doctors.get(0).getId();
+                doctorIds = doctors.stream().map(DoctorEntity::getId).toList();
             } else {
                 // Người dùng không phải bác sĩ (ví dụ Lễ tân quầy tiếp đón / Admin) -> Lấy danh sách toàn viện!
                 isAllDoctors = true;
             }
+        } else {
+            doctorIds = List.of(targetDoctorId);
         }
+
+        List<AppointmentStatus> queueStatuses = List.of(
+                AppointmentStatus.IN_PROGRESS,
+                AppointmentStatus.CHECKED_IN,
+                AppointmentStatus.CONFIRMED,
+                AppointmentStatus.WAITING_FOR_LAB_RESULTS,
+                AppointmentStatus.COMPLETED
+        );
 
         List<AppointmentEntity> appointments;
         if (isAllDoctors) {
-            appointments = appointmentRepository.findByStatusInOrderByQueueNumberAsc(
-                    List.of(
-                            AppointmentStatus.IN_PROGRESS,
-                            AppointmentStatus.CHECKED_IN,
-                            AppointmentStatus.CONFIRMED,
-                            AppointmentStatus.WAITING_FOR_LAB_RESULTS,
-                            AppointmentStatus.COMPLETED
-                    )
+            appointments = appointmentRepository.findByStatusInOrderByQueueNumberAsc(queueStatuses);
+        } else if (doctorIds.size() == 1) {
+            appointments = appointmentRepository.findByDoctorIdAndStatusInOrderByQueueNumberAsc(
+                    doctorIds.get(0),
+                    queueStatuses
+            );
+        } else if (!doctorIds.isEmpty()) {
+            appointments = appointmentRepository.findByDoctorIdInAndStatusInOrderByQueueNumberAsc(
+                    doctorIds,
+                    queueStatuses
             );
         } else {
-            appointments = appointmentRepository.findByDoctorIdAndStatusInOrderByQueueNumberAsc(
-                    targetDoctorId,
-                    List.of(
-                            AppointmentStatus.IN_PROGRESS,
-                            AppointmentStatus.CHECKED_IN,
-                            AppointmentStatus.CONFIRMED,
-                            AppointmentStatus.WAITING_FOR_LAB_RESULTS,
-                            AppointmentStatus.COMPLETED
-                    )
-            );
+            appointments = List.of();
         }
 
         LocalDate targetDate = queryDate != null ? queryDate : LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh"));

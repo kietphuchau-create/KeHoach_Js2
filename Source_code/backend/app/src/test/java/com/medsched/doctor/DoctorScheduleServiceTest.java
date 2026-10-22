@@ -36,6 +36,8 @@ class DoctorScheduleServiceTest {
     private DoctorJpaRepository doctorRepository;
     @Mock
     private UserJpaRepository userJpaRepository;
+    @Mock
+    private SpecialtyJpaRepository specialtyJpaRepository;
 
     private DoctorScheduleService doctorScheduleService;
 
@@ -44,6 +46,7 @@ class DoctorScheduleServiceTest {
         doctorScheduleService = new DoctorScheduleService(
                 doctorScheduleRepository, timeSlotRepository, doctorRepository, userJpaRepository
         );
+        doctorScheduleService.setSpecialtyJpaRepository(specialtyJpaRepository);
     }
 
     @Test
@@ -62,7 +65,8 @@ class DoctorScheduleServiceTest {
         );
 
         given(doctorRepository.findByUserId("u-doc-1")).willReturn(List.of(doc));
-        given(doctorScheduleRepository.findByDoctorIdAndWorkDate("doc-1", today)).willReturn(List.of(sch));
+        given(doctorRepository.findById("doc-1")).willReturn(Optional.of(doc));
+        given(doctorScheduleRepository.findByDoctorIdInAndWorkDateBetween(List.of("doc-1"), today, today)).willReturn(List.of(sch));
         given(doctorScheduleRepository.findByDoctorIdOrderByWorkDateAscStartTimeAsc("doc-1")).willReturn(List.of(sch));
         given(timeSlotRepository.findByScheduleIdOrderByStartTimeAsc("sch-1")).willReturn(List.of());
 
@@ -189,5 +193,54 @@ class DoctorScheduleServiceTest {
         assertThat(res).isNotNull();
         assertThat(res.roomNumber()).isEqualTo("P.205");
         verify(doctorRepository).save(doc);
+    }
+
+    @Test
+    @DisplayName("Buồng khám cùng tên P.101 ở 2 chi nhánh khác nhau không bị xung đột")
+    void crossBranch_sameRoomNumber_noConflict() {
+        Instant now = Instant.now();
+        DoctorEntity docBranch1 = new DoctorEntity(
+                "doc-b1", "u-doc-1", "spec-b1", "BS",
+                BigDecimal.valueOf(300000), "P.101", "Bio", null, now, now
+        );
+        DoctorEntity docBranch2 = new DoctorEntity(
+                "doc-b2", "u-doc-2", "spec-b2", "BS",
+                BigDecimal.valueOf(300000), "P.101", "Bio", null, now, now
+        );
+
+        LocalDate validWorkDate = LocalDate.now(VN_ZONE).plusDays(1);
+        while (validWorkDate.getDayOfWeek() == java.time.DayOfWeek.SATURDAY || validWorkDate.getDayOfWeek() == java.time.DayOfWeek.SUNDAY) {
+            validWorkDate = validWorkDate.plusDays(1);
+        }
+
+        SpecialtyEntity spec1 = new SpecialtyEntity("spec-b1", "branch-01", "Nội", "NOI", null, null, now, now);
+        SpecialtyEntity spec2 = new SpecialtyEntity("spec-b2", "branch-02", "Ngoại", "NGOAI", null, null, now, now);
+
+        given(specialtyJpaRepository.findById("spec-b1")).willReturn(Optional.of(spec1));
+        given(specialtyJpaRepository.findById("spec-b2")).willReturn(Optional.of(spec2));
+
+        DoctorScheduleEntity existingSchBranch2 = new DoctorScheduleEntity(
+                "sch-b2", "doc-b2", validWorkDate, LocalTime.of(8, 0),
+                LocalTime.of(12, 0), 30, ScheduleStatus.ACTIVE, now, now
+        );
+
+        given(doctorRepository.findById("doc-b1")).willReturn(Optional.of(docBranch1));
+        given(doctorRepository.findById("doc-b2")).willReturn(Optional.of(docBranch2));
+        given(doctorScheduleRepository.findByDoctorIdAndWorkDate("doc-b1", validWorkDate)).willReturn(List.of());
+        given(doctorScheduleRepository.findByWorkDate(validWorkDate)).willReturn(List.of(existingSchBranch2));
+        given(doctorScheduleRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
+
+        var req = new DoctorScheduleDtos.CreateScheduleRequest(
+                "doc-b1",
+                validWorkDate,
+                LocalTime.of(8, 0),
+                LocalTime.of(10, 0),
+                30,
+                "P.101"
+        );
+
+        var res = doctorScheduleService.createSchedule("u-doc-1", req);
+        assertThat(res).isNotNull();
+        verify(doctorScheduleRepository).save(any());
     }
 }

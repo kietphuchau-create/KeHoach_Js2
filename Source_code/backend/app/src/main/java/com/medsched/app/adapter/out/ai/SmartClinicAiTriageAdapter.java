@@ -38,7 +38,7 @@ public class SmartClinicAiTriageAdapter implements AiTriagePort {
 
     public SmartClinicAiTriageAdapter(
             @Value("${app.gemini.api-key:${GEMINI_API_KEY:}}") String geminiApiKey,
-            @Value("${app.gemini.model:gemini-3.5-flash-lite}") String geminiModel,
+            @Value("${app.gemini.model:gemini-2.5-flash}") String geminiModel,
             OpenRouterAiClient openRouter,
             ObjectMapper objectMapper
     ) {
@@ -47,8 +47,8 @@ public class SmartClinicAiTriageAdapter implements AiTriagePort {
         this.openRouter = openRouter;
         this.objectMapper = objectMapper;
         var requestFactory = new org.springframework.http.client.SimpleClientHttpRequestFactory();
-        requestFactory.setConnectTimeout(java.time.Duration.ofSeconds(3));
-        requestFactory.setReadTimeout(java.time.Duration.ofSeconds(4));
+        requestFactory.setConnectTimeout(java.time.Duration.ofSeconds(10));
+        requestFactory.setReadTimeout(java.time.Duration.ofSeconds(15));
         this.restClient = RestClient.builder()
                 .requestFactory(requestFactory)
                 .build();
@@ -86,17 +86,7 @@ public class SmartClinicAiTriageAdapter implements AiTriagePort {
             return emergencyCheck;
         }
 
-        // 2. Ưu tiên OpenRouter. openrouter/free tự chọn mô hình miễn phí phù hợp.
-        if (openRouter.isConfigured()) {
-            try {
-                TriageEvaluation aiResult = callOpenRouterLlmTriage(symptoms, medicalHistory);
-                if (aiResult != null) return aiResult;
-            } catch (Exception e) {
-                log.warn("OpenRouter tạm thời không phản hồi ({}), chuyển sang nhà cung cấp dự phòng", e.getMessage());
-            }
-        }
-
-        // 3. Gemini là nhà cung cấp dự phòng tùy chọn.
+        // 2. Google Gemini AI trực tiếp từ Google AI Studio
         if (geminiApiKey != null && !geminiApiKey.isBlank() && !geminiApiKey.contains("chua-cau-hinh")) {
             try {
                 TriageEvaluation aiResult = callGeminiLlmTriage(symptoms, medicalHistory);
@@ -104,7 +94,17 @@ public class SmartClinicAiTriageAdapter implements AiTriagePort {
                     return aiResult;
                 }
             } catch (Exception e) {
-                log.warn("Gemini AI API tạm thời không phản hồi ({}), chuyển sang Clinic Expert Engine", e.getMessage());
+                log.warn("Gemini AI API tạm thời không phản hồi ({}), chuyển sang nhà cung cấp dự phòng", e.getMessage());
+            }
+        }
+
+        // 3. OpenRouter dự phòng nếu Gemini không có hoặc lỗi
+        if (openRouter.isConfigured()) {
+            try {
+                TriageEvaluation aiResult = callOpenRouterLlmTriage(symptoms, medicalHistory);
+                if (aiResult != null) return aiResult;
+            } catch (Exception e) {
+                log.warn("OpenRouter tạm thời không phản hồi ({}), chuyển sang Clinic Expert Engine", e.getMessage());
             }
         }
 
@@ -263,7 +263,9 @@ public class SmartClinicAiTriageAdapter implements AiTriagePort {
                 ),
                 "generationConfig", Map.of(
                         "temperature", 0.2,
-                        "maxOutputTokens", 1024
+                        "maxOutputTokens", 2048,
+                        "responseMimeType", "application/json",
+                        "thinkingConfig", Map.of("thinkingBudget", 0)
                 )
         );
 

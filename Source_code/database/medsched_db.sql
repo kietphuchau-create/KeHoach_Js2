@@ -596,16 +596,16 @@ INSERT INTO
     )
 VALUES (
         'a1b2c3d4-0001-4000-8000-000000000001',
-        'MED_Q1',
-        'Phòng Khám Đa Khoa MedSched - Chi Nhánh Quận 1',
-        'Số 123 Nguyễn Thị Minh Khai, P. Bến Thành, Q.1, TP.HCM',
+        'MED_CN1',
+        'Phòng Khám Đa Khoa MedSched - Chi Nhánh Trần Đại Nghĩa',
+        'TOTALE COFFEE TEA, 96 Đ. Trần Đại Nghĩa, Tân Tạo, Hồ Chí Minh, Việt Nam',
         '02839123456'
     ),
     (
         'a1b2c3d4-0002-4000-8000-000000000002',
-        'MED_Q7',
-        'Phòng Khám Đa Khoa MedSched - Chi Nhánh Quận 7',
-        'Số 45 Nguyễn Thị Thập, P. Tân Phú, Q.7, TP.HCM',
+        'MED_CN2',
+        'Phòng Khám Đa Khoa MedSched - Chi Nhánh Trịnh Đình Thảo (ITC)',
+        'Cao Đẳng Công Nghệ Thông Tin TP.HCM, 12 Đ. Trịnh Đình Thảo, Tân Phú, Hồ Chí Minh 700000, Việt Nam',
         '02839998877'
     );
 
@@ -687,7 +687,28 @@ VALUES (
         'a1b2c3d4-0002-4000-8000-000000000002',
         'Chuyên khoa Da liễu',
         'DERMATOLOGY',
-        'Khoa Da liễu chi nhánh Quận 7'
+        'Khoa Da liễu chi nhánh Trịnh Đình Thảo (ITC)'
+    ),
+    (
+        'c1b2c3d4-0002-4000-8000-000000000006',
+        'a1b2c3d4-0002-4000-8000-000000000002',
+        'Chuyên khoa Nội tổng quát',
+        'INTERNAL_MEDICINE',
+        'Khám chẩn đoán nội khoa, thần kinh, tim mạch, tiêu hóa tại Chi nhánh ITC Tân Phú'
+    ),
+    (
+        'c1b2c3d4-0002-4000-8000-000000000007',
+        'a1b2c3d4-0002-4000-8000-000000000002',
+        'Chuyên khoa Răng Hàm Mặt',
+        'ODONTO_STOMATOLOGY',
+        'Khám, nhổ răng, lấy cao răng, phục hình răng miệng tại Chi nhánh ITC Tân Phú'
+    ),
+    (
+        'c1b2c3d4-0002-4000-8000-000000000008',
+        'a1b2c3d4-0002-4000-8000-000000000002',
+        'Chuyên khoa Mắt',
+        'OPHTHALMOLOGY',
+        'Khám thị lực, đo khúc xạ mắt, điều trị bệnh lý nhãn khoa tại Chi nhánh ITC Tân Phú'
     );
 
 -- Danh mục dịch vụ khám (bảng giá) của từng chuyên khoa
@@ -815,6 +836,62 @@ VALUES (
         '$2a$10$ahoI91g3N9UKv5TBC8/KnugbB5LeGWqti0P/cwgrxYh..X9Jxxwti',
         'Vũ Thảo Nguyên',
         '0978901234'
+    ),
+    (
+        'e1b2c3d4-0012-4000-8000-000000000012',
+        'dr.hoanglinh@medsched.vn',
+        '$2a$10$ahoI91g3N9UKv5TBC8/KnugbB5LeGWqti0P/cwgrxYh..X9Jxxwti',
+        'BS.CKI Hoàng Mỹ Linh',
+        '0903345678'
+    ),
+    (
+        'e1b2c3d4-0013-4000-8000-000000000013',
+        'dr.tranmai@medsched.vn',
+        '$2a$10$ahoI91g3N9UKv5TBC8/KnugbB5LeGWqti0P/cwgrxYh..X9Jxxwti',
+        'ThS.BS Trần Thị Mai',
+        '0904456789'
+    ),
+    (
+        'e1b2c3d4-0014-4000-8000-000000000014',
+        'dr.lequangvinh@medsched.vn',
+        '$2a$10$ahoI91g3N9UKv5TBC8/KnugbB5LeGWqti0P/cwgrxYh..X9Jxxwti',
+        'BS.CKII Lê Quang Vinh',
+        '0905567890'
+    ),
+    (
+        'e1b2c3d4-0015-4000-8000-000000000015',
+        'dr.vuminhduc@medsched.vn',
+        '$2a$10$ahoI91g3N9UKv5TBC8/KnugbB5LeGWqti0P/cwgrxYh..X9Jxxwti',
+        'ThS.BS Vũ Minh Đức',
+        '0906678901'
+    ),
+    (
+        'e1b2c3d4-0016-4000-8000-000000000016',
+        'dr.dobichngoc@medsched.vn',
+        '$2a$10$ahoI91g3N9UKv5TBC8/KnugbB5LeGWqti0P/cwgrxYh..X9Jxxwti',
+        'BS.CKI Đỗ Bích Ngọc',
+        '0907789012'
+    ),
+    (
+        'e1b2c3d4-0017-4000-8000-000000000017',
+        'dr.phamquynhchi@medsched.vn',
+        '$2a$10$ahoI91g3N9UKv5TBC8/KnugbB5LeGWqti0P/cwgrxYh..X9Jxxwti',
+        'BS.CKII Phạm Quỳnh Chi',
+        '0908890123'
+    ),
+    (
+        'e1b2c3d4-0018-4000-8000-000000000018',
+        'dr.nguyenthanhtung@medsched.vn',
+        '$2a$10$ahoI91g3N9UKv5TBC8/KnugbB5LeGWqti0P/cwgrxYh..X9Jxxwti',
+        'ThS.BS Nguyễn Thanh Tùng',
+        '0909901234'
+    ),
+    (
+        'e1b2c3d4-0019-4000-8000-000000000019',
+        'dr.buiphuongthao@medsched.vn',
+        '$2a$10$ahoI91g3N9UKv5TBC8/KnugbB5LeGWqti0P/cwgrxYh..X9Jxxwti',
+        'ThS.BS Bùi Phương Thảo',
+        '0911012345'
     );
 
 -- Phân quyền nhân sự theo từng cơ sở khám chữa bệnh
@@ -913,7 +990,79 @@ VALUES (
         'ThS.BS',
         250000.00,
         'P.102',
-        'Bác sĩ chuyên khoa điều trị và chăm sóc da tại Chi nhánh Quận 7.'
+        'Bác sĩ chuyên khoa điều trị và chăm sóc da tại Chi nhánh Trịnh Đình Thảo (ITC).'
+    ),
+    (
+        '10b2c3d4-0005-4000-8000-000000000005',
+        'e1b2c3d4-0012-4000-8000-000000000012',
+        'c1b2c3d4-0002-4000-8000-000000000002',
+        'BS.CKI',
+        200000.00,
+        'P.206',
+        'Bác sĩ Nội Thần Kinh - Chuyên gia Rối loạn Giấc ngủ và Đau nửa đầu với 14 năm kinh nghiệm.'
+    ),
+    (
+        '10b2c3d4-0006-4000-8000-000000000006',
+        'e1b2c3d4-0015-4000-8000-000000000015',
+        'c1b2c3d4-0003-4000-8000-000000000003',
+        'ThS.BS',
+        150000.00,
+        'P.209',
+        'Bác sĩ Răng Hàm Mặt & Phục hình thẩm mỹ, cấy ghép Implant với hơn 10 năm kinh nghiệm.'
+    ),
+    (
+        '10b2c3d4-0007-4000-8000-000000000007',
+        'e1b2c3d4-0017-4000-8000-000000000017',
+        'c1b2c3d4-0004-4000-8000-000000000004',
+        'BS.CKII',
+        200000.00,
+        'P.205',
+        'Chuyên gia Mắt & Khúc xạ giác mạc, phẫu thuật Phaco đục thủy tinh thể với 16 năm kinh nghiệm.'
+    ),
+    (
+        '10b2c3d4-0008-4000-8000-000000000008',
+        'e1b2c3d4-0019-4000-8000-000000000019',
+        'c1b2c3d4-0001-4000-8000-000000000001',
+        'ThS.BS',
+        250000.00,
+        'P.202',
+        'Chuyên gia Da Liễu & Điều trị Dị ứng da, mẩn ngứa, mụn kháng trị với 12 năm kinh nghiệm.'
+    ),
+    (
+        '10b2c3d4-0009-4000-8000-000000000009',
+        'e1b2c3d4-0013-4000-8000-000000000013',
+        'c1b2c3d4-0002-4000-8000-000000000006',
+        'ThS.BS',
+        200000.00,
+        'P.101',
+        'Phó Khoa Nội - Chuyên gia Hô Hấp, điều trị viêm phế quản, hen suyễn, sốt ho với 15 năm kinh nghiệm.'
+    ),
+    (
+        '10b2c3d4-0010-4000-8000-000000000010',
+        'e1b2c3d4-0014-4000-8000-000000000014',
+        'c1b2c3d4-0002-4000-8000-000000000006',
+        'BS.CKII',
+        250000.00,
+        'P.103',
+        'Bác sĩ Nội Thần Kinh & Đau Đầu, Đau vai gáy, Huyết áp cao với 18 năm kinh nghiệm chuyên môn.'
+    ),
+    (
+        '10b2c3d4-0011-4000-8000-000000000011',
+        'e1b2c3d4-0016-4000-8000-000000000016',
+        'c1b2c3d4-0002-4000-8000-000000000007',
+        'BS.CKI',
+        150000.00,
+        'P.104',
+        'Chuyên gia Chỉnh Nha & Nha Khoa Trẻ Em, nhổ răng khôn không đau với 13 năm kinh nghiệm.'
+    ),
+    (
+        '10b2c3d4-0012-4000-8000-000000000012',
+        'e1b2c3d4-0018-4000-8000-000000000018',
+        'c1b2c3d4-0002-4000-8000-000000000008',
+        'ThS.BS',
+        200000.00,
+        'P.105',
+        'Bác sĩ Nhãn Khoa Tổng Quát, khám tật khúc xạ cận thị, viêm kết mạc với 11 năm kinh nghiệm.'
     );
 
 -- Hồ sơ thông tin bệnh nhân (Patient Profiles)

@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { api } from '@/shared/lib/api';
 import { formatDoctorFullName } from '@/shared/lib/formatters';
+import { getClinicScheduleConfig } from '@/shared/lib/scheduleConfig';
 
 interface ReceptionScheduleBoardProps {
   onSelectSlotForWalkin?: (doctor: any, slot: any, date: string) => void;
@@ -106,19 +107,19 @@ export default function ReceptionScheduleBoard({
     setSelectedDate(`${year}-${month}-${day}`);
   };
 
-  // Kích hoạt thủ công tác vụ đồng bộ lịch ngày mai
+  // Kích hoạt thủ công tác vụ đồng bộ lịch 7 ngày tới (1 tuần)
   const handleSyncTomorrowSchedule = async () => {
     try {
       setSyncingTomorrow(true);
       setSyncSuccessMsg(null);
-      const res = await api.triggerAutoScheduleTomorrow();
+      const res = await api.triggerAutoScheduleWeek();
       setSelectedDate(getTomorrowISODate());
       await loadSlotsForAllDoctors();
-      setSyncSuccessMsg(res?.message || 'Đã đồng bộ lịch trực ngày mai thành công!');
+      setSyncSuccessMsg(res?.message || 'Đã đồng bộ lịch trực 7 ngày tới (1 tuần) cho toàn bộ bác sĩ thành công!');
       setTimeout(() => setSyncSuccessMsg(null), 5000);
     } catch (e: any) {
-      console.warn('Lỗi kích hoạt auto schedule ngày mai:', e);
-      setSyncSuccessMsg('Đã yêu cầu làm mới dữ liệu ca trực ngày mai.');
+      console.warn('Lỗi kích hoạt auto schedule 7 ngày:', e);
+      setSyncSuccessMsg('Đã yêu cầu làm mới dữ liệu ca trực.');
       setTimeout(() => setSyncSuccessMsg(null), 4000);
     } finally {
       setSyncingTomorrow(false);
@@ -390,11 +391,14 @@ export default function ReceptionScheduleBoard({
     loadSlotsForAllDoctors();
   }, [loadSlotsForAllDoctors]);
 
-  // Kiểm tra thời gian slot còn cách hiện tại bao nhiêu phút (Quy tắc 15 phút - A3)
+  // Kiểm tra thời gian slot còn cách hiện tại bao nhiêu phút (Quy tắc đệm an toàn vãng lai - A3)
   const getSlotTimingInfo = useCallback((timeStr: string) => {
     if (!isToday) {
       return { isPast: false, isUrgentTooClose: false, minutesDiff: 999 };
     }
+
+    const clinicCfg = typeof window !== 'undefined' ? getClinicScheduleConfig() : null;
+    const minBuffer = clinicCfg?.walkinMinBufferMinutes ?? 15;
 
     const now = new Date();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
@@ -408,11 +412,11 @@ export default function ReceptionScheduleBoard({
 
     if (minutesDiff <= 0) {
       return { isPast: true, isUrgentTooClose: false, minutesDiff };
-    } else if (minutesDiff < 15) {
-      // Dưới 15 phút: Quá sát giờ tiếp đón, không đủ thời gian chuẩn bị hồ sơ
+    } else if (minutesDiff < minBuffer) {
+      // Dưới ngưỡng đệm an toàn: Quá sát giờ tiếp đón, không đủ thời gian chuẩn bị hồ sơ
       return { isPast: false, isUrgentTooClose: true, minutesDiff };
     } else {
-      // Đủ điều kiện tiếp nhận (>= 15 phút)
+      // Đủ điều kiện tiếp nhận (>= minBuffer)
       return { isPast: false, isUrgentTooClose: false, minutesDiff };
     }
   }, [isToday]);
@@ -665,10 +669,10 @@ export default function ReceptionScheduleBoard({
               onClick={handleSyncTomorrowSchedule}
               disabled={syncingTomorrow}
               className="px-3.5 py-1.5 bg-white hover:bg-teal-50 text-teal-800 border border-teal-300 font-bold rounded-xl text-xs shadow-2xs transition flex items-center gap-1.5 cursor-pointer shrink-0"
-              title="Kích hoạt kiểm tra và đồng bộ lại nếu có bác sĩ mới"
+              title="Kích hoạt kiểm tra và đồng bộ lại toàn bộ lịch khám 7 ngày tới cho các Bác sĩ"
             >
               <RefreshCw size={13} className={syncingTomorrow ? 'animate-spin' : ''} />
-              <span>{syncingTomorrow ? 'Đang đồng bộ...' : 'Đồng bộ lại ngày mai'}</span>
+              <span>{syncingTomorrow ? 'Đang đồng bộ...' : 'Đồng bộ lại lịch tuần'}</span>
             </button>
           </div>
         )}
@@ -680,15 +684,15 @@ export default function ReceptionScheduleBoard({
           </div>
         )}
 
-        {/* Banner Quy tắc đón khách vãng lai (Quy định 15 phút theo lựa chọn của người dùng) */}
+        {/* Banner Quy tắc đón khách vãng lai (Đồng bộ theo cấu hình Admin) */}
         <div className="p-3.5 bg-amber-50/90 border border-amber-200 rounded-2xl text-xs text-amber-900 flex items-start gap-2.5">
           <Info size={16} className="text-amber-600 shrink-0 mt-0.5" />
           <div className="space-y-0.5">
             <span className="font-extrabold text-amber-950 block">
-              Quy tắc tiếp nhận khách vãng lai tại quầy (Lead-time $\ge$ 15 phút):
+              Quy tắc tiếp nhận khách vãng lai tại quầy (Lead-time $\ge$ {typeof window !== 'undefined' ? (getClinicScheduleConfig()?.walkinMinBufferMinutes ?? 15) : 15} phút):
             </span>
             <p className="text-[11px] text-amber-800 leading-relaxed">
-              Để Bác sĩ kịp chuẩn bị hồ sơ bệnh án và tránh trùng giờ bệnh nhân đã hẹn, hệ thống chỉ cho phép tiếp nhận ngay đối với các khung giờ <strong>còn trống và có giờ bắt đầu cách hiện tại tối thiểu 15 phút</strong>. Các khung giờ dưới 15 phút sẽ hiển thị cảnh báo <span className="font-bold text-amber-700">Sát giờ</span>.
+              Để Bác sĩ kịp chuẩn bị hồ sơ bệnh án và tránh trùng giờ bệnh nhân đã hẹn, hệ thống chỉ cho phép tiếp nhận ngay đối với các khung giờ <strong>còn trống và có giờ bắt đầu cách hiện tại tối thiểu {typeof window !== 'undefined' ? (getClinicScheduleConfig()?.walkinMinBufferMinutes ?? 15) : 15} phút</strong>. Các khung giờ dưới ngưỡng này sẽ hiển thị cảnh báo <span className="font-bold text-amber-700">Sát giờ</span>.
             </p>
           </div>
         </div>

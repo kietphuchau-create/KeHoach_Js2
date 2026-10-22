@@ -88,7 +88,7 @@ app:
     app-name: ${OPENROUTER_APP_NAME:MedSched AI}
   gemini:
     api-key: ${GEMINI_API_KEY:}
-    model: ${GEMINI_MODEL:gemini-3.5-flash-lite}
+    model: ${GEMINI_MODEL:gemini-2.5-flash}
   jwt:
     secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
     expiration: 86400
