@@ -3052,6 +3052,16 @@ export default function BookingMethodSelector({
     }
   };
 
+  // Sao chép thông tin chuyển khoản cọc (STK, Nội dung)
+  const [copiedPaymentField, setCopiedPaymentField] = useState<string | null>(null);
+  const handleCopyPaymentInfo = (text: string, field: string) => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopiedPaymentField(field);
+      setTimeout(() => setCopiedPaymentField(null), 2000);
+    }
+  };
+
   // ---------------------------------------------------------------------------
   // GIAO DIỆN CHÍNH
   // ---------------------------------------------------------------------------
@@ -3919,22 +3929,103 @@ export default function BookingMethodSelector({
 
                             {/* Tab 1: VietQR 2k */}
                             {paymentTab === 'vietqr' && (
-                              <div className="flex flex-col sm:flex-row items-center gap-3 p-2 bg-white rounded-xl border border-purple-200">
-                                <img
-                                  src={`https://img.vietqr.io/image/${VIETQR_BANK_CONFIG.bankId}-${VIETQR_BANK_CONFIG.accountNo}-compact2.png?amount=2000&addInfo=MEDPAY%20${transferBookingCode}&accountName=${encodeURIComponent(VIETQR_BANK_CONFIG.accountName)}`}
-                                  alt="Mã VietQR cọc 2k"
-                                  className="w-28 h-28 object-contain rounded-lg border border-slate-200 shrink-0"
-                                />
-                                <div className="text-[10.5px] text-slate-700 space-y-1 flex-1">
-                                  <p>Ngân hàng: <strong>KienlongBank</strong></p>
-                                  <p>Số tài khoản: <strong>18112007</strong></p>
-                                  <p>Chủ TK: <strong>CHAU TUAN KIET</strong></p>
-                                  <p>Số tiền: <strong className="text-purple-700 font-bold">2.000 VNĐ</strong></p>
-                                  <p>Nội dung: <strong className="text-purple-800 bg-purple-100 px-1 py-0.5 rounded font-mono">MEDPAY {transferBookingCode}</strong></p>
-                                  <div className="flex items-center gap-1 text-[9.5px] text-slate-500 pt-1">
-                                    <Clock size={11} className="text-purple-600" />
-                                    <span>Hết hạn sau: {Math.floor(qrCountdown / 60)}:{(qrCountdown % 60).toString().padStart(2, '0')}</span>
-                                    {isCheckingAuto && <span className="text-purple-600 ml-1 font-semibold animate-pulse">(Đang đợi chuyển...)</span>}
+                              <div className="bg-white rounded-2xl border-2 border-purple-200 p-3 sm:p-4 text-center space-y-3 shadow-2xs">
+                                {/* Khung mã QR phóng to, sắc nét */}
+                                <div className="bg-gradient-to-b from-purple-50/80 to-white p-2.5 sm:p-3 rounded-2xl border border-purple-100 inline-block w-full max-w-[280px] mx-auto shadow-inner">
+                                  <img
+                                    src={`https://img.vietqr.io/image/${VIETQR_BANK_CONFIG.bankId}-${VIETQR_BANK_CONFIG.accountNo}-compact2.png?amount=2000&addInfo=MEDPAY%20${transferBookingCode}&accountName=${encodeURIComponent(VIETQR_BANK_CONFIG.accountName)}`}
+                                    alt="Mã VietQR cọc 2k"
+                                    className="w-56 h-56 sm:w-60 sm:h-60 max-w-full object-contain mx-auto rounded-xl bg-white p-1.5 shadow-xs border border-purple-100/90"
+                                  />
+                                  <p className="text-[10px] sm:text-[11px] text-purple-900 font-semibold mt-2 flex items-center justify-center gap-1.5">
+                                    <ShieldCheck size={14} className="text-purple-600 shrink-0" />
+                                    <span>Quét bằng <strong>App Ngân hàng</strong> hoặc <strong>Ví MoMo</strong></span>
+                                  </p>
+                                </div>
+
+                                {/* Bảng thông tin chuyển khoản kèm nút 1-click sao chép trên điện thoại */}
+                                <div className="bg-purple-50/60 rounded-xl p-2.5 sm:p-3 border border-purple-100 text-left text-xs space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-slate-500 text-[11px]">Ngân hàng:</span>
+                                    <strong className="text-slate-900 font-bold text-xs">{VIETQR_BANK_CONFIG.bankName.split(' - ')[0]}</strong>
+                                  </div>
+
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-slate-500 text-[11px]">Số tài khoản:</span>
+                                    <div className="flex items-center gap-1.5">
+                                      <strong className="text-purple-900 font-mono font-bold text-xs">{VIETQR_BANK_CONFIG.accountNo}</strong>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleCopyPaymentInfo(VIETQR_BANK_CONFIG.accountNo, 'acc')}
+                                        className="px-2 py-0.5 bg-white hover:bg-purple-100 border border-purple-200 rounded text-[10.5px] text-purple-700 font-semibold flex items-center gap-1 transition cursor-pointer active:scale-95 shadow-2xs"
+                                        title="Sao chép số tài khoản"
+                                      >
+                                        {copiedPaymentField === 'acc' ? (
+                                          <>
+                                            <Check size={12} className="text-emerald-600" />
+                                            <span className="text-emerald-700 font-bold">Đã chép</span>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Copy size={12} />
+                                            <span>Chép STK</span>
+                                          </>
+                                        )}
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-slate-500 text-[11px]">Chủ tài khoản:</span>
+                                    <strong className="text-slate-900 font-bold uppercase text-xs">{VIETQR_BANK_CONFIG.accountName}</strong>
+                                  </div>
+
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-slate-500 text-[11px]">Số tiền cọc:</span>
+                                    <strong className="text-purple-700 font-black font-mono text-sm">2.000 VNĐ</strong>
+                                  </div>
+
+                                  <div className="flex items-center justify-between pt-1.5 border-t border-purple-100">
+                                    <span className="text-slate-500 text-[11px]">Nội dung CK:</span>
+                                    <div className="flex items-center gap-1.5">
+                                      <strong className="text-purple-900 font-mono font-bold text-xs bg-purple-100 px-1.5 py-0.5 rounded">
+                                        MEDPAY {transferBookingCode}
+                                      </strong>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleCopyPaymentInfo(`MEDPAY ${transferBookingCode}`, 'memo')}
+                                        className="px-2 py-0.5 bg-white hover:bg-purple-100 border border-purple-200 rounded text-[10.5px] text-purple-700 font-semibold flex items-center gap-1 transition cursor-pointer active:scale-95 shadow-2xs"
+                                        title="Sao chép nội dung chuyển khoản"
+                                      >
+                                        {copiedPaymentField === 'memo' ? (
+                                          <>
+                                            <Check size={12} className="text-emerald-600" />
+                                            <span className="text-emerald-700 font-bold">Đã chép</span>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Copy size={12} />
+                                            <span>Chép ND</span>
+                                          </>
+                                        )}
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {/* Đếm ngược và trạng thái tự động nhận diện */}
+                                  <div className="flex items-center justify-between pt-1.5 border-t border-purple-100 text-[10.5px] text-slate-500">
+                                    <div className="flex items-center gap-1">
+                                      <Clock size={12} className="text-purple-600 shrink-0" />
+                                      <span>Hết hạn: <strong className="text-purple-900 font-mono font-bold">{Math.floor(qrCountdown / 60)}:{(qrCountdown % 60).toString().padStart(2, '0')}</strong></span>
+                                    </div>
+                                    {isCheckingAuto ? (
+                                      <span className="text-purple-600 font-semibold animate-pulse flex items-center gap-1">
+                                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-purple-600 animate-ping" />
+                                        Đang đợi chuyển...
+                                      </span>
+                                    ) : (
+                                      <span className="text-slate-400">Tự động khớp lệnh</span>
+                                    )}
                                   </div>
                                 </div>
                               </div>
