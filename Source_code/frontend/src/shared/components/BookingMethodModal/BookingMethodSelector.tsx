@@ -2420,22 +2420,129 @@ export default function BookingMethodSelector({
         setAiClinicalSummary(summary);
         setAiPreparationAdvice(advice);
 
-        // Map chuyên khoa
-        const code = triage?.specialtyCode || triage?.specialty || '';
-        let targetKey = 'FATIGUE';
-        if (code === 'DERMATOLOGY') targetKey = 'SKIN';
-        else if (code === 'ODONTO_STOMATOLOGY') targetKey = 'DENTAL';
-        else if (code === 'OPHTHALMOLOGY') targetKey = 'EYE';
-        else if (code === 'INTERNAL_MEDICINE') targetKey = 'HEADACHE';
-        else {
-          const lower = text.toLowerCase();
-          if (lower.includes('đầu') || lower.includes('chóng mặt')) targetKey = 'HEADACHE';
-          else if (lower.includes('bụng') || lower.includes('dạ dày') || lower.includes('tiêu')) targetKey = 'ABDOMINAL';
-          else if (lower.includes('sốt') || lower.includes('ho') || lower.includes('cảm')) targetKey = 'RESPIRATORY';
-          else if (lower.includes('xương') || lower.includes('khớp') || lower.includes('lưng')) targetKey = 'BONE_JOINT';
-          else if (lower.includes('da') || lower.includes('ngứa')) targetKey = 'SKIN';
-          else if (lower.includes('răng') || lower.includes('nướu')) targetKey = 'DENTAL';
-          else if (lower.includes('mắt')) targetKey = 'EYE';
+        // Phân loại triệu chứng chính xác dựa trên nội dung bệnh nhân nhập hoặc AI Triage
+        const lower = text.toLowerCase();
+        let targetKey = '';
+
+        // 1. Nhận diện trực tiếp từ từ khóa bệnh nhân gõ
+        if (
+          lower.includes('mệt') ||
+          lower.includes('met') ||
+          lower.includes('suy nhược') ||
+          lower.includes('suy nhuoc') ||
+          lower.includes('uể oải') ||
+          lower.includes('ue oai') ||
+          lower.includes('kiệt sức') ||
+          lower.includes('kiet suc') ||
+          lower.includes('đuối') ||
+          lower.includes('duoi') ||
+          lower.includes('oải')
+        ) {
+          targetKey = 'FATIGUE';
+        } else if (
+          lower.includes('đầu') ||
+          lower.includes('dau') ||
+          lower.includes('chóng mặt') ||
+          lower.includes('chong mat') ||
+          lower.includes('tiền đình') ||
+          lower.includes('tien dinh') ||
+          lower.includes('mất ngủ') ||
+          lower.includes('mat ngu') ||
+          lower.includes('não') ||
+          lower.includes('nao')
+        ) {
+          targetKey = 'HEADACHE';
+        } else if (
+          lower.includes('bụng') ||
+          lower.includes('bung') ||
+          lower.includes('dạ dày') ||
+          lower.includes('da day') ||
+          lower.includes('tiêu hóa') ||
+          lower.includes('tieu hoa') ||
+          lower.includes('tiêu chảy') ||
+          lower.includes('tieu chay') ||
+          lower.includes('nôn') ||
+          lower.includes('ợ') ||
+          lower.includes('ruột')
+        ) {
+          targetKey = 'ABDOMINAL';
+        } else if (
+          lower.includes('sốt') ||
+          lower.includes('sot') ||
+          lower.includes('ho') ||
+          lower.includes('cảm') ||
+          lower.includes('cam') ||
+          lower.includes('họng') ||
+          lower.includes('hong') ||
+          lower.includes('sổ mũi') ||
+          lower.includes('so mui') ||
+          lower.includes('nghẹt mũi') ||
+          lower.includes('phổi') ||
+          lower.includes('phoi')
+        ) {
+          targetKey = 'RESPIRATORY';
+        } else if (
+          lower.includes('xương') ||
+          lower.includes('xuong') ||
+          lower.includes('khớp') ||
+          lower.includes('khop') ||
+          lower.includes('lưng') ||
+          lower.includes('lung') ||
+          lower.includes('gối') ||
+          lower.includes('goi') ||
+          lower.includes('cột sống') ||
+          lower.includes('vai gáy') ||
+          lower.includes('thoái hóa')
+        ) {
+          targetKey = 'BONE_JOINT';
+        } else if (
+          lower.includes('da') ||
+          lower.includes('ngứa') ||
+          lower.includes('ngua') ||
+          lower.includes('dị ứng') ||
+          lower.includes('di ung') ||
+          lower.includes('mẩn') ||
+          lower.includes('mụn') ||
+          lower.includes('mề đay')
+        ) {
+          targetKey = 'SKIN';
+        } else if (
+          lower.includes('răng') ||
+          lower.includes('rang') ||
+          lower.includes('nướu') ||
+          lower.includes('nuou') ||
+          lower.includes('lợi') ||
+          lower.includes('hàm') ||
+          lower.includes('ham') ||
+          lower.includes('nhai')
+        ) {
+          targetKey = 'DENTAL';
+        } else if (
+          lower.includes('mắt') ||
+          lower.includes('mat') ||
+          lower.includes('mờ') ||
+          lower.includes('cộm') ||
+          lower.includes('chói') ||
+          lower.includes('nhãn')
+        ) {
+          targetKey = 'EYE';
+        }
+
+        // 2. Nếu từ khóa chưa phân biệt rõ, map theo mã chuyên khoa từ AI Triage
+        if (!targetKey) {
+          const code = triage?.specialtyCode || triage?.specialty || '';
+          if (code === 'DERMATOLOGY') targetKey = 'SKIN';
+          else if (code === 'ODONTO_STOMATOLOGY') targetKey = 'DENTAL';
+          else if (code === 'OPHTHALMOLOGY') targetKey = 'EYE';
+          else {
+            const summaryLower = (summary || '').toLowerCase();
+            if (summaryLower.includes('mệt') || summaryLower.includes('suy nhược')) targetKey = 'FATIGUE';
+            else if (summaryLower.includes('đầu') || summaryLower.includes('thần kinh') || summaryLower.includes('chóng mặt')) targetKey = 'HEADACHE';
+            else if (summaryLower.includes('tiêu hóa') || summaryLower.includes('bụng') || summaryLower.includes('dạ dày')) targetKey = 'ABDOMINAL';
+            else if (summaryLower.includes('hô hấp') || summaryLower.includes('sốt') || summaryLower.includes('ho')) targetKey = 'RESPIRATORY';
+            else if (summaryLower.includes('xương') || summaryLower.includes('khớp')) targetKey = 'BONE_JOINT';
+            else targetKey = 'FATIGUE';
+          }
         }
 
         setSelectedCategoryKey(targetKey);
