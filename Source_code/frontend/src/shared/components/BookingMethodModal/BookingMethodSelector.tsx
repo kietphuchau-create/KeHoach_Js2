@@ -65,6 +65,74 @@ function isEmergencySymptom(text: string): boolean {
   return EMERGENCY_KEYWORDS.some(kw => lower.includes(kw));
 }
 
+// Kiểm tra nội dung nhập có phải là phép tính, spam hoặc hoàn toàn không mang ý nghĩa triệu chứng y tế
+function isNonMedicalOrSpamInput(text: string): { isInvalid: boolean; message?: string } {
+  if (!text || !text.trim()) {
+    return { isInvalid: true, message: 'Vui lòng nhập mô tả triệu chứng hoặc cảm giác khó chịu của bạn.' };
+  }
+  const clean = text.trim();
+  const lower = clean.toLowerCase();
+
+  // 1. Phép tính số học (ví dụ: 1+1=, 2*3, 10/2, 5+5=, ...)
+  if (
+    /^[\d\s\+\-\*\/\=\.\,\(\)\%\^\&]+$/.test(clean) ||
+    /^\d+\s*[\+\-\*\/xX÷=]\s*\d+/.test(clean) ||
+    /^(giải toán|tính giúp|1\s*\+\s*1|2\s*\+\s*2)/i.test(clean)
+  ) {
+    return {
+      isInvalid: true,
+      message: `⚠️ **Phép tính "${clean}" không phải là triệu chứng sức khỏe cần khám!**\n\nMedSched là hệ thống y tế hỗ trợ đặt lịch khám bệnh với bác sĩ chuyên khoa.\n\n👉 Vui lòng **mô tả tình trạng sức khỏe bạn đang gặp phải** (ví dụ: *"đau đầu"*, *"sốt cao"*, *"đau bụng"*, *"ngứa da dị ứng"*...) hoặc **bấm chọn vào các thẻ triệu chứng bên dưới** nhé!`
+    };
+  }
+
+  // 2. Toàn ký tự đặc biệt spam: ???, ..., !!!, ---, @@@
+  if (/^[!@#$%^&*()_+=\-\[\]{}|\\:;"'<>,.?/~`\s]+$/.test(clean)) {
+    return {
+      isInvalid: true,
+      message: `⚠️ Vui lòng nhập từ ngữ mô tả triệu chứng sức khỏe rõ ràng (ví dụ: đau họng, sốt, ho, phát ban...) thay vì các ký tự đặc biệt!`
+    };
+  }
+
+  // 3. Từ chào hỏi vu vơ hoặc quá ngắn mà không chứa bất kỳ từ khóa sức khỏe nào
+  const greetingsOnly = /^(chào|chao|hi|hello|alo|ê|hey|test|abc|xyz|haha|hihi|hehe|ok|vâng|da|dạ|có|không|khong|ai|bot|help)$/i;
+  if (greetingsOnly.test(clean) || (clean.length < 3 && !['ho', 'sốt', 'đau'].includes(lower))) {
+    return {
+      isInvalid: true,
+      message: `Dạ MedSched chào bạn! Để em có thể tìm đúng bác sĩ chuyên khoa phù hợp nhất, bạn hãy mô tả cảm giác khó chịu bạn đang gặp phải (ví dụ: *"tôi bị đau đầu chóng mặt"*, *"sốt cao 39 độ"*, *"đau nhức lưng"*...) hoặc chọn nhanh vào một trong các thẻ triệu chứng bên dưới nhé!`
+    };
+  }
+
+  // 4. Kiểm tra xem có chứa bất kỳ từ khóa y tế, bộ phận cơ thể hoặc dấu hiệu sức khỏe hay không
+  const HEALTH_INDICATORS = [
+    'đau', 'dau', 'nhức', 'nhuc', 'mỏi', 'moi', 'sốt', 'sot', 'ho', 'ngứa', 'ngua',
+    'mẩn', 'man', 'rát', 'rat', 'buốt', 'buot', 'mệt', 'met', 'nôn', 'non', 'ói', 'oi',
+    'chóng mặt', 'chong mat', 'hoa mắt', 'hoa mat', 'tức', 'tuc', 'khó thở', 'kho tho',
+    'nghẹt', 'nghet', 'sổ mũi', 'so mui', 'chảy mũi', 'chay mui', 'rụng tóc', 'rung toc',
+    'mờ', 'mo', 'cộm', 'com', 'đỏ', 'do', 'răng', 'rang', 'nướu', 'nuou', 'lợi', 'loi',
+    'dị ứng', 'di ung', 'mề đay', 'me day', 'tê', 'te', 'viêm', 'viem', 'loét', 'loet',
+    'tiêu chảy', 'tieu chay', 'táo bón', 'tao bon', 'sưng', 'sung', 'phù', 'phu',
+    'huyết áp', 'huyet ap', 'tim', 'gan', 'thận', 'than', 'dạ dày', 'da day', 'bao tử', 'bao tu',
+    'ruột', 'ruot', 'khớp', 'khop', 'cơ', 'co', 'xương', 'xuong', 'lưng', 'lung', 'gối', 'goi',
+    'cổ', 'co', 'vai', 'gáy', 'gay', 'da', 'tai', 'mũi', 'mui', 'họng', 'hong', 'bụng', 'bung',
+    'đầu', 'dau', 'mất ngủ', 'mat ngu', 'suy nhược', 'suy nhuoc', 'uể oải', 'ue oai',
+    'kiệt sức', 'kiet suc', 'đuối', 'duoi', 'tiền đình', 'tien dinh', 'nhiệt', 'nhiet',
+    'mụn', 'mun', 'vảy nến', 'vay nen', 'chàm', 'cham', 'sâu răng', 'sau rang',
+    'thị lực', 'thi luc', 'khám', 'kham', 'bệnh', 'benh', 'ốm', 'om', 'bị', 'bi',
+    'chảy máu', 'chay mau', 'nổi hạch', 'noi hach', 'khó nuốt', 'kho nuot', 'ù tai', 'u tai',
+    'chấn thương', 'chan thuong', 'bỏng', 'bong', 'ngã', 'nga', 'đụng', 'dung'
+  ];
+
+  const hasHealthIndicator = HEALTH_INDICATORS.some(kw => lower.includes(kw));
+  if (!hasHealthIndicator) {
+    return {
+      isInvalid: true,
+      message: `⚠️ Nội dung "${clean}" dường như không phải là một triệu chứng y tế hoặc vấn đề sức khỏe cần thăm khám.\n\nVui lòng mô tả rõ hơn biểu hiện bất thường trên cơ thể của bạn (ví dụ: *"đau đầu căng thẳng"*, *"sốt về chiều"*, *"đau rát bao tử"*, *"ngứa da nổi hột"*...) hoặc bấm chọn vào các thẻ triệu chứng chuyên khoa bên dưới để bác sĩ hỗ trợ bạn chính xác nhất!`
+    };
+  }
+
+  return { isInvalid: false };
+}
+
 // ---------------------------------------------------------------------------
 // 2. CÁC NHÓM TRIỆU CHỨNG BAN ĐẦU & CÂU HỎI TRẮC NGHIỆM CHI TIẾT
 // ---------------------------------------------------------------------------
@@ -1661,6 +1729,29 @@ export default function BookingMethodSelector({
       else if (clarifyQuestionIndex === 2) answer = selectedDuration || activeCategory.durationOptions[0];
       else if (clarifyQuestionIndex === 3) answer = selectedAssociated || activeCategory.associatedOptions[0];
       else answer = selectedFollowup || 'Không có';
+    } else if (customAnswer) {
+      // Nếu người dùng tự gõ câu trả lời, kiểm tra ràng buộc không được nhập phép tính hoặc spam
+      const validation = isNonMedicalOrSpamInput(answer);
+      if (validation.isInvalid) {
+        const userMsg: ChatMessage = {
+          id: 'msg-' + Date.now(),
+          sender: 'user',
+          time: getFormattedTime(),
+          text: answer,
+        };
+        const warningMsg: ChatMessage = {
+          id: 'msg-' + (Date.now() + 1),
+          sender: 'ai',
+          time: getFormattedTime(),
+          text: `⚠️ **Câu trả lời "${answer}" không liên quan đến biểu hiện sức khỏe!**\n\nVui lòng mô tả cụ thể cảm giác khó chịu của bạn (hoặc bấm chọn vào 1 trong các phương án gợi ý bên trên) để bác sĩ nắm đúng tình trạng nhé!`,
+          widget: 'CLARIFY_DETAILS',
+          clarifyMeta: messages[messages.length - 1]?.clarifyMeta,
+          isTypingComplete: false,
+        };
+        setInputMessage('');
+        setMessages(prev => [...prev, userMsg, warningMsg]);
+        return;
+      }
     }
 
     setInputMessage('');
@@ -2361,6 +2452,22 @@ export default function BookingMethodSelector({
 
     // Nếu đang ở bước đầu, cấp cứu, hoặc vừa được cảnh báo giới hạn chuyên môn và muốn nhập triệu chứng khác
     if (aiStep === 'CHOOSE_SYMPTOM' || aiStep === 'EMERGENCY' || aiStep === 'UNSUPPORTED_SPECIALTY') {
+      // 1. Kiểm tra tiền lọc ràng buộc y tế: Phép tính, spam, câu vô nghĩa
+      const validation = isNonMedicalOrSpamInput(text);
+      if (validation.isInvalid) {
+        const warningMsg: ChatMessage = {
+          id: 'msg-' + (Date.now() + 1),
+          sender: 'ai',
+          time: getFormattedTime(),
+          text: validation.message || 'Nội dung bạn vừa nhập không phải là triệu chứng y tế hợp lệ.',
+          widget: 'CHOOSE_SYMPTOM',
+          isTypingComplete: false,
+        };
+        setAiStep('CHOOSE_SYMPTOM');
+        setMessages(prev => [...prev, userMsg, warningMsg]);
+        return;
+      }
+
       setIsAiAnalyzing(true);
       setMessages(prev => [...prev, userMsg]);
       try {
@@ -2380,6 +2487,32 @@ export default function BookingMethodSelector({
         }
 
         const summary = triage?.clinicalSummary || triage?.summary || '';
+        const summaryLower = summary.toLowerCase();
+
+        // 2. Kiểm tra nếu kết quả trả về từ AI đánh giá là không có triệu chứng hoặc phép toán
+        if (
+          summaryLower.includes('không cung cấp triệu chứng') ||
+          summaryLower.includes('chỉ đưa ra phép tính') ||
+          summaryLower.includes('không phải là triệu chứng') ||
+          summaryLower.includes('không có thông tin y tế') ||
+          summaryLower.includes('phép tính') ||
+          summaryLower.includes('không rõ ràng') ||
+          triage?.specialtyCode === 'INVALID_INPUT'
+        ) {
+          const warningMsg: ChatMessage = {
+            id: 'msg-' + (Date.now() + 1),
+            sender: 'ai',
+            time: getFormattedTime(),
+            text: `⚠️ **Trợ lý Y tế MedSched:**\n\nNội dung "${text}" chưa thể hiện rõ dấu hiệu hoặc triệu chứng y tế nào cần thăm khám.\n\n👉 Vui lòng mô tả cụ thể triệu chứng cơ thể bạn đang gặp phải (ví dụ: *"đau đầu"*, *"sốt cao"*, *"đau bụng"*, *"phát ban da"*...) hoặc bấm chọn các thẻ gợi ý bên dưới để tiếp tục!`,
+            widget: 'CHOOSE_SYMPTOM',
+            isTypingComplete: false,
+          };
+          setIsAiAnalyzing(false);
+          setAiStep('CHOOSE_SYMPTOM');
+          setMessages(prev => [...prev, warningMsg]);
+          return;
+        }
+
         const advice = triage?.preparationAdvice || '';
         setAiClinicalSummary(summary);
         setAiPreparationAdvice(advice);
@@ -2505,8 +2638,23 @@ export default function BookingMethodSelector({
             else if (summaryLower.includes('tiêu hóa') || summaryLower.includes('bụng') || summaryLower.includes('dạ dày')) targetKey = 'ABDOMINAL';
             else if (summaryLower.includes('hô hấp') || summaryLower.includes('sốt') || summaryLower.includes('ho')) targetKey = 'RESPIRATORY';
             else if (summaryLower.includes('xương') || summaryLower.includes('khớp')) targetKey = 'BONE_JOINT';
-            else targetKey = 'FATIGUE';
+            else targetKey = '';
           }
+        }
+
+        if (!targetKey) {
+          const warningMsg: ChatMessage = {
+            id: 'msg-' + (Date.now() + 1),
+            sender: 'ai',
+            time: getFormattedTime(),
+            text: `Dạ em chưa nhận diện được vấn đề sức khỏe cụ thể từ mô tả "${text}".\n\nBạn hãy mô tả rõ hơn cảm giác khó chịu hoặc bấm chọn trực tiếp vào một trong các thẻ triệu chứng chuyên khoa bên dưới để em định hướng đúng bác sĩ nhé!`,
+            widget: 'CHOOSE_SYMPTOM',
+            isTypingComplete: false,
+          };
+          setIsAiAnalyzing(false);
+          setAiStep('CHOOSE_SYMPTOM');
+          setMessages(prev => [...prev, warningMsg]);
+          return;
         }
 
         setSelectedCategoryKey(targetKey);

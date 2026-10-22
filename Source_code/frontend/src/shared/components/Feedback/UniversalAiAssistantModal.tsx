@@ -148,6 +148,35 @@ export default function UniversalAiAssistantModal({
 
     setMessages((prev) => [...prev, userMsg]);
     setInput('');
+
+    // Clinical Guardrail: Chặn phép toán và spam ký tự phi y tế
+    const cleanQuery = query.trim();
+    const isMathExpr = /[\+\*\/=\%\^]/.test(cleanQuery) && /^[\d\s\+\-\*\/=\.,\(\)\%\^\&]+$/.test(cleanQuery);
+    const isMathWord = /(bằng mấy|bằng bao nhiêu|giải toán|phép tính|tính giúp)/i.test(cleanQuery);
+    const isSpamSymbols = /^[!@#$%^&*()_+=\-\[\]{}|\\:;"'<>,.?/~`\s]+$/.test(cleanQuery) && cleanQuery.length >= 2;
+
+    if (isMathExpr || isMathWord) {
+      const aiMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        sender: 'ai',
+        text: 'Dạ, em là Trợ lý Y tế MedSched, chuyên hỗ trợ tư vấn sức khỏe ban đầu, định hướng chuyên khoa và quy trình khám chữa bệnh tại MedSched. Em không hỗ trợ giải toán hoặc các câu hỏi ngoài phạm vi y tế. Bạn đang có dấu hiệu hoặc vấn đề sức khỏe nào cần tư vấn không ạ?',
+        time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+      };
+      setMessages((prev) => [...prev, aiMsg]);
+      return;
+    }
+
+    if (isSpamSymbols) {
+      const aiMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        sender: 'ai',
+        text: 'Dạ, MedSched chưa nhận diện được thông tin từ tin nhắn của bạn. Bạn vui lòng mô tả cảm giác khó chịu hoặc triệu chứng bệnh đang gặp phải nhé!',
+        time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+      };
+      setMessages((prev) => [...prev, aiMsg]);
+      return;
+    }
+
     setLoading(true);
 
     try {

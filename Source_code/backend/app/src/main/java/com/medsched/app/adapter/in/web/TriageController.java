@@ -159,6 +159,27 @@ public class TriageController {
 
     private ChatResult handlePatientChat(String message, String context) {
         String lower = message.toLowerCase(Locale.ROOT);
+        String clean = message.trim();
+
+        // 1. Guardrail phát hiện phép tính toán học hoặc câu đố phi y tế
+        if (clean.matches("^[\\d\\s\\+\\-\\*/\\=\\.\\,\\(\\)\\%\\^]+$") ||
+            (clean.matches("(?i).*(bằng mấy|bằng bao nhiêu|giải toán|phép tính|tính giúp).*") && clean.matches(".*\\d+.*"))) {
+            return new ChatResult(
+                    "Dạ, em là Trợ lý Y tế MedSched, chuyên hỗ trợ tư vấn sức khỏe, định hướng chuyên khoa và quy trình khám tại phòng khám. Em không hỗ trợ giải các bài toán hoặc câu hỏi ngoài phạm vi y tế. Bạn đang có dấu hiệu hoặc vấn đề sức khỏe nào cần bác sĩ tư vấn không ạ?",
+                    null,
+                    "CLINICAL_GUARDRAIL"
+            );
+        }
+
+        // 2. Chặn các chuỗi ký tự spam vô nghĩa (???, ..., !!!, etc.)
+        if (clean.matches("^[!@#$%^&*()_+=\\-\\[\\]{}|\\\\:;\"'<>,.?/~`\\s]+$") || clean.length() < 2) {
+            return new ChatResult(
+                    "Dạ MedSched chưa nhận diện được thông tin từ tin nhắn của bạn. Bạn vui lòng mô tả cảm giác khó chịu hoặc triệu chứng bệnh đang gặp phải nhé.",
+                    null,
+                    "CLINICAL_GUARDRAIL"
+            );
+        }
+
         String lastAssistant = lastContextMessage(context, "[ASSISTANT] ");
         String explicitFamily = explicitSymptomFamily(lower);
         boolean continuation = explicitFamily == null && isLikelyClinicalAnswer(lower, lastAssistant);
