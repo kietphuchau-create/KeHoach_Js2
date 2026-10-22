@@ -65,35 +65,113 @@ function isEmergencySymptom(text: string): boolean {
   return EMERGENCY_KEYWORDS.some(kw => lower.includes(kw));
 }
 
-// Kiểm tra nội dung nhập có phải là phép tính, spam hoặc hoàn toàn không mang ý nghĩa triệu chứng y tế
-function isNonMedicalOrSpamInput(text: string): { isInvalid: boolean; message?: string } {
+const VIETNAMESE_VOWELS_REGEX = /[aàáảãạăằắẳẵặâầấẩẫậeèéẻẽẹêềếểễệiìíỉĩịoòóỏõọôồốổỗộơờớởỡợuùúủũụưừứửữựyỳýỷỹỵ]/i;
+
+// 1. Kiểm tra spam, phép tính toán học hoặc chuỗi gõ phím vô nghĩa (áp dụng toàn cục cho tất cả các bước)
+function isSpamOrMathOrGibberishInput(text: string): { isInvalid: boolean; message?: string } {
   if (!text || !text.trim()) {
-    return { isInvalid: true, message: 'Vui lòng nhập mô tả triệu chứng hoặc cảm giác khó chịu của bạn.' };
+    return { isInvalid: true, message: 'Vui lòng nhập nội dung trao đổi với trợ lý y tế.' };
   }
+  const clean = text.trim();
+
+  // a. Phép tính số học hoặc phương trình toán (ví dụ: 1+=, 1+1=, 1+1, 2*3, 5+5, 10/2)
+  // Loại trừ các trường hợp khung giờ y tế như "13:30 - 14:00", "08:00 - 11:30", "1h - 2h", "13h - 14h", "ngày 23/10"
+  const isTimeRange = /\d{1,2}(?::\d{2}|h)\s*(?:-|đến|tới)\s*\d{1,2}(?::\d{2}|h)/i.test(clean) ||
+                      /(?:hôm nay|ngày mai|thứ\s*\d|\d{1,2}\/\d{1,2})/i.test(clean);
+
+  if (!isTimeRange) {
+    const hasMathOperators = /[\+\*\/=\%\^÷]/.test(clean);
+    const hasDigits = /\d/.test(clean);
+    const isOnlyMathChars = /^[\d\s\+\-\*\/=\.,\(\)\%\^\&÷xX]+$/.test(clean);
+
+    if (
+      (hasMathOperators && hasDigits && isOnlyMathChars) ||
+      /^[\d\s]*[\+\-\*\/=÷xX]{2,}[\d\s]*$/.test(clean) || // vd: 1+=, +=, ++
+      /^[\d\s\+\-\*\/=\.\,\(\)\%\^\&÷]+$/.test(clean) ||
+      /^(giải toán|tính giúp|1\s*\+\s*1|2\s*\+\s*2)/i.test(clean)
+    ) {
+      return {
+        isInvalid: true,
+        message: `⚠️ **Phép tính "${clean}" không phải là thông tin đặt khám hoặc triệu chứng y tế!**\n\nMedSched là hệ thống y tế hỗ trợ đặt lịch khám bệnh với bác sĩ chuyên khoa.\n\n👉 Vui lòng mô tả yêu cầu đặt khám hoặc bấm chọn các phương án có sẵn trên màn hình nhé!`
+      };
+    }
+  }
+
+  // b. Toàn ký tự đặc biệt spam: ???, ..., !!!, ---, @@@, ===, +++
+  if (/^[!@#$%^&*()_+=\-\[\]{}|\\:;"'<>,.?/~`\s]+$/.test(clean) && clean.length >= 2) {
+    return {
+      isInvalid: true,
+      message: `⚠️ Tin nhắn chỉ chứa các ký tự đặc biệt. Vui lòng nhập từ ngữ có nghĩa hoặc bấm chọn các phương án trên màn hình!`
+    };
+  }
+
+  // c. Ký tự lặp spam (vd: aaaaa, zzzzz, 11111)
+  if (/(.)\1{4,}/.test(clean)) {
+    return {
+      isInvalid: true,
+      message: `⚠️ Tin nhắn chứa ký tự lặp vô nghĩa. Vui lòng nhập thông tin rõ ràng để em hỗ trợ bạn tốt nhất nhé!`
+    };
+  }
+
+  // d. Chuỗi gõ phím ngẫu nhiên / vô nghĩa (Gibberish / Keyboard Smash)
+  // Ví dụ: "b sfbsfhnsSFsfn n fsnxtzj", "asdfghjkl", "qwertyuiop"
+  const words = clean.split(/\s+/).filter(w => w.length > 0);
+
+  // d1. Nếu tổng chuỗi dài hơn 6 ký tự mà không chứa bất kỳ nguyên âm nào
+  if (clean.length >= 6 && !VIETNAMESE_VOWELS_REGEX.test(clean)) {
+    return {
+      isInvalid: true,
+      message: `⚠️ Nội dung "${clean}" không có nghĩa rõ ràng trong tiếng Việt. Vui lòng nhập yêu cầu đặt khám cụ thể hoặc bấm chọn các phương án trên màn hình nhé!`
+    };
+  }
+
+  // d2. Nếu có từ dài >= 6 ký tự không chứa nguyên âm nào (vd: sfbsfhnsSFsfn, fsnxtzj)
+  const hasVowellessLongWord = words.some(w => {
+    const lettersOnly = w.replace(/[^a-zA-Zàáảãạăằắẳẵặâầấẩẫậeèéẻẽẹêềếểễệiìíỉĩịoòóỏõọôồốổỗộơờớởỡợuùúủũụưừứửữựyỳýỷỹỵ]/gi, '');
+    return lettersOnly.length >= 6 && !VIETNAMESE_VOWELS_REGEX.test(lettersOnly);
+  });
+
+  // d3. Nếu có từ chứa 5 phụ âm liên tiếp không có nguyên âm xen kẽ
+  const has5ConsecutiveConsonants = /[bcdfghjklmnpqrstvwxz]{5,}/i.test(clean);
+
+  // d4. Các chuỗi gõ phím bàn phím liên tiếp phổ biến
+  const hasKeyboardSmash = /(asdfgh|zxcvbn|qwerty|qwert|hjkl)/i.test(clean);
+
+  if (hasVowellessLongWord || has5ConsecutiveConsonants || hasKeyboardSmash) {
+    return {
+      isInvalid: true,
+      message: `⚠️ Nội dung "${clean}" không có nghĩa rõ ràng. Vui lòng nhập từ ngữ có nghĩa hoặc bấm chọn các phương án trên màn hình nhé!`
+    };
+  }
+
+  return { isInvalid: false };
+}
+
+// 2. Kiểm tra xem nội dung nhập có phải là lưu ý y tế / triệu chứng hợp lệ để ghi vào hồ sơ bác sĩ hay không
+function isLikelyMedicalNote(text: string): boolean {
+  if (!text || text.trim().length < 4) return false;
+  const lower = text.toLowerCase();
+  const MEDICAL_NOTE_KEYWORDS = [
+    'đau', 'dau', 'sốt', 'sot', 'ho', 'ngứa', 'ngua', 'mệt', 'met', 'dị ứng', 'di ung',
+    'viêm', 'loét', 'huyết áp', 'tiểu đường', 'tim mạch', 'bao tử', 'dạ dày',
+    'uống thuốc', 'đơn thuốc', 'toa thuốc', 'tiền sử', 'bệnh án', 'xét nghiệm',
+    'mang thai', 'cho con bú', 'đi lại', 'xe lăn', 'người già', 'trẻ em', 'khám lại',
+    'tái khám', 'kết quả', 'chóng mặt', 'nôn', 'chảy máu', 'khó thở', 'tức ngực',
+    'chấn thương', 'răng', 'mắt', 'tai', 'mũi', 'họng', 'xương', 'khớp'
+  ];
+  return MEDICAL_NOTE_KEYWORDS.some(kw => lower.includes(kw));
+}
+
+// 3. Kiểm tra riêng cho bước chọn triệu chứng ban đầu (CHOOSE_SYMPTOM)
+function isNonMedicalOrSpamInput(text: string): { isInvalid: boolean; message?: string } {
+  // Tiền lọc qua bộ lọc spam toàn cục trước
+  const spamCheck = isSpamOrMathOrGibberishInput(text);
+  if (spamCheck.isInvalid) return spamCheck;
+
   const clean = text.trim();
   const lower = clean.toLowerCase();
 
-  // 1. Phép tính số học (ví dụ: 1+1=, 2*3, 10/2, 5+5=, ...)
-  if (
-    /^[\d\s\+\-\*\/\=\.\,\(\)\%\^\&]+$/.test(clean) ||
-    /^\d+\s*[\+\-\*\/xX÷=]\s*\d+/.test(clean) ||
-    /^(giải toán|tính giúp|1\s*\+\s*1|2\s*\+\s*2)/i.test(clean)
-  ) {
-    return {
-      isInvalid: true,
-      message: `⚠️ **Phép tính "${clean}" không phải là triệu chứng sức khỏe cần khám!**\n\nMedSched là hệ thống y tế hỗ trợ đặt lịch khám bệnh với bác sĩ chuyên khoa.\n\n👉 Vui lòng **mô tả tình trạng sức khỏe bạn đang gặp phải** (ví dụ: *"đau đầu"*, *"sốt cao"*, *"đau bụng"*, *"ngứa da dị ứng"*...) hoặc **bấm chọn vào các thẻ triệu chứng bên dưới** nhé!`
-    };
-  }
-
-  // 2. Toàn ký tự đặc biệt spam: ???, ..., !!!, ---, @@@
-  if (/^[!@#$%^&*()_+=\-\[\]{}|\\:;"'<>,.?/~`\s]+$/.test(clean)) {
-    return {
-      isInvalid: true,
-      message: `⚠️ Vui lòng nhập từ ngữ mô tả triệu chứng sức khỏe rõ ràng (ví dụ: đau họng, sốt, ho, phát ban...) thay vì các ký tự đặc biệt!`
-    };
-  }
-
-  // 3. Từ chào hỏi vu vơ hoặc quá ngắn mà không chứa bất kỳ từ khóa sức khỏe nào
+  // Từ chào hỏi vu vơ hoặc quá ngắn mà không chứa bất kỳ từ khóa sức khỏe nào
   const greetingsOnly = /^(chào|chao|hi|hello|alo|ê|hey|test|abc|xyz|haha|hihi|hehe|ok|vâng|da|dạ|có|không|khong|ai|bot|help)$/i;
   if (greetingsOnly.test(clean) || (clean.length < 3 && !['ho', 'sốt', 'đau'].includes(lower))) {
     return {
@@ -102,7 +180,7 @@ function isNonMedicalOrSpamInput(text: string): { isInvalid: boolean; message?: 
     };
   }
 
-  // 4. Kiểm tra xem có chứa bất kỳ từ khóa y tế, bộ phận cơ thể hoặc dấu hiệu sức khỏe hay không
+  // Kiểm tra xem có chứa bất kỳ từ khóa y tế, bộ phận cơ thể hoặc dấu hiệu sức khỏe hay không
   const HEALTH_INDICATORS = [
     'đau', 'dau', 'nhức', 'nhuc', 'mỏi', 'moi', 'sốt', 'sot', 'ho', 'ngứa', 'ngua',
     'mẩn', 'man', 'rát', 'rat', 'buốt', 'buot', 'mệt', 'met', 'nôn', 'non', 'ói', 'oi',
@@ -2254,13 +2332,25 @@ export default function BookingMethodSelector({
       return;
     }
 
-    // 6. Trường hợp chung / fallback
-    setOtherSymptomDetail(prev => prev ? `${prev}. ${text}` : text);
+    // 6. Trường hợp chung / fallback: Chỉ lưu vào hồ sơ bác sĩ nếu là ghi chú y tế thực sự
+    if (isLikelyMedicalNote(text)) {
+      setOtherSymptomDetail(prev => prev ? `${prev}. ${text}` : text);
+      const aiMsg: ChatMessage = {
+        id: 'msg-' + (Date.now() + 1),
+        sender: 'ai',
+        time: getFormattedTime(),
+        text: `Dạ em đã ghi nhận thêm lưu ý y tế của bạn: "${text}" vào hồ sơ gửi cho bác sĩ ạ! 📋\n\nBạn hãy bấm chọn cơ sở và buổi khám trên màn hình, hoặc nói cho em biết cơ sở bạn muốn đến (như ITC hoặc Bình Tân) nhé!`,
+        isTypingComplete: false,
+      };
+      setMessages(prev => [...prev, userMsg, aiMsg]);
+      return;
+    }
+
     const aiMsg: ChatMessage = {
       id: 'msg-' + (Date.now() + 1),
       sender: 'ai',
       time: getFormattedTime(),
-      text: `Dạ em đã ghi nhận thông tin: "${text}" vào hồ sơ gửi cho bác sĩ ạ! Bạn hãy bấm chọn cơ sở và buổi khám trên màn hình, hoặc nói cho em biết cơ sở bạn muốn đến (như ITC hoặc Bình Tân) nhé!`,
+      text: `Dạ em chưa nhận diện được yêu cầu về cơ sở hoặc thời gian khám từ nội dung: "${text}".\n\n👉 Bạn hãy bấm chọn trực tiếp **Cơ sở** và **Buổi khám** trên màn hình, hoặc nói cho em biết cơ sở bạn muốn đến (như *Chi Nhánh TĐN*, *Tân Phú*) và buổi khám (*buổi sáng*, *buổi chiều*) nhé!`,
       isTypingComplete: false,
     };
     setMessages(prev => [...prev, userMsg, aiMsg]);
@@ -2341,13 +2431,25 @@ export default function BookingMethodSelector({
       return;
     }
 
-    // Fallback
-    setOtherSymptomDetail(prev => prev ? `${prev}. ${text}` : text);
+    // Fallback: Chỉ lưu vào hồ sơ nếu là ghi chú y tế thực tế
+    if (isLikelyMedicalNote(text)) {
+      setOtherSymptomDetail(prev => prev ? `${prev}. ${text}` : text);
+      const aiMsg: ChatMessage = {
+        id: 'msg-' + (Date.now() + 1),
+        sender: 'ai',
+        time: getFormattedTime(),
+        text: `Dạ em đã ghi nhận thêm lưu ý y tế: "${text}" vào hồ sơ khám. Bạn hãy bấm chọn Bác sĩ và khung giờ ưng ý trong danh sách bên dưới nhé!`,
+        isTypingComplete: false,
+      };
+      setMessages(prev => [...prev, userMsg, aiMsg]);
+      return;
+    }
+
     const aiMsg: ChatMessage = {
       id: 'msg-' + (Date.now() + 1),
       sender: 'ai',
       time: getFormattedTime(),
-      text: `Dạ em đã ghi nhận: "${text}". Bạn hãy bấm chọn Bác sĩ và khung giờ ưng ý trong danh sách bên dưới nhé!`,
+      text: `Dạ em chưa nhận diện được tên Bác sĩ hoặc khung giờ từ nội dung: "${text}".\n\n👉 Bạn hãy bấm chọn trực tiếp một Bác sĩ và khung giờ khám trong danh sách bên dưới nhé!`,
       isTypingComplete: false,
     };
     setMessages(prev => [...prev, userMsg, aiMsg]);
@@ -2405,12 +2507,24 @@ export default function BookingMethodSelector({
       return;
     }
 
-    setOtherSymptomDetail(prev => prev ? `${prev}. ${text}` : text);
+    if (isLikelyMedicalNote(text)) {
+      setOtherSymptomDetail(prev => prev ? `${prev}. ${text}` : text);
+      const aiMsg: ChatMessage = {
+        id: 'msg-' + (Date.now() + 1),
+        sender: 'ai',
+        time: getFormattedTime(),
+        text: `Dạ em đã lưu thêm ghi chú y tế: "${text}". Bạn vui lòng quét mã QR chuyển khoản 2.000đ hoặc nhập mã ưu đãi bên dưới để hoàn tất nhé!`,
+        isTypingComplete: false,
+      };
+      setMessages(prev => [...prev, userMsg, aiMsg]);
+      return;
+    }
+
     const aiMsg: ChatMessage = {
       id: 'msg-' + (Date.now() + 1),
       sender: 'ai',
       time: getFormattedTime(),
-      text: `Dạ em đã lưu ghi chú: "${text}". Bạn vui lòng quét mã QR chuyển khoản 2.000đ hoặc nhập mã ưu đãi bên dưới để hoàn tất nhé!`,
+      text: `Dạ em chưa nhận diện được mã ưu đãi hoặc yêu cầu từ: "${text}".\n\n👉 Bạn hãy quét mã VietQR bên dưới để đặt cọc 2.000đ hoặc nhập mã ưu đãi (như **VIP**, **MEDSCHED2026**) nhé!`,
       isTypingComplete: false,
     };
     setMessages(prev => [...prev, userMsg, aiMsg]);
@@ -2420,6 +2534,28 @@ export default function BookingMethodSelector({
   const handleSendInputMessage = async () => {
     const text = inputMessage.trim();
     if (!text || isAiAnalyzing) return;
+
+    // 0. GLOBAL GUARDRAIL: Chặn phép tính toán học, ký tự spam, gibberish/keyboard smash ở TẤT CẢ các bước
+    const spamCheck = isSpamOrMathOrGibberishInput(text);
+    if (spamCheck.isInvalid) {
+      setInputMessage('');
+      const userMsg: ChatMessage = {
+        id: 'msg-' + Date.now(),
+        sender: 'user',
+        time: getFormattedTime(),
+        text: text,
+      };
+      const warningMsg: ChatMessage = {
+        id: 'msg-' + (Date.now() + 1),
+        sender: 'ai',
+        time: getFormattedTime(),
+        text: spamCheck.message || 'Nội dung bạn vừa nhập không hợp lệ.',
+        isTypingComplete: false,
+      };
+      setMessages(prev => [...prev, userMsg, warningMsg]);
+      return;
+    }
+
     setInputMessage('');
 
     const userMsg: ChatMessage = {
@@ -2716,16 +2852,27 @@ export default function BookingMethodSelector({
     } else if (aiStep === 'CONFIRM_PAYMENT') {
       handlePaymentStepNaturalLanguage(text, userMsg);
     } else {
-      // Ở các bước sau, tin nhắn người dùng đóng vai trò là ghi chú bổ sung
-      setOtherSymptomDetail(prev => prev ? `${prev}. ${text}` : text);
-      const aiMsg: ChatMessage = {
-        id: 'msg-' + (Date.now() + 1),
-        sender: 'ai',
-        time: getFormattedTime(),
-        text: `Dạ MedSched em đã lưu ghi chú: "${text}" vào hồ sơ gửi cho bác sĩ. Bạn tiếp tục bấm chọn các bước đặt khám bên dưới nhé!`,
-        isTypingComplete: false,
-      };
-      setMessages(prev => [...prev, userMsg, aiMsg]);
+      // Ở các bước sau, chỉ lưu vào hồ sơ bác sĩ nếu thực sự là ghi chú y tế
+      if (isLikelyMedicalNote(text)) {
+        setOtherSymptomDetail(prev => prev ? `${prev}. ${text}` : text);
+        const aiMsg: ChatMessage = {
+          id: 'msg-' + (Date.now() + 1),
+          sender: 'ai',
+          time: getFormattedTime(),
+          text: `Dạ MedSched em đã lưu ghi chú y tế: "${text}" vào hồ sơ gửi cho bác sĩ. Bạn tiếp tục bấm chọn các bước đặt khám bên dưới nhé!`,
+          isTypingComplete: false,
+        };
+        setMessages(prev => [...prev, userMsg, aiMsg]);
+      } else {
+        const aiMsg: ChatMessage = {
+          id: 'msg-' + (Date.now() + 1),
+          sender: 'ai',
+          time: getFormattedTime(),
+          text: `Dạ MedSched chưa nhận diện được yêu cầu từ: "${text}". Bạn vui lòng thao tác trực tiếp trên các mục hiển thị trên màn hình nhé!`,
+          isTypingComplete: false,
+        };
+        setMessages(prev => [...prev, userMsg, aiMsg]);
+      }
     }
   };
 
