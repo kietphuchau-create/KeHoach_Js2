@@ -51,11 +51,21 @@ export default function BookingMethodModal({
     };
   }, []);
 
+  useEffect(() => {
+    if (isModalOpen) {
+      const prevOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = prevOverflow;
+      };
+    }
+  }, [isModalOpen]);
+
   if (!isModalOpen) return null;
 
   return (
-    <div className={`fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-md animate-fadeIn transition-all ${
-      viewMode === 'ai' ? 'p-0 sm:p-2 lg:p-3 xl:p-4' : 'p-3 sm:p-6'
+    <div className={`fixed inset-0 z-[999] flex items-center justify-center bg-slate-950/80 backdrop-blur-md animate-fadeIn transition-all overflow-hidden ${
+      viewMode === 'ai' ? 'p-1.5 sm:p-2.5 lg:p-3.5 xl:p-4' : 'p-3 sm:p-6'
     }`}>
       <BookingMethodSelector
         isModal={true}

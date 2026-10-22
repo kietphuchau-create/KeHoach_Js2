@@ -2720,7 +2720,7 @@ export default function BookingMethodSelector({
       className={`relative w-full mx-auto transition-all duration-300 ${
         viewMode === 'ai'
           ? isModal
-            ? 'w-full h-[92vh] max-h-[94vh] max-w-full lg:max-w-6xl xl:max-w-7xl flex flex-col min-h-0'
+            ? 'w-full h-[calc(100dvh-1rem)] sm:h-[calc(100dvh-1.5rem)] lg:h-[calc(100dvh-2rem)] max-h-[calc(100dvh-1rem)] sm:max-h-[calc(100dvh-1.5rem)] lg:max-h-[calc(100dvh-2rem)] max-w-full lg:max-w-6xl xl:max-w-7xl flex flex-col min-h-0'
             : 'w-full h-full max-h-full max-w-full lg:max-w-6xl xl:max-w-7xl flex flex-col min-h-0'
           : 'max-w-2xl my-auto'
       }`}
