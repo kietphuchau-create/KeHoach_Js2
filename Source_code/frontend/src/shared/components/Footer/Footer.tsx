@@ -8,11 +8,11 @@ export default function Footer() {
   const [isVisible, setIsVisible] = useState(false);
   const footerRef = useRef<HTMLElement>(null);
 
-  if (pathname === '/booking-method') {
-    return null;
-  }
-
   useEffect(() => {
+    if (pathname === '/booking-method') {
+      return;
+    }
+
     const observer = new IntersectionObserver(
       ([entry]) => {
         setIsVisible(entry.isIntersecting);
@@ -28,7 +28,11 @@ export default function Footer() {
     }
 
     return () => observer.disconnect();
-  }, []);
+  }, [pathname]);
+
+  if (pathname === '/booking-method') {
+    return null;
+  }
 
   return (
     <footer
