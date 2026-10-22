@@ -1015,15 +1015,33 @@ export const api = {
   },
 
   async triggerAutoScheduleWeek() {
-    return request<{
-      workDate: string;
-      doctorsScheduledCount: number;
-      totalShiftsCreated: number;
-      totalSlotsCreated: number;
-      message: string;
-    }>("/doctor/schedules/auto-generate-week", {
-      method: "POST",
-    });
+    try {
+      return await request<{
+        workDate?: string;
+        targetDate?: string;
+        doctorsScheduledCount: number;
+        totalShiftsCreated: number;
+        totalSlotsCreated: number;
+        message: string;
+      }>("/doctor/schedules/auto-generate-week", {
+        method: "POST",
+      });
+    } catch (err: any) {
+      // Fallback tương thích ngược: nếu backend trên Render chưa deploy endpoint /auto-generate-week (bị lỗi 405 Method Not Allowed hoặc 404)
+      if (err?.message && (err.message.includes("405") || err.message.includes("404"))) {
+        return await request<{
+          workDate?: string;
+          targetDate?: string;
+          doctorsScheduledCount: number;
+          totalShiftsCreated: number;
+          totalSlotsCreated: number;
+          message: string;
+        }>("/doctor/schedules/auto-generate-tomorrow", {
+          method: "POST",
+        });
+      }
+      throw err;
+    }
   },
 
   async getStatisticsOverview(params?: {
