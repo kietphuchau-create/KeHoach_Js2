@@ -25,7 +25,9 @@ import {
   ChevronRight,
   ShieldCheck,
   Award,
-  Pencil
+  Pencil,
+  Loader2,
+  Copy
 } from 'lucide-react';
 import { api, getAuthToken, getAuthUser } from '@/shared/lib/api';
 
@@ -335,9 +337,7 @@ interface ClinicServiceOption {
 }
 
 const CLINIC_SERVICES: ClinicServiceOption[] = [
-  { id: 'STANDARD', label: 'Khám Tiêu Chuẩn', feeText: '200.000 đ', icon: '🩺', desc: 'Khám theo BHYT / Đa khoa thường quy' },
-  { id: 'VIP', label: 'Khám Chuyên Gia VIP', feeText: '350.000 đ', icon: '⭐', desc: 'Khám cùng PGS.TS / Trưởng Khoa' },
-  { id: 'FAST', label: 'Khám Nhanh Ưu Tiên', feeText: '250.000 đ', icon: '⚡', desc: 'Lối đi riêng, có điều dưỡng hỗ trợ 1:1' },
+  { id: 'STANDARD', label: 'Khám Chuyên Khoa Tiêu Chuẩn', feeText: '200.000 đ', icon: '🩺', desc: 'Khám lâm sàng, chẩn đoán và tư vấn phác đồ điều trị theo quy chuẩn phòng khám MedSched' },
 ];
 
 interface TimeShiftOption {
@@ -348,9 +348,8 @@ interface TimeShiftOption {
 }
 
 const TIME_SHIFTS: TimeShiftOption[] = [
-  { id: 'MORNING', label: 'Buổi Sáng', timeRange: '07:30 - 11:30', icon: '🌅' },
-  { id: 'AFTERNOON', label: 'Buổi Chiều', timeRange: '13:00 - 16:30', icon: '🌇' },
-  { id: 'EVENING', label: 'Khám Ngoài Giờ', timeRange: '17:00 - 19:30', icon: '🌙' },
+  { id: 'MORNING', label: 'Buổi Sáng', timeRange: '08:00 - 11:30', icon: '🌅' },
+  { id: 'AFTERNOON', label: 'Buổi Chiều', timeRange: '13:30 - 16:00', icon: '🌇' },
 ];
 
 interface DemoDoctor {
@@ -483,14 +482,105 @@ const DEMO_DOCTORS: DemoDoctor[] = [
   }
 ];
 
-const AVAILABLE_SLOTS = [
-  '08:30 - 09:00',
-  '09:15 - 09:45',
-  '10:00 - 10:30',
-  '14:00 - 14:30',
-  '15:00 - 15:30',
-  '15:45 - 16:15'
+interface ClinicTimeSlot {
+  time: string;
+  startMinutes: number;
+  session: 'MORNING' | 'AFTERNOON';
+}
+
+const BASE_TIME_SLOTS: ClinicTimeSlot[] = [
+  // Buổi Sáng (08:00 - 11:30)
+  { time: '08:00 - 08:30', startMinutes: 8 * 60, session: 'MORNING' },
+  { time: '08:30 - 09:00', startMinutes: 8 * 60 + 30, session: 'MORNING' },
+  { time: '09:00 - 09:30', startMinutes: 9 * 60, session: 'MORNING' },
+  { time: '09:30 - 10:00', startMinutes: 9 * 60 + 30, session: 'MORNING' },
+  { time: '10:00 - 10:30', startMinutes: 10 * 60, session: 'MORNING' },
+  { time: '10:30 - 11:00', startMinutes: 10 * 60 + 30, session: 'MORNING' },
+  // Buổi Chiều (13:30 - 16:00)
+  { time: '13:30 - 14:00', startMinutes: 13 * 60 + 30, session: 'AFTERNOON' },
+  { time: '14:00 - 14:30', startMinutes: 14 * 60, session: 'AFTERNOON' },
+  { time: '14:30 - 15:00', startMinutes: 14 * 60 + 30, session: 'AFTERNOON' },
+  { time: '15:00 - 15:30', startMinutes: 15 * 60, session: 'AFTERNOON' },
+  { time: '15:30 - 16:00', startMinutes: 15 * 60 + 30, session: 'AFTERNOON' },
 ];
+
+// Helper xử lý ngày giờ đồng bộ chuẩn với BookingForm
+const getTodayISODate = (): string => {
+  const now = new Date();
+  const day = String(now.getDate()).padStart(2, '0');
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const year = now.getFullYear();
+  return `${year}-${month}-${day}`;
+};
+
+const isPastAllTodaySlots = (): boolean => {
+  const now = new Date();
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  return currentMinutes >= 15 * 60 + 30; // 15:30
+};
+
+const getNextAvailableWeekday = (baseDate?: Date): string => {
+  const d = baseDate ? new Date(baseDate) : new Date();
+  if (!baseDate && isPastAllTodaySlots()) {
+    d.setDate(d.getDate() + 1);
+  }
+  // Bỏ qua Thứ 7 (6) và Chủ Nhật (0)
+  while (d.getDay() === 0 || d.getDay() === 6) {
+    d.setDate(d.getDate() + 1);
+  }
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${year}-${month}-${day}`;
+};
+
+const formatVietnameseFullDate = (iso: string): string => {
+  if (!iso) return '';
+  const parts = iso.split('-');
+  if (parts.length !== 3) return iso;
+  const [y, m, d] = parts.map(Number);
+  const dateObj = new Date(y, m - 1, d);
+  const dayOfWeek = dateObj.getDay();
+  const dayNames = ['Chủ Nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
+  const dayName = dayNames[dayOfWeek] || '';
+  return `${dayName}, ${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
+};
+
+const getUpcomingWeekdays = (count: number = 5): Array<{ iso: string; label: string; subLabel: string }> => {
+  const result: Array<{ iso: string; label: string; subLabel: string }> = [];
+  const todayIso = getTodayISODate();
+  const cur = new Date();
+  if (isPastAllTodaySlots()) {
+    cur.setDate(cur.getDate() + 1);
+  }
+  while (result.length < count) {
+    if (cur.getDay() !== 0 && cur.getDay() !== 6) {
+      const day = String(cur.getDate()).padStart(2, '0');
+      const month = String(cur.getMonth() + 1).padStart(2, '0');
+      const year = cur.getFullYear();
+      const iso = `${year}-${month}-${day}`;
+      const dayNames = ['Chủ Nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
+      const dayName = dayNames[cur.getDay()];
+      
+      let label = `${dayName} (${day}/${month})`;
+      if (iso === todayIso) {
+        label = `Hôm nay (${day}/${month})`;
+      } else {
+        const tom = new Date();
+        tom.setDate(tom.getDate() + 1);
+        const tomDay = String(tom.getDate()).padStart(2, '0');
+        const tomMonth = String(tom.getMonth() + 1).padStart(2, '0');
+        const tomIso = `${tom.getFullYear()}-${tomMonth}-${tomDay}`;
+        if (iso === tomIso) {
+          label = `Ngày mai (${day}/${month})`;
+        }
+      }
+      result.push({ iso, label, subLabel: `${day}/${month}/${year}` });
+    }
+    cur.setDate(cur.getDate() + 1);
+  }
+  return result;
+};
 
 // Cấu hình ngân hàng VietQR chính thức của Trưởng nhóm (KienlongBank)
 const VIETQR_BANK_CONFIG = {
@@ -540,16 +630,47 @@ export default function BookingMethodSelector({
   const [selectedAssociated, setSelectedAssociated] = useState<string>('');
   const [otherSymptomDetail, setOtherSymptomDetail] = useState<string>('');
 
-  // Bước 3: Chi nhánh & Dịch vụ phòng khám
+  // Bước 3: Chi nhánh & Dịch vụ phòng khám & Ngày khám
   const [selectedBranch, setSelectedBranch] = useState<ClinicBranch>(CLINIC_BRANCHES[0]);
   const [selectedServiceId, setSelectedServiceId] = useState<string>('STANDARD');
+  const [bookingDate, setBookingDate] = useState<string>(() => getNextAvailableWeekday());
   const [selectedShiftId, setSelectedShiftId] = useState<string>('MORNING');
+
+  // Danh sách 5 ngày làm việc sắp tới (Thứ 2 đến Thứ 6)
+  const upcomingWeekdays = useMemo(() => getUpcomingWeekdays(5), []);
+
+  // Lọc các khung giờ theo Buổi và Ngày khám (tự động disable giờ đã qua nếu là hôm nay)
+  const shiftSlots = useMemo(() => {
+    const isToday = bookingDate === getTodayISODate();
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+    return BASE_TIME_SLOTS.filter(s => s.session === selectedShiftId).map(slot => {
+      const isPast = isToday && slot.startMinutes <= currentMinutes;
+      return {
+        ...slot,
+        disabled: isPast,
+        label: isPast ? 'Đã qua giờ' : 'Khả dụng',
+      };
+    });
+  }, [selectedShiftId, bookingDate]);
 
   // Bước 4: Bác sĩ & Khung giờ & Bộ lọc
   const [selectedDoctor, setSelectedDoctor] = useState<DemoDoctor | null>(null);
-  const [selectedSlotTime, setSelectedSlotTime] = useState<string>(AVAILABLE_SLOTS[0]);
-  const [bookingDate, setBookingDate] = useState<string>('Hôm nay');
+  const [selectedSlotTime, setSelectedSlotTime] = useState<string>('08:00 - 08:30');
   const [doctorFilter, setDoctorFilter] = useState<'ALL' | 'EXPERT' | 'MALE' | 'FEMALE'>('ALL');
+
+  // Tự động đồng bộ slot hợp lệ đầu tiên khi đổi buổi hoặc đổi ngày
+  useEffect(() => {
+    const firstAvailable = shiftSlots.find(s => !s.disabled);
+    if (firstAvailable) {
+      if (!shiftSlots.some(s => s.time === selectedSlotTime && !s.disabled)) {
+        setSelectedSlotTime(firstAvailable.time);
+      }
+    } else {
+      setSelectedSlotTime('');
+    }
+  }, [shiftSlots]);
 
   // Bước 5: Thông tin bệnh nhân & Thanh toán cọc / Voucher
   const [patientName, setPatientName] = useState<string>('');
@@ -558,7 +679,56 @@ export default function BookingMethodSelector({
   const [promoCodeInput, setPromoCodeInput] = useState<string>('');
   const [promoApplied, setPromoApplied] = useState<boolean>(false);
   const [promoMessage, setPromoMessage] = useState<string>('');
+  const [transferBookingCode] = useState<string>(() => {
+    return 'MED' + Math.floor(100000 + Math.random() * 900000);
+  });
   const [bookingSuccessCode, setBookingSuccessCode] = useState<string>('');
+  const [paymentDetected, setPaymentDetected] = useState<boolean>(false);
+  const [isCheckingManual, setIsCheckingManual] = useState<boolean>(false);
+  const [checkStatusNotice, setCheckStatusNotice] = useState<string | null>(null);
+  const [isAutoTransitioning, setIsAutoTransitioning] = useState<boolean>(false);
+  const [copiedTransferContent, setCopiedTransferContent] = useState<boolean>(false);
+
+  // Khởi tạo payment cọc trên hệ thống khi vào Bước 5
+  useEffect(() => {
+    if (aiStep !== 'CONFIRM_PAYMENT') return;
+    api.createRealPayment({
+      bookingCode: transferBookingCode,
+      amount: 2000,
+      paymentType: 'DEPOSIT',
+      method: 'BANK_TRANSFER',
+    }).catch((err) => {
+      console.warn('Khởi tạo giao dịch cọc 2k AI booking:', err);
+    });
+  }, [aiStep, transferBookingCode]);
+
+  // Tự động nhận diện khi người bệnh đã chuyển khoản thành công qua VietQR
+  useEffect(() => {
+    if (aiStep !== 'CONFIRM_PAYMENT' || paymentDetected || isAutoTransitioning) return;
+
+    const intervalId = setInterval(async () => {
+      try {
+        const res = await api.checkRealPaymentStatus({
+          bookingCode: transferBookingCode,
+        });
+
+        if (res && res.success && res.status === 'SUCCEEDED') {
+          clearInterval(intervalId);
+          setPaymentDetected(true);
+          setIsAutoTransitioning(true);
+          setBookingSuccessCode(transferBookingCode);
+          // Tự động chuyển sang thông báo thành công sau 1.2s
+          setTimeout(() => {
+            setAiStep('COMPLETED');
+          }, 1200);
+        }
+      } catch {
+        // Im lặng trong quá trình polling định kỳ
+      }
+    }, 2500);
+
+    return () => clearInterval(intervalId);
+  }, [aiStep, paymentDetected, isAutoTransitioning, transferBookingCode]);
 
   // Tự động điền thông tin nếu đã đăng nhập
   useEffect(() => {
@@ -783,25 +953,78 @@ export default function BookingMethodSelector({
     setAiStep('CONFIRM_PAYMENT');
   };
 
-  // Bước 5: Áp dụng mã khuyến mãi
+  // Bước 5: Áp dụng mã khuyến mãi (Tự động chuyển bước khi thành công, không cần nút xác nhận)
   const handleApplyPromoCode = () => {
     const code = promoCodeInput.trim().toUpperCase();
     if (!code) return;
     const validCodes = ['MEDSCHED2026', 'VIP', 'GIAOVIEN', 'MEDFREE', 'TESTER', 'UDAI2K', 'GIAM100', 'FREE'];
     if (validCodes.includes(code)) {
       setPromoApplied(true);
-      setPromoMessage(`Áp dụng mã ${code} thành công! Bạn được miễn phí 100% tiền đặt cọc (0 đ).`);
+      setIsAutoTransitioning(true);
+      setPromoMessage(`Áp dụng mã ${code} thành công! Bạn được miễn phí 100% tiền đặt cọc (0 đ). Đang chuyển sang phiếu hẹn...`);
+
+      // Ghi nhận voucher 0đ ở backend
+      api.confirmRealPayment({
+        bookingCode: transferBookingCode,
+        paymentType: 'PROMO_FREE',
+        amount: 0,
+        promoCode: code,
+      }).catch((err) => {
+        console.warn('Ghi nhận voucher 0đ AI booking:', err);
+      });
+
+      // Tự động chuyển sang Bước 6: COMPLETED
+      setTimeout(() => {
+        setBookingSuccessCode(transferBookingCode);
+        setAiStep('COMPLETED');
+      }, 1200);
     } else {
       setPromoApplied(false);
       setPromoMessage('Mã ưu đãi không hợp lệ hoặc đã hết lượt sử dụng.');
     }
   };
 
-  // Bước 5 -> Bước 6: Xác nhận hoàn tất đặt chỗ
+  // Sao chép nội dung chuyển khoản tiện lợi
+  const handleCopyTransferContent = () => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(`MEDPAY ${transferBookingCode}`);
+      setCopiedTransferContent(true);
+      setTimeout(() => setCopiedTransferContent(false), 2000);
+    }
+  };
+
+  // Kiểm tra thủ công ngay lập tức nếu người dùng muốn đối soát tức thì
+  const handleManualCheckPayment = async () => {
+    if (isCheckingManual || paymentDetected || isAutoTransitioning) return;
+    setIsCheckingManual(true);
+    setCheckStatusNotice(null);
+    try {
+      const res = await api.checkRealPaymentStatus({
+        bookingCode: transferBookingCode,
+      });
+
+      if (res && res.success && res.status === 'SUCCEEDED') {
+        setPaymentDetected(true);
+        setIsAutoTransitioning(true);
+        setBookingSuccessCode(transferBookingCode);
+        setTimeout(() => {
+          setAiStep('COMPLETED');
+        }, 800);
+      } else {
+        setCheckStatusNotice(
+          `Hệ thống chưa ghi nhận biến động số dư 2.000 đ cho nội dung "MEDPAY ${transferBookingCode}". Nếu bạn vừa quét mã, vui lòng đợi 5-10 giây để liên ngân hàng xử lý hoặc bấm kiểm tra lại.`
+        );
+      }
+    } catch {
+      setCheckStatusNotice('Lỗi kết nối kiểm tra ngân hàng. Hệ thống vẫn đang tiếp tục lắng nghe tự động...');
+    } finally {
+      setIsCheckingManual(false);
+    }
+  };
+
+  // Bước 5 -> Bước 6: Xác nhận hoàn tất đặt chỗ (fallback)
   const handleConfirmFinalBooking = () => {
-    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-    const generatedCode = `MED-${randomSuffix}`;
-    setBookingSuccessCode(generatedCode);
+    setBookingSuccessCode(transferBookingCode);
     setAiStep('COMPLETED');
   };
 
@@ -1354,49 +1577,103 @@ export default function BookingMethodSelector({
                   </div>
                 </div>
 
-                {/* Lựa chọn 2: Chọn Loại hình / Gói khám phòng khám */}
+                {/* Lựa chọn 2: Gói dịch vụ phòng khám chuẩn hoá (Đã loại bỏ các gói ảo) */}
                 <div className="space-y-1.5 pt-1">
                   <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                     <span className="w-5 h-5 rounded-full bg-purple-600 text-white text-[10px] flex items-center justify-center font-bold">2</span>
-                    Chọn gói dịch vụ phòng khám:
+                    Gói dịch vụ phòng khám:
                   </span>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
-                    {CLINIC_SERVICES.map((srv) => {
-                      const isSelected = selectedServiceId === srv.id;
+                  <div className="p-3 bg-gradient-to-r from-purple-50 via-indigo-50/40 to-white rounded-2xl border-2 border-purple-200/90 flex items-center justify-between shadow-2xs">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl bg-purple-600 text-white flex items-center justify-center text-base shadow-xs shrink-0">
+                        🩺
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <h4 className="text-xs sm:text-sm font-extrabold text-slate-900">Khám Chuyên Khoa Tiêu Chuẩn</h4>
+                          <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">Quy chuẩn phòng khám</span>
+                        </div>
+                        <p className="text-[10.5px] text-slate-500 mt-0.5 line-clamp-1">
+                          Khám lâm sàng, chẩn đoán triệu chứng &amp; tư vấn phác đồ điều trị cùng bác sĩ
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0 pl-2">
+                      <span className="text-xs sm:text-sm font-black text-purple-700 font-mono">200.000 đ</span>
+                      <span className="text-[9.5px] text-slate-400 block font-medium">BHYT / Đa khoa</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Lựa chọn 3: Chọn Ngày khám bệnh (Thứ 2 - Thứ 6) */}
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <span className="w-5 h-5 rounded-full bg-purple-600 text-white text-[10px] flex items-center justify-center font-bold">3</span>
+                      Chọn ngày khám bệnh (Thứ 2 - Thứ 6):
+                    </span>
+                    <span className="text-[10px] text-purple-700 font-bold">
+                      Đang chọn: {formatVietnameseFullDate(bookingDate)}
+                    </span>
+                  </div>
+
+                  {/* Chips chọn ngày nhanh 5 ngày làm việc kế tiếp */}
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
+                    {upcomingWeekdays.map((item) => {
+                      const isSelected = bookingDate === item.iso;
                       return (
                         <button
-                          key={srv.id}
+                          key={item.iso}
                           type="button"
-                          onClick={() => setSelectedServiceId(srv.id)}
-                          className={`p-2.5 text-left rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+                          onClick={() => setBookingDate(item.iso)}
+                          className={`p-2 rounded-xl border text-center transition-all cursor-pointer ${
                             isSelected
-                              ? 'bg-purple-100/90 border-purple-600 text-purple-950 font-bold shadow-2xs'
-                              : 'bg-slate-50 hover:bg-purple-50/50 border-slate-200 text-slate-700'
+                              ? 'bg-purple-600 text-white border-purple-600 font-bold shadow-2xs'
+                              : 'bg-slate-50 hover:bg-purple-50/70 border-slate-200 text-slate-700'
                           }`}
                         >
-                          <div>
-                            <div className="flex items-center gap-1 text-xs">
-                              <span>{srv.icon}</span>
-                              <span className="font-bold">{srv.label}</span>
-                            </div>
-                            <span className="text-[10px] text-purple-700 font-semibold block mt-0.5">
-                              {srv.feeText}
-                            </span>
-                          </div>
-                          {isSelected && <Check size={14} className="text-purple-700 shrink-0" />}
+                          <span className="block text-[11px] leading-tight font-bold">{item.label}</span>
+                          <span className={`block text-[9.5px] mt-0.5 ${isSelected ? 'text-purple-100' : 'text-slate-400'}`}>
+                            {item.subLabel}
+                          </span>
                         </button>
                       );
                     })}
                   </div>
+
+                  {/* Ô chọn ngày tùy chỉnh */}
+                  <div className="flex items-center justify-between gap-2 pt-1 text-[11px] text-slate-600 bg-slate-50 p-2 rounded-xl border border-slate-200/80">
+                    <span className="flex items-center gap-1 text-[10.5px]">
+                      <Calendar size={13} className="text-purple-600" />
+                      <span>Hoặc chọn ngày khác:</span>
+                    </span>
+                    <input
+                      type="date"
+                      min={getTodayISODate()}
+                      value={bookingDate}
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          const selected = new Date(e.target.value);
+                          if (selected.getDay() === 0 || selected.getDay() === 6) {
+                            alert('Phòng khám MedSched chỉ làm việc từ Thứ 2 đến Thứ 6. Hệ thống tự động chuyển sang ngày làm việc tiếp theo.');
+                            setBookingDate(getNextAvailableWeekday(selected));
+                          } else {
+                            setBookingDate(e.target.value);
+                          }
+                        }
+                      }}
+                      className="p-1 px-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 cursor-pointer"
+                    />
+                  </div>
                 </div>
 
-                {/* Lựa chọn 3: Chọn Buổi đến khám */}
+                {/* Lựa chọn 4: Chọn Buổi đến phòng khám */}
                 <div className="space-y-1.5 pt-1">
                   <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                    <span className="w-5 h-5 rounded-full bg-purple-600 text-white text-[10px] flex items-center justify-center font-bold">3</span>
+                    <span className="w-5 h-5 rounded-full bg-purple-600 text-white text-[10px] flex items-center justify-center font-bold">4</span>
                     Chọn buổi đến phòng khám:
                   </span>
-                  <div className="grid grid-cols-3 gap-1.5">
+                  <div className="grid grid-cols-2 gap-2">
                     {TIME_SHIFTS.map((shift) => {
                       const isSelected = selectedShiftId === shift.id;
                       return (
@@ -1404,14 +1681,14 @@ export default function BookingMethodSelector({
                           key={shift.id}
                           type="button"
                           onClick={() => setSelectedShiftId(shift.id)}
-                          className={`p-2 text-center rounded-xl border transition-all cursor-pointer ${
+                          className={`p-2.5 text-center rounded-xl border-2 transition-all cursor-pointer ${
                             isSelected
                               ? 'bg-purple-600 text-white border-purple-600 font-bold shadow-2xs'
                               : 'bg-slate-50 hover:bg-purple-50/50 border-slate-200 text-slate-700'
                           }`}
                         >
-                          <span className="block text-xs">{shift.icon} {shift.label}</span>
-                          <span className={`text-[9.5px] block mt-0.5 ${isSelected ? 'text-purple-100' : 'text-slate-500'}`}>
+                          <span className="block text-xs font-bold">{shift.icon} {shift.label}</span>
+                          <span className={`text-[10px] block mt-0.5 ${isSelected ? 'text-purple-100' : 'text-slate-500'}`}>
                             {shift.timeRange}
                           </span>
                         </button>
@@ -1543,28 +1820,54 @@ export default function BookingMethodSelector({
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                       <span className="w-5 h-5 rounded-full bg-purple-600 text-white text-[10px] flex items-center justify-center font-bold">3</span>
-                      Chọn Giờ khám khả dụng ({bookingDate}):
+                      Chọn Giờ khám khả dụng:
                     </span>
-                    <span className="text-[10px] text-emerald-700 font-bold">
-                      🟢 Còn {AVAILABLE_SLOTS.length} vị trí trống
+                    <span className="text-[10px] text-purple-700 font-bold bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200">
+                      📅 {formatVietnameseFullDate(bookingDate)}
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-3 sm:grid-cols-3 gap-2">
-                    {AVAILABLE_SLOTS.map((slot, idx) => {
-                      const isSelected = selectedSlotTime === slot;
+                  {/* Nút chuyển đổi nhanh Buổi Sáng / Buổi Chiều ngay tại Bước 4 */}
+                  <div className="flex gap-2">
+                    {TIME_SHIFTS.map((shift) => (
+                      <button
+                        key={shift.id}
+                        type="button"
+                        onClick={() => setSelectedShiftId(shift.id)}
+                        className={`flex-1 py-1 px-2 rounded-lg text-xs font-bold border transition cursor-pointer flex items-center justify-center gap-1 ${
+                          selectedShiftId === shift.id
+                            ? 'bg-purple-100 text-purple-900 border-purple-400 shadow-2xs'
+                            : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        <span>{shift.icon}</span>
+                        <span>{shift.label} ({shift.timeRange})</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Lưới các khung giờ chuẩn y tế */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {shiftSlots.map((slot, idx) => {
+                      const isSelected = selectedSlotTime === slot.time;
                       return (
                         <button
                           key={idx}
                           type="button"
-                          onClick={() => setSelectedSlotTime(slot)}
-                          className={`py-2 px-2 text-xs font-bold rounded-xl border transition-all cursor-pointer text-center ${
-                            isSelected
-                              ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
-                              : 'bg-slate-50 hover:bg-purple-50 text-slate-700 border-slate-200'
+                          disabled={slot.disabled}
+                          onClick={() => !slot.disabled && setSelectedSlotTime(slot.time)}
+                          className={`py-2 px-2 text-xs font-bold rounded-xl border transition-all text-center flex flex-col items-center justify-center gap-0.5 ${
+                            slot.disabled
+                              ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-60'
+                              : isSelected
+                              ? 'bg-purple-600 text-white border-purple-600 shadow-sm cursor-pointer'
+                              : 'bg-slate-50 hover:bg-purple-50 text-slate-700 border-slate-200 cursor-pointer'
                           }`}
                         >
-                          {slot}
+                          <span>{slot.time}</span>
+                          <span className={`text-[9px] ${isSelected ? 'text-purple-200' : slot.disabled ? 'text-slate-400' : 'text-emerald-600'}`}>
+                            {slot.label}
+                          </span>
                         </button>
                       );
                     })}
@@ -1609,13 +1912,15 @@ export default function BookingMethodSelector({
                       <span className="font-bold text-slate-900">{selectedDoctor?.room}</span>
                     </div>
                     <div>
-                      <span className="text-slate-500 block">Thời gian:</span>
-                      <span className="font-bold text-purple-700">{selectedSlotTime} ({TIME_SHIFTS.find(s => s.id === selectedShiftId)?.label})</span>
+                      <span className="text-slate-500 block">Thời gian &amp; Ngày khám:</span>
+                      <span className="font-bold text-purple-700">
+                        {selectedSlotTime} • {formatVietnameseFullDate(bookingDate)}
+                      </span>
                     </div>
                     <div>
-                      <span className="text-slate-500 block">Cơ sở & Gói khám:</span>
+                      <span className="text-slate-500 block">Cơ sở &amp; Gói khám:</span>
                       <span className="font-bold text-slate-900 line-clamp-1">
-                        {selectedBranch.shortName} • {CLINIC_SERVICES.find(s => s.id === selectedServiceId)?.label}
+                        {selectedBranch.shortName} • Khám Tiêu Chuẩn (200.000 đ)
                       </span>
                     </div>
                     {otherSymptomDetail && (
@@ -1703,31 +2008,93 @@ export default function BookingMethodSelector({
 
                   {/* TAB 1: QUÉT MÃ VIETQR CHUYỂN 2K */}
                   {paymentTab === 'vietqr' && (
-                    <div className="p-3 bg-white rounded-xl border border-purple-100 flex flex-col sm:flex-row items-center gap-3">
-                      <div className="w-28 h-28 bg-white border border-slate-200 rounded-xl p-1 shadow-2xs shrink-0 flex items-center justify-center">
-                        <img
-                          src={`https://img.vietqr.io/image/${VIETQR_BANK_CONFIG.bankId}-${VIETQR_BANK_CONFIG.accountNo}-compact2.png?amount=2000&addInfo=MED%20${patientPhone || 'DATLICH'}&accountName=${encodeURIComponent(VIETQR_BANK_CONFIG.accountName)}`}
-                          alt="VietQR 2000d"
-                          className="w-full h-full object-contain"
-                        />
+                    <div className="space-y-3">
+                      <div className="p-3 bg-white rounded-xl border border-purple-100 flex flex-col sm:flex-row items-center gap-3">
+                        <div className="w-28 h-28 bg-white border border-slate-200 rounded-xl p-1 shadow-2xs shrink-0 flex items-center justify-center">
+                          <img
+                            src={`https://img.vietqr.io/image/${VIETQR_BANK_CONFIG.bankId}-${VIETQR_BANK_CONFIG.accountNo}-compact2.png?amount=2000&addInfo=MEDPAY%20${transferBookingCode}&accountName=${encodeURIComponent(VIETQR_BANK_CONFIG.accountName)}`}
+                            alt="VietQR 2000d"
+                            className="w-full h-full object-contain"
+                          />
+                        </div>
+                        <div className="text-[11px] text-slate-700 space-y-1 flex-1 text-center sm:text-left">
+                          <p className="font-bold text-slate-900">
+                            Ngân hàng: {VIETQR_BANK_CONFIG.bankName}
+                          </p>
+                          <p>STK: <span className="font-extrabold text-purple-800">{VIETQR_BANK_CONFIG.accountNo}</span></p>
+                          <p>Chủ TK: <span className="font-bold">{VIETQR_BANK_CONFIG.accountName}</span></p>
+                          <p>Số tiền: <span className="font-extrabold text-emerald-700 text-xs">2.000 VNĐ</span></p>
+                          <div className="flex items-center justify-center sm:justify-start gap-1 pt-0.5">
+                            <span className="text-slate-600">Nội dung CK:</span>
+                            <span className="font-mono font-extrabold text-purple-900 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
+                              MEDPAY {transferBookingCode}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={handleCopyTransferContent}
+                              className="p-1 text-purple-700 hover:text-purple-950 hover:bg-purple-100 rounded transition cursor-pointer"
+                              title="Sao chép nội dung chuyển khoản"
+                            >
+                              {copiedTransferContent ? <Check size={12} className="text-emerald-600" /> : <Copy size={12} />}
+                            </button>
+                          </div>
+                          <p className="text-[10px] text-slate-500 italic pt-0.5">
+                            Mở app ngân hàng quét mã để giữ chỗ ngay tức thì.
+                          </p>
+                        </div>
                       </div>
-                      <div className="text-[11px] text-slate-700 space-y-1 flex-1 text-center sm:text-left">
-                        <p className="font-bold text-slate-900">
-                          Ngân hàng: {VIETQR_BANK_CONFIG.bankName}
-                        </p>
-                        <p>STK: <span className="font-extrabold text-purple-800">{VIETQR_BANK_CONFIG.accountNo}</span></p>
-                        <p>Chủ TK: <span className="font-bold">{VIETQR_BANK_CONFIG.accountName}</span></p>
-                        <p>Số tiền: <span className="font-extrabold text-emerald-700 text-xs">2.000 VNĐ</span></p>
-                        <p className="text-[10px] text-slate-500 italic">
-                          Mở app ngân hàng quét mã để giữ chỗ ngay tức thì.
-                        </p>
-                      </div>
+
+                      {/* KHUNG TỰ ĐỘNG BẮT GIAO DỊCH CHUYỂN KHOẢN (THAY THẾ NÚT XÁC NHẬN) */}
+                      {paymentDetected || isAutoTransitioning ? (
+                        <div className="p-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-2xl flex items-center justify-center gap-3 shadow-lg shadow-emerald-500/20 animate-scaleUp">
+                          <CheckCircle2 size={22} className="text-white animate-bounce shrink-0" />
+                          <div className="text-left">
+                            <h4 className="font-extrabold text-xs sm:text-sm">🎉 ĐÃ PHÁT HIỆN CHUYỂN KHOẢN THÀNH CÔNG!</h4>
+                            <p className="text-[10.5px] text-emerald-100">Đang tự động lập phiếu hẹn và mã vé...</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="p-3.5 bg-gradient-to-r from-purple-50 via-indigo-50 to-emerald-50 rounded-2xl border border-purple-200/90 shadow-2xs space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="relative flex items-center justify-center w-4 h-4">
+                                <span className="w-3.5 h-3.5 rounded-full bg-emerald-500 animate-ping absolute opacity-75" />
+                                <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 relative" />
+                              </div>
+                              <span className="text-xs font-extrabold text-slate-800">
+                                Đang tự động nhận diện chuyển khoản
+                              </span>
+                              <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-full font-bold">
+                                Napas 247
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              disabled={isCheckingManual}
+                              onClick={handleManualCheckPayment}
+                              className="text-[10px] font-bold text-purple-700 hover:text-purple-900 bg-white hover:bg-purple-100 border border-purple-300 px-2.5 py-1 rounded-lg transition flex items-center gap-1 cursor-pointer disabled:opacity-60 shadow-2xs"
+                              title="Bấm kiểm tra tức thì biến động số dư ngân hàng"
+                            >
+                              <RefreshCw size={10} className={isCheckingManual ? 'animate-spin' : ''} />
+                              <span>{isCheckingManual ? 'Đang soát...' : 'Kiểm tra ngay'}</span>
+                            </button>
+                          </div>
+                          <p className="text-[10.5px] text-slate-600 leading-snug">
+                            Hệ thống sẽ <strong className="text-emerald-700">tự động chuyển sang phiếu hẹn</strong> ngay khi tài khoản KienlongBank nhận được tiền. Quý khách không cần bấm nút xác nhận.
+                          </p>
+                          {checkStatusNotice && (
+                            <div className="p-2 bg-amber-50 border border-amber-200 rounded-xl text-[10px] text-amber-900 font-medium animate-fadeIn">
+                              ⚠️ {checkStatusNotice}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
 
                   {/* TAB 2: NHẬP MÃ KHUYẾN MÃI */}
                   {paymentTab === 'promo' && (
-                    <div className="p-3 bg-white rounded-xl border border-purple-100 space-y-2">
+                    <div className="p-3 bg-white rounded-xl border border-purple-100 space-y-2.5">
                       <label className="block text-[11px] font-bold text-slate-700">
                         Nhập mã ưu đãi của bạn (Ví dụ: MEDSCHED2026, VIP, GIAOVIEN):
                       </label>
@@ -1752,19 +2119,15 @@ export default function BookingMethodSelector({
                           {promoApplied ? '🎉 ' : '⚠️ '}{promoMessage}
                         </p>
                       )}
+                      {promoApplied && (
+                        <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-xl flex items-center justify-center gap-2 text-emerald-800 text-xs font-bold animate-fadeIn">
+                          <Loader2 size={15} className="animate-spin text-emerald-600" />
+                          <span>Đang tự động phát hành vé hẹn miễn phí...</span>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
-
-                {/* Nút bấm chốt đơn hoàn tất */}
-                <button
-                  type="button"
-                  onClick={handleConfirmFinalBooking}
-                  className="w-full py-3.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold text-sm rounded-2xl shadow-lg shadow-emerald-500/20 transition flex items-center justify-center gap-2 cursor-pointer active:scale-98"
-                >
-                  <CheckCircle2 size={18} />
-                  <span>XÁC NHẬN ĐẶT LỊCH KHÁM NGAY</span>
-                </button>
               </div>
             )}
 
@@ -1789,7 +2152,7 @@ export default function BookingMethodSelector({
                   <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                     <span className="text-slate-500">Mã Lịch Hẹn (Booking Code):</span>
                     <span className="font-extrabold text-sm text-purple-700 tracking-wider">
-                      {bookingSuccessCode}
+                      {bookingSuccessCode || transferBookingCode}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
@@ -1805,8 +2168,16 @@ export default function BookingMethodSelector({
                     <span className="font-bold text-emerald-800">{selectedDoctor?.room}</span>
                   </div>
                   <div className="flex items-center justify-between">
+                    <span className="text-slate-500">Ngày khám:</span>
+                    <span className="font-bold text-purple-800">{formatVietnameseFullDate(bookingDate)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
                     <span className="text-slate-500">Giờ khám:</span>
-                    <span className="font-bold text-purple-800">{selectedSlotTime} (Hôm nay)</span>
+                    <span className="font-bold text-slate-800">{selectedSlotTime} ({selectedShiftId === 'MORNING' ? 'Buổi Sáng' : 'Buổi Chiều'})</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500">Gói dịch vụ:</span>
+                    <span className="font-bold text-emerald-800">Khám Chuyên Khoa Tiêu Chuẩn (200.000 đ)</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-slate-500">Chi nhánh tiếp đón:</span>
@@ -1815,7 +2186,7 @@ export default function BookingMethodSelector({
                 </div>
 
                 <div className="p-3 bg-purple-50 rounded-xl text-[11px] text-purple-900 leading-relaxed text-left">
-                  💡 <strong>Hướng dẫn tiếp đón:</strong> Quý khách vui lòng đến quầy lễ tân chi nhánh trước 10 phút, đọc số điện thoại hoặc mã vé <strong>{bookingSuccessCode}</strong> để được cấp số thứ tự ưu tiên vào buồng khám.
+                  💡 <strong>Hướng dẫn tiếp đón:</strong> Quý khách vui lòng đến quầy lễ tân chi nhánh trước 10 phút, đọc số điện thoại hoặc mã vé <strong>{bookingSuccessCode || transferBookingCode}</strong> để được cấp số thứ tự ưu tiên vào buồng khám.
                 </div>
 
                 <div className="flex gap-2 pt-2">
