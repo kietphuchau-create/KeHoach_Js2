@@ -14,29 +14,50 @@ const STORAGE_KEY = 'medsched_branch_locations_v1';
 
 // Tọa độ mặc định của các cơ sở y tế MedSched (TP.HCM)
 export const DEFAULT_BRANCH_LOCATIONS: Record<string, BranchLocation> = {
-  // Cơ sở 1: Trần Đại Nghĩa - Bình Tân
+  // Cơ sở 1: Nguyễn Thị Minh Khai - Q1 / Trần Đại Nghĩa (MED_Q1)
   'CN1': {
-    lat: 10.74852,
-    lng: 106.59821,
-    address: '62/3 Trần Đại Nghĩa, Phường Tân Tạo A, Quận Bình Tân, TP. Hồ Chí Minh',
-    name: 'Phòng Khám Đa Khoa MedSched - Chi Nhánh Trần Đại Nghĩa',
-    code: 'CN1'
+    lat: 10.7769,
+    lng: 106.6953,
+    address: 'Số 123 Nguyễn Thị Minh Khai, P. Bến Thành, Q.1, TP.HCM',
+    name: 'Phòng Khám Đa Khoa MedSched - Chi Nhánh TĐN',
+    code: 'MED_Q1'
   },
-  // Cơ sở 2: Trịnh Đình Thảo - Tân Phú (Gần Trường CĐ CNTT TP.HCM - ITC)
+  'MED_Q1': {
+    lat: 10.7769,
+    lng: 106.6953,
+    address: 'Số 123 Nguyễn Thị Minh Khai, P. Bến Thành, Q.1, TP.HCM',
+    name: 'Phòng Khám Đa Khoa MedSched - Chi Nhánh TĐN',
+    code: 'MED_Q1'
+  },
+  // Cơ sở 2: Nguyễn Thị Thập - Tân Phú / ITC (MED_Q7)
   'CN2': {
-    lat: 10.77254,
-    lng: 106.62672,
-    address: '12 Trịnh Đình Thảo, Phường Hòa Thạnh, Quận Tân Phú, TP. Hồ Chí Minh',
-    name: 'Phòng Khám Đa Khoa MedSched - Chi Nhánh Trịnh Đình Thảo (ITC)',
-    code: 'CN2'
+    lat: 10.7323,
+    lng: 106.7214,
+    address: 'Số 45 Nguyễn Thị Thập, P. Tân Phú, Q.7, TP.HCM',
+    name: 'Phòng Khám Đa Khoa MedSched - Chi Nhánh Quận Tân Phú',
+    code: 'MED_Q7'
   },
-  // Cơ sở 3: Trụ sở Trung Tâm Quận 1
+  'MED_Q7': {
+    lat: 10.7323,
+    lng: 106.7214,
+    address: 'Số 45 Nguyễn Thị Thập, P. Tân Phú, Q.7, TP.HCM',
+    name: 'Phòng Khám Đa Khoa MedSched - Chi Nhánh Quận Tân Phú',
+    code: 'MED_Q7'
+  },
+  // Cơ sở 3: Trụ sở Trung Tâm Quận 1 / MED_Q3
   'CN3': {
     lat: 10.7769,
     lng: 106.7009,
     address: '45 Lê Duẩn, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh',
     name: 'Phòng Khám Đa Khoa MedSched - Chi Nhánh Trung Tâm Quận 1',
     code: 'CN3'
+  },
+  'MED_Q3': {
+    lat: 10.7769,
+    lng: 106.7009,
+    address: 'Quan 3, TP. Hồ Chí Minh',
+    name: 'MED_Q3',
+    code: 'MED_Q3'
   }
 };
 
@@ -80,11 +101,14 @@ export function getBranchLocation(idOrCode?: string, name?: string, address?: st
 
   // 3. Fallback tìm theo từ khóa tên hoặc địa chỉ
   const textMatch = `${cleanKey} ${name || ''} ${address || ''}`.toUpperCase();
-  if (textMatch.includes('TRỊNH ĐÌNH THẢO') || textMatch.includes('TRINH DINH THAO') || textMatch.includes('CN2') || textMatch.includes('ITC')) {
-    return all['CN2'] || DEFAULT_BRANCH_LOCATIONS['CN2'];
+  if (textMatch.includes('TRỊNH ĐÌNH THẢO') || textMatch.includes('TRINH DINH THAO') || textMatch.includes('CN2') || textMatch.includes('ITC') || textMatch.includes('MED_Q7') || textMatch.includes('NGUYỄN THỊ THẬP') || textMatch.includes('TÂN PHÚ')) {
+    return all['MED_Q7'] || all['CN2'] || DEFAULT_BRANCH_LOCATIONS['MED_Q7'] || DEFAULT_BRANCH_LOCATIONS['CN2'];
   }
-  if (textMatch.includes('TRẦN ĐẠI NGHĨA') || textMatch.includes('TRAN DAI NGHIA') || textMatch.includes('CN1') || textMatch.includes('BÌNH TÂN')) {
-    return all['CN1'] || DEFAULT_BRANCH_LOCATIONS['CN1'];
+  if (textMatch.includes('TRẦN ĐẠI NGHĨA') || textMatch.includes('TRAN DAI NGHIA') || textMatch.includes('CN1') || textMatch.includes('BÌNH TÂN') || textMatch.includes('MED_Q1') || textMatch.includes('MINH KHAI') || textMatch.includes('TĐN')) {
+    return all['MED_Q1'] || all['CN1'] || DEFAULT_BRANCH_LOCATIONS['MED_Q1'] || DEFAULT_BRANCH_LOCATIONS['CN1'];
+  }
+  if (textMatch.includes('QUẬN 3') || textMatch.includes('QUAN 3') || textMatch.includes('MED_Q3')) {
+    return all['MED_Q3'] || DEFAULT_BRANCH_LOCATIONS['MED_Q3'];
   }
   if (textMatch.includes('QUẬN 1') || textMatch.includes('QUAN 1') || textMatch.includes('CN3') || textMatch.includes('LÊ DUẨN')) {
     return all['CN3'] || DEFAULT_BRANCH_LOCATIONS['CN3'];

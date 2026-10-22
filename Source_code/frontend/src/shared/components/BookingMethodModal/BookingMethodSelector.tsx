@@ -306,29 +306,24 @@ interface ClinicBranch {
 const CLINIC_BRANCHES: ClinicBranch[] = [
   {
     id: 'a1b2c3d4-0001-4000-8000-000000000001',
-    code: 'MED_CN1',
-    name: 'Phòng Khám Đa Khoa MedSched - Chi Nhánh Trần Đại Nghĩa',
-    shortName: 'Chi Nhánh Trần Đại Nghĩa (Bình Tân)',
-    address: 'TOTALE COFFEE TEA, 96 Đ. Trần Đại Nghĩa, Tân Tạo, Hồ Chí Minh, Việt Nam',
-    phone: '028 3912 3456 (Hotline tiếp đón)',
+    code: 'MED_Q1',
+    name: 'Phòng Khám Đa Khoa MedSched - Chi Nhánh TĐN',
+    shortName: 'Chi Nhánh TĐN (Quận 1)',
+    address: 'Số 123 Nguyễn Thị Minh Khai, P. Bến Thành, Q.1, TP.HCM',
+    phone: '0818872833',
     districtKeywords: [
-      'bình tân', 'tân tạo', 'trần đại nghĩa', 'an lạc', 'bình chánh', 'vĩnh lộc',
-      'tân kiên', 'tên lửa', 'quốc lộ 1a', 'kinh dương vương', 'quận 6', 'q6', 'q.6',
-      'quận 8', 'q8', 'q.8', 'long an'
+      'quận 1', 'q1', 'q.1', 'nguyễn thị minh khai', 'bến thành', 'tđn', 'trần đại nghĩa', 'bình tân', 'an lạc'
     ]
   },
   {
     id: 'a1b2c3d4-0002-4000-8000-000000000002',
-    code: 'MED_CN2',
-    name: 'Phòng Khám Đa Khoa MedSched - Chi Nhánh Trịnh Đình Thảo (ITC)',
-    shortName: 'Chi Nhánh ITC Trịnh Đình Thảo (Tân Phú)',
-    address: 'Cao Đẳng Công Nghệ Thông Tin TP.HCM, 12 Đ. Trịnh Đình Thảo, Tân Phú, Hồ Chí Minh 700000, Việt Nam',
-    phone: '028 3999 8877 (Hotline tiếp đón)',
+    code: 'MED_Q7',
+    name: 'Phòng Khám Đa Khoa MedSched - Chi Nhánh Quận Tân Phú',
+    shortName: 'Chi Nhánh Quận Tân Phú',
+    address: 'Số 45 Nguyễn Thị Thập, P. Tân Phú, Q.7, TP.HCM',
+    phone: '0818872833',
     districtKeywords: [
-      'tân phú', 'trịnh đình thảo', 'hòa thạnh', 'itc', 'tân bình', 'quận 11', 'q11', 'q.11',
-      'quận 10', 'q10', 'q.10', 'đầm sen', 'lũy bán bích', 'thoại ngọc hầu', 'quận 5', 'q5', 'q.5',
-      'quận 3', 'q3', 'q.3', 'quận 1', 'q1', 'q.1', 'gò vấp', 'phú nhuận', 'bình thạnh',
-      'quận 12', 'q12', 'hóc môn', 'thủ đức', 'quận 7', 'q7', 'nhà bè'
+      'tân phú', 'quận 7', 'q7', 'q.7', 'nguyễn thị thập', 'itc', 'trịnh đình thảo', 'tân bình'
     ]
   }
 ];
@@ -987,36 +982,66 @@ function renderFormattedText(raw: string) {
 }
 
 // Helper phân tích ý định ngôn ngữ tự nhiên của bệnh nhân (NLU Receptionist Parser)
-function parsePatientBookingIntent(rawText: string, currentBranch: ClinicBranch, currentBookingDate: string) {
+function parsePatientBookingIntent(
+  rawText: string,
+  currentBranch: ClinicBranch,
+  currentBookingDate: string,
+  availableBranches: ClinicBranch[] = CLINIC_BRANCHES
+) {
   const text = rawText.toLowerCase().trim();
 
-  // 1. Nhận diện chi nhánh
+  // 1. Nhận diện chi nhánh động dựa trên danh sách chi nhánh thực tế
   let matchedBranch: ClinicBranch | null = null;
-  if (
-    text.includes('itc') ||
-    text.includes('trịnh đình thảo') ||
-    text.includes('trinh dinh thao') ||
-    text.includes('tân phú') ||
-    text.includes('tan phu') ||
-    text.includes('cơ sở 2') ||
-    text.includes('chi nhánh 2') ||
-    text.includes('cs2') ||
-    text.includes('cn2')
-  ) {
-    matchedBranch = CLINIC_BRANCHES[1]; // ITC Trịnh Đình Thảo
-  } else if (
-    text.includes('bình tân') ||
-    text.includes('binh tan') ||
-    text.includes('trần đại nghĩa') ||
-    text.includes('tran dai nghia') ||
-    text.includes('cơ sở 1') ||
-    text.includes('chi nhánh 1') ||
-    text.includes('cs1') ||
-    text.includes('cn1') ||
-    text.includes('an lạc') ||
-    text.includes('an lac')
-  ) {
-    matchedBranch = CLINIC_BRANCHES[0]; // Bình Tân
+  const branchList = availableBranches && availableBranches.length > 0 ? availableBranches : CLINIC_BRANCHES;
+
+  for (const b of branchList) {
+    const searchTerms = [
+      b.code?.toLowerCase(),
+      b.shortName?.toLowerCase(),
+      b.name?.toLowerCase(),
+      ...(b.districtKeywords || [])
+    ].filter(Boolean);
+
+    if (searchTerms.some(term => term && term.length > 1 && text.includes(term))) {
+      matchedBranch = b;
+      break;
+    }
+  }
+
+  // Fallback nhận diện theo các từ khóa địa danh thông dụng
+  if (!matchedBranch) {
+    if (
+      text.includes('itc') ||
+      text.includes('trịnh đình thảo') ||
+      text.includes('trinh dinh thao') ||
+      text.includes('tân phú') ||
+      text.includes('tan phu') ||
+      text.includes('quận 7') ||
+      text.includes('q7') ||
+      text.includes('nguyễn thị thập') ||
+      text.includes('cơ sở 2') ||
+      text.includes('chi nhánh 2') ||
+      text.includes('cs2') ||
+      text.includes('cn2')
+    ) {
+      matchedBranch = branchList.find(b => b.code === 'MED_Q7' || b.code === 'MED_CN2') || branchList[1] || branchList[0];
+    } else if (
+      text.includes('bình tân') ||
+      text.includes('binh tan') ||
+      text.includes('trần đại nghĩa') ||
+      text.includes('tran dai nghia') ||
+      text.includes('cơ sở 1') ||
+      text.includes('chi nhánh 1') ||
+      text.includes('cs1') ||
+      text.includes('cn1') ||
+      text.includes('an lạc') ||
+      text.includes('quận 1') ||
+      text.includes('q1') ||
+      text.includes('minh khai') ||
+      text.includes('tđn')
+    ) {
+      matchedBranch = branchList.find(b => b.code === 'MED_Q1' || b.code === 'MED_CN1') || branchList[0];
+    }
   }
 
   // 2. Nhận diện ca / buổi
@@ -1209,7 +1234,8 @@ export default function BookingMethodSelector({
   const [clarifyQuestionIndex, setClarifyQuestionIndex] = useState<number>(1);
   const [totalClarifyQuestions, setTotalClarifyQuestions] = useState<number>(3);
 
-  // Quản lý Popup chi tiết chi nhánh & So sánh khoảng cách Google Maps
+  // Quản lý danh sách chi nhánh thực tế từ DB & Popup chi tiết cơ sở Google Maps
+  const [branches, setBranches] = useState<ClinicBranch[]>(CLINIC_BRANCHES);
   const [selectedBranchForModal, setSelectedBranchForModal] = useState<ClinicBranch | null>(null);
   const [userCustomLocation, setUserCustomLocation] = useState<string>('');
 
@@ -1220,6 +1246,60 @@ export default function BookingMethodSelector({
   const [selectedShiftId, setSelectedShiftId] = useState<string>('MORNING');
   // Đề xuất lịch khám thông minh từ Y tá / Lễ tân AI
   const [nurseProposal, setNurseProposal] = useState<NurseProposal | null>(null);
+
+  // Đồng bộ danh mục chi nhánh từ CSDL qua API (loại bỏ chi nhánh bị phong tỏa)
+  useEffect(() => {
+    let isMounted = true;
+    api.getMedicalCenters()
+      .then((data: any[]) => {
+        if (!isMounted || !Array.isArray(data) || data.length === 0) return;
+        // Chỉ lấy những cơ sở đang hoạt động thực tế (active !== false), loại bỏ chi nhánh phong tỏa như MED_Q3
+        const activeCenters = data.filter((c: any) => c.active !== false);
+        if (activeCenters.length === 0) return;
+
+        const mapped: ClinicBranch[] = activeCenters.map((c: any) => {
+          let shortName = c.name || c.code;
+          if (c.name && c.name.includes('-')) {
+            const parts = c.name.split('-');
+            shortName = parts.slice(1).join('-').trim();
+          }
+          if (!shortName || shortName.length < 3) {
+            shortName = c.name || c.code;
+          }
+
+          const rawKeywords = [
+            c.code?.toLowerCase(),
+            c.name?.toLowerCase(),
+            shortName.toLowerCase(),
+            ...(c.address ? c.address.toLowerCase().split(/[,.-]+/).map((s: string) => s.trim()).filter((s: string) => s.length > 2) : []),
+          ];
+          const uniqueKeywords = Array.from(new Set(rawKeywords.filter(Boolean)));
+
+          return {
+            id: c.id,
+            code: c.code,
+            name: c.name,
+            shortName: shortName,
+            address: c.address || 'Đang cập nhật địa chỉ',
+            phone: c.phone || '028 3912 3456 (Hotline tiếp đón)',
+            districtKeywords: uniqueKeywords,
+          };
+        });
+
+        setBranches(mapped);
+        setSelectedBranch(prev => {
+          const match = mapped.find(b => b.id === prev.id || b.code === prev.code);
+          return match || mapped[0];
+        });
+      })
+      .catch(err => {
+        console.warn('Lỗi tải danh mục chi nhánh từ máy chủ:', err);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Danh sách 5 ngày làm việc sắp tới (Thứ 2 đến Thứ 6)
   const upcomingWeekdays = useMemo(() => getUpcomingWeekdays(5), []);
@@ -1382,9 +1462,15 @@ export default function BookingMethodSelector({
   // Danh sách bác sĩ phù hợp với chuyên khoa, cơ sở và bộ lọc (RÀNG BUỘC NGHIÊM NGẶT THEO TRIỆU CHỨNG)
   const availableDoctors = useMemo(() => {
     // 1. Ràng buộc nghiêm ngặt: Chỉ lấy đúng các bác sĩ chuyên khoa tương ứng với triệu chứng bệnh nhân đã chọn
-    let matched = DEMO_DOCTORS.filter(
-      d => d.categoryKeys?.includes(selectedCategoryKey) && d.centerId === selectedBranch.id
-    );
+    const branchIndex = branches.findIndex(b => b.id === selectedBranch.id || b.code === selectedBranch.code);
+    let matched = DEMO_DOCTORS.filter(d => {
+      if (!d.categoryKeys?.includes(selectedCategoryKey)) return false;
+      if (d.centerId === selectedBranch.id || d.centerId === selectedBranch.code) return true;
+      if (branchIndex === 0 && (d.centerId === 'a1b2c3d4-0001-4000-8000-000000000001' || d.centerId === 'CN1' || d.centerId === 'MED_Q1')) return true;
+      if (branchIndex === 1 && (d.centerId === 'a1b2c3d4-0002-4000-8000-000000000002' || d.centerId === 'CN2' || d.centerId === 'MED_Q7')) return true;
+      return false;
+    });
+
     if (matched.length === 0) {
       matched = DEMO_DOCTORS.filter(d => d.categoryKeys?.includes(selectedCategoryKey));
     }
@@ -1652,20 +1738,12 @@ export default function BookingMethodSelector({
         time: getFormattedTime(),
         text: `Dạ rất rõ ràng và chi tiết! 🩺 Em đã ghi nhận đầy đủ hồ sơ triệu chứng của bạn:\n\n${summaryNote}\n\nTheo định hướng chuyên môn, bạn nên khám tại **${activeCategory.specialtyName}** (Độ khớp AI: 100%).\n\nMời bạn chọn cơ sở phòng khám MedSched thuận tiện và ngày khám mong muốn bên dưới.\n\n💡 **Gợi ý từ AI:** Bạn có thể bấm vào từng chi nhánh để xem thông tin chi tiết và mở **Google Maps** để tra cứu khoảng cách từ vị trí của bạn nhằm chọn cơ sở gần nhất nhé! Hoặc bạn có thể nhắn trực tiếp vào ô chat chi nhánh và giờ muốn khám (ví dụ: "tôi chọn itc khám lúc 2h chiều"), em sẽ chọn giúp bạn ngay!`,
         widget: 'INPUT_LOCATION',
-        actionOptions: [
-          {
-            label: `🏥 Chọn ${CLINIC_BRANCHES[1].shortName}`,
-            actionKey: 'SELECT_BRANCH',
-            variant: 'outline',
-            payload: { branch: CLINIC_BRANCHES[1] },
-          },
-          {
-            label: `🏥 Chọn ${CLINIC_BRANCHES[0].shortName}`,
-            actionKey: 'SELECT_BRANCH',
-            variant: 'outline',
-            payload: { branch: CLINIC_BRANCHES[0] },
-          },
-        ],
+        actionOptions: branches.slice(0, 3).map(b => ({
+          label: `🏥 Chọn ${b.shortName}`,
+          actionKey: 'SELECT_BRANCH',
+          variant: 'outline' as const,
+          payload: { branch: b },
+        })),
         isTypingComplete: false,
       };
 
@@ -1688,20 +1766,12 @@ export default function BookingMethodSelector({
       time: getFormattedTime(),
       text: `Dạ vâng! Dựa trên triệu chứng ban đầu **${activeCategory.label}**, hệ thống định hướng bạn đến khám tại **${activeCategory.specialtyName}**.\n\nMời bạn chọn cơ sở phòng khám MedSched và ngày khám mong muốn bên dưới.\n\n💡 **Gợi ý từ AI:** Bạn có thể bấm vào từng chi nhánh để xem thông tin chi tiết và mở **Google Maps** để tra cứu khoảng cách từ vị trí của bạn nhằm chọn cơ sở gần nhất nhé! Hoặc bạn có thể nhắn trực tiếp vào ô chat chi nhánh và giờ muốn khám, em sẽ chọn giúp bạn ngay!`,
       widget: 'INPUT_LOCATION',
-      actionOptions: [
-        {
-          label: `🏥 Chọn ${CLINIC_BRANCHES[1].shortName}`,
-          actionKey: 'SELECT_BRANCH',
-          variant: 'outline',
-          payload: { branch: CLINIC_BRANCHES[1] },
-        },
-        {
-          label: `🏥 Chọn ${CLINIC_BRANCHES[0].shortName}`,
-          actionKey: 'SELECT_BRANCH',
-          variant: 'outline',
-          payload: { branch: CLINIC_BRANCHES[0] },
-        },
-      ],
+      actionOptions: branches.slice(0, 3).map(b => ({
+        label: `🏥 Chọn ${b.shortName}`,
+        actionKey: 'SELECT_BRANCH',
+        variant: 'outline' as const,
+        payload: { branch: b },
+      })),
       isTypingComplete: false,
     };
 
@@ -1811,7 +1881,7 @@ export default function BookingMethodSelector({
 
   // Xử lý ngôn ngữ tự nhiên như Y tá / Lễ tân thực tế ở Bước 3 (INPUT_LOCATION)
   const handleLocationStepNaturalLanguage = (text: string, userMsg: ChatMessage) => {
-    const intent = parsePatientBookingIntent(text, selectedBranch, bookingDate);
+    const intent = parsePatientBookingIntent(text, selectedBranch, bookingDate, branches);
 
     // 1. Nếu người dùng phản hồi đồng ý với đề xuất của y tá
     if (intent.isAgreement && nurseProposal) {
@@ -1962,30 +2032,17 @@ export default function BookingMethodSelector({
         sender: 'ai',
         time: getFormattedTime(),
         text: `Dạ em đã ghi nhận bạn muốn khám vào **${targetShift === 'MORNING' ? 'Buổi Sáng (08:00 - 11:30)' : 'Buổi Chiều (13:30 - 16:00)'}** ạ! ⏰\n\nBạn muốn khám tại cơ sở nào của MedSched để em hiển thị danh sách bác sĩ tại cơ sở đó nhé?`,
-        actionOptions: [
-          {
-            label: `🏥 ${CLINIC_BRANCHES[1].shortName}`,
-            actionKey: 'CONFIRM_PROPOSAL_TO_DOCTOR',
-            variant: 'primary',
-            payload: {
-              branch: CLINIC_BRANCHES[1],
-              shiftId: targetShift,
-              slotTime: targetShift === 'MORNING' ? '08:00 - 08:30' : '13:30 - 14:00',
-              date: bookingDate,
-            },
+        actionOptions: branches.slice(0, 3).map((b, idx) => ({
+          label: `🏥 ${b.shortName}`,
+          actionKey: 'CONFIRM_PROPOSAL_TO_DOCTOR',
+          variant: (idx === 0 ? 'primary' : 'secondary') as any,
+          payload: {
+            branch: b,
+            shiftId: targetShift,
+            slotTime: targetShift === 'MORNING' ? '08:00 - 08:30' : '13:30 - 14:00',
+            date: bookingDate,
           },
-          {
-            label: `🏥 ${CLINIC_BRANCHES[0].shortName}`,
-            actionKey: 'CONFIRM_PROPOSAL_TO_DOCTOR',
-            variant: 'secondary',
-            payload: {
-              branch: CLINIC_BRANCHES[0],
-              shiftId: targetShift,
-              slotTime: targetShift === 'MORNING' ? '08:00 - 08:30' : '13:30 - 14:00',
-              date: bookingDate,
-            },
-          },
-        ],
+        })),
         isTypingComplete: false,
       };
 
@@ -2008,7 +2065,7 @@ export default function BookingMethodSelector({
   // Xử lý ngôn ngữ tự nhiên ở Bước 4 (SELECT_DOCTOR_SLOT)
   const handleDoctorSlotStepNaturalLanguage = (text: string, userMsg: ChatMessage) => {
     const lower = text.toLowerCase();
-    const intent = parsePatientBookingIntent(text, selectedBranch, bookingDate);
+    const intent = parsePatientBookingIntent(text, selectedBranch, bookingDate, branches);
 
     // Kiểm tra đổi giờ
     if (intent.proposedSlot) {
@@ -2879,7 +2936,7 @@ export default function BookingMethodSelector({
                               </span>
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                              {CLINIC_BRANCHES.map((branch) => {
+                              {branches.map((branch) => {
                                 const isSelected = selectedBranch.id === branch.id;
                                 return (
                                   <div
