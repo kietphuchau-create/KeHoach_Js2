@@ -12,82 +12,32 @@ export interface BranchLocation {
 
 const STORAGE_KEY = 'medsched_branch_locations_v1';
 
-// Tọa độ mặc định của các cơ sở y tế MedSched (TP.HCM)
-export const DEFAULT_BRANCH_LOCATIONS: Record<string, BranchLocation> = {
-  // Cơ sở 1: Nguyễn Thị Minh Khai - Q1 / Trần Đại Nghĩa (MED_Q1)
-  'CN1': {
-    lat: 10.7769,
-    lng: 106.6953,
-    address: 'Số 123 Nguyễn Thị Minh Khai, P. Bến Thành, Q.1, TP.HCM',
-    name: 'Phòng Khám Đa Khoa MedSched - Chi Nhánh TĐN',
-    code: 'MED_Q1'
-  },
-  'MED_Q1': {
-    lat: 10.7769,
-    lng: 106.6953,
-    address: 'Số 123 Nguyễn Thị Minh Khai, P. Bến Thành, Q.1, TP.HCM',
-    name: 'Phòng Khám Đa Khoa MedSched - Chi Nhánh TĐN',
-    code: 'MED_Q1'
-  },
-  // Cơ sở 2: Nguyễn Thị Thập - Tân Phú / ITC (MED_Q7)
-  'CN2': {
-    lat: 10.7323,
-    lng: 106.7214,
-    address: 'Số 45 Nguyễn Thị Thập, P. Tân Phú, Q.7, TP.HCM',
-    name: 'Phòng Khám Đa Khoa MedSched - Chi Nhánh Quận Tân Phú',
-    code: 'MED_Q7'
-  },
-  'MED_Q7': {
-    lat: 10.7323,
-    lng: 106.7214,
-    address: 'Số 45 Nguyễn Thị Thập, P. Tân Phú, Q.7, TP.HCM',
-    name: 'Phòng Khám Đa Khoa MedSched - Chi Nhánh Quận Tân Phú',
-    code: 'MED_Q7'
-  },
-  // Cơ sở 3: Trụ sở Trung Tâm Quận 1 / MED_Q3
-  'CN3': {
-    lat: 10.7769,
-    lng: 106.7009,
-    address: '45 Lê Duẩn, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh',
-    name: 'Phòng Khám Đa Khoa MedSched - Chi Nhánh Trung Tâm Quận 1',
-    code: 'CN3'
-  },
-  'MED_Q3': {
-    lat: 10.7769,
-    lng: 106.7009,
-    address: 'Quan 3, TP. Hồ Chí Minh',
-    name: 'MED_Q3',
-    code: 'MED_Q3'
-  }
-};
+// Tọa độ chi nhánh do Quản trị viên lưu từ bản đồ (Không lưu cứng bất kỳ địa chỉ nào trong code)
+export const DEFAULT_BRANCH_LOCATIONS: Record<string, BranchLocation> = {};
 
 /**
- * Lấy toàn bộ danh sách tọa độ chi nhánh từ LocalStorage (hoặc nạp mặc định)
+ * Lấy toàn bộ danh sách tọa độ chi nhánh từ LocalStorage
  */
 export function getAllBranchLocations(): Record<string, BranchLocation> {
-  if (typeof window === 'undefined') return DEFAULT_BRANCH_LOCATIONS;
+  if (typeof window === 'undefined') return {};
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_BRANCH_LOCATIONS));
-      return DEFAULT_BRANCH_LOCATIONS;
-    }
-    const parsed = JSON.parse(raw);
-    return { ...DEFAULT_BRANCH_LOCATIONS, ...parsed };
+    if (!raw) return {};
+    return JSON.parse(raw);
   } catch (e) {
     console.warn('Lỗi đọc tọa độ chi nhánh từ LocalStorage:', e);
-    return DEFAULT_BRANCH_LOCATIONS;
+    return {};
   }
 }
 
 /**
- * Lấy tọa độ chính xác của một cơ sở theo ID hoặc Mã cơ sở (Code) hoặc từ khóa tên
+ * Lấy tọa độ GPS đã ghim của một cơ sở theo ID hoặc Mã cơ sở (Code) từ CSDL
  */
 export function getBranchLocation(idOrCode?: string, name?: string, address?: string): BranchLocation | null {
   if (!idOrCode && !name && !address) return null;
   const all = getAllBranchLocations();
 
-  // 1. Tìm theo ID hoặc Code trực tiếp
+  // 1. Tìm theo ID hoặc Code trực tiếp từ bản ghi DB
   const cleanKey = (idOrCode || '').trim().toUpperCase();
   if (cleanKey && all[cleanKey]) {
     return all[cleanKey];
@@ -97,21 +47,6 @@ export function getBranchLocation(idOrCode?: string, name?: string, address?: st
   for (const [k, v] of Object.entries(all)) {
     if (v.code && v.code.toUpperCase() === cleanKey) return v;
     if (k.toUpperCase() === cleanKey) return v;
-  }
-
-  // 3. Fallback tìm theo từ khóa tên hoặc địa chỉ
-  const textMatch = `${cleanKey} ${name || ''} ${address || ''}`.toUpperCase();
-  if (textMatch.includes('TRỊNH ĐÌNH THẢO') || textMatch.includes('TRINH DINH THAO') || textMatch.includes('CN2') || textMatch.includes('ITC') || textMatch.includes('MED_Q7') || textMatch.includes('NGUYỄN THỊ THẬP') || textMatch.includes('TÂN PHÚ')) {
-    return all['MED_Q7'] || all['CN2'] || DEFAULT_BRANCH_LOCATIONS['MED_Q7'] || DEFAULT_BRANCH_LOCATIONS['CN2'];
-  }
-  if (textMatch.includes('TRẦN ĐẠI NGHĨA') || textMatch.includes('TRAN DAI NGHIA') || textMatch.includes('CN1') || textMatch.includes('BÌNH TÂN') || textMatch.includes('MED_Q1') || textMatch.includes('MINH KHAI') || textMatch.includes('TĐN')) {
-    return all['MED_Q1'] || all['CN1'] || DEFAULT_BRANCH_LOCATIONS['MED_Q1'] || DEFAULT_BRANCH_LOCATIONS['CN1'];
-  }
-  if (textMatch.includes('QUẬN 3') || textMatch.includes('QUAN 3') || textMatch.includes('MED_Q3')) {
-    return all['MED_Q3'] || DEFAULT_BRANCH_LOCATIONS['MED_Q3'];
-  }
-  if (textMatch.includes('QUẬN 1') || textMatch.includes('QUAN 1') || textMatch.includes('CN3') || textMatch.includes('LÊ DUẨN')) {
-    return all['CN3'] || DEFAULT_BRANCH_LOCATIONS['CN3'];
   }
 
   return null;

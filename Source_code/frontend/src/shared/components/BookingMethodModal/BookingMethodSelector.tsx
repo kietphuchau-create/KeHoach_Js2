@@ -303,30 +303,8 @@ interface ClinicBranch {
   districtKeywords: string[];
 }
 
-const CLINIC_BRANCHES: ClinicBranch[] = [
-  {
-    id: 'a1b2c3d4-0001-4000-8000-000000000001',
-    code: 'MED_Q1',
-    name: 'Phòng Khám Đa Khoa MedSched - Chi Nhánh TĐN',
-    shortName: 'Chi Nhánh TĐN (Quận 1)',
-    address: 'Số 123 Nguyễn Thị Minh Khai, P. Bến Thành, Q.1, TP.HCM',
-    phone: '0818872833',
-    districtKeywords: [
-      'quận 1', 'q1', 'q.1', 'nguyễn thị minh khai', 'bến thành', 'tđn', 'trần đại nghĩa', 'bình tân', 'an lạc'
-    ]
-  },
-  {
-    id: 'a1b2c3d4-0002-4000-8000-000000000002',
-    code: 'MED_Q7',
-    name: 'Phòng Khám Đa Khoa MedSched - Chi Nhánh Quận Tân Phú',
-    shortName: 'Chi Nhánh Quận Tân Phú',
-    address: 'Số 45 Nguyễn Thị Thập, P. Tân Phú, Q.7, TP.HCM',
-    phone: '0818872833',
-    districtKeywords: [
-      'tân phú', 'quận 7', 'q7', 'q.7', 'nguyễn thị thập', 'itc', 'trịnh đình thảo', 'tân bình'
-    ]
-  }
-];
+// Danh sách chi nhánh thuần động: Không lưu cứng bất kỳ tên hay địa chỉ nào trong code frontend
+const CLINIC_BRANCHES: ClinicBranch[] = [];
 
 // ---------------------------------------------------------------------------
 // 4. DANH SÁCH BÁC SĨ MẪU CHUẨN & DỊCH VỤ PHÒNG KHÁM
@@ -982,17 +960,18 @@ function renderFormattedText(raw: string) {
 }
 
 // Helper phân tích ý định ngôn ngữ tự nhiên của bệnh nhân (NLU Receptionist Parser)
+// Helper phân tích ý định ngôn ngữ tự nhiên của bệnh nhân (NLU Receptionist Parser)
 function parsePatientBookingIntent(
   rawText: string,
-  currentBranch: ClinicBranch,
+  currentBranch: ClinicBranch | null,
   currentBookingDate: string,
-  availableBranches: ClinicBranch[] = CLINIC_BRANCHES
+  availableBranches: ClinicBranch[] = []
 ) {
   const text = rawText.toLowerCase().trim();
 
-  // 1. Nhận diện chi nhánh động dựa trên danh sách chi nhánh thực tế
+  // 1. Nhận diện chi nhánh hoàn toàn động dựa trên các cơ sở tải trực tiếp từ Database
   let matchedBranch: ClinicBranch | null = null;
-  const branchList = availableBranches && availableBranches.length > 0 ? availableBranches : CLINIC_BRANCHES;
+  const branchList = availableBranches;
 
   for (const b of branchList) {
     const searchTerms = [
@@ -1005,42 +984,6 @@ function parsePatientBookingIntent(
     if (searchTerms.some(term => term && term.length > 1 && text.includes(term))) {
       matchedBranch = b;
       break;
-    }
-  }
-
-  // Fallback nhận diện theo các từ khóa địa danh thông dụng
-  if (!matchedBranch) {
-    if (
-      text.includes('itc') ||
-      text.includes('trịnh đình thảo') ||
-      text.includes('trinh dinh thao') ||
-      text.includes('tân phú') ||
-      text.includes('tan phu') ||
-      text.includes('quận 7') ||
-      text.includes('q7') ||
-      text.includes('nguyễn thị thập') ||
-      text.includes('cơ sở 2') ||
-      text.includes('chi nhánh 2') ||
-      text.includes('cs2') ||
-      text.includes('cn2')
-    ) {
-      matchedBranch = branchList.find(b => b.code === 'MED_Q7' || b.code === 'MED_CN2') || branchList[1] || branchList[0];
-    } else if (
-      text.includes('bình tân') ||
-      text.includes('binh tan') ||
-      text.includes('trần đại nghĩa') ||
-      text.includes('tran dai nghia') ||
-      text.includes('cơ sở 1') ||
-      text.includes('chi nhánh 1') ||
-      text.includes('cs1') ||
-      text.includes('cn1') ||
-      text.includes('an lạc') ||
-      text.includes('quận 1') ||
-      text.includes('q1') ||
-      text.includes('minh khai') ||
-      text.includes('tđn')
-    ) {
-      matchedBranch = branchList.find(b => b.code === 'MED_Q1' || b.code === 'MED_CN1') || branchList[0];
     }
   }
 
@@ -1235,27 +1178,28 @@ export default function BookingMethodSelector({
   const [totalClarifyQuestions, setTotalClarifyQuestions] = useState<number>(3);
 
   // Quản lý danh sách chi nhánh thực tế từ DB & Popup chi tiết cơ sở Google Maps
-  const [branches, setBranches] = useState<ClinicBranch[]>(CLINIC_BRANCHES);
+  const [branches, setBranches] = useState<ClinicBranch[]>([]);
+  const [isBranchesLoading, setIsBranchesLoading] = useState<boolean>(true);
   const [selectedBranchForModal, setSelectedBranchForModal] = useState<ClinicBranch | null>(null);
   const [userCustomLocation, setUserCustomLocation] = useState<string>('');
 
   // Bước 3: Chi nhánh & Dịch vụ phòng khám & Ngày khám
-  const [selectedBranch, setSelectedBranch] = useState<ClinicBranch>(CLINIC_BRANCHES[0]);
+  const [selectedBranch, setSelectedBranch] = useState<ClinicBranch | null>(null);
   const [selectedServiceId, setSelectedServiceId] = useState<string>('STANDARD');
   const [bookingDate, setBookingDate] = useState<string>(() => getNextAvailableWeekday());
   const [selectedShiftId, setSelectedShiftId] = useState<string>('MORNING');
   // Đề xuất lịch khám thông minh từ Y tá / Lễ tân AI
   const [nurseProposal, setNurseProposal] = useState<NurseProposal | null>(null);
 
-  // Đồng bộ danh mục chi nhánh từ CSDL qua API (loại bỏ chi nhánh bị phong tỏa)
+  // Đồng bộ danh mục chi nhánh 100% từ CSDL qua API (loại bỏ chi nhánh bị phong tỏa)
   useEffect(() => {
     let isMounted = true;
+    setIsBranchesLoading(true);
     api.getMedicalCenters()
       .then((data: any[]) => {
-        if (!isMounted || !Array.isArray(data) || data.length === 0) return;
-        // Chỉ lấy những cơ sở đang hoạt động thực tế (active !== false), loại bỏ chi nhánh phong tỏa như MED_Q3
-        const activeCenters = data.filter((c: any) => c.active !== false);
-        if (activeCenters.length === 0) return;
+        if (!isMounted) return;
+        // Chỉ lấy những cơ sở đang hoạt động thực tế (active !== false), loại bỏ chi nhánh phong tỏa
+        const activeCenters = Array.isArray(data) ? data.filter((c: any) => c.active !== false) : [];
 
         const mapped: ClinicBranch[] = activeCenters.map((c: any) => {
           let shortName = c.name || c.code;
@@ -1287,13 +1231,19 @@ export default function BookingMethodSelector({
         });
 
         setBranches(mapped);
-        setSelectedBranch(prev => {
-          const match = mapped.find(b => b.id === prev.id || b.code === prev.code);
-          return match || mapped[0];
-        });
+        if (mapped.length > 0) {
+          setSelectedBranch(prev => {
+            if (!prev) return mapped[0];
+            const match = mapped.find(b => b.id === prev.id || b.code === prev.code);
+            return match || mapped[0];
+          });
+        }
       })
       .catch(err => {
         console.warn('Lỗi tải danh mục chi nhánh từ máy chủ:', err);
+      })
+      .finally(() => {
+        if (isMounted) setIsBranchesLoading(false);
       });
 
     return () => {
@@ -1462,10 +1412,10 @@ export default function BookingMethodSelector({
   // Danh sách bác sĩ phù hợp với chuyên khoa, cơ sở và bộ lọc (RÀNG BUỘC NGHIÊM NGẶT THEO TRIỆU CHỨNG)
   const availableDoctors = useMemo(() => {
     // 1. Ràng buộc nghiêm ngặt: Chỉ lấy đúng các bác sĩ chuyên khoa tương ứng với triệu chứng bệnh nhân đã chọn
-    const branchIndex = branches.findIndex(b => b.id === selectedBranch.id || b.code === selectedBranch.code);
+    const branchIndex = selectedBranch ? branches.findIndex(b => b.id === selectedBranch.id || b.code === selectedBranch.code) : 0;
     let matched = DEMO_DOCTORS.filter(d => {
       if (!d.categoryKeys?.includes(selectedCategoryKey)) return false;
-      if (d.centerId === selectedBranch.id || d.centerId === selectedBranch.code) return true;
+      if (selectedBranch && (d.centerId === selectedBranch.id || d.centerId === selectedBranch.code)) return true;
       if (branchIndex === 0 && (d.centerId === 'a1b2c3d4-0001-4000-8000-000000000001' || d.centerId === 'CN1' || d.centerId === 'MED_Q1')) return true;
       if (branchIndex === 1 && (d.centerId === 'a1b2c3d4-0002-4000-8000-000000000002' || d.centerId === 'CN2' || d.centerId === 'MED_Q7')) return true;
       return false;
@@ -1886,12 +1836,12 @@ export default function BookingMethodSelector({
     // 1. Nếu người dùng phản hồi đồng ý với đề xuất của y tá
     if (intent.isAgreement && nurseProposal) {
       const p = nurseProposal;
-      const targetBranch = p.branch || selectedBranch;
+      const targetBranch = p.branch || selectedBranch || branches[0];
       const targetShift = p.shiftId || selectedShiftId;
       const targetSlot = p.slotTime || selectedSlotTime;
       const targetDate = p.date || bookingDate;
 
-      setSelectedBranch(targetBranch);
+      if (targetBranch) setSelectedBranch(targetBranch);
       setSelectedShiftId(targetShift);
       setSelectedSlotTime(targetSlot);
       if (p.date) setBookingDate(p.date);
@@ -1901,7 +1851,7 @@ export default function BookingMethodSelector({
         id: 'msg-' + (Date.now() + 1),
         sender: 'ai',
         time: getFormattedTime(),
-        text: `Dạ vâng tuyệt vời ạ! Em đã thiết lập lịch khám giúp bạn:\n• 📍 Cơ sở: **${targetBranch.shortName}**\n• 📅 Ngày khám: **${formatVietnameseFullDate(targetDate)}**\n• ⏰ Khung giờ: **${targetSlot} (${targetShift === 'AFTERNOON' ? 'Buổi Chiều' : 'Buổi Sáng'})**\n\nDưới đây là danh sách các Bác sĩ chuyên khoa đang trực ca ${targetShift === 'AFTERNOON' ? 'chiều' : 'sáng'} tại ${targetBranch.shortName}. Em mời bạn xem qua và bấm chọn Bác sĩ phù hợp bên dưới nhé:`,
+        text: `Dạ vâng tuyệt vời ạ! Em đã thiết lập lịch khám giúp bạn:\n• 📍 Cơ sở: **${targetBranch?.shortName || 'Phòng khám'}**\n• 📅 Ngày khám: **${formatVietnameseFullDate(targetDate)}**\n• ⏰ Khung giờ: **${targetSlot} (${targetShift === 'AFTERNOON' ? 'Buổi Chiều' : 'Buổi Sáng'})**\n\nDưới đây là danh sách các Bác sĩ chuyên khoa đang trực ca ${targetShift === 'AFTERNOON' ? 'chiều' : 'sáng'} tại ${targetBranch?.shortName || 'phòng khám'}. Em mời bạn xem qua và bấm chọn Bác sĩ phù hợp bên dưới nhé:`,
         widget: 'SELECT_DOCTOR_SLOT',
         isTypingComplete: false,
       };
@@ -1913,11 +1863,11 @@ export default function BookingMethodSelector({
 
     // 2. Nếu người dùng nhập yêu cầu ca khám bị lệch vào giờ nghỉ trưa (1h - 2h chiều) -> Như yêu cầu của người dùng!
     if (intent.isEarlyAfternoonConflict) {
-      const targetBranch = intent.matchedBranch || selectedBranch;
+      const targetBranch = intent.matchedBranch || selectedBranch || branches[0];
       const targetSlot = intent.proposedSlot || '13:30 - 14:00';
       const targetDate = intent.matchedDate || bookingDate;
 
-      setSelectedBranch(targetBranch);
+      if (targetBranch) setSelectedBranch(targetBranch);
       setSelectedShiftId('AFTERNOON');
       setSelectedSlotTime(targetSlot);
       if (intent.matchedDate) setBookingDate(intent.matchedDate);
@@ -1934,7 +1884,7 @@ export default function BookingMethodSelector({
         id: 'msg-' + (Date.now() + 1),
         sender: 'ai',
         time: getFormattedTime(),
-        text: `Dạ em đã ghi nhận bạn chọn **${targetBranch.shortName}** ạ! 🏥\n\nVề giờ khám: Ca chiều của phòng khám bắt đầu đón tiếp từ **13:30** (từ 11:30 đến 13:30 là giờ nghỉ trưa của các bác sĩ).\n👉 Khung giờ sớm nhất và phù hợp nhất với mong muốn của bạn là **13:30 - 14:00**.\n\nBạn có muốn em chuyển sang đặt từ **13:30 đến 14:00** để chuyển sang bước chọn Bác sĩ luôn không ạ?`,
+        text: `Dạ em đã ghi nhận bạn chọn **${targetBranch?.shortName || 'phòng khám'}** ạ! 🏥\n\nVề giờ khám: Ca chiều của phòng khám bắt đầu đón tiếp từ **13:30** (từ 11:30 đến 13:30 là giờ nghỉ trưa của các bác sĩ).\n👉 Khung giờ sớm nhất và phù hợp nhất với mong muốn của bạn là **13:30 - 14:00**.\n\nBạn có muốn em chuyển sang đặt từ **13:30 đến 14:00** để chuyển sang bước chọn Bác sĩ luôn không ạ?`,
         actionOptions: [
           {
             label: '✅ Đồng ý (13:30 - 14:00), chọn bác sĩ ngay ➔',
@@ -1964,12 +1914,12 @@ export default function BookingMethodSelector({
 
     // 3. Nếu người dùng chọn được khung giờ hợp lệ cụ thể
     if (intent.proposedSlot) {
-      const targetBranch = intent.matchedBranch || selectedBranch;
+      const targetBranch = intent.matchedBranch || selectedBranch || branches[0];
       const targetShift = intent.matchedShift || (intent.proposedSlot.startsWith('13') || intent.proposedSlot.startsWith('14') || intent.proposedSlot.startsWith('15') ? 'AFTERNOON' : 'MORNING');
       const targetSlot = intent.proposedSlot;
       const targetDate = intent.matchedDate || bookingDate;
 
-      setSelectedBranch(targetBranch);
+      if (targetBranch) setSelectedBranch(targetBranch);
       setSelectedShiftId(targetShift);
       setSelectedSlotTime(targetSlot);
       if (intent.matchedDate) setBookingDate(intent.matchedDate);
@@ -1979,7 +1929,7 @@ export default function BookingMethodSelector({
         id: 'msg-' + (Date.now() + 1),
         sender: 'ai',
         time: getFormattedTime(),
-        text: `Dạ tuyệt vời ạ! Em đã chọn giúp bạn:\n• 📍 Cơ sở: **${targetBranch.shortName}**\n• 📅 Ngày khám: **${formatVietnameseFullDate(targetDate)}**\n• ⏰ Khung giờ: **${targetSlot} (${targetShift === 'AFTERNOON' ? 'Buổi Chiều' : 'Buổi Sáng'})**\n\nDưới đây là danh sách các Bác sĩ chuyên khoa đang trực ca ${targetShift === 'AFTERNOON' ? 'chiều' : 'sáng'} tại ${targetBranch.shortName}. Em mời bạn xem qua và bấm chọn Bác sĩ phù hợp bên dưới nhé:`,
+        text: `Dạ tuyệt vời ạ! Em đã chọn giúp bạn:\n• 📍 Cơ sở: **${targetBranch?.shortName || 'phòng khám'}**\n• 📅 Ngày khám: **${formatVietnameseFullDate(targetDate)}**\n• ⏰ Khung giờ: **${targetSlot} (${targetShift === 'AFTERNOON' ? 'Buổi Chiều' : 'Buổi Sáng'})**\n\nDưới đây là danh sách các Bác sĩ chuyên khoa đang trực ca ${targetShift === 'AFTERNOON' ? 'chiều' : 'sáng'} tại ${targetBranch?.shortName || 'phòng khám'}. Em mời bạn xem qua và bấm chọn Bác sĩ phù hợp bên dưới nhé:`,
         widget: 'SELECT_DOCTOR_SLOT',
         isTypingComplete: false,
       };
@@ -2366,14 +2316,14 @@ export default function BookingMethodSelector({
       id: 'msg-' + Date.now(),
       sender: 'user',
       time: getFormattedTime(),
-      text: `Chọn cơ sở: ${selectedBranch.shortName} • Ngày khám: ${formatVietnameseFullDate(bookingDate)} • Buổi: ${selectedShiftId === 'MORNING' ? 'Buổi Sáng' : 'Buổi Chiều'}`,
+      text: `Chọn cơ sở: ${selectedBranch?.shortName || 'Phòng khám'} • Ngày khám: ${formatVietnameseFullDate(bookingDate)} • Buổi: ${selectedShiftId === 'MORNING' ? 'Buổi Sáng' : 'Buổi Chiều'}`,
     };
 
     const aiMsg: ChatMessage = {
       id: 'msg-' + (Date.now() + 1),
       sender: 'ai',
       time: getFormattedTime(),
-      text: `Tuyệt vời! Dưới đây là danh sách bác sĩ chuyên khoa và các khung giờ khám khả dụng tại ${selectedBranch.shortName}. Bạn hãy bấm chọn bác sĩ và giờ khám phù hợp nhất nhé:`,
+      text: `Tuyệt vời! Dưới đây là danh sách bác sĩ chuyên khoa và các khung giờ khám khả dụng tại ${selectedBranch?.shortName || 'phòng khám'}. Bạn hãy bấm chọn bác sĩ và giờ khám phù hợp nhất nhé:`,
       widget: 'SELECT_DOCTOR_SLOT',
       isTypingComplete: false,
     };
@@ -2936,47 +2886,64 @@ export default function BookingMethodSelector({
                               </span>
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                              {branches.map((branch) => {
-                                const isSelected = selectedBranch.id === branch.id;
-                                return (
-                                  <div
-                                    key={branch.id}
-                                    onClick={() => {
-                                      setSelectedBranch(branch);
-                                      setSelectedBranchForModal(branch);
-                                    }}
-                                    className={`p-3 text-left rounded-xl border-2 transition cursor-pointer flex flex-col justify-between group active:scale-98 ${
-                                      isSelected
-                                        ? 'bg-purple-50/90 border-purple-600 shadow-2xs'
-                                        : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700'
-                                    }`}
-                                  >
-                                    <div>
-                                      <div className="flex items-center justify-between gap-1 mb-1">
-                                        <span className="text-xs font-extrabold text-slate-900 line-clamp-1 group-hover:text-purple-700 transition">
-                                          {branch.shortName}
-                                        </span>
-                                        {isSelected && <CheckCircle2 size={15} className="text-purple-600 shrink-0" />}
-                                      </div>
-                                      <p className="text-[10px] text-slate-500 line-clamp-2">
-                                        📍 {branch.address}
-                                      </p>
-                                    </div>
-
-                                    {/* Nút xem bản đồ và chi tiết */}
-                                    <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
-                                      <span className="text-slate-400 group-hover:text-purple-600 font-medium flex items-center gap-1">
-                                        <Phone size={10} />
-                                        {branch.phone.split(' ')[0]}
-                                      </span>
-                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 font-bold hover:bg-purple-200 transition">
-                                        <span>Bản đồ &amp; So sánh</span>
-                                        <ExternalLink size={10} />
-                                      </span>
-                                    </div>
+                              {isBranchesLoading ? (
+                                <>
+                                  <div className="p-3 rounded-xl border border-slate-200 bg-slate-50/70 animate-pulse h-20 flex flex-col justify-between">
+                                    <div className="h-3 bg-slate-200 rounded w-2/3" />
+                                    <div className="h-2 bg-slate-200 rounded w-full" />
                                   </div>
-                                );
-                              })}
+                                  <div className="p-3 rounded-xl border border-slate-200 bg-slate-50/70 animate-pulse h-20 flex flex-col justify-between">
+                                    <div className="h-3 bg-slate-200 rounded w-2/3" />
+                                    <div className="h-2 bg-slate-200 rounded w-full" />
+                                  </div>
+                                </>
+                              ) : branches.length === 0 ? (
+                                <div className="col-span-2 p-3 text-center text-xs text-slate-500 bg-slate-50 rounded-xl border border-slate-200">
+                                  Đang đồng bộ cơ sở phòng khám từ máy chủ...
+                                </div>
+                              ) : (
+                                branches.map((branch) => {
+                                  const isSelected = selectedBranch?.id === branch.id;
+                                  return (
+                                    <div
+                                      key={branch.id}
+                                      onClick={() => {
+                                        setSelectedBranch(branch);
+                                        setSelectedBranchForModal(branch);
+                                      }}
+                                      className={`p-3 text-left rounded-xl border-2 transition cursor-pointer flex flex-col justify-between group active:scale-98 ${
+                                        isSelected
+                                          ? 'bg-purple-50/90 border-purple-600 shadow-2xs'
+                                          : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-700'
+                                      }`}
+                                    >
+                                      <div>
+                                        <div className="flex items-center justify-between gap-1 mb-1">
+                                          <span className="text-xs font-extrabold text-slate-900 line-clamp-1 group-hover:text-purple-700 transition">
+                                            {branch.shortName}
+                                          </span>
+                                          {isSelected && <CheckCircle2 size={15} className="text-purple-600 shrink-0" />}
+                                        </div>
+                                        <p className="text-[10px] text-slate-500 line-clamp-2">
+                                          📍 {branch.address}
+                                        </p>
+                                      </div>
+
+                                      {/* Nút xem bản đồ và chi tiết */}
+                                      <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
+                                        <span className="text-slate-400 group-hover:text-purple-600 font-medium flex items-center gap-1">
+                                          <Phone size={10} />
+                                          {branch.phone.split(' ')[0]}
+                                        </span>
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 font-bold hover:bg-purple-200 transition">
+                                          <span>Bản đồ &amp; So sánh</span>
+                                          <ExternalLink size={10} />
+                                        </span>
+                                      </div>
+                                    </div>
+                                  );
+                                })
+                              )}
                             </div>
                           </div>
 
@@ -3049,7 +3016,7 @@ export default function BookingMethodSelector({
                             onClick={handleProceedToDoctorSlot}
                             className="w-full py-2.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer mt-2"
                           >
-                            <span>Tiếp Tục: Chọn Bác Sĩ Tại {selectedBranch.shortName}</span>
+                            <span>Tiếp Tục: Chọn Bác Sĩ Tại {selectedBranch?.shortName || 'Phòng Khám'}</span>
                             <ArrowRight size={14} />
                           </button>
                         </div>
@@ -3218,7 +3185,7 @@ export default function BookingMethodSelector({
                               <div>Phòng: <strong>{selectedDoctor?.room}</strong></div>
                               <div>Giờ: <strong className="text-purple-700">{selectedSlotTime}</strong></div>
                               <div>Ngày: <strong>{formatVietnameseFullDate(bookingDate)}</strong></div>
-                              <div className="col-span-2">Cơ sở: <strong>{selectedBranch.shortName}</strong></div>
+                              <div className="col-span-2">Cơ sở: <strong>{selectedBranch?.shortName || '---'}</strong></div>
                             </div>
                           </div>
 
@@ -3399,7 +3366,7 @@ export default function BookingMethodSelector({
                               <div>Phòng: <strong>{selectedDoctor?.room}</strong></div>
                               <div>Giờ: <strong className="text-purple-700">{selectedSlotTime}</strong></div>
                               <div>Ngày: <strong>{formatVietnameseFullDate(bookingDate)}</strong></div>
-                              <div className="col-span-2">Cơ sở: <strong>{selectedBranch.shortName}</strong></div>
+                              <div className="col-span-2">Cơ sở: <strong>{selectedBranch?.shortName || '---'}</strong></div>
                             </div>
                           </div>
 
@@ -3573,9 +3540,9 @@ export default function BookingMethodSelector({
                 <div>
                   <span className="text-[9.5px] xl:text-[10px] text-slate-400 block font-medium">Cơ sở MedSched:</span>
                   <span className="font-bold text-slate-900 block text-xs">
-                    {selectedBranch.shortName}
+                    {selectedBranch?.shortName || (isBranchesLoading ? 'Đang nạp dữ liệu cơ sở...' : 'Vui lòng chọn cơ sở')}
                   </span>
-                  <p className="text-[9.5px] text-slate-500 line-clamp-1">📍 {selectedBranch.address}</p>
+                  <p className="text-[9.5px] text-slate-500 line-clamp-1">📍 {selectedBranch?.address || '---'}</p>
                 </div>
                 <div>
                   <span className="text-[9.5px] xl:text-[10px] text-slate-400 block font-medium">Bác sĩ phụ trách:</span>
