@@ -17,8 +17,37 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
+import { MEDSCHED_API_PATHS } from "./api-contract.js";
 
 const BACKEND_BASE_URL = process.env.MEDSCHED_API_URL || "http://localhost:8080/api/v1";
+const BACKEND_API_TOKEN = process.env.MEDSCHED_API_TOKEN || "";
+
+function apiHeaders(extra = {}) {
+  return {
+    Accept: "application/json",
+    ...(BACKEND_API_TOKEN ? { Authorization: `Bearer ${BACKEND_API_TOKEN}` } : {}),
+    ...extra,
+  };
+}
+
+async function apiRequest(path, init = {}) {
+  const response = await fetch(`${BACKEND_BASE_URL}${path}`, {
+    ...init,
+    headers: apiHeaders(init.headers),
+  });
+  if (!response.ok) {
+    const detail = (await response.text()).slice(0, 500);
+    throw new Error(`MedSched API ${response.status} tại ${path}${detail ? `: ${detail}` : ""}`);
+  }
+  const text = await response.text();
+  return text ? JSON.parse(text) : {};
+}
+
+function success(payload) {
+  return {
+    content: [{ type: "text", text: JSON.stringify({ status: "SUCCESS", source: "MEDSCHED_API_LIVE", ...payload }, null, 2) }],
+  };
+}
 
 // Khởi tạo MCP Server
 const server = new Server(
@@ -128,71 +157,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       // TOOL 1: get_doctors
       // ----------------------------------------------------------------------
       case "get_doctors": {
-        try {
-          const resp = await fetch(`${BACKEND_BASE_URL}/doctors`);
-          if (resp.ok) {
-            const doctors = await resp.json();
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: JSON.stringify({
-                    status: "SUCCESS",
-                    source: "MEDSCHED_API_LIVE",
-                    total: doctors.length,
-                    doctors: doctors,
-                  }, null, 2),
-                },
-              ],
-            };
-          }
-        } catch {
-          // Fallback dữ liệu nội bộ MedSched nếu backend chưa mở port
-        }
-
-        const fallbackDoctors = [
-          {
-            id: "10b2c3d4-0001-4000-8000-000000000001",
-            fullName: "Lê Thị Thu Hà",
-            academicTitle: "ThS.BS",
-            specialtyName: "Nội Tổng Quát & Tim Mạch",
-            roomNumber: "P.102",
-            consultationFee: 200000,
-            experienceYears: 12,
-          },
-          {
-            id: "10b2c3d4-0001-4000-8000-000000000002",
-            fullName: "Nguyễn Văn Hùng",
-            academicTitle: "BS.CKII",
-            specialtyName: "Ngoại Khoa & Cơ Xương Khớp",
-            roomNumber: "P.103",
-            consultationFee: 250000,
-            experienceYears: 15,
-          },
-          {
-            id: "10b2c3d4-0001-4000-8000-000000000003",
-            fullName: "Trần Thị Mai Lan",
-            academicTitle: "BS.CKI",
-            specialtyName: "Nhi Khoa Tiêu Hóa",
-            roomNumber: "P.105",
-            consultationFee: 180000,
-            experienceYears: 8,
-          },
-        ];
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({
-                status: "SUCCESS",
-                source: "MEDSCHED_DIRECTORY",
-                total: fallbackDoctors.length,
-                doctors: fallbackDoctors,
-              }, null, 2),
-            },
-          ],
-        };
+        const doctors = await apiRequest(MEDSCHED_API_PATHS.doctors);
+        const filtered = args?.specialty
+          ? doctors.filter((doctor) => String(doctor.specialtyName || "").toLowerCase().includes(String(args.specialty).toLowerCase()))
+          : doctors;
+        return success({ total: filtered.length, doctors: filtered });
       }
 
       // ----------------------------------------------------------------------
@@ -204,49 +173,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           throw new Error("bookingCode không được để trống.");
         }
 
-        try {
-          const resp = await fetch(`${BACKEND_BASE_URL}/appointments/public/${encodeURIComponent(code)}`);
-          if (resp.ok) {
-            const data = await resp.json();
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: JSON.stringify({
-                    status: "SUCCESS",
-                    source: "MEDSCHED_API_LIVE",
-                    appointment: data,
-                  }, null, 2),
-                },
-              ],
-            };
-          }
-        } catch {}
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({
-                status: "SUCCESS",
-                source: "MEDSCHED_SYSTEM",
-                appointment: {
-                  bookingCode: code,
-                  patientName: "Phạm Minh Đức",
-                  phone: "0918869123",
-                  doctorName: "ThS.BS Lê Thị Thu Hà",
-                  roomNumber: "P.102",
-                  specialty: "Nội Tổng Quát",
-                  appointmentDate: new Date().toISOString().split("T")[0],
-                  appointmentTime: "08:30 - 09:00",
-                  status: "CHECKED_IN",
-                  depositStatus: "SUCCEEDED",
-                  queueNumber: "A-APP-1668",
-                },
-              }, null, 2),
-            },
-          ],
-        };
+        const appointment = await apiRequest(MEDSCHED_API_PATHS.appointmentByCode(code));
+        return success({ appointment });
       }
 
       // ----------------------------------------------------------------------
@@ -258,46 +186,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           throw new Error("Vui lòng cung cấp mã vé hẹn cần tiếp đón.");
         }
 
-        try {
-          const resp = await fetch(`${BACKEND_BASE_URL}/appointments/checkin/qr`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ bookingCode: code }),
-          });
-          if (resp.ok) {
-            const result = await resp.json();
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: JSON.stringify({
-                    status: "SUCCESS",
-                    message: "Bệnh nhân đã được tiếp đón thành công vào hàng đợi phòng khám!",
-                    details: result,
-                  }, null, 2),
-                },
-              ],
-            };
-          }
-        } catch {}
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({
-                status: "SUCCESS",
-                message: "Tiếp đón thành công (Mô phỏng MCP Agent)!",
-                bookingCode: code,
-                patientName: "Phạm Minh Đức",
-                doctor: "ThS.BS Lê Thị Thu Hà (P.102)",
-                queueNumber: "A-APP-1668",
-                checkInTime: new Date().toLocaleTimeString("vi-VN"),
-                clinicStatus: "ĐÃ TIẾP ĐÓN - ĐANG CHỜ KHÁM",
-              }, null, 2),
-            },
-          ],
-        };
+        const details = await apiRequest(MEDSCHED_API_PATHS.receptionCheckinQr, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ bookingCode: code }),
+        });
+        return success({ message: "Bệnh nhân đã được tiếp đón thành công vào hàng đợi phòng khám!", details });
       }
 
       // ----------------------------------------------------------------------
@@ -305,31 +199,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       // ----------------------------------------------------------------------
       case "get_daily_statistics": {
         const range = args?.range || "TODAY";
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({
-                status: "SUCCESS",
-                source: "MEDSCHED_STATISTICS_SERVICE",
-                range: range,
-                timestamp: new Date().toISOString(),
-                kpi: {
-                  totalCompletedVisits: 18,
-                  totalCheckedInWaiting: 4,
-                  totalRevenue: "3,600,000 VNĐ",
-                  noShowRate: "2.1%",
-                  averageWaitTimeMinutes: 14.5,
-                },
-                breakdown: [
-                  { specialty: "Nội Tổng Quát", visits: 8, revenue: "1,600,000 VNĐ" },
-                  { specialty: "Ngoại Khoa", visits: 6, revenue: "1,500,000 VNĐ" },
-                  { specialty: "Nhi Khoa", visits: 4, revenue: "720,000 VNĐ" },
-                ],
-              }, null, 2),
-            },
-          ],
-        };
+        const query = new URLSearchParams({ role: "ROLE_ADMIN", granularity: "DAY", range });
+        const statistics = await apiRequest(`${MEDSCHED_API_PATHS.statisticsOverview}?${query}`);
+        return success({ range, statistics });
       }
 
       // ----------------------------------------------------------------------
@@ -339,48 +211,18 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const code = String(args?.bookingCode || "").trim();
         const amount = Number(args?.amount) || 2000;
 
-        try {
-          const resp = await fetch(`${BACKEND_BASE_URL}/payments/webhook/simulate`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              bookingCode: code,
-              amount: amount,
-              bankCode: "KLB",
-              referenceNumber: `MCP-${Date.now()}`,
-            }),
-          });
-          if (resp.ok) {
-            const data = await resp.json();
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: JSON.stringify({
-                    status: "SUCCESS",
-                    message: "Webhook thanh toán đã được tiếp nhận và cập nhật vào CSDL!",
-                    data,
-                  }, null, 2),
-                },
-              ],
-            };
-          }
-        } catch {}
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({
-                status: "SUCCESS",
-                message: `Đã mô phỏng thanh toán thành công ${amount.toLocaleString("vi-VN")} VNĐ cho mã hẹn ${code} qua KienlongBank. Trạng thái thanh toán: ĐÃ XÁC NHẬN!`,
-                bookingCode: code,
-                amount: amount,
-                bank: "KienlongBank (KLB) - STK: 18112007 (CHAU TUAN KIET)",
-              }, null, 2),
-            },
-          ],
-        };
+        if (!code) throw new Error("bookingCode không được để trống.");
+        const data = await apiRequest(MEDSCHED_API_PATHS.simulatePaymentWebhook, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            bookingCode: code,
+            amount,
+            bankCode: "MCP_TEST",
+            referenceNumber: `MCP-${Date.now()}`,
+          }),
+        });
+        return success({ message: "Webhook thanh toán đã được tiếp nhận và cập nhật vào CSDL!", data });
       }
 
       default:
