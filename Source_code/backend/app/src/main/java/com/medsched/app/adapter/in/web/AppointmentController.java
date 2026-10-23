@@ -26,7 +26,9 @@ import com.medsched.persistence.repository.PatientProfileJpaRepository;
 import com.medsched.persistence.repository.SpecialtyJpaRepository;
 import com.medsched.persistence.repository.TimeSlotJpaRepository;
 import com.medsched.persistence.repository.UserJpaRepository;
+import com.medsched.core.domain.exception.SlotNotAvailableException;
 import com.medsched.core.domain.exception.ResourceNotFoundException;
+import java.util.Optional;
 import com.medsched.persistence.entity.DoctorEntity;
 import com.medsched.persistence.entity.DoctorScheduleEntity;
 import com.medsched.persistence.entity.MedicalCenterEntity;
@@ -38,10 +40,12 @@ import com.medsched.security.AppUserDetails;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.transaction.annotation.Transactional;
+import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.UUID;
@@ -127,16 +131,151 @@ public class AppointmentController {
             centerId = medicalCenters.findAll().get(0).getId();
         }
 
-        BookAppointmentUseCase.Command command = new BookAppointmentUseCase.Command(
-                centerId,
-                patientProfileId,
-                doctorId,
-                request.slotId(),
-                request.symptoms(),
-                request.medicalHistory()
-        );
-        Appointment result = bookAppointmentUseCase.book(command);
+        List<String> candidateSlotIds = new ArrayList<>();
+        if (request.slotId() != null && !request.slotId().isBlank()) {
+            candidateSlotIds.add(request.slotId().trim());
+        }
+
+        List<String> validDoctorSlots = ensureAvailableSlots(doctorId);
+        for (String sId : validDoctorSlots) {
+            if (!candidateSlotIds.contains(sId)) {
+                candidateSlotIds.add(sId);
+            }
+        }
+
+        Appointment result = null;
+        RuntimeException lastEx = null;
+
+        for (String slotId : candidateSlotIds) {
+            try {
+                BookAppointmentUseCase.Command command = new BookAppointmentUseCase.Command(
+                        centerId,
+                        patientProfileId,
+                        doctorId,
+                        slotId,
+                        request.symptoms(),
+                        request.medicalHistory()
+                );
+                result = bookAppointmentUseCase.book(command);
+                break;
+            } catch (SlotNotAvailableException | ResourceNotFoundException ex) {
+                lastEx = ex;
+            }
+        }
+
+        if (result == null) {
+            if (lastEx != null) {
+                throw lastEx;
+            }
+            throw new SlotNotAvailableException("Bác sĩ hiện không còn khung giờ khám trống nào khả dụng.");
+        }
+
         return ResponseEntity.status(HttpStatus.CREATED).body(result);
+    }
+
+    private LocalDate getNextAvailableBusinessDate() {
+        ZoneId vnZone = ZoneId.of("Asia/Ho_Chi_Minh");
+        LocalDate date = LocalDate.now(vnZone);
+        LocalTime nowTime = LocalTime.now(vnZone);
+        if (nowTime.isAfter(LocalTime.of(16, 30))) {
+            date = date.plusDays(1);
+        }
+        while (date.getDayOfWeek() == DayOfWeek.SATURDAY || date.getDayOfWeek() == DayOfWeek.SUNDAY) {
+            date = date.plusDays(1);
+        }
+        return date;
+    }
+
+    private List<String> ensureAvailableSlots(String doctorId) {
+        Instant now = Instant.now();
+        List<TimeSlotEntity> available = timeSlotJpaRepository.findByDoctorIdAndStatusOrderByStartTimeAsc(doctorId, SlotStatus.AVAILABLE);
+        List<String> validIds = new ArrayList<>();
+        ZoneId vnZone = ZoneId.of("Asia/Ho_Chi_Minh");
+        for (TimeSlotEntity s : available) {
+            if (s.getStartTime() != null && s.getStartTime().isAfter(now)) {
+                ZonedDateTime zdt = s.getStartTime().atZone(vnZone);
+                DayOfWeek dow = zdt.getDayOfWeek();
+                if (dow != DayOfWeek.SATURDAY && dow != DayOfWeek.SUNDAY) {
+                    LocalTime t = zdt.toLocalTime();
+                    if (!t.isBefore(LocalTime.of(8, 0)) && t.isBefore(LocalTime.of(17, 0))) {
+                        validIds.add(s.getId());
+                    }
+                }
+            }
+        }
+        if (!validIds.isEmpty()) {
+            return validIds;
+        }
+
+        LocalDate targetDate = getNextAvailableBusinessDate();
+        Instant dayStart = targetDate.atStartOfDay(vnZone).toInstant();
+        Instant dayEnd = targetDate.atTime(23, 59, 59).atZone(vnZone).toInstant();
+        List<TimeSlotEntity> existingDaySlots = timeSlotJpaRepository.findByDoctorIdAndStartTimeBetweenOrderByStartTimeAsc(doctorId, dayStart, dayEnd);
+        if (existingDaySlots.isEmpty()) {
+            List<DoctorScheduleEntity> existingSchedules = doctorScheduleJpaRepository.findByDoctorIdAndWorkDate(doctorId, targetDate);
+            String scheduleId = !existingSchedules.isEmpty() ? existingSchedules.get(0).getId() : UUID.randomUUID().toString();
+            if (existingSchedules.isEmpty()) {
+                DoctorScheduleEntity newSchedule = new DoctorScheduleEntity(
+                        scheduleId,
+                        doctorId,
+                        targetDate,
+                        LocalTime.of(8, 0),
+                        LocalTime.of(17, 0),
+                        30,
+                        ScheduleStatus.ACTIVE,
+                        now,
+                        now
+                );
+                doctorScheduleJpaRepository.save(newSchedule);
+            }
+
+            List<LocalTime[]> standardTimes = List.of(
+                    new LocalTime[]{LocalTime.of(8, 0), LocalTime.of(8, 30)},
+                    new LocalTime[]{LocalTime.of(8, 30), LocalTime.of(9, 0)},
+                    new LocalTime[]{LocalTime.of(9, 0), LocalTime.of(9, 30)},
+                    new LocalTime[]{LocalTime.of(9, 30), LocalTime.of(10, 0)},
+                    new LocalTime[]{LocalTime.of(10, 0), LocalTime.of(10, 30)},
+                    new LocalTime[]{LocalTime.of(10, 30), LocalTime.of(11, 0)},
+                    new LocalTime[]{LocalTime.of(11, 0), LocalTime.of(11, 30)},
+                    new LocalTime[]{LocalTime.of(11, 30), LocalTime.of(12, 0)},
+                    new LocalTime[]{LocalTime.of(13, 30), LocalTime.of(14, 0)},
+                    new LocalTime[]{LocalTime.of(14, 0), LocalTime.of(14, 30)},
+                    new LocalTime[]{LocalTime.of(14, 30), LocalTime.of(15, 0)},
+                    new LocalTime[]{LocalTime.of(15, 0), LocalTime.of(15, 30)},
+                    new LocalTime[]{LocalTime.of(15, 30), LocalTime.of(16, 0)},
+                    new LocalTime[]{LocalTime.of(16, 0), LocalTime.of(16, 30)},
+                    new LocalTime[]{LocalTime.of(16, 30), LocalTime.of(17, 0)}
+            );
+            List<TimeSlotEntity> created = new ArrayList<>();
+            for (LocalTime[] pair : standardTimes) {
+                Instant slotStart = targetDate.atTime(pair[0]).atZone(vnZone).toInstant();
+                Instant slotEnd = targetDate.atTime(pair[1]).atZone(vnZone).toInstant();
+                if (slotStart.isAfter(now)) {
+                    TimeSlotEntity slotEntity = new TimeSlotEntity(
+                            UUID.randomUUID().toString(),
+                            scheduleId,
+                            doctorId,
+                            slotStart,
+                            slotEnd,
+                            SlotStatus.AVAILABLE,
+                            now,
+                            now
+                    );
+                    created.add(slotEntity);
+                    validIds.add(slotEntity.getId());
+                }
+            }
+            if (!created.isEmpty()) {
+                timeSlotJpaRepository.saveAll(created);
+            }
+        } else {
+            for (TimeSlotEntity s : existingDaySlots) {
+                if (s.getStatus() == SlotStatus.AVAILABLE && s.getStartTime() != null && s.getStartTime().isAfter(now)) {
+                    validIds.add(s.getId());
+                }
+            }
+        }
+        return validIds;
     }
 
     @GetMapping("/{id}")

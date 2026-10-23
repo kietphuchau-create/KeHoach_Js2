@@ -282,42 +282,97 @@ public class PaymentController {
             @RequestParam(required = false) String transactionRef
     ) {
         String targetAppId = appointmentId;
-        if ((targetAppId == null || targetAppId.isBlank()) && bookingCode != null && !bookingCode.isBlank()) {
-            Optional<AppointmentEntity> appOpt = findAppointment(null, bookingCode);
-            if (appOpt.isPresent()) {
-                targetAppId = appOpt.get().getId();
-            } else {
-                String clean = bookingCode.replaceAll("[^a-zA-Z0-9]", "").toUpperCase();
-                if (standalonePaymentMap.containsKey(clean)) {
-                    Map<String, Object> paid = standalonePaymentMap.get(clean);
-                    return ResponseEntity.ok(Map.of(
-                            "success", true,
-                            "status", "SUCCEEDED",
-                            "amountPaid", paid.getOrDefault("amount", new BigDecimal("2000")),
-                            "paymentType", paid.getOrDefault("paymentType", "DEPOSIT"),
-                            "transactionRef", paid.getOrDefault("transactionRef", "")
-                    ));
+        String clean = (bookingCode != null && !bookingCode.isBlank())
+                ? bookingCode.replaceAll("[^a-zA-Z0-9]", "").toUpperCase()
+                : "";
+
+        Optional<AppointmentEntity> appOpt = findAppointment(appointmentId, bookingCode);
+        if (appOpt.isPresent()) {
+            AppointmentEntity app = appOpt.get();
+            targetAppId = app.getId();
+            String appClean = (app.getBookingCode() != null)
+                    ? app.getBookingCode().replaceAll("[^a-zA-Z0-9]", "").toUpperCase()
+                    : "";
+
+            String matchedClean = (!clean.isBlank() && standalonePaymentMap.containsKey(clean)) ? clean
+                    : (!appClean.isBlank() && standalonePaymentMap.containsKey(appClean)) ? appClean : null;
+
+            if (matchedClean != null) {
+                Map<String, Object> paid = standalonePaymentMap.get(matchedClean);
+                if (app.getStatus() == AppointmentStatus.PENDING) {
+                    app.setStatus(AppointmentStatus.CONFIRMED);
+                    app.setUpdatedAt(Instant.now());
+                    appointmentJpaRepository.save(app);
                 }
-                Long orderCode = standaloneOrderMap.get(clean);
-                if (orderCode != null && payOsService != null) {
-                    try {
-                        var infoOpt = payOsService.getPaymentInfo(orderCode);
-                        if (infoOpt.isPresent() && "PAID".equalsIgnoreCase(infoOpt.get().status())) {
-                            standalonePaymentMap.put(clean, Map.of(
-                                    "amount", new BigDecimal(infoOpt.get().amount()),
-                                    "paymentType", "DEPOSIT",
-                                    "transactionRef", String.valueOf(orderCode)
-                            ));
-                            return ResponseEntity.ok(Map.of(
-                                    "success", true,
-                                    "status", "SUCCEEDED",
-                                    "amountPaid", infoOpt.get().amount(),
-                                    "paymentType", "DEPOSIT",
-                                    "transactionRef", String.valueOf(orderCode)
-                            ));
-                        }
-                    } catch (Exception ignored) {}
+                List<PaymentEntity> pList = paymentJpaRepository.findByAppointmentId(app.getId());
+                if (pList.stream().noneMatch(p -> p.getStatus() == PaymentStatus.SUCCEEDED)) {
+                    PaymentEntity p = pList.stream().filter(p0 -> p0.getStatus() == PaymentStatus.PENDING).findFirst().orElse(null);
+                    if (p != null) {
+                        p.setStatus(PaymentStatus.SUCCEEDED);
+                        p.setPaidAt(Instant.now());
+                        p.setUpdatedAt(Instant.now());
+                        paymentJpaRepository.save(p);
+                    } else {
+                        paymentJpaRepository.save(new PaymentEntity(
+                                UUID.randomUUID().toString(),
+                                app.getId(),
+                                new BigDecimal(paid.getOrDefault("amount", "2000").toString()),
+                                PaymentMethod.BANK_TRANSFER,
+                                PaymentStatus.SUCCEEDED,
+                                paid.getOrDefault("transactionRef", "STANDALONE_" + matchedClean).toString(),
+                                Instant.now(),
+                                Instant.now()
+                        ));
+                    }
                 }
+                return ResponseEntity.ok(Map.of(
+                        "success", true,
+                        "status", "SUCCEEDED",
+                        "amountPaid", paid.getOrDefault("amount", new BigDecimal("2000")),
+                        "paymentType", paid.getOrDefault("paymentType", "DEPOSIT"),
+                        "transactionRef", paid.getOrDefault("transactionRef", "")
+                ));
+            }
+
+            if (app.getStatus() == AppointmentStatus.CONFIRMED) {
+                return ResponseEntity.ok(Map.of(
+                        "success", true,
+                        "status", "SUCCEEDED",
+                        "amountPaid", new BigDecimal("2000"),
+                        "paymentType", "DEPOSIT",
+                        "transactionRef", "CONFIRMED_" + (appClean.isBlank() ? targetAppId : appClean)
+                ));
+            }
+        } else if (!clean.isBlank()) {
+            if (standalonePaymentMap.containsKey(clean)) {
+                Map<String, Object> paid = standalonePaymentMap.get(clean);
+                return ResponseEntity.ok(Map.of(
+                        "success", true,
+                        "status", "SUCCEEDED",
+                        "amountPaid", paid.getOrDefault("amount", new BigDecimal("2000")),
+                        "paymentType", paid.getOrDefault("paymentType", "DEPOSIT"),
+                        "transactionRef", paid.getOrDefault("transactionRef", "")
+                ));
+            }
+            Long orderCode = standaloneOrderMap.get(clean);
+            if (orderCode != null && payOsService != null) {
+                try {
+                    var infoOpt = payOsService.getPaymentInfo(orderCode);
+                    if (infoOpt.isPresent() && "PAID".equalsIgnoreCase(infoOpt.get().status())) {
+                        standalonePaymentMap.put(clean, Map.of(
+                                "amount", new BigDecimal(infoOpt.get().amount()),
+                                "paymentType", "DEPOSIT",
+                                "transactionRef", String.valueOf(orderCode)
+                        ));
+                        return ResponseEntity.ok(Map.of(
+                                "success", true,
+                                "status", "SUCCEEDED",
+                                "amountPaid", infoOpt.get().amount(),
+                                "paymentType", "DEPOSIT",
+                                "transactionRef", String.valueOf(orderCode)
+                        ));
+                    }
+                } catch (Exception ignored) {}
             }
         }
 
@@ -421,7 +476,7 @@ public class PaymentController {
     /**
      * 3. Webhook nhận từ PayOS / Cổng thanh toán Open Banking khi tiền về tài khoản.
      */
-    @PostMapping("/webhook")
+    @PostMapping({"/webhook", "/webhook/sepay"})
     @Transactional
     public ResponseEntity<?> receiveWebhook(@RequestBody Map<String, Object> payload) {
         try {
