@@ -1037,6 +1037,37 @@ export const api = {
     });
   },
 
+  async getScheduleMode() {
+    return request<{
+      autoScheduleEnabled: boolean;
+      minWorkHoursPerDay: number;
+      currentMode: 'AUTO' | 'MANUAL';
+      description: string;
+    }>('/doctor/schedules/mode');
+  },
+
+  async updateScheduleMode(payload: { autoScheduleEnabled: boolean; minWorkHoursPerDay?: number }) {
+    return request<{
+      autoScheduleEnabled: boolean;
+      minWorkHoursPerDay: number;
+      currentMode: 'AUTO' | 'MANUAL';
+      description: string;
+    }>('/doctor/schedules/mode', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async getDoctorDailyHours(doctorId?: string) {
+    const qs = doctorId ? `?doctorId=${encodeURIComponent(doctorId)}` : '';
+    return request<{
+      dailyHours: Record<string, number>;
+      incompleteDates: string[];
+      minWorkHoursPerDay: number;
+      autoScheduleEnabled: boolean;
+    }>(`/doctor/schedules/daily-hours${qs}`);
+  },
+
   async getStatisticsOverview(params?: {
     role?: string;
     granularity?: string;

@@ -24,7 +24,9 @@ import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -47,6 +49,84 @@ public class DoctorScheduleService {
         String r = room.trim().toUpperCase();
         if (APPROVED_CLINIC_ROOMS.contains(r)) return true;
         return r.matches("^P\\.[0-9]{3}[A-Z]?$") || r.matches("^PHÒNG\\s+[0-9]{3}[A-Z]?$");
+    }
+
+    /**
+     * Cấu hình Chế Độ Xếp Lịch Toàn Viện:
+     * - autoScheduleEnabled = true: Chế độ Tự Động. Hệ thống tự quét và sinh ca trực chuẩn 7 ngày cho toàn bộ Bác sĩ.
+     * - autoScheduleEnabled = false: Chế độ Thủ Công (Demo Luồng Chính). Bác sĩ tự đặt lịch không giới hạn số ngày,
+     *   nhưng buộc một ngày làm việc phải đạt tối thiểu minWorkHoursPerDay (mặc định 6 tiếng) mới được mở đăng ký ngày tiếp theo.
+     */
+    private static volatile boolean autoScheduleEnabled = false; // Mặc định mở chế độ Thủ Công cho luồng demo
+    private static volatile int minWorkHoursPerDay = 6;
+
+    public static boolean isAutoScheduleActive() {
+        return autoScheduleEnabled;
+    }
+
+    public boolean isAutoScheduleEnabled() {
+        return autoScheduleEnabled;
+    }
+
+    public static void setAutoScheduleActive(boolean active) {
+        autoScheduleEnabled = active;
+    }
+
+    public static int getMinWorkHoursPerDayGlobal() {
+        return minWorkHoursPerDay;
+    }
+
+    public static void setMinWorkHoursPerDayGlobal(int hours) {
+        minWorkHoursPerDay = hours;
+    }
+
+    public DoctorScheduleDtos.ScheduleModeDto getScheduleMode() {
+        String mode = autoScheduleEnabled ? "AUTO" : "MANUAL";
+        String desc = autoScheduleEnabled
+                ? "Chế độ Tự Động Toàn Viện: Hệ thống tự động quét và sinh ca trực chuẩn 7 ngày cho toàn bộ Bác sĩ."
+                : "Chế độ Bác Sĩ Tự Đặt Lịch Thủ Công (Demo Luồng Chính): Bác sĩ tự do mở lịch không giới hạn số ngày, "
+                  + "bắt buộc mỗi ngày làm việc phải đạt tối thiểu " + minWorkHoursPerDay + " tiếng mới được mở đăng ký ngày tiếp theo.";
+        return new DoctorScheduleDtos.ScheduleModeDto(autoScheduleEnabled, minWorkHoursPerDay, mode, desc);
+    }
+
+    public DoctorScheduleDtos.ScheduleModeDto updateScheduleMode(DoctorScheduleDtos.UpdateScheduleModeRequest req) {
+        autoScheduleEnabled = req.autoScheduleEnabled();
+        if (req.minWorkHoursPerDay() != null && req.minWorkHoursPerDay() > 0) {
+            minWorkHoursPerDay = req.minWorkHoursPerDay();
+        }
+        return getScheduleMode();
+    }
+
+    public DoctorScheduleDtos.DoctorDailyHoursSummaryDto getDoctorDailyHoursSummary(String userId, String doctorId) {
+        String targetDoctorId = resolveDoctorId(userId, doctorId);
+        LocalDate today = LocalDate.now(VN_ZONE);
+        List<DoctorScheduleEntity> schedules = doctorScheduleRepository.findByDoctorIdAndWorkDateBetweenOrderByWorkDateAscStartTimeAsc(
+                targetDoctorId, today, today.plusYears(1)
+        );
+
+        Map<String, Double> dailyHours = new LinkedHashMap<>();
+        List<String> incompleteDates = new ArrayList<>();
+        long minMinutes = (long) minWorkHoursPerDay * 60;
+
+        Map<LocalDate, Long> minutesMap = new LinkedHashMap<>();
+        for (DoctorScheduleEntity s : schedules) {
+            if (s.getStatus() == ScheduleStatus.ACTIVE && s.getStartTime() != null && s.getEndTime() != null) {
+                long mins = java.time.Duration.between(s.getStartTime(), s.getEndTime()).toMinutes();
+                minutesMap.merge(s.getWorkDate(), mins, Long::sum);
+            }
+        }
+
+        for (Map.Entry<LocalDate, Long> e : minutesMap.entrySet()) {
+            double hrs = Math.round((e.getValue() / 60.0) * 10.0) / 10.0;
+            dailyHours.put(e.getKey().toString(), hrs);
+            if (e.getValue() < minMinutes) {
+                incompleteDates.add(e.getKey().toString());
+            }
+        }
+
+        return new DoctorScheduleDtos.DoctorDailyHoursSummaryDto(
+                dailyHours, incompleteDates, minWorkHoursPerDay, autoScheduleEnabled
+        );
     }
 
     private boolean isCallerAdmin(String userId) {
@@ -348,6 +428,41 @@ public class DoctorScheduleService {
                 if (overlap) {
                     throw new IllegalArgumentException("Bác sĩ đã có ca trực trùng khung giờ ("
                             + ex.getStartTime() + " - " + ex.getEndTime() + ") trong ngày " + request.workDate());
+                }
+            }
+        }
+
+        // 2. Quy tắc kiểm soát công suất phòng khám (Tối thiểu 6 tiếng/ngày mới cho qua ngày tiếp theo):
+        // Áp dụng cho Bác sĩ khi tự đăng ký lịch thủ công (Demo luồng chính).
+        if (!isAdmin) {
+            LocalDate fromDate = today;
+            LocalDate toDate = today.plusYears(1);
+            List<DoctorScheduleEntity> allFutureSchedules = doctorScheduleRepository.findByDoctorIdAndWorkDateBetweenOrderByWorkDateAscStartTimeAsc(
+                    targetDoctorId, fromDate, toDate
+            );
+
+            Map<LocalDate, Long> dailyMinutesMap = new LinkedHashMap<>();
+            for (DoctorScheduleEntity s : allFutureSchedules) {
+                if (s.getStatus() == ScheduleStatus.ACTIVE && s.getStartTime() != null && s.getEndTime() != null) {
+                    long mins = java.time.Duration.between(s.getStartTime(), s.getEndTime()).toMinutes();
+                    dailyMinutesMap.merge(s.getWorkDate(), mins, Long::sum);
+                }
+            }
+
+            long minRequiredMinutes = (long) minWorkHoursPerDay * 60; // 360 phút = 6 tiếng
+            // Nếu ngày đăng ký là một ngày mới (chưa có ca nào), kiểm tra xem các ngày đã đăng ký trước đó có ngày nào chưa đủ 6 tiếng không
+            if (!dailyMinutesMap.containsKey(request.workDate())) {
+                for (Map.Entry<LocalDate, Long> entry : dailyMinutesMap.entrySet()) {
+                    LocalDate registeredDate = entry.getKey();
+                    long registeredMins = entry.getValue();
+                    if (registeredMins > 0 && registeredMins < minRequiredMinutes) {
+                        double currentHrs = Math.round((registeredMins / 60.0) * 10.0) / 10.0;
+                        double missingHrs = Math.round(((minRequiredMinutes - registeredMins) / 60.0) * 10.0) / 10.0;
+                        throw new IllegalArgumentException(String.format(
+                                "Theo quy định kiểm soát công suất phòng khám: Bác sĩ phải hoàn thành tối thiểu %d tiếng làm việc trong ngày %s (hiện tại mới đạt %.1f tiếng, còn thiếu %.1f tiếng) trước khi được chuyển sang đăng ký lịch cho ngày tiếp theo (%s).",
+                                minWorkHoursPerDay, registeredDate, currentHrs, missingHrs, request.workDate()
+                        ));
+                    }
                 }
             }
         }
@@ -804,6 +919,14 @@ public class DoctorScheduleService {
      */
     @Transactional
     public DoctorScheduleDtos.AutoScheduleResultDto autoGenerateScheduleForTargetDate(LocalDate targetDate) {
+        if (!autoScheduleEnabled) {
+            return new DoctorScheduleDtos.AutoScheduleResultDto(
+                    targetDate,
+                    0, 0, 0,
+                    "Chế độ Bác Sĩ Tự Đặt Lịch Thủ Công đang BẬT (Tính năng tự động sinh lịch toàn viện đang TẮT)."
+            );
+        }
+
         DayOfWeek dow = targetDate.getDayOfWeek();
         if (dow == DayOfWeek.SUNDAY) {
             return new DoctorScheduleDtos.AutoScheduleResultDto(
@@ -878,6 +1001,14 @@ public class DoctorScheduleService {
      */
     @Transactional
     public DoctorScheduleDtos.AutoScheduleResultDto autoGenerateScheduleForNextNDays(int daysAhead) {
+        if (!autoScheduleEnabled) {
+            return new DoctorScheduleDtos.AutoScheduleResultDto(
+                    LocalDate.now(VN_ZONE),
+                    0, 0, 0,
+                    "Chế độ Bác Sĩ Tự Đặt Lịch Thủ Công đang BẬT (Tính năng tự động sinh lịch toàn viện đang TẮT)."
+            );
+        }
+
         LocalDate today = LocalDate.now(VN_ZONE);
         int totalDoctors = 0;
         int totalShifts = 0;

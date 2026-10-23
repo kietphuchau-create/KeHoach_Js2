@@ -268,6 +268,34 @@ public class DoctorController {
                 doctorScheduleService.autoGenerateScheduleForNextNDays(7);
         return ResponseEntity.ok(result);
     }
+
+    /**
+     * Lấy cấu hình chế độ xếp lịch hiện tại của hệ thống (Tự Động vs Thủ Công Demo).
+     */
+    @GetMapping("/schedules/mode")
+    public ResponseEntity<DoctorScheduleDtos.ScheduleModeDto> getScheduleMode() {
+        return ResponseEntity.ok(doctorScheduleService.getScheduleMode());
+    }
+
+    /**
+     * Quản Trị Viên (Admin) bật/tắt chế độ tự động xếp lịch hoặc điều chỉnh số giờ tối thiểu mỗi ngày.
+     */
+    @PostMapping({"/schedules/mode", "/schedules/toggle-mode"})
+    public ResponseEntity<DoctorScheduleDtos.ScheduleModeDto> updateScheduleMode(
+            @RequestBody DoctorScheduleDtos.UpdateScheduleModeRequest request) {
+        return ResponseEntity.ok(doctorScheduleService.updateScheduleMode(request));
+    }
+
+    /**
+     * Lấy thống kê số giờ làm việc theo từng ngày của Bác sĩ và kiểm tra ngày chưa đủ 6 tiếng.
+     */
+    @GetMapping("/schedules/daily-hours")
+    public ResponseEntity<DoctorScheduleDtos.DoctorDailyHoursSummaryDto> getDoctorDailyHours(
+            @AuthenticationPrincipal AppUserDetails principal,
+            @RequestParam(required = false) String doctorId) {
+        String userId = principal != null ? principal.getUserId() : null;
+        return ResponseEntity.ok(doctorScheduleService.getDoctorDailyHoursSummary(userId, doctorId));
+    }
 }
 
 

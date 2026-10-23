@@ -99,5 +99,24 @@ public class DoctorScheduleDtos {
             @jakarta.validation.constraints.NotBlank(message = "Buồng khám mới không được để trống")
             String newRoomNumber
     ) {}
+
+    public record ScheduleModeDto(
+            boolean autoScheduleEnabled,
+            int minWorkHoursPerDay,
+            String currentMode,
+            String description
+    ) {}
+
+    public record UpdateScheduleModeRequest(
+            boolean autoScheduleEnabled,
+            Integer minWorkHoursPerDay
+    ) {}
+
+    public record DoctorDailyHoursSummaryDto(
+            java.util.Map<String, Double> dailyHours,
+            java.util.List<String> incompleteDates,
+            int minWorkHoursPerDay,
+            boolean autoScheduleEnabled
+    ) {}
 }
 

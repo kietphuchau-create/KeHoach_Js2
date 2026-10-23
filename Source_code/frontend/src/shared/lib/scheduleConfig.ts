@@ -32,6 +32,10 @@ export interface ClinicScheduleConfig {
   walkinMinBufferMinutes: number;       // Khoảng trống tối thiểu trước ca hẹn kế tiếp để cho phép chen vãng lai (mặc định 15 phút)
   walkinMaxPerShift: number;            // Số ca vãng lai tối đa được phép chen trong mỗi ca trực (0 = không giới hạn, mặc định 6)
 
+  // Chế độ xếp lịch: Tự động toàn viện vs Bác sĩ tự đặt thủ công (Demo)
+  autoScheduleEnabled: boolean;         // true = Tự động sinh lịch 7 ngày; false = Bác sĩ tự đặt lịch thủ công
+  minWorkHoursPerDay: number;           // Số giờ tối thiểu bác sĩ phải xếp trong 1 ngày trước khi mở ngày tiếp theo (mặc định 6)
+
   updatedAt: string;
   updatedBy?: string;
 }
@@ -71,6 +75,8 @@ export const DEFAULT_CLINIC_SCHEDULE_CONFIG: ClinicScheduleConfig = {
   walkinInterleaveEnabled: true,
   walkinMinBufferMinutes: 15,
   walkinMaxPerShift: 6,
+  autoScheduleEnabled: false, // Mặc định mở chế độ Thủ công theo kịch bản demo
+  minWorkHoursPerDay: 6,
   updatedAt: '2026-01-01T00:00:00Z',
   updatedBy: 'Hệ Thống MedSched',
 };

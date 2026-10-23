@@ -20,7 +20,8 @@ import {
   Info,
   X,
   DoorOpen,
-  LayoutGrid
+  LayoutGrid,
+  ShieldCheck
 } from 'lucide-react';
 import { api, getAuthUser } from '@/shared/lib/api';
 import { getClinicRooms, ClinicRoom } from '@/shared/lib/clinicRooms';
@@ -77,6 +78,14 @@ export default function DoctorScheduleView() {
 
   // Cửa sổ tiện ích xem và quản lý khung giờ của một ca trực ngay trên ma trận
   const [selectedScheduleForSlots, setSelectedScheduleForSlots] = useState<DoctorScheduleDto | null>(null);
+
+  // Thống kê tổng số giờ làm việc theo ngày và kiểm tra điều kiện >= 6 tiếng/ngày
+  const [dailyHoursSummary, setDailyHoursSummary] = useState<{
+    dailyHours: Record<string, number>;
+    incompleteDates: string[];
+    minWorkHoursPerDay: number;
+    autoScheduleEnabled: boolean;
+  } | null>(null);
 
   // Danh mục phòng trực do Admin phê duyệt và phòng được chọn
   const [availableRooms, setAvailableRooms] = useState<ClinicRoom[]>([]);
@@ -187,8 +196,17 @@ export default function DoctorScheduleView() {
     try {
       setLoading(true);
       setError(null);
-      const data = await api.getDoctorSchedules();
+      const [data, hoursRes] = await Promise.all([
+        api.getDoctorSchedules(),
+        api.getDoctorDailyHours().catch((e) => {
+          console.warn('Lỗi tải thống kê giờ làm việc:', e);
+          return null;
+        }),
+      ]);
       setSchedules(data || []);
+      if (hoursRes) {
+        setDailyHoursSummary(hoursRes);
+      }
     } catch (err: any) {
       setError(err?.message || 'Không thể tải danh sách ca trực của bác sĩ.');
     } finally {
@@ -542,8 +560,51 @@ export default function DoctorScheduleView() {
         </div>
       )}
 
+      {/* ── Banner Chế Độ Đăng Ký Lịch & Quy Định Công Suất 6 Giờ/Ngày ── */}
+      <div className={`p-4 rounded-2xl border transition-all ${
+        dailyHoursSummary && !dailyHoursSummary.autoScheduleEnabled
+          ? 'bg-gradient-to-r from-emerald-50 via-teal-50 to-white border-emerald-200 text-emerald-950 shadow-2xs'
+          : 'bg-gradient-to-r from-cyan-50 via-teal-50 to-white border-cyan-200 text-cyan-950 shadow-2xs'
+      }`}>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black ${
+              dailyHoursSummary && !dailyHoursSummary.autoScheduleEnabled
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'bg-cyan-600 text-white shadow-xs'
+            }`}>
+              <ShieldCheck size={20} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-black uppercase tracking-wider">
+                  {dailyHoursSummary && !dailyHoursSummary.autoScheduleEnabled
+                    ? 'Chế Độ Bác Sĩ Tự Đặt Lịch Thủ Công (Demo Luồng Chính)'
+                    : 'Chế Độ Tự Động Xếp Lịch Toàn Viện'}
+                </span>
+                <span className="text-[10px] bg-white px-2 py-0.5 rounded-full font-bold border border-slate-200 text-slate-700 shadow-2xs">
+                  Chỉ tiêu: {dailyHoursSummary?.minWorkHoursPerDay || 6}.0 giờ/ngày
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-600 mt-0.5">
+                {dailyHoursSummary && !dailyHoursSummary.autoScheduleEnabled
+                  ? 'Bác sĩ tự do mở ca trực cho bất kỳ ngày nào trong tương lai (không giới hạn số ngày). Điều kiện kiểm soát công suất: Buộc hoàn tất đủ tối thiểu 6.0 giờ cho ngày đang xếp trước khi được mở lịch cho ngày tiếp theo.'
+                  : 'Hệ thống tự động đồng bộ lịch 7 ngày cho toàn viện qua Cron Job. Bệnh nhân có thể đặt các khung giờ mặc định.'}
+              </p>
+            </div>
+          </div>
 
-
+          {/* Badges trạng thái các ngày chưa đủ 6 tiếng */}
+          {dailyHoursSummary && dailyHoursSummary.incompleteDates && dailyHoursSummary.incompleteDates.length > 0 && (
+            <div className="flex items-center gap-2 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-300 text-amber-900 text-xs shrink-0 font-medium">
+              <AlertCircle size={15} className="text-amber-600 shrink-0" />
+              <span>
+                Cần bổ sung ca: <strong>{dailyHoursSummary.incompleteDates.join(', ')}</strong> (&lt; 6h)
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* ── Thanh Điều Hướng Tuần & Đăng Ký Ca Trực ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 sm:px-4 rounded-2xl border border-slate-200 shadow-2xs">
@@ -719,6 +780,30 @@ export default function DoctorScheduleView() {
                           Hôm nay
                         </span>
                       )}
+
+                      {/* Badge chỉ tiêu công suất 6 tiếng/ngày */}
+                      {(() => {
+                        const dayHours = dailyHoursSummary?.dailyHours[day.dateStr] ?? 
+                          daySchedules.reduce((acc, s) => {
+                            const slotD = s.slotDurationMinutes || 30;
+                            return acc + ((s.totalSlots || 0) * slotD) / 60;
+                          }, 0);
+                        const minH = dailyHoursSummary?.minWorkHoursPerDay || 6;
+                        if (dayHours === 0) return null;
+                        const isDone = dayHours >= minH;
+                        return (
+                          <div className="mt-1 flex items-center justify-between">
+                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 shadow-2xs ${
+                              isDone
+                                ? 'bg-emerald-600 text-white'
+                                : 'bg-amber-500 text-white animate-pulse'
+                            }`}>
+                              {isDone ? <CheckCircle2 size={10} /> : <AlertCircle size={10} />}
+                              <span>{dayHours.toFixed(1)}/{minH}.0h {isDone ? '(Đạt)' : `(Thiếu ${(minH - dayHours).toFixed(1)}h)`}</span>
+                            </span>
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {/* Danh sách ca trực trong ngày */}
@@ -1238,6 +1323,113 @@ export default function DoctorScheduleView() {
                   </div>
                 );
               })()}
+
+              {/* Thước đo kiểm soát công suất: Tối thiểu 6 tiếng/ngày */}
+              {(() => {
+                if (!workDate || startTime >= endTime) return null;
+                const parseTimeMin = (t: string) => {
+                  const [h, m] = t.split(':').map(Number);
+                  return h * 60 + m;
+                };
+                const shiftDurationHours = Math.max(0, (parseTimeMin(endTime) - parseTimeMin(startTime)) / 60);
+                const currentDayHours = dailyHoursSummary?.dailyHours?.[workDate] ?? 
+                  schedules
+                    .filter((s) => s.workDate === workDate && s.status === 'ACTIVE')
+                    .reduce((acc, s) => acc + ((s.totalSlots || 0) * (s.slotDurationMinutes || 30)) / 60, 0);
+                const totalAfter = currentDayHours + shiftDurationHours;
+                const minH = dailyHoursSummary?.minWorkHoursPerDay || 6;
+                const progressPct = Math.min(100, Math.round((totalAfter / minH) * 100));
+                const willComplete = totalAfter >= minH;
+
+                return (
+                  <div className={`p-3.5 rounded-2xl border transition-all ${
+                    willComplete 
+                      ? 'bg-emerald-50/70 border-emerald-300 text-emerald-950' 
+                      : 'bg-amber-50/70 border-amber-300 text-amber-950'
+                  }`}>
+                    <div className="flex items-center justify-between text-xs font-bold mb-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <Clock size={15} className={willComplete ? 'text-emerald-700' : 'text-amber-700'} />
+                        <span>Kiểm Soát Công Suất Ngày {workDate}:</span>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
+                        willComplete ? 'bg-emerald-600 text-white' : 'bg-amber-600 text-white'
+                      }`}>
+                        {totalAfter.toFixed(1)} / {minH}.0 giờ ({progressPct}%)
+                      </span>
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div className="w-full bg-slate-200/80 rounded-full h-2 overflow-hidden mb-2">
+                      <div
+                        className={`h-full transition-all duration-300 rounded-full ${
+                          willComplete ? 'bg-emerald-500' : 'bg-amber-500'
+                        }`}
+                        style={{ width: `${progressPct}%` }}
+                      />
+                    </div>
+
+                    <div className="text-[11px] flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                      <span className="text-slate-600">
+                        Ca này: <strong>+{shiftDurationHours.toFixed(1)}h</strong> (hiện có: {currentDayHours.toFixed(1)}h &rarr; tổng {totalAfter.toFixed(1)}h)
+                      </span>
+                      {willComplete ? (
+                        <span className="font-extrabold text-emerald-700 flex items-center gap-1">
+                          <CheckCircle2 size={13} /> Đạt chuẩn &ge; {minH}h! Đủ điều kiện mở ngày kế tiếp
+                        </span>
+                      ) : (
+                        <span className="font-extrabold text-amber-800">
+                          Còn thiếu {(minH - totalAfter).toFixed(1)}h để đủ chuẩn mở ngày tiếp theo
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Cảnh báo chặn mở ngày mới nếu ngày trước đó chưa đủ 6 tiếng */}
+              {(() => {
+                if (!workDate || !dailyHoursSummary || !dailyHoursSummary.incompleteDates || dailyHoursSummary.incompleteDates.length === 0) return null;
+                const isDayAlreadyRegistered = (dailyHoursSummary.dailyHours?.[workDate] || 0) > 0;
+                if (!isDayAlreadyRegistered) {
+                  const incompletePrior = dailyHoursSummary.incompleteDates.find((d) => d < workDate);
+                  if (incompletePrior) {
+                    const currH = dailyHoursSummary.dailyHours?.[incompletePrior] || 0;
+                    const minH = dailyHoursSummary.minWorkHoursPerDay || 6;
+                    return (
+                      <div className="p-3.5 bg-rose-50 border border-rose-300 rounded-2xl text-xs text-rose-900 space-y-2 shadow-xs">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle size={18} className="text-rose-600 shrink-0 mt-0.5" />
+                          <div>
+                            <span className="font-extrabold text-rose-800 text-xs block">
+                              Chặn Mở Ngày Mới: Chưa Hoàn Thành Chỉ Tiêu Ngày Trước Đó!
+                            </span>
+                            <p className="text-[11px] text-rose-700 mt-0.5 leading-relaxed">
+                              Theo quy định kiểm soát công suất phòng khám: Bác sĩ phải hoàn thành tối thiểu <strong>{minH}.0 tiếng</strong> làm việc trong ngày <strong>{incompletePrior}</strong> (hiện tại mới đạt <strong>{currH.toFixed(1)}/{minH}.0 tiếng</strong>, còn thiếu <strong>{(minH - currH).toFixed(1)} tiếng</strong>) trước khi được chuyển sang đăng ký lịch cho ngày tiếp theo (<strong>{workDate}</strong>).
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (incompletePrior) {
+                              setWorkDate(incompletePrior);
+                              setStartTime('13:30');
+                              setEndTime('17:00');
+                              setActivePreset('AFTERNOON');
+                            }
+                          }}
+                          className="px-3 py-1 bg-white border border-rose-300 hover:bg-rose-100 text-rose-900 font-bold rounded-xl text-[11px] transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                        >
+                          <ChevronLeft size={13} />
+                          <span>Chuyển sang đăng ký bổ sung ca cho ngày {incompletePrior}</span>
+                        </button>
+                      </div>
+                    );
+                  }
+                }
+                return null;
+              })()}
             </form>
 
             {/* Footer cố định */}
@@ -1247,6 +1439,8 @@ export default function DoctorScheduleView() {
               const isWeekendDay = Boolean(workDate && [0, 6].includes(new Date(workDate + 'T00:00:00').getDay()));
               const hasMyConflict = schedules.some((s) => s.workDate === workDate && s.status === 'ACTIVE' && startTime < s.endTime && endTime > s.startTime);
               const hasRoomConflict = occupiedRooms.some((o) => o.roomNumber.toUpperCase() === selectedRoom.toUpperCase());
+              const isDayAlreadyRegistered = (dailyHoursSummary?.dailyHours?.[workDate] || 0) > 0;
+              const blockedPriorDate = (!isDayAlreadyRegistered && dailyHoursSummary?.incompleteDates ? dailyHoursSummary.incompleteDates.find((d) => d < workDate) : null) || null;
 
               return (
                 <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
@@ -1255,6 +1449,8 @@ export default function DoctorScheduleView() {
                       <span className="text-rose-600 font-bold">Chỉ đăng ký từ ngày mai trở đi</span>
                     ) : isWeekendDay ? (
                       <span className="text-rose-600 font-bold">Phòng khám nghỉ T7 &amp; CN</span>
+                    ) : blockedPriorDate ? (
+                      <span className="text-rose-600 font-bold">Chưa đủ 6h ngày {blockedPriorDate}</span>
                     ) : hasMyConflict ? (
                       <span className="text-amber-600 font-bold">Trùng ca trực của bạn</span>
                     ) : hasRoomConflict ? (
@@ -1275,16 +1471,16 @@ export default function DoctorScheduleView() {
                     <button
                       type="submit"
                       form="createScheduleForm"
-                      disabled={submitting || isPastOrToday || isWeekendDay || hasMyConflict || hasRoomConflict}
+                      disabled={submitting || isPastOrToday || isWeekendDay || hasMyConflict || hasRoomConflict || !!blockedPriorDate}
                       className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-md ${
-                        isPastOrToday || isWeekendDay || hasRoomConflict
+                        isPastOrToday || isWeekendDay || hasRoomConflict || !!blockedPriorDate
                           ? 'bg-rose-600 text-white cursor-not-allowed shadow-none'
                           : hasMyConflict
                             ? 'bg-amber-600 text-white cursor-not-allowed shadow-none'
                             : 'bg-gradient-to-r from-teal-700 to-emerald-700 hover:from-teal-800 hover:to-emerald-800 text-white shadow-teal-700/20'
                       }`}
                     >
-                      {submitting ? 'Đang Tạo Ca...' : `Xác Nhận Đăng Ký (${startTime} - ${endTime})`}
+                      {submitting ? 'Đang Tạo Ca...' : blockedPriorDate ? `Chưa Đạt 6h Ngày ${blockedPriorDate}` : `Xác Nhận Đăng Ký (${startTime} - ${endTime})`}
                     </button>
                   </div>
                 </div>

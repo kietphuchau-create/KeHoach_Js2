@@ -12,6 +12,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -19,7 +20,9 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
@@ -336,5 +339,78 @@ class DoctorScheduleServiceTest {
         assertThat(res).isNotNull();
         assertThat(res.roomNumber()).isEqualTo("P.205");
         verify(doctorRepository).save(doc);
+    }
+
+    @Test
+    @DisplayName("Bác sĩ không được chuyển sang đăng ký ngày tiếp theo nếu ngày trước đó chưa đạt tối thiểu 6 tiếng")
+    void givenDoctorUser_whenCreateScheduleOnDay2WhileDay1Under6Hours_thenThrowException() {
+        Instant now = Instant.now();
+        DoctorEntity doc = new DoctorEntity(
+                "doc-1", "u-doc-1", "spec-1", "ThS.BS",
+                BigDecimal.valueOf(300000), "P.101", "Bio", null, now, now
+        );
+        LocalDate today = LocalDate.now(VN_ZONE);
+        LocalDate day1 = today.with(java.time.temporal.TemporalAdjusters.next(DayOfWeek.MONDAY));
+        LocalDate day2 = day1.plusDays(1); // Tuesday
+
+        // Ngày 1 mới có 4 tiếng (08:00 - 12:00 = 240 phút)
+        DoctorScheduleEntity day1Schedule = new DoctorScheduleEntity(
+                "sch-day1", "doc-1", day1, LocalTime.of(8, 0),
+                LocalTime.of(12, 0), 30, ScheduleStatus.ACTIVE, now, now
+        );
+
+        given(doctorRepository.findById("doc-1")).willReturn(Optional.of(doc));
+        given(doctorScheduleRepository.findByDoctorIdAndWorkDateBetweenOrderByWorkDateAscStartTimeAsc(
+                eq("doc-1"), any(), any()
+        )).willReturn(List.of(day1Schedule));
+
+        var reqDay2 = new DoctorScheduleDtos.CreateScheduleRequest(
+                "doc-1", day2, LocalTime.of(8, 0), LocalTime.of(12, 0), 30, "P.101"
+        );
+
+        assertThatThrownBy(() -> doctorScheduleService.createSchedule("u-doc-1", reqDay2))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("tối thiểu 6 tiếng làm việc")
+                .hasMessageContaining("mới đạt 4.0 tiếng, còn thiếu 2.0 tiếng");
+    }
+
+    @Test
+    @DisplayName("Bác sĩ được phép đăng ký ngày tiếp theo khi các ngày trước đó đã hoàn thành tối thiểu 6 tiếng")
+    void givenDoctorUser_whenCreateScheduleOnDay2WhileDay1Has6Hours_thenSuccess() {
+        Instant now = Instant.now();
+        DoctorEntity doc = new DoctorEntity(
+                "doc-1", "u-doc-1", "spec-1", "ThS.BS",
+                BigDecimal.valueOf(300000), "P.101", "Bio", null, now, now
+        );
+        LocalDate today = LocalDate.now(VN_ZONE);
+        LocalDate day1 = today.with(java.time.temporal.TemporalAdjusters.next(DayOfWeek.MONDAY));
+        LocalDate day2 = day1.plusDays(1); // Tuesday
+
+        // Ngày 1 đã có 7.5 tiếng (08:00 - 12:00 = 4h và 13:30 - 17:00 = 3.5h)
+        DoctorScheduleEntity day1Morning = new DoctorScheduleEntity(
+                "sch-m", "doc-1", day1, LocalTime.of(8, 0),
+                LocalTime.of(12, 0), 30, ScheduleStatus.ACTIVE, now, now
+        );
+        DoctorScheduleEntity day1Afternoon = new DoctorScheduleEntity(
+                "sch-a", "doc-1", day1, LocalTime.of(13, 30),
+                LocalTime.of(17, 0), 30, ScheduleStatus.ACTIVE, now, now
+        );
+
+        given(doctorRepository.findById("doc-1")).willReturn(Optional.of(doc));
+        given(doctorRepository.findByUserId("u-doc-1")).willReturn(List.of(doc));
+        given(doctorScheduleRepository.findByDoctorIdAndWorkDateBetweenOrderByWorkDateAscStartTimeAsc(
+                eq("doc-1"), any(), any()
+        )).willReturn(List.of(day1Morning, day1Afternoon));
+        given(doctorScheduleRepository.findByDoctorIdAndWorkDate("doc-1", day2)).willReturn(List.of());
+        given(doctorScheduleRepository.findByWorkDate(day2)).willReturn(List.of());
+        given(doctorScheduleRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
+
+        var reqDay2 = new DoctorScheduleDtos.CreateScheduleRequest(
+                "doc-1", day2, LocalTime.of(8, 0), LocalTime.of(12, 0), 30, "P.101"
+        );
+
+        var res = doctorScheduleService.createSchedule("u-doc-1", reqDay2);
+        assertThat(res).isNotNull();
+        assertThat(res.workDate()).isEqualTo(day2.toString());
     }
 }

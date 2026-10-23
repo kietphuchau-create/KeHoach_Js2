@@ -48,6 +48,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.UUID;
 
 @RestController
@@ -211,6 +212,12 @@ public class AppointmentController {
         }
         if (!validIds.isEmpty()) {
             return validIds;
+        }
+
+        // Nếu Chế Độ Bác Sĩ Tự Đặt Lịch Thủ Công đang BẬT (Auto-schedule bị TẮT):
+        // Tuyệt đối KHÔNG tự ý sinh ca trực hoặc khung giờ ảo! Bệnh nhân chỉ thấy các slot thực tế do bác sĩ tạo.
+        if (!com.medsched.doctor.DoctorScheduleService.isAutoScheduleActive()) {
+            return Collections.emptyList();
         }
 
         LocalDate targetDate = getNextAvailableBusinessDate();

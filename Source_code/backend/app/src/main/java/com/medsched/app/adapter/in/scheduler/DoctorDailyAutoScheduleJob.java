@@ -28,6 +28,10 @@ public class DoctorDailyAutoScheduleJob {
      */
     @Scheduled(cron = "0 0 17 * * *", zone = "Asia/Ho_Chi_Minh")
     public void runDailyAutoScheduleAt17h() {
+        if (!doctorScheduleService.isAutoScheduleEnabled()) {
+            log.info("ℹ️ [CRON 17:00] Chế độ Bác Sĩ Tự Đặt Lịch Thủ Công đang BẬT. Bỏ qua tác vụ tự động sinh lịch.");
+            return;
+        }
         log.info("⏰ [CRON 17:00] Bắt đầu kích hoạt tự động xếp lịch trực 7 ngày (1 tuần) tới cho toàn bộ Bác sĩ...");
         try {
             DoctorScheduleDtos.AutoScheduleResultDto result =
@@ -44,6 +48,10 @@ public class DoctorDailyAutoScheduleJob {
      */
     @org.springframework.context.event.EventListener(org.springframework.boot.context.event.ApplicationReadyEvent.class)
     public void onStartupCheckAutoSchedule() {
+        if (!doctorScheduleService.isAutoScheduleEnabled()) {
+            log.info("ℹ️ [STARTUP CHECK] Chế độ Bác Sĩ Tự Đặt Lịch Thủ Công đang BẬT. Bỏ qua tự động sinh lịch lúc khởi động.");
+            return;
+        }
         log.info("🚀 [STARTUP CHECK] Tự động rà soát và sinh lịch trực 7 ngày (1 tuần) tới cho toàn bộ Bác sĩ...");
         try {
             DoctorScheduleDtos.AutoScheduleResultDto result =

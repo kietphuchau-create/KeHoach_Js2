@@ -138,11 +138,57 @@ export default function ScheduleConfigManager() {
     }
   }, [activeTab, selectedDate]);
 
+  // Đồng bộ chế độ xếp lịch từ backend khi khởi tạo
+  useEffect(() => {
+    api.getScheduleMode().then((res) => {
+      if (res) {
+        setConfig((prev) => ({
+          ...prev,
+          autoScheduleEnabled: res.autoScheduleEnabled,
+          minWorkHoursPerDay: res.minWorkHoursPerDay || 6,
+        }));
+      }
+    }).catch((err) => console.warn('Lỗi lấy chế độ xếp lịch từ server:', err));
+  }, []);
+
+  // Chuyển đổi nhanh chế độ Tự Động vs Thủ Công Demo
+  const handleToggleScheduleMode = async (enabled: boolean) => {
+    try {
+      setSaveLoading(true);
+      const res = await api.updateScheduleMode({
+        autoScheduleEnabled: enabled,
+        minWorkHoursPerDay: config.minWorkHoursPerDay || 6,
+      });
+      const newConfig = {
+        ...config,
+        autoScheduleEnabled: res.autoScheduleEnabled,
+        minWorkHoursPerDay: res.minWorkHoursPerDay || 6,
+      };
+      saveClinicScheduleConfig(newConfig, 'Quản Trị Viên (Admin)');
+      setConfig(newConfig);
+      setMessage({
+        type: 'success',
+        text: enabled
+          ? 'Đã kích hoạt [CHẾ ĐỘ TỰ ĐỘNG TOÀN VIỆN]: Hệ thống tự động quét và sinh ca trực chuẩn 7 ngày cho toàn bộ Bác sĩ.'
+          : 'Đã kích hoạt [CHẾ ĐỘ BÁC SĨ TỰ ĐẶT LỊCH THỦ CÔNG - DEMO]: Bác sĩ tự do mở lịch không giới hạn số ngày, bắt buộc tối thiểu 6 tiếng/ngày mới được mở ngày tiếp theo.',
+      });
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err?.message || 'Không thể cập nhật chế độ xếp lịch.' });
+    } finally {
+      setSaveLoading(false);
+    }
+  };
+
   // Lưu cấu hình giờ khám
-  const handleSaveConfig = (e: React.FormEvent) => {
+  const handleSaveConfig = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaveLoading(true);
     try {
+      await api.updateScheduleMode({
+        autoScheduleEnabled: config.autoScheduleEnabled,
+        minWorkHoursPerDay: config.minWorkHoursPerDay || 6,
+      }).catch((e) => console.warn('Lỗi đồng bộ chế độ xếp lịch:', e));
+
       const saved = saveClinicScheduleConfig(config, 'Quản Trị Viên (Admin)');
       setConfig(saved);
       setMessage({
@@ -330,6 +376,148 @@ export default function ScheduleConfigManager() {
       {/* ── TAB 1: CẤU HÌNH CA KHÁM TOÀN VIỆN ── */}
       {activeTab === 'shifts' && (
         <form onSubmit={handleSaveConfig} className="space-y-5">
+          {/* ── BẢNG ĐIỀU KHIỂN CHẾ ĐỘ XẾP LỊCH TOÀN VIỆN ── */}
+          <div className="bg-gradient-to-br from-slate-900 via-pine-teal to-teal-900 p-5 rounded-3xl text-white shadow-lg space-y-4 border border-teal-500/30">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-teal-400/20 text-teal-300 flex items-center justify-center font-bold border border-teal-400/30 shadow-inner">
+                  <Sparkles size={22} className="text-teal-300 animate-pulse" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="text-base sm:text-lg font-black text-white">Chế Độ Xếp Lịch Toàn Viện</h2>
+                    <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider ${
+                      config.autoScheduleEnabled
+                        ? 'bg-cyan-500/20 text-cyan-200 border border-cyan-400/30'
+                        : 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/30'
+                    }`}>
+                      {config.autoScheduleEnabled ? 'Tự Động 7 Ngày' : 'Thủ Công (Khuyến Nghị Demo)'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-teal-100/70 mt-0.5">
+                    Lựa chọn giữa cơ chế tự động sinh lịch trực toàn viện hoặc để Bác sĩ tự do mở ca trực demo.
+                  </p>
+                </div>
+              </div>
+
+              {/* Input cấu hình số giờ tối thiểu / ngày */}
+              <div className="flex items-center gap-2 bg-black/25 px-3 py-1.5 rounded-xl border border-white/10">
+                <span className="text-[11px] text-teal-200 font-semibold">Chỉ tiêu tối thiểu:</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={12}
+                  value={config.minWorkHoursPerDay || 6}
+                  onChange={(e) => setConfig({ ...config, minWorkHoursPerDay: Math.max(1, Number(e.target.value)) })}
+                  className="w-12 px-2 py-0.5 text-center font-black bg-white/15 text-white rounded-lg border border-teal-400/40 text-xs focus:ring-2 focus:ring-teal-400 outline-none"
+                />
+                <span className="text-[11px] text-teal-200 font-bold">giờ/ngày</span>
+              </div>
+            </div>
+
+            {/* 2 Chế độ dạng Thẻ Card trực quan */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+              {/* Card 1: Bác sĩ tự đặt lịch thủ công (Demo) */}
+              <div
+                onClick={() => handleToggleScheduleMode(false)}
+                className={`relative p-4 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between gap-3 ${
+                  !config.autoScheduleEnabled
+                    ? 'bg-white/15 border-emerald-400 shadow-md shadow-emerald-500/20 ring-2 ring-emerald-400/40'
+                    : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold ${
+                      !config.autoScheduleEnabled ? 'bg-emerald-500 text-white' : 'bg-white/10 text-white/60'
+                    }`}>
+                      <UserCheck size={18} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-extrabold text-white flex items-center gap-1.5">
+                        <span>Bác Sĩ Tự Đặt Lịch Thủ Công</span>
+                        <span className="text-[10px] bg-amber-400/20 text-amber-200 px-1.5 py-0.5 rounded border border-amber-400/40 font-bold">
+                          Kịch Bản Demo Chính
+                        </span>
+                      </h3>
+                      <p className="text-[11px] text-teal-100/70 mt-0.5">
+                        Kiểm soát công suất nghiêm ngặt theo tiêu chuẩn phòng khám.
+                      </p>
+                    </div>
+                  </div>
+                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                    !config.autoScheduleEnabled ? 'border-emerald-400 bg-emerald-500 text-white' : 'border-white/30'
+                  }`}>
+                    {!config.autoScheduleEnabled && <CheckCircle2 size={13} className="text-white" />}
+                  </div>
+                </div>
+
+                <ul className="text-[11px] space-y-1 text-teal-100/80 bg-black/20 p-2.5 rounded-xl border border-white/5">
+                  <li className="flex items-center gap-1.5">
+                    <span className="text-emerald-400 font-bold">✓</span>
+                    <span><strong>Không giới hạn số ngày:</strong> Bác sĩ tự do mở lịch bao nhiêu ngày tùy ý.</span>
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="text-emerald-400 font-bold">✓</span>
+                    <span><strong>Chỉ tiêu {config.minWorkHoursPerDay || 6} tiếng/ngày:</strong> Buộc hoàn tất đủ tối thiểu mới được đăng ký ngày kế tiếp.</span>
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="text-emerald-400 font-bold">✓</span>
+                    <span><strong>Bệnh nhân thấy đúng 100% lịch thật:</strong> Không bị can thiệp bởi khung giờ tự sinh ảo.</span>
+                  </li>
+                </ul>
+              </div>
+
+              {/* Card 2: Tự động toàn viện (Auto-Schedule) */}
+              <div
+                onClick={() => handleToggleScheduleMode(true)}
+                className={`relative p-4 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between gap-3 ${
+                  config.autoScheduleEnabled
+                    ? 'bg-white/15 border-cyan-400 shadow-md shadow-cyan-500/20 ring-2 ring-cyan-400/40'
+                    : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold ${
+                      config.autoScheduleEnabled ? 'bg-cyan-500 text-white' : 'bg-white/10 text-white/60'
+                    }`}>
+                      <Zap size={18} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-extrabold text-white flex items-center gap-1.5">
+                        <span>Tự Động Toàn Viện (Auto-Schedule)</span>
+                      </h3>
+                      <p className="text-[11px] text-teal-100/70 mt-0.5">
+                        Cơ chế vận hành dự phòng toàn viện lúc cao điểm.
+                      </p>
+                    </div>
+                  </div>
+                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                    config.autoScheduleEnabled ? 'border-cyan-400 bg-cyan-500 text-white' : 'border-white/30'
+                  }`}>
+                    {config.autoScheduleEnabled && <CheckCircle2 size={13} className="text-white" />}
+                  </div>
+                </div>
+
+                <ul className="text-[11px] space-y-1 text-teal-100/80 bg-black/20 p-2.5 rounded-xl border border-white/5">
+                  <li className="flex items-center gap-1.5">
+                    <span className="text-cyan-400 font-bold">✓</span>
+                    <span><strong>Tự động quét &amp; sinh ca 7 ngày:</strong> Cron Job 17:00 hằng ngày tự tạo ca trực cho bác sĩ chưa xếp lịch.</span>
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="text-cyan-400 font-bold">✓</span>
+                    <span><strong>Tự sinh bù slots ảo:</strong> Đảm bảo bệnh nhân luôn tìm thấy khung giờ 08:00 - 17:00.</span>
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="text-cyan-400 font-bold">✓</span>
+                    <span><strong>Phù hợp:</strong> Khi cần đảm bảo công suất tối đa mà không phụ thuộc vào thao tác từng bác sĩ.</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
           {/* Top Quick Settings: Slot Duration & Operating Days */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Slot Duration */}
