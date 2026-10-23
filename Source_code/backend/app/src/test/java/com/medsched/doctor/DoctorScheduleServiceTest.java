@@ -243,4 +243,98 @@ class DoctorScheduleServiceTest {
         assertThat(res).isNotNull();
         verify(doctorScheduleRepository).save(any());
     }
+
+    @Test
+    @DisplayName("Quản trị viên (Admin) có thẩm quyền phân công ca trực trong ngày hôm nay")
+    void givenAdminUser_whenCreateScheduleToday_thenSuccess() {
+        Instant now = Instant.now();
+        DoctorEntity doc = new DoctorEntity(
+                "doc-1", "u-doc-1", "spec-1", "ThS.BS",
+                BigDecimal.valueOf(300000), "P.101", "Bio", null, now, now
+        );
+
+        LocalDate today = LocalDate.now(VN_ZONE);
+        given(doctorRepository.findById("doc-1")).willReturn(Optional.of(doc));
+        given(doctorScheduleRepository.findByDoctorIdAndWorkDate("doc-1", today)).willReturn(List.of());
+        given(doctorScheduleRepository.findByWorkDate(today)).willReturn(List.of());
+        given(doctorScheduleRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
+
+        var req = new DoctorScheduleDtos.CreateScheduleRequest(
+                "doc-1",
+                today,
+                LocalTime.of(8, 0),
+                LocalTime.of(12, 0),
+                30,
+                "P.101"
+        );
+
+        var res = doctorScheduleService.createSchedule("u-admin-1", req);
+
+        assertThat(res).isNotNull();
+        assertThat(res.workDate()).isEqualTo(today);
+    }
+
+    @Test
+    @DisplayName("Hỗ trợ đăng ký ca tối (17:30 - 20:30) cho Bác sĩ")
+    void givenEveningShift_whenCreateSchedule_thenSuccess() {
+        Instant now = Instant.now();
+        DoctorEntity doc = new DoctorEntity(
+                "doc-1", "u-doc-1", "spec-1", "ThS.BS",
+                BigDecimal.valueOf(300000), "P.101", "Bio", null, now, now
+        );
+
+        LocalDate validWorkDate = LocalDate.now(VN_ZONE).plusDays(1);
+        while (validWorkDate.getDayOfWeek() == java.time.DayOfWeek.SATURDAY || validWorkDate.getDayOfWeek() == java.time.DayOfWeek.SUNDAY) {
+            validWorkDate = validWorkDate.plusDays(1);
+        }
+
+        given(doctorRepository.findById("doc-1")).willReturn(Optional.of(doc));
+        given(doctorScheduleRepository.findByDoctorIdAndWorkDate("doc-1", validWorkDate)).willReturn(List.of());
+        given(doctorScheduleRepository.findByWorkDate(validWorkDate)).willReturn(List.of());
+        given(doctorScheduleRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
+
+        var req = new DoctorScheduleDtos.CreateScheduleRequest(
+                "doc-1",
+                validWorkDate,
+                LocalTime.of(17, 30),
+                LocalTime.of(20, 30),
+                30,
+                "P.101"
+        );
+
+        var res = doctorScheduleService.createSchedule("u-doc-1", req);
+
+        assertThat(res).isNotNull();
+        assertThat(res.startTime()).isEqualTo("17:30");
+        assertThat(res.endTime()).isEqualTo("20:30");
+    }
+
+    @Test
+    @DisplayName("Admin có quyền điều phối đổi buồng khám khẩn cấp ngay trong ngày hôm nay")
+    void givenAdminUser_whenEmergencyChangeScheduleRoomToday_thenSuccess() {
+        Instant now = Instant.now();
+        DoctorEntity doc = new DoctorEntity(
+                "doc-1", "u-doc-1", "spec-1", "ThS.BS",
+                BigDecimal.valueOf(300000), "P.101", "Bio", null, now, now
+        );
+        LocalDate today = LocalDate.now(VN_ZONE);
+        DoctorScheduleEntity sch = new DoctorScheduleEntity(
+                "sch-emergency", "doc-1", today, LocalTime.of(8, 0),
+                LocalTime.of(12, 0), 30, ScheduleStatus.ACTIVE, now, now
+        );
+
+        given(doctorScheduleRepository.findById("sch-emergency")).willReturn(Optional.of(sch));
+        given(doctorRepository.findById("doc-1")).willReturn(Optional.of(doc));
+        given(doctorScheduleRepository.findByWorkDate(today)).willReturn(List.of(sch));
+        given(doctorRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
+        given(timeSlotRepository.findByScheduleIdOrderByStartTimeAsc("sch-emergency")).willReturn(List.of());
+
+        var req = new DoctorScheduleDtos.ChangeScheduleRoomRequest("P.205");
+
+        var res = doctorScheduleService.changeScheduleRoom("u-admin-1", "sch-emergency", req);
+
+        assertThat(res).isNotNull();
+        assertThat(res.roomNumber()).isEqualTo("P.205");
+        verify(doctorRepository).save(doc);
+    }
 }

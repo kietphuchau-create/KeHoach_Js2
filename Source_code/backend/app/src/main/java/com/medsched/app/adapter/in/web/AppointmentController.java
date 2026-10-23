@@ -187,6 +187,14 @@ public class AppointmentController {
     }
 
     private List<String> ensureAvailableSlots(String doctorId) {
+        DoctorEntity doc = doctors.findById(doctorId).orElse(null);
+        if (doc != null && doc.getUserId() != null) {
+            UserEntity u = users.findById(doc.getUserId()).orElse(null);
+            if (u != null && !u.isActive()) {
+                return List.of();
+            }
+        }
+
         Instant now = Instant.now();
         List<TimeSlotEntity> available = timeSlotJpaRepository.findByDoctorIdAndStatusOrderByStartTimeAsc(doctorId, SlotStatus.AVAILABLE);
         List<String> validIds = new ArrayList<>();
@@ -194,12 +202,10 @@ public class AppointmentController {
         for (TimeSlotEntity s : available) {
             if (s.getStartTime() != null && s.getStartTime().isAfter(now)) {
                 ZonedDateTime zdt = s.getStartTime().atZone(vnZone);
-                DayOfWeek dow = zdt.getDayOfWeek();
-                if (dow != DayOfWeek.SATURDAY && dow != DayOfWeek.SUNDAY) {
-                    LocalTime t = zdt.toLocalTime();
-                    if (!t.isBefore(LocalTime.of(8, 0)) && t.isBefore(LocalTime.of(17, 0))) {
-                        validIds.add(s.getId());
-                    }
+                LocalTime t = zdt.toLocalTime();
+                // Hỗ trợ cả ca sáng, ca chiều và ca tối (07:30 - 21:00)
+                if (!t.isBefore(LocalTime.of(7, 30)) && !t.isAfter(LocalTime.of(21, 0))) {
+                    validIds.add(s.getId());
                 }
             }
         }

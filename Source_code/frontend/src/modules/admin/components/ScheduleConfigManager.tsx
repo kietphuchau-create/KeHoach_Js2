@@ -60,6 +60,11 @@ export default function ScheduleConfigManager() {
   const [addScheduleLoading, setAddScheduleLoading] = useState(false);
   const [syncingWeek, setSyncingWeek] = useState(false);
 
+  // Modal đổi buồng khám khẩn cấp (Emergency Room Reassign)
+  const [changingRoomSchedule, setChangingRoomSchedule] = useState<any | null>(null);
+  const [targetReassignRoom, setTargetReassignRoom] = useState<string>('P.101');
+  const [changingRoomLoading, setChangingRoomLoading] = useState(false);
+
   // Bộ lọc Chi nhánh & Bác sĩ cho Tab 2
   const [filterCenter, setFilterCenter] = useState<string>('ALL');
   const [filterSearch, setFilterSearch] = useState<string>('');
@@ -195,6 +200,29 @@ export default function ScheduleConfigManager() {
       setMessage({ type: 'error', text: err.message || 'Phân công ca trực thất bại. Kiểm tra trùng lịch hoặc buồng khám.' });
     } finally {
       setAddScheduleLoading(false);
+    }
+  };
+
+  // Điều phối đổi buồng khám khẩn cấp cho ca trực (Admin Emergency Room Reassign)
+  const handleEmergencyChangeRoom = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!changingRoomSchedule) return;
+    setChangingRoomLoading(true);
+    try {
+      await api.changeDoctorScheduleRoom(changingRoomSchedule.id, targetReassignRoom);
+      setMessage({
+        type: 'success',
+        text: `[ĐIỀU PHỐI KHẨN CẤP] Đã đổi buồng khám ca trực của Bác sĩ [${changingRoomSchedule.doctorName}] sang buồng [${targetReassignRoom}] thành công!`,
+      });
+      setChangingRoomSchedule(null);
+      loadDoctorSchedules();
+    } catch (err: any) {
+      setMessage({
+        type: 'error',
+        text: err?.message || 'Không thể đổi buồng khám cho ca trực.',
+      });
+    } finally {
+      setChangingRoomLoading(false);
     }
   };
 
@@ -909,8 +937,8 @@ export default function ScheduleConfigManager() {
                           </div>
                         </div>
 
-                        {/* Summary Badges */}
-                        <div className="flex items-center gap-2 text-[11px] font-bold">
+                        {/* Summary Badges & Emergency Room Reassign */}
+                        <div className="flex items-center gap-2 text-[11px] font-bold flex-wrap">
                           <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
                             {availableCount} Trống
                           </span>
@@ -922,6 +950,18 @@ export default function ScheduleConfigManager() {
                               {lockedCount} Đã khóa
                             </span>
                           )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setChangingRoomSchedule(schedule);
+                              setTargetReassignRoom(schedule.roomNumber || 'P.101');
+                            }}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 transition cursor-pointer"
+                            title="Điều phối đổi buồng khám khẩn cấp cho ca trực này"
+                          >
+                            <DoorOpen size={12} />
+                            <span>Đổi Buồng</span>
+                          </button>
                         </div>
                       </div>
 
@@ -1049,30 +1089,36 @@ export default function ScheduleConfigManager() {
 
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">
-                    Buồng Khám {existingShiftOnDate && <span className="text-teal-700 font-bold">(Cố định 1 buồng/ngày)</span>}
+                    Buồng Khám {existingShiftOnDate && <span className="text-teal-700 font-bold">(Gợi ý: {existingShiftOnDate.roomNumber})</span>}
                   </label>
                   <select
                     value={newScheduleRoom}
-                    disabled={Boolean(existingShiftOnDate)}
                     onChange={(e) => setNewScheduleRoom(e.target.value)}
-                    className={`w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold ${existingShiftOnDate ? 'opacity-80 bg-slate-100 cursor-not-allowed text-teal-800' : ''}`}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold"
                   >
                     <option value="P.101">P.101 (Đa khoa & Cấp cứu)</option>
                     <option value="P.102">P.102 (Da liễu thẩm mỹ)</option>
+                    <option value="P.103">P.103 (Khám Mắt)</option>
+                    <option value="P.104">P.104 (Tai Mũi Họng)</option>
+                    <option value="P.105">P.105 (Răng Hàm Mặt)</option>
+                    <option value="P.201">P.201 (Nhi khoa)</option>
+                    <option value="P.202">P.202 (Sản phụ khoa)</option>
                     <option value="P.205">P.205 (Tim mạch)</option>
                     <option value="P.208">P.208 (Nội tiêu hóa)</option>
                     <option value="P.209">P.209 (Tư vấn chuyên sâu)</option>
+                    <option value="P.301">P.301 (Chẩn đoán hình ảnh)</option>
+                    <option value="P.302">P.302 (Thủ thuật chuyên biệt)</option>
                   </select>
                 </div>
               </div>
 
               {existingShiftOnDate && (
-                <div className="p-3 bg-teal-50 border border-teal-200 rounded-xl text-teal-900 text-xs flex items-start gap-2">
-                  <Building2 size={16} className="text-teal-700 shrink-0 mt-0.5" />
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-blue-900 text-xs flex items-start gap-2">
+                  <Building2 size={16} className="text-blue-700 shrink-0 mt-0.5" />
                   <div>
-                    <span className="font-bold">Quy định phòng khám (Khóa đa chi nhánh trong ngày):</span>
-                    <p className="text-[11px] text-teal-800 mt-0.5 leading-relaxed">
-                      Trong ngày <strong>{newScheduleDate}</strong>, Bác sĩ đã có ca trực tại buồng <strong>[{existingShiftOnDate.roomNumber || 'P.208'}]</strong> ({existingShiftOnDate.startTime} - {existingShiftOnDate.endTime}). Ca tiếp theo được tự động cố định tại buồng này để phục vụ người bệnh tốt nhất. Bác sĩ có thể chuyển chi nhánh/buồng khác vào các ngày làm việc khác!
+                    <span className="font-bold">Lưu ý phân công buồng khám:</span>
+                    <p className="text-[11px] text-blue-800 mt-0.5 leading-relaxed">
+                      Bác sĩ đã có ca trực ({existingShiftOnDate.startTime} - {existingShiftOnDate.endTime}) tại buồng <strong>[{existingShiftOnDate.roomNumber || 'P.208'}]</strong>. Quản Trị Viên có thể giữ nguyên buồng hoặc phân bổ buồng khác cho ca này nếu thuộc thủ thuật / chuyên khoa khác.
                     </p>
                   </div>
                 </div>
@@ -1096,6 +1142,86 @@ export default function ScheduleConfigManager() {
                   className="px-5 py-2 rounded-xl bg-pine-teal hover:bg-pine-teal-hover text-white font-bold shadow-xs"
                 >
                   {addScheduleLoading ? 'Đang tạo...' : 'Tạo Ca Trực'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Đổi Buồng Khám Khẩn Cấp (Admin Emergency Room Reassign) */}
+      {changingRoomSchedule && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl border border-mint-light w-full max-w-md overflow-hidden">
+            <div className="bg-purple-50 px-6 py-4 border-b border-purple-100 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-purple-900 font-bold text-base">
+                <DoorOpen size={18} />
+                <span>Điều Phối Đổi Buồng Khám Khẩn Cấp</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setChangingRoomSchedule(null)}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleEmergencyChangeRoom} className="p-6 space-y-4 text-xs">
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 space-y-1">
+                <div className="font-bold flex items-center gap-1.5">
+                  <AlertTriangle size={14} className="text-amber-600" />
+                  <span>Quyền Hạn Quản Trị Viên (Emergency Override)</span>
+                </div>
+                <p className="text-[11px] leading-relaxed text-amber-800">
+                  Điều phối đổi buồng ngay trong ngày khám khi buồng khám hiện tại gặp sự cố hỏng hóc thiết bị, ngắt điện hoặc khử khuẩn.
+                </p>
+              </div>
+
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
+                <div>Bác sĩ: <strong>{changingRoomSchedule.doctorName}</strong></div>
+                <div>Ngày trực: <strong className="font-mono">{changingRoomSchedule.workDate}</strong> ({changingRoomSchedule.startTime?.slice(0, 5)} - {changingRoomSchedule.endTime?.slice(0, 5)})</div>
+                <div>Buồng hiện tại: <span className="font-bold text-purple-700">{changingRoomSchedule.roomNumber || 'P.101'}</span></div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Chọn Buồng Khám Mới Tiếp Quản <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={targetReassignRoom}
+                  onChange={(e) => setTargetReassignRoom(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs"
+                >
+                  <option value="P.101">P.101 (Đa khoa & Cấp cứu)</option>
+                  <option value="P.102">P.102 (Da liễu thẩm mỹ)</option>
+                  <option value="P.103">P.103 (Khám Mắt)</option>
+                  <option value="P.104">P.104 (Tai Mũi Họng)</option>
+                  <option value="P.105">P.105 (Răng Hàm Mặt)</option>
+                  <option value="P.201">P.201 (Nhi khoa)</option>
+                  <option value="P.202">P.202 (Sản phụ khoa)</option>
+                  <option value="P.205">P.205 (Tim mạch)</option>
+                  <option value="P.208">P.208 (Nội tiêu hóa)</option>
+                  <option value="P.209">P.209 (Tư vấn chuyên sâu)</option>
+                  <option value="P.301">P.301 (Chẩn đoán hình ảnh)</option>
+                  <option value="P.302">P.302 (Thủ thuật chuyên biệt)</option>
+                </select>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setChangingRoomSchedule(null)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-bold"
+                >
+                  Hủy Bỏ
+                </button>
+                <button
+                  type="submit"
+                  disabled={changingRoomLoading || targetReassignRoom === changingRoomSchedule.roomNumber}
+                  className="px-5 py-2 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold shadow-xs disabled:opacity-50"
+                >
+                  {changingRoomLoading ? 'Đang điều phối...' : 'Xác Nhận Đổi Buồng'}
                 </button>
               </div>
             </form>

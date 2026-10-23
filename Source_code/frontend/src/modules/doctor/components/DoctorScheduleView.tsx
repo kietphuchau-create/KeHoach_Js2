@@ -73,7 +73,7 @@ export default function DoctorScheduleView() {
   const [endTime, setEndTime] = useState<string>('12:00');
   const [slotDuration, setSlotDuration] = useState<number>(30);
   const [submitting, setSubmitting] = useState(false);
-  const [activePreset, setActivePreset] = useState<'MORNING' | 'AFTERNOON' | 'FULL_DAY' | null>('MORNING');
+  const [activePreset, setActivePreset] = useState<'MORNING' | 'AFTERNOON' | 'EVENING' | 'FULL_DAY' | null>('MORNING');
 
   // Cửa sổ tiện ích xem và quản lý khung giờ của một ca trực ngay trên ma trận
   const [selectedScheduleForSlots, setSelectedScheduleForSlots] = useState<DoctorScheduleDto | null>(null);
@@ -285,7 +285,7 @@ export default function DoctorScheduleView() {
   };
 
   // Áp dụng khung giờ mẫu có đồng bộ thời gian thật và hiệu ứng phát sáng
-  const applyPresetShift = (type: 'MORNING' | 'AFTERNOON' | 'FULL_DAY') => {
+  const applyPresetShift = (type: 'MORNING' | 'AFTERNOON' | 'EVENING' | 'FULL_DAY') => {
     setActivePreset(type);
     if (type === 'MORNING') {
       setStartTime('08:00');
@@ -293,6 +293,9 @@ export default function DoctorScheduleView() {
     } else if (type === 'AFTERNOON') {
       setStartTime('13:30');
       setEndTime('17:00');
+    } else if (type === 'EVENING') {
+      setStartTime('17:30');
+      setEndTime('20:30');
     } else if (type === 'FULL_DAY') {
       setStartTime('08:00');
       setEndTime('17:00');
@@ -303,6 +306,7 @@ export default function DoctorScheduleView() {
     setStartTime(newStart);
     if (newStart === '08:00' && endTime === '12:00') setActivePreset('MORNING');
     else if (newStart === '13:30' && endTime === '17:00') setActivePreset('AFTERNOON');
+    else if (newStart === '17:30' && endTime === '20:30') setActivePreset('EVENING');
     else if (newStart === '08:00' && endTime === '17:00') setActivePreset('FULL_DAY');
     else setActivePreset(null);
   };
@@ -311,6 +315,7 @@ export default function DoctorScheduleView() {
     setEndTime(newEnd);
     if (startTime === '08:00' && newEnd === '12:00') setActivePreset('MORNING');
     else if (startTime === '13:30' && newEnd === '17:00') setActivePreset('AFTERNOON');
+    else if (startTime === '17:30' && newEnd === '20:30') setActivePreset('EVENING');
     else if (startTime === '08:00' && newEnd === '17:00') setActivePreset('FULL_DAY');
     else setActivePreset(null);
   };
@@ -323,26 +328,20 @@ export default function DoctorScheduleView() {
       return;
     }
     const todayStr = new Date().toISOString().slice(0, 10);
-    // Quy định giáo viên: Chỉ được đăng ký trước tối thiểu 1 ngày
+    // Quy định đăng ký trước
     if (workDate <= todayStr) {
-      setError('Theo quy định phòng khám, Bác sĩ chỉ được đăng ký ca trực trước tối thiểu 1 ngày (từ ngày mai trở đi). Ca trực hôm nay được hệ thống tự động xếp lịch.');
+      setError('Theo quy định phòng khám, Bác sĩ đăng ký ca trực trước tối thiểu 1 ngày (từ ngày mai trở đi). Ca trực hôm nay do Quản Trị Viên (Admin) phân công điều phối.');
       return;
     }
 
     const selDate = new Date(workDate + 'T00:00:00');
     const dow = selDate.getDay();
     if (dow === 0 || dow === 6) {
-      setError('Phòng khám chỉ tiếp nhận khám từ Thứ 2 đến Thứ 6. Không thể đăng ký ca trực vào Thứ 7 hoặc Chủ Nhật.');
+      setError('Phòng khám không mở đăng ký ca trực cuối tuần tự do cho Bác sĩ. Ca trực cuối tuần chỉ áp dụng khi Quản Trị Viên (Admin) phân công.');
       return;
     }
 
     const finalRoom = selectedRoom;
-
-    // Chặn thay đổi buồng nếu đã có ca trực trong cùng ngày
-    if (myExistingShiftOnDate && myExistingShiftOnDate.roomNumber && finalRoom.toUpperCase() !== myExistingShiftOnDate.roomNumber.toUpperCase()) {
-      setError(`Theo quy định phòng khám, tất cả ca trực trong ngày ${workDate} phải diễn ra tại 1 buồng duy nhất [${myExistingShiftOnDate.roomNumber}]. Nếu muốn trực buồng khác, vui lòng chọn ngày khác!`);
-      return;
-    }
 
     try {
       setSubmitting(true);
@@ -968,12 +967,12 @@ export default function DoctorScheduleView() {
                   {activePreset && (
                     <span className="text-[11px] font-bold text-teal-700 flex items-center gap-1">
                       <span className="w-2 h-2 rounded-full bg-teal-500 animate-pulse"></span>
-                      <span>Đang chọn: {activePreset === 'MORNING' ? 'Ca Sáng' : activePreset === 'AFTERNOON' ? 'Ca Chiều' : 'Cả Ngày'}</span>
+                      <span>Đang chọn: {activePreset === 'MORNING' ? 'Ca Sáng' : activePreset === 'AFTERNOON' ? 'Ca Chiều' : activePreset === 'EVENING' ? 'Ca Tối' : 'Cả Ngày'}</span>
                     </span>
                   )}
                 </div>
 
-                <div className="grid grid-cols-3 gap-2.5">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                   <button
                     type="button"
                     onClick={() => applyPresetShift('MORNING')}
@@ -1006,6 +1005,23 @@ export default function DoctorScheduleView() {
                     </div>
                     <div className="text-[11px] opacity-90 font-semibold">13:30 - 17:00</div>
                     <div className="text-[10px] opacity-75">3.5 tiếng • 7 slots</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => applyPresetShift('EVENING')}
+                    className={`p-3 rounded-2xl text-xs font-bold transition-all duration-200 cursor-pointer text-left flex flex-col justify-between gap-1 border ${
+                      activePreset === 'EVENING'
+                        ? 'border-purple-500 bg-gradient-to-br from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-600/30 scale-[1.02]'
+                        : 'border-slate-200 bg-slate-50/70 hover:border-purple-300 hover:bg-purple-50/50 text-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-black">Ca Tối</span>
+                      <span className="text-sm">🌙</span>
+                    </div>
+                    <div className="text-[11px] opacity-90 font-semibold">17:30 - 20:30</div>
+                    <div className="text-[10px] opacity-75">3 tiếng • 6 slots</div>
                   </button>
 
                   <button
@@ -1095,18 +1111,15 @@ export default function DoctorScheduleView() {
                   <div className="space-y-1">
                     <div className="flex items-center justify-between">
                       <span className="text-[11px] font-semibold text-slate-600">
-                        Buồng khám: {myExistingShiftOnDate && <span className="text-teal-700 font-bold">(Cố định trong ngày)</span>}
+                        Buồng khám: {myExistingShiftOnDate && <span className="text-teal-700 font-bold">(Gợi ý: {myExistingShiftOnDate.roomNumber})</span>}
                       </span>
                       {checkingRooms && <RefreshCw size={11} className="animate-spin text-teal-600" />}
                     </div>
                     <select
                       value={selectedRoom}
-                      disabled={Boolean(myExistingShiftOnDate)}
                       onChange={(e) => setSelectedRoom(e.target.value)}
                       className={`w-full p-2.5 border rounded-xl text-xs outline-none focus:ring-2 font-bold transition ${
-                        myExistingShiftOnDate
-                          ? 'border-teal-300 bg-teal-50/80 text-teal-900 cursor-not-allowed opacity-90'
-                          : occupiedRooms.some((o) => o.roomNumber.toUpperCase() === selectedRoom.toUpperCase())
+                        occupiedRooms.some((o) => o.roomNumber.toUpperCase() === selectedRoom.toUpperCase())
                           ? 'border-rose-300 bg-rose-50/50 text-rose-900 focus:ring-rose-500/20 cursor-pointer'
                           : 'border-slate-200 bg-slate-50 text-slate-800 focus:ring-teal-700/20 cursor-pointer'
                       }`}
@@ -1134,9 +1147,9 @@ export default function DoctorScheduleView() {
                   <div className="p-3 bg-teal-50 border border-teal-200 rounded-xl text-teal-900 text-xs flex items-start gap-2">
                     <CheckCircle2 size={16} className="text-teal-700 shrink-0 mt-0.5" />
                     <div>
-                      <span className="font-bold">Quy định phòng khám (Khóa đa buồng/chi nhánh trong ngày):</span>
+                      <span className="font-bold">Lưu ý phân bổ buồng khám:</span>
                       <p className="text-[11px] text-teal-800 mt-0.5 leading-relaxed">
-                        Trong ngày <strong>{workDate}</strong>, Bác sĩ đã có ca trực tại buồng <strong>[{myExistingShiftOnDate.roomNumber || 'P.208'}]</strong> ({myExistingShiftOnDate.startTime} - {myExistingShiftOnDate.endTime}). Ca tiếp theo trong ngày được tự động cố định tại buồng này để bảo đảm đón tiếp người bệnh chu đáo. Bác sĩ có thể chọn buồng khám khác vào các ngày làm việc khác!
+                        Trong ngày <strong>{workDate}</strong>, Bác sĩ đã có ca trực ({myExistingShiftOnDate.startTime} - {myExistingShiftOnDate.endTime}) tại buồng <strong>[{myExistingShiftOnDate.roomNumber || 'P.208'}]</strong>. Bạn có thể giữ nguyên buồng hoặc chọn buồng chuyên môn khác nếu ca này thuộc thủ thuật hoặc tư vấn khác.
                       </p>
                     </div>
                   </div>

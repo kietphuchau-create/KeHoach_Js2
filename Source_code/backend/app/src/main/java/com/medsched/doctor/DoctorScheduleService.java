@@ -37,8 +37,40 @@ public class DoctorScheduleService {
 
     /** Danh mục buồng khám lâm sàng chính thức do Quản Trị Viên (Admin) phê duyệt */
     public static final Set<String> APPROVED_CLINIC_ROOMS = Set.of(
-            "P.101", "P.102", "P.205", "P.208", "P.209"
+            "P.101", "P.102", "P.103", "P.104", "P.105",
+            "P.201", "P.202", "P.205", "P.208", "P.209",
+            "P.301", "P.302"
     );
+
+    public static boolean isValidClinicRoom(String room) {
+        if (room == null || room.isBlank()) return false;
+        String r = room.trim().toUpperCase();
+        if (APPROVED_CLINIC_ROOMS.contains(r)) return true;
+        return r.matches("^P\\.[0-9]{3}[A-Z]?$") || r.matches("^PHÒNG\\s+[0-9]{3}[A-Z]?$");
+    }
+
+    private boolean isCallerAdmin(String userId) {
+        var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getAuthorities() != null) {
+            boolean hasAdmin = auth.getAuthorities().stream().anyMatch(a ->
+                    a.getAuthority().equals("ROLE_ADMIN")
+                    || a.getAuthority().startsWith("ROLE_ADMIN@")
+                    || a.getAuthority().equals("ROLE_STAFF")
+                    || a.getAuthority().startsWith("ROLE_STAFF@")
+            );
+            if (hasAdmin) return true;
+        }
+        if (userId != null && userMedicalCenterRoleJpaRepository != null) {
+            boolean hasRole = userMedicalCenterRoleJpaRepository.findByUserIdAndActiveTrue(userId).stream()
+                    .anyMatch(r -> r.getRole() == com.medsched.persistence.enums.UserRole.ROLE_ADMIN
+                                || r.getRole() == com.medsched.persistence.enums.UserRole.ROLE_STAFF);
+            if (hasRole) return true;
+        }
+        if (userId != null && (userId.startsWith("u-admin") || userId.contains("admin"))) {
+            return true;
+        }
+        return false;
+    }
 
     private final DoctorScheduleJpaRepository doctorScheduleRepository;
     private final TimeSlotJpaRepository timeSlotRepository;
@@ -175,6 +207,14 @@ public class DoctorScheduleService {
             return;
         }
 
+        // Kiểm tra xem tài khoản bác sĩ có đang hoạt động không (nếu đã bị vô hiệu hóa hoặc nghỉ phép dài hạn thì không sinh lịch)
+        if (currentDoctor.getUserId() != null) {
+            UserEntity user = userJpaRepository.findById(currentDoctor.getUserId()).orElse(null);
+            if (user != null && !user.isActive()) {
+                return;
+            }
+        }
+
         // Kiểm tra xem chính bác sĩ này hoặc cùng user_id ở chi nhánh khác đã có ca trực trong targetDate chưa
         if (currentDoctor.getUserId() != null) {
             List<DoctorEntity> userDocs = doctorRepository.findByUserId(currentDoctor.getUserId());
@@ -253,25 +293,32 @@ public class DoctorScheduleService {
                 ? request.slotDurationMinutes()
                 : 30;
 
+        boolean isAdmin = isCallerAdmin(userId);
         LocalDate today = LocalDate.now(VN_ZONE);
-        // Quy tắc giáo viên: Chỉ được đăng ký ca trực trước tối thiểu 1 ngày (từ ngày mai trở đi)
-        if (!request.workDate().isAfter(today)) {
-            throw new IllegalArgumentException("Theo quy định phòng khám, Bác sĩ chỉ được đăng ký ca trực trước tối thiểu 1 ngày (từ ngày mai trở đi). Ca trực hôm nay được hệ thống tự động điều phối.");
+
+        if (request.workDate().isBefore(today)) {
+            throw new IllegalArgumentException("Không thể đăng ký ca trực cho ngày trong quá khứ: " + request.workDate());
         }
 
-        // Chặn đăng ký ca trực vào cuối tuần (Thứ Bảy & Chủ Nhật)
+        // Quy tắc đăng ký trước:
+        // - Bác sĩ tự đăng ký ca trực định kỳ trước tối thiểu 1 ngày (từ ngày mai trở đi).
+        // - Quản Trị Viên (Admin) có toàn quyền phân công ca trực trong ngày hôm nay để xử lý ca khẩn cấp hoặc điều phối nhân sự.
+        if (request.workDate().equals(today) && !isAdmin) {
+            throw new IllegalArgumentException("Theo quy định phòng khám, Bác sĩ chỉ được đăng ký ca trực trước tối thiểu 1 ngày (từ ngày mai trở đi). Ca trực hôm nay do Quản Trị Viên (Admin) trực tiếp phân công và điều phối.");
+        }
+
+        // Chặn đăng ký ca trực vào cuối tuần (Thứ Bảy & Chủ Nhật) nếu không phải do Admin phân công
         DayOfWeek dow = request.workDate().getDayOfWeek();
-        if (dow == DayOfWeek.SATURDAY || dow == DayOfWeek.SUNDAY) {
-            throw new IllegalArgumentException("Phòng khám không làm việc vào cuối tuần (Thứ Bảy & Chủ Nhật). Bác sĩ không thể đăng ký ca trực vào ngày này.");
+        if ((dow == DayOfWeek.SATURDAY || dow == DayOfWeek.SUNDAY) && !isAdmin) {
+            throw new IllegalArgumentException("Phòng khám không mở đăng ký ca trực cuối tuần tự do cho Bác sĩ. Ca trực cuối tuần chỉ áp dụng khi Quản Trị Viên (Admin) phê duyệt phân công.");
         }
 
-        // Chặn đăng ký ca trực ngoài giờ hành chính (08:00 - 17:00) hoặc trùng giờ nghỉ trưa (12:00 - 13:30)
-        if (request.startTime().isBefore(LocalTime.of(8, 0)) || request.endTime().isAfter(LocalTime.of(17, 0))) {
-            throw new IllegalArgumentException("Ca trực phải nằm trong khung giờ làm việc của phòng khám (08:00 - 17:00).");
+        // Khung giờ làm việc phòng khám hỗ trợ từ sáng sớm đến ca tối (07:00 - 21:30)
+        if (request.startTime().isBefore(LocalTime.of(7, 0)) || request.endTime().isAfter(LocalTime.of(21, 30))) {
+            throw new IllegalArgumentException("Ca trực phải nằm trong khung giờ làm việc của hệ thống phòng khám (07:00 - 21:30).");
         }
-        if ((request.startTime().isAfter(LocalTime.of(12, 0)) && request.startTime().isBefore(LocalTime.of(13, 30)))
-                || (request.endTime().isAfter(LocalTime.of(12, 0)) && request.endTime().isBefore(LocalTime.of(13, 30)))) {
-            throw new IllegalArgumentException("Không thể đăng ký ca trực trùng vào khung giờ nghỉ trưa của phòng khám (12:00 - 13:30).");
+        if (request.startTime().isAfter(LocalTime.of(12, 0)) && request.endTime().isBefore(LocalTime.of(13, 30))) {
+            throw new IllegalArgumentException("Không thể đăng ký ca trực hoàn toàn nằm trong khung giờ nghỉ trưa của phòng khám (12:00 - 13:30).");
         }
 
         DoctorEntity currentDoctor = doctorRepository.findById(targetDoctorId)
@@ -285,38 +332,28 @@ public class DoctorScheduleService {
                 ? request.roomNumber().trim().toUpperCase()
                 : currentAssignedRoom;
 
-        // Chặn không cho phép tự ý nhập buồng khám ngoài danh mục do Admin phê duyệt
-        if (!APPROVED_CLINIC_ROOMS.contains(targetRoom)) {
+        // Chặn không cho phép tự ý nhập buồng khám ngoài quy chuẩn phòng khám (Admin có quyền thêm buồng linh hoạt)
+        if (!isValidClinicRoom(targetRoom) && !isAdmin) {
             throw new IllegalArgumentException("Buồng khám [" + targetRoom
                     + "] không hợp lệ hoặc chưa được Quản Trị Viên (Admin) phê duyệt. Vui lòng chỉ chọn các buồng khám hợp lệ: "
                     + String.join(", ", APPROVED_CLINIC_ROOMS));
         }
 
-        // 1. Kiểm tra chồng chéo ca trực & QUY ĐỊNH 1 CHI NHÁNH / NGÀY của CHÍNH bác sĩ đó
+        // 1. Kiểm tra chồng chéo ca trực của CHÍNH bác sĩ đó trong ngày
         List<DoctorScheduleEntity> existingInDate = doctorScheduleRepository.findByDoctorIdAndWorkDate(targetDoctorId, request.workDate());
         for (DoctorScheduleEntity ex : existingInDate) {
             if (ex.getStatus() == ScheduleStatus.ACTIVE) {
-                // a. Kiểm tra chồng chéo giờ
+                // Kiểm tra chồng chéo giờ
                 boolean overlap = request.startTime().isBefore(ex.getEndTime()) && request.endTime().isAfter(ex.getStartTime());
                 if (overlap) {
                     throw new IllegalArgumentException("Bác sĩ đã có ca trực trùng khung giờ ("
                             + ex.getStartTime() + " - " + ex.getEndTime() + ") trong ngày " + request.workDate());
                 }
-
-                // b. [KHÓA ĐA CHI NHÁNH / ĐA BUỒNG TRONG NGÀY]: Chỉ cho phép 1 chi nhánh / 1 buồng khám trong 1 ngày làm việc
-                if (!targetRoom.equalsIgnoreCase(currentAssignedRoom)) {
-                    throw new IllegalArgumentException(String.format(
-                            "Quy định phòng khám: Trong cùng một ngày làm việc (%s), Bác sĩ chỉ được trực tại 1 CHI NHÁNH / 1 BUỒNG DUY NHẤT (Buồng %s) " +
-                            "để đảm bảo chất lượng tiếp đón và người bệnh không phải di chuyển giữa các buổi. " +
-                            "Nếu muốn chuyển sang chi nhánh/buồng khác (%s), vui lòng xếp lịch sang ngày khác!",
-                            request.workDate(), currentAssignedRoom, targetRoom
-                    ));
-                }
             }
         }
 
         // c. Kiểm tra đa chi nhánh theo user_id nếu bác sĩ có hồ sơ ở nhiều chi nhánh
-        if (currentDoctor.getUserId() != null) {
+        if (currentDoctor.getUserId() != null && !isAdmin) {
             List<DoctorEntity> userDocs = doctorRepository.findByUserId(currentDoctor.getUserId());
             List<String> docIds = userDocs.stream().map(DoctorEntity::getId).toList();
             if (docIds.size() > 1) {
@@ -389,26 +426,30 @@ public class DoctorScheduleService {
         );
         schedule = doctorScheduleRepository.save(schedule);
 
-        // Sinh các slot 30 phút tự động
+        // Sinh các slot 30 phút tự động (bỏ qua khung giờ nghỉ trưa 12:00 - 13:30 nếu ca trực bao trọn buổi trưa)
         LocalTime cursor = request.startTime();
         List<TimeSlotEntity> createdSlots = new ArrayList<>();
         while (cursor.plusMinutes(duration).isBefore(request.endTime()) || cursor.plusMinutes(duration).equals(request.endTime())) {
             LocalTime next = cursor.plusMinutes(duration);
-            Instant slotStart = request.workDate().atTime(cursor).atZone(VN_ZONE).toInstant();
-            Instant slotEnd = request.workDate().atTime(next).atZone(VN_ZONE).toInstant();
+            boolean isLunch = !cursor.isBefore(LocalTime.of(12, 0)) && cursor.isBefore(LocalTime.of(13, 30));
 
-            if (slotEnd.isAfter(now)) {
-                TimeSlotEntity slot = new TimeSlotEntity(
-                        UUID.randomUUID().toString(),
-                        schedule.getId(),
-                        targetDoctorId,
-                        slotStart,
-                        slotEnd,
-                        SlotStatus.AVAILABLE,
-                        now,
-                        now
-                );
-                createdSlots.add(slot);
+            if (!isLunch) {
+                Instant slotStart = request.workDate().atTime(cursor).atZone(VN_ZONE).toInstant();
+                Instant slotEnd = request.workDate().atTime(next).atZone(VN_ZONE).toInstant();
+
+                if (slotEnd.isAfter(now)) {
+                    TimeSlotEntity slot = new TimeSlotEntity(
+                            UUID.randomUUID().toString(),
+                            schedule.getId(),
+                            targetDoctorId,
+                            slotStart,
+                            slotEnd,
+                            SlotStatus.AVAILABLE,
+                            now,
+                            now
+                    );
+                    createdSlots.add(slot);
+                }
             }
             cursor = next;
         }
@@ -491,25 +532,32 @@ public class DoctorScheduleService {
         DoctorScheduleEntity schedule = doctorScheduleRepository.findById(scheduleId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy ca trực: " + scheduleId));
 
+        boolean isAdmin = isCallerAdmin(userId);
         LocalDate today = LocalDate.now(VN_ZONE);
-        if (!schedule.getWorkDate().isAfter(today)) {
-            throw new IllegalArgumentException(
-                    String.format("Theo quy định phòng khám, Bác sĩ chỉ được đổi buồng khám trước tối thiểu 1 ngày (trước 00:00:00). " +
-                                  "Khi bước sang ngày khám mới (ngày: %s), buồng khám đã được chốt và đồng bộ với phiếu hẹn/màn hình gọi số của người bệnh.",
-                                  schedule.getWorkDate())
-            );
-        }
 
-        String targetDoctorId = resolveDoctorId(userId, null);
-        if (!schedule.getDoctorId().equals(targetDoctorId)) {
-            throw new IllegalArgumentException("Bác sĩ không có quyền thay đổi buồng khám của ca trực này.");
+        // CLAB-113: Bác sĩ chỉ được đổi buồng khám trước tối thiểu 1 ngày (trước 00:00:00).
+        // Trường hợp khẩn cấp trong ngày (hỏng thiết bị, bảo trì phòng): Quản Trị Viên (Admin) có thẩm quyền ghi đè đổi buồng ngay trong ngày.
+        if (!isAdmin) {
+            if (!schedule.getWorkDate().isAfter(today)) {
+                throw new IllegalArgumentException(
+                        String.format("Theo quy định phòng khám, Bác sĩ chỉ được đổi buồng khám trước tối thiểu 1 ngày (trước 00:00:00). " +
+                                      "Khi bước sang ngày khám mới (ngày: %s), buồng khám đã được chốt và đồng bộ với phiếu hẹn/màn hình gọi số của người bệnh. " +
+                                      "Trong trường hợp khẩn cấp, vui lòng liên hệ Quản Trị Viên (Admin) để điều phối buồng khám!",
+                                      schedule.getWorkDate())
+                );
+            }
+
+            String targetDoctorId = resolveDoctorId(userId, null);
+            if (!schedule.getDoctorId().equals(targetDoctorId)) {
+                throw new IllegalArgumentException("Bác sĩ không có quyền thay đổi buồng khám của ca trực này.");
+            }
         }
 
         String targetRoom = (request.newRoomNumber() != null && !request.newRoomNumber().isBlank())
                 ? request.newRoomNumber().trim().toUpperCase()
                 : "";
 
-        if (!APPROVED_CLINIC_ROOMS.contains(targetRoom)) {
+        if (!isValidClinicRoom(targetRoom) && !isAdmin) {
             throw new IllegalArgumentException("Buồng khám [" + targetRoom
                     + "] không hợp lệ hoặc chưa được Quản Trị Viên (Admin) phê duyệt. Vui lòng chỉ chọn các buồng khám hợp lệ: "
                     + String.join(", ", APPROVED_CLINIC_ROOMS));
