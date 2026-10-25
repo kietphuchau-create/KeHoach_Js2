@@ -132,17 +132,18 @@ export default function LoginForm() {
       {/* Form Đăng nhập */}
       <form onSubmit={handleSubmit} className="space-y-2.5">
         <div>
-          <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Email tài khoản</label>
+          <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">Email hoặc Số điện thoại</label>
           <div className="relative">
             <Mail className={`absolute left-3 top-1/2 -translate-y-1/2 ${errorMessage ? 'text-rose-400' : 'text-slate-400'}`} size={15} />
             <input
               ref={emailInputRef}
-              type="email"
+              type="text"
               name="email"
               required
+              autoComplete="username"
               value={formData.email}
               onChange={handleChange}
-              placeholder="nhap.email@medsched.vn"
+              placeholder="nhap.email@medsched.vn hoặc 0901234567"
               className={`w-full pl-8 pr-3 py-1.5 bg-mint-soft border rounded-xl outline-none text-xs transition ${
                 errorMessage
                   ? 'border-rose-400 bg-rose-50/20 ring-1 ring-rose-200 focus:border-rose-500'

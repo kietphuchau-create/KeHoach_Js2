@@ -92,7 +92,24 @@ const resolveSlotTime = (apt: AppointmentResponse): string => {
   if (apt.slotId && SLOT_MAP[apt.slotId]?.time) {
     return SLOT_MAP[apt.slotId].time;
   }
-  return '08:00 - 08:30';
+  // Ca vãng lai tiếp nhận trực tiếp tại quầy (khám ngay theo STT)
+  if (
+    apt.queueType === 'WALKIN' ||
+    (apt.bookingCode && String(apt.bookingCode).startsWith('WALK')) ||
+    (apt.queueNumber != null && String(apt.queueNumber).startsWith('W-'))
+  ) {
+    const timeRef = apt.checkInTime || apt.createdAt;
+    if (timeRef) {
+      const d = new Date(timeRef);
+      if (!isNaN(d.getTime())) {
+        const hh = String(d.getHours()).padStart(2, '0');
+        const mm = String(d.getMinutes()).padStart(2, '0');
+        return `Khám ngay (Tiếp nhận: ${hh}:${mm})`;
+      }
+    }
+    return 'Khám ngay (Theo STT)';
+  }
+  return 'Chờ xếp giờ khám';
 };
 
 const formatSlotTimeRange = (s: any): string => {
@@ -104,7 +121,7 @@ const formatSlotTimeRange = (s: any): string => {
     const end = String(s.endTime).length >= 16 ? String(s.endTime).substring(11, 16) : String(s.endTime);
     return `${start} - ${end}`;
   }
-  return '08:00 - 08:30';
+  return 'Khung giờ khám';
 };
 
 const FILTER_TABS = [
@@ -880,7 +897,15 @@ export default function MyAppointmentsView() {
                       )}
 
                       <div className="text-[10px] sm:text-[11px] text-center text-slate-400 pt-0.5 leading-tight">
-                        {apt.status === 'PENDING'
+                        {apt.status === 'COMPLETED'
+                          ? 'Đã hoàn tất khám bệnh & kê đơn thuốc'
+                          : apt.status === 'IN_PROGRESS' || (apt as any).status === 'IN_CONSULTATION'
+                          ? 'Đang trong buồng khám cùng Bác sĩ'
+                          : apt.status === 'CHECKED_IN'
+                          ? 'Đã tiếp đón thành công. Mời quý khách vào phòng chờ chuyên khoa.'
+                          : apt.status === 'CANCELLED'
+                          ? 'Phiếu hẹn đã được hủy'
+                          : apt.status === 'PENDING'
                           ? 'Vui lòng hoàn tất đặt cọc 2.000đ để giữ chắc chắn khung giờ khám'
                           : 'Quét mã QR tại Quầy Tiếp Đón để vào khám không cần bốc số'}
                       </div>
@@ -921,7 +946,7 @@ export default function MyAppointmentsView() {
               {/* High-res Scannable Smart QR Code */}
               <div className="p-3 sm:p-4 bg-white border-2 border-dashed border-teal-primary/30 rounded-2xl inline-block shadow-inner space-y-1.5 sm:space-y-2">
                 <QrCodeImage
-                  value={typeof window !== 'undefined' ? `${window.location.origin}/checkin?code=${encodeURIComponent(selectedAppointment.bookingCode)}` : `/checkin?code=${encodeURIComponent(selectedAppointment.bookingCode)}`}
+                  value={selectedAppointment.bookingCode}
                   size={160}
                   className="mx-auto rounded-lg shadow-xs"
                 />

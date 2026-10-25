@@ -1,7 +1,7 @@
 package com.medsched.billing;
 
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -33,7 +33,7 @@ public class BillingDtos {
     public record PayInvoiceRequest(
             String paymentMethod,
             @NotNull(message = "Số tiền thanh toán không được null")
-            @Positive(message = "Số tiền thanh toán phải lớn hơn 0")
+            @DecimalMin(value = "0.0", message = "Số tiền thanh toán không được âm")
             BigDecimal amountPaid,
             String note
     ) {}

@@ -43,6 +43,8 @@ class StatisticsServiceTest {
     private PatientProfileJpaRepository patientProfileRepo;
     @Mock
     private UserMedicalCenterRoleJpaRepository roleRepo;
+    @Mock
+    private MedicalRecordJpaRepository medicalRecordRepo;
 
     private StatisticsService statisticsService;
 
@@ -50,7 +52,8 @@ class StatisticsServiceTest {
     void setUp() {
         statisticsService = new StatisticsService(
                 appointmentRepo, invoiceRepo, paymentRepo, prescriptionRepo,
-                doctorRepo, userRepo, specialtyRepo, patientProfileRepo, roleRepo
+                doctorRepo, userRepo, specialtyRepo, patientProfileRepo, roleRepo,
+                medicalRecordRepo
         );
     }
 

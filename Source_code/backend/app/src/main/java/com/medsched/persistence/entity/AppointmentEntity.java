@@ -83,6 +83,28 @@ public class AppointmentEntity {
     @Column(name = "updated_by", length = 36)
     private String updatedBy;
 
+    @Column(name = "dev_session_id", length = 36)
+    private String devSessionId;
+
+    @Column(name = "is_test_data", nullable = false)
+    private boolean isTestData = false;
+
+    public String getDevSessionId() {
+        return devSessionId;
+    }
+
+    public void setDevSessionId(String devSessionId) {
+        this.devSessionId = devSessionId;
+    }
+
+    public boolean isTestData() {
+        return isTestData;
+    }
+
+    public void setTestData(boolean testData) {
+        isTestData = testData;
+    }
+
     protected AppointmentEntity() {
     }
 

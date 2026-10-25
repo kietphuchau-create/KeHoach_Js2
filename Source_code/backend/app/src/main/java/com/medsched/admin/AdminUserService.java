@@ -1,6 +1,7 @@
 package com.medsched.admin;
 
 import com.medsched.common.AppExceptions;
+import com.medsched.common.InputValidator;
 import com.medsched.persistence.entity.DoctorEntity;
 import com.medsched.persistence.entity.MedicalCenterEntity;
 import com.medsched.persistence.entity.SpecialtyEntity;
@@ -211,9 +212,16 @@ public class AdminUserService {
         if (users.existsByEmail(normalized)) {
             throw new AppExceptions.ConflictException("Email này đã được đăng ký");
         }
+        String cleanPhone = blankToNull(phone);
+        if (cleanPhone != null) {
+            cleanPhone = InputValidator.validatePhone(cleanPhone);
+            if (users.existsByPhone(cleanPhone)) {
+                throw new AppExceptions.ConflictException("Số điện thoại này đã được sử dụng bởi tài khoản khác");
+            }
+        }
         Instant now = Instant.now();
         UserEntity user = new UserEntity(UUID.randomUUID().toString(), normalized,
-                passwordEncoder.encode(rawPassword), fullName.trim(), blankToNull(phone), true, now, now);
+                passwordEncoder.encode(rawPassword), fullName.trim(), cleanPhone, true, now, now);
         user.setCreatedBy(actorId);
         user.setUpdatedBy(actorId);
         return users.save(user);

@@ -342,6 +342,41 @@ export const api = {
     });
   },
 
+  // --- 3c. MÃ KHUYẾN MÃI & VOUCHER (PROMOTIONS - MYSQL DATABASE) ---
+  async getAdminPromotions() {
+    return request<any[]>("/admin/promotions");
+  },
+
+  async createAdminPromotion(payload: any) {
+    return request<any>("/admin/promotions", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async updateAdminPromotion(id: string, payload: any) {
+    return request<any>(`/admin/promotions/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async deleteAdminPromotion(id: string) {
+    return request<void>(`/admin/promotions/${id}`, {
+      method: "DELETE",
+    });
+  },
+
+  async toggleAdminPromotionStatus(id: string) {
+    return request<any>(`/admin/promotions/${id}/toggle`, {
+      method: "PATCH",
+    });
+  },
+
+  async validatePromotionCode(code: string) {
+    return request<any>(`/admin/promotions/validate?code=${encodeURIComponent(code)}`);
+  },
+
   // --- 4. DANH MỤC KHÁM (PUBLIC & ADMIN) ---
   async getMedicalCenters() {
     return request<any[]>("/medical-centers");
@@ -468,11 +503,13 @@ export const api = {
     appointmentId?: string;
     bookingCode?: string;
     transactionRef?: string;
+    paymentType?: string;
   }) {
     const q = new URLSearchParams();
     if (params.appointmentId) q.set('appointmentId', params.appointmentId);
     if (params.bookingCode) q.set('bookingCode', params.bookingCode);
     if (params.transactionRef) q.set('transactionRef', params.transactionRef);
+    if (params.paymentType) q.set('paymentType', params.paymentType);
     return request<{
       success: boolean;
       status: string;
@@ -727,6 +764,9 @@ export const api = {
     doctorId?: string;
     specialty?: string;
     password?: string;
+    symptoms?: string;
+    gender?: string;
+    birthYear?: number;
   }) {
     return request<{
       appointmentId: string;
@@ -807,9 +847,18 @@ export const api = {
     return request<ReceptionHistoryResponse>(`/reception/history${qs}`);
   },
 
+  async deleteReceptionAppointment(appointmentId: string) {
+    return request<any>(`/reception/appointments/${appointmentId}`, {
+      method: "DELETE",
+    });
+  },
+
   // --- 7. BUỒNG KHÁM BÁC SĨ (DOCTOR CLINIC & QUEUE) ---
-  async getDoctorQueue(doctorId?: string) {
-    const qs = doctorId ? `?doctorId=${encodeURIComponent(doctorId)}` : "";
+  async getDoctorQueue(doctorId?: string, date?: string) {
+    const params = new URLSearchParams();
+    if (doctorId) params.append("doctorId", doctorId);
+    if (date) params.append("date", date);
+    const qs = params.toString() ? `?${params.toString()}` : "";
     return request<any[]>(`/doctor/queue${qs}`);
   },
 
@@ -933,6 +982,12 @@ export const api = {
     return request<any[]>(`/doctor/schedules${qs}`);
   },
 
+  async resetUnbookedSchedules() {
+    return request<{ success: boolean; message: string; deletedCount: number }>('/doctor/schedules/reset-unbooked', {
+      method: 'POST',
+    });
+  },
+
   async getRoomOccupancy(workDate: string, startTime?: string, endTime?: string) {
     const query = new URLSearchParams({ workDate });
     if (startTime) query.append("startTime", startTime);
@@ -1043,18 +1098,45 @@ export const api = {
       minWorkHoursPerDay: number;
       currentMode: 'AUTO' | 'MANUAL';
       description: string;
+      devMode247?: boolean;
     }>('/doctor/schedules/mode');
   },
 
-  async updateScheduleMode(payload: { autoScheduleEnabled: boolean; minWorkHoursPerDay?: number }) {
+  async updateScheduleMode(payload: { autoScheduleEnabled: boolean; minWorkHoursPerDay?: number; devMode247?: boolean; cleanupTestData?: boolean }) {
     return request<{
       autoScheduleEnabled: boolean;
       minWorkHoursPerDay: number;
       currentMode: 'AUTO' | 'MANUAL';
       description: string;
+      devMode247?: boolean;
+      cleanedSchedulesCount?: number;
+      cleanedAppointmentsCount?: number;
     }>('/doctor/schedules/mode', {
       method: 'POST',
       body: JSON.stringify(payload),
+    });
+  },
+
+  async getDevMode() {
+    return request<{
+      enabled: boolean;
+      mode: string;
+      message: string;
+      cleanedSchedulesCount?: number;
+      cleanedAppointmentsCount?: number;
+    }>('/doctor/schedules/dev-mode');
+  },
+
+  async updateDevMode(enabled: boolean, cleanupTestData?: boolean) {
+    return request<{
+      enabled: boolean;
+      mode: string;
+      message: string;
+      cleanedSchedulesCount?: number;
+      cleanedAppointmentsCount?: number;
+    }>('/doctor/schedules/dev-mode', {
+      method: 'POST',
+      body: JSON.stringify({ enabled, cleanupTestData }),
     });
   },
 

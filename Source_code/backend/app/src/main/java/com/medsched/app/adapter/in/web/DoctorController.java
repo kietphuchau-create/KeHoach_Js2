@@ -153,6 +153,7 @@ public class DoctorController {
      * Lấy danh sách ca trực & các khung giờ (TimeSlots) của bác sĩ.
      */
     @GetMapping("/schedules")
+    @PreAuthorize("permitAll()")
     public ResponseEntity<List<DoctorScheduleDtos.DoctorScheduleDto>> getSchedules(
             @AuthenticationPrincipal AppUserDetails principal,
             @RequestParam(required = false) String doctorId,
@@ -270,9 +271,23 @@ public class DoctorController {
     }
 
     /**
+     * Quản Trị Viên (Admin) dọn dẹp sạch toàn bộ ca trực trống chưa có bệnh nhân đặt (đưa số ca về 0).
+     */
+    @PostMapping("/schedules/reset-unbooked")
+    public ResponseEntity<java.util.Map<String, Object>> resetUnbookedSchedules() {
+        int count = doctorScheduleService.cleanupAllUnbookedSchedules();
+        return ResponseEntity.ok(java.util.Map.of(
+                "success", true,
+                "message", "Đã dọn dẹp " + count + " ca trực trống chưa có bệnh nhân đặt lịch.",
+                "deletedCount", count
+        ));
+    }
+
+    /**
      * Lấy cấu hình chế độ xếp lịch hiện tại của hệ thống (Tự Động vs Thủ Công Demo).
      */
     @GetMapping("/schedules/mode")
+    @PreAuthorize("permitAll()")
     public ResponseEntity<DoctorScheduleDtos.ScheduleModeDto> getScheduleMode() {
         return ResponseEntity.ok(doctorScheduleService.getScheduleMode());
     }
@@ -284,6 +299,67 @@ public class DoctorController {
     public ResponseEntity<DoctorScheduleDtos.ScheduleModeDto> updateScheduleMode(
             @RequestBody DoctorScheduleDtos.UpdateScheduleModeRequest request) {
         return ResponseEntity.ok(doctorScheduleService.updateScheduleMode(request));
+    }
+
+    /**
+     * Lấy trạng thái Chế Độ Develop 24/7 (hoạt động liên tục ngoài giờ hành chính).
+     */
+    @GetMapping("/schedules/dev-mode")
+    @PreAuthorize("permitAll()")
+    public ResponseEntity<DoctorScheduleDtos.DevModeDto> getDevMode() {
+        boolean enabled = DoctorScheduleService.isDevMode247Active();
+        return ResponseEntity.ok(new DoctorScheduleDtos.DevModeDto(
+                enabled,
+                enabled ? "DEVELOP_247" : "PRODUCTION",
+                enabled ? "Chế độ Develop 24/7 đang BẬT: Hệ thống hoạt động 24/7 ngoài giờ hành chính, mở ca tối (17h - 23h)."
+                        : "Chế độ Develop 24/7 đang TẮT: Áp dụng quy chuẩn giờ hành chính thông thường.",
+                0,
+                0,
+                DoctorScheduleService.getCurrentDevSessionId(),
+                DoctorScheduleService.getDevModeStartedAt()
+        ));
+    }
+
+    /**
+     * Quản Trị Viên (Admin) bật/tắt Chế Độ Develop 24/7.
+     */
+    @PostMapping("/schedules/dev-mode")
+    public ResponseEntity<DoctorScheduleDtos.DevModeDto> updateDevMode(
+            @AuthenticationPrincipal AppUserDetails principal,
+            @RequestBody DoctorScheduleDtos.UpdateDevModeRequest request) {
+        int cleanedScheds = 0;
+        int cleanedAppts = 0;
+        String user = principal != null && principal.getUsername() != null ? principal.getUsername() : "ADMIN";
+        if (request != null) {
+            if (request.enabled() != null) {
+                if (request.enabled()) {
+                    doctorScheduleService.activateDevModeSession(user, "Bật chế độ Develop 24/7 từ giao diện");
+                } else {
+                    var res = doctorScheduleService.deactivateDevModeSession(Boolean.TRUE.equals(request.cleanupTestData()));
+                    cleanedScheds = res.cleanedSchedules();
+                    cleanedAppts = res.cleanedAppointments();
+                }
+            } else if (Boolean.TRUE.equals(request.cleanupTestData())) {
+                var res = doctorScheduleService.cleanupDevModeTestData();
+                cleanedScheds = res.cleanedSchedules();
+                cleanedAppts = res.cleanedAppointments();
+            }
+        }
+        boolean enabled = DoctorScheduleService.isDevMode247Active();
+        String msg = enabled
+                ? "Đã bật chế độ Develop 24/7 (Đã lưu phiên vào Database)."
+                : (cleanedScheds > 0
+                    ? String.format("Đã tắt chế độ Develop 24/7 và dọn dẹp sạch %d ca trực, %d lịch hẹn test.", cleanedScheds, cleanedAppts)
+                    : "Đã tắt chế độ Develop 24/7.");
+        return ResponseEntity.ok(new DoctorScheduleDtos.DevModeDto(
+                enabled,
+                enabled ? "DEVELOP_247" : "PRODUCTION",
+                msg,
+                cleanedScheds,
+                cleanedAppts,
+                DoctorScheduleService.getCurrentDevSessionId(),
+                DoctorScheduleService.getDevModeStartedAt()
+        ));
     }
 
     /**

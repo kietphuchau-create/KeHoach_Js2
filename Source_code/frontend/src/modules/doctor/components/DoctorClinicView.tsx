@@ -42,14 +42,17 @@ import {
   ShieldAlert,
   QrCode,
   HeartPulse,
-  DoorOpen
+  DoorOpen,
+  Calendar,
+  CalendarX,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { api, getAuthUser, getAuthToken } from '@/shared/lib/api';
+import { getLocalDateString } from '@/shared/lib/formatters';
 import AlertMessage from '@/shared/components/Feedback/AlertMessage';
 import LoginForm from '@/modules/auth/components/LoginForm';
 import { getClinicRooms, ClinicRoom } from '@/shared/lib/clinicRooms';
-import { getClinicScheduleConfig } from '@/shared/lib/scheduleConfig';
+import { getClinicScheduleConfig, SCHEDULE_CONFIG_UPDATED_EVENT } from '@/shared/lib/scheduleConfig';
 import { Bot } from 'lucide-react';
 import UniversalAiAssistantModal from '@/shared/components/Feedback/UniversalAiAssistantModal';
 
@@ -242,7 +245,7 @@ export default function DoctorClinicView() {
   const [roomOccupantConflict, setRoomOccupantConflict] = useState<string | null>(null);
 
   const verifyShiftAndOccupancy = useCallback(async (room: string, docId?: string) => {
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = getLocalDateString();
     // 1. Kiểm tra bác sĩ có ca trực hôm nay không
     try {
       const schedules = await api.getDoctorSchedules(docId || currentUser?.doctorId, todayStr, todayStr);
@@ -279,6 +282,55 @@ export default function DoctorClinicView() {
       console.warn('Lỗi kiểm tra chiếm dụng buồng:', e);
     }
   }, []);
+
+  // ── Đồng Bộ Trạng Thái Chế Độ 24/7 Toàn Cục ──
+  const [devMode247, setDevMode247] = useState<boolean>(() => {
+    return Boolean(getClinicScheduleConfig()?.devMode247);
+  });
+  const [quickShiftLoading, setQuickShiftLoading] = useState(false);
+
+  useEffect(() => {
+    api.getDevMode()
+      .then((res) => {
+        if (typeof res?.enabled === 'boolean') {
+          setDevMode247(res.enabled);
+        }
+      })
+      .catch(() => {});
+
+    const handleConfigUpdate = () => {
+      setDevMode247(Boolean(getClinicScheduleConfig()?.devMode247));
+    };
+
+    window.addEventListener(SCHEDULE_CONFIG_UPDATED_EVENT, handleConfigUpdate);
+    return () => window.removeEventListener(SCHEDULE_CONFIG_UPDATED_EVENT, handleConfigUpdate);
+  }, []);
+
+  // Kích hoạt ca trực nhanh 24/7 cho Bác sĩ nếu hôm nay chưa mở ca
+  const handleQuickOpenDevShift = async () => {
+    try {
+      setQuickShiftLoading(true);
+      const today = getLocalDateString();
+      const room = activeRoom || currentUser?.roomNumber || 'P.101';
+      await api.createDoctorSchedule({
+        workDate: today,
+        startTime: '08:00',
+        endTime: '17:00',
+        slotDurationMinutes: 15,
+        roomNumber: room,
+      });
+      setNotification(`⚡ Đã kích hoạt nhanh ca trực 24/7 hôm nay (${today}) tại buồng [${room}]!`);
+      if (currentUser?.doctorId) {
+        verifyShiftAndOccupancy(room, currentUser.doctorId);
+      }
+      setClinicActive(true);
+      loadQueue();
+    } catch (err: any) {
+      setNotification(`⚠️ Không thể mở nhanh ca trực: ${err?.message || 'Vui lòng kiểm tra lại.'}`);
+    } finally {
+      setQuickShiftLoading(false);
+    }
+  };
 
   const currentRoomInfo = useMemo(() => {
     return availableRooms.find(r => r.code === activeRoom) || {
@@ -390,6 +442,17 @@ export default function DoctorClinicView() {
   const [showPrescriptionPrintModal, setShowPrescriptionPrintModal] = useState(false);
   const [lastSavedPrescription, setLastSavedPrescription] = useState<any>(null);
 
+  // Lắng nghe phím ESC để đóng modal in đơn thuốc
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && showPrescriptionPrintModal) {
+        setShowPrescriptionPrintModal(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showPrescriptionPrintModal]);
+
   // Quick manual add medicine row states
   const [newMedName, setNewMedName] = useState('');
   const [newMedUnit, setNewMedUnit] = useState('Viên');
@@ -469,7 +532,16 @@ export default function DoctorClinicView() {
     try {
       setLoadingQueue(true);
       const data = await api.getDoctorQueue();
-      if (Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data)) {
+        if (data.length === 0) {
+          setQueue([]);
+          setActivePatientIndex(0);
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('medsched_active_patient_id');
+          }
+          return;
+        }
+
         // Kiểm tra ca khám đang hoạt động đã lưu trong localStorage (để bảo toàn qua F5)
         const storedActiveId = typeof window !== 'undefined' ? localStorage.getItem('medsched_active_patient_id') : null;
         
@@ -562,6 +634,13 @@ export default function DoctorClinicView() {
   }, []);
 
   const clinicTimeStatus = useMemo(() => {
+    if (devMode247) {
+      return {
+        isOperating: true,
+        statusText: 'Chế Độ 24/7 (Đang Mở Khám Mọi Khung Giờ)',
+        period: 'DEV_247' as const,
+      };
+    }
     // 08:00 = 480, 12:00 = 720, 13:30 = 810, 17:00 = 1020
     if (currentMinutes < 8 * 60) {
       return { isOperating: false, statusText: 'Chưa Đến Giờ Khám (Mở lúc 08:00)', period: 'BEFORE_MORNING' as const };
@@ -576,7 +655,7 @@ export default function DoctorClinicView() {
       return { isOperating: true, statusText: 'Ca Chiều (13:30 - 17:00)', period: 'AFTERNOON' as const };
     }
     return { isOperating: false, statusText: 'Hết Giờ Khám (Đóng Buồng)', period: 'AFTER_HOURS' as const };
-  }, [currentMinutes]);
+  }, [currentMinutes, devMode247]);
 
 
   useEffect(() => {
@@ -638,14 +717,14 @@ export default function DoctorClinicView() {
     if (!isAuthenticated) return;
     loadQueue();
 
-    // 1. Tự động đồng bộ hàng đợi mỗi 8 giây (nếu không đang lưu đơn thuốc)
+    // 1. Tự động đồng bộ hàng đợi mỗi 5 giây (nếu không đang lưu đơn thuốc)
     const queueInterval = setInterval(() => {
       if (!submittingPrescription) {
         loadQueue();
       }
-    }, 8000);
+    }, 5000);
 
-    // 2. Lắng nghe BroadcastChannel từ Quầy tiếp đón (khi có bệnh nhân check-in / cấp số mới)
+    // 2. Lắng nghe BroadcastChannel từ Quầy tiếp đón (khi có bệnh nhân check-in / cấp số mới / xóa số)
     let syncChannel: BroadcastChannel | null = null;
     try {
       syncChannel = new BroadcastChannel('medsched_queue_sync');
@@ -656,9 +735,18 @@ export default function DoctorClinicView() {
       };
     } catch {}
 
+    // 3. Tự động làm mới hàng đợi ngay khi Bác sĩ chuyển tab quay lại buồng khám
+    const handleFocus = () => {
+      if (!submittingPrescription) {
+        loadQueue();
+      }
+    };
+    window.addEventListener('focus', handleFocus);
+
     return () => {
       clearInterval(queueInterval);
       syncChannel?.close();
+      window.removeEventListener('focus', handleFocus);
     };
   }, [isAuthenticated, loadQueue, submittingPrescription]);
 
@@ -1426,7 +1514,7 @@ export default function DoctorClinicView() {
                       setNotification(`⛔ ${roomOccupantConflict}`);
                       return;
                     }
-                    if (!clinicTimeStatus.isOperating) {
+                    if (!clinicTimeStatus.isOperating && !devMode247) {
                       if (clinicTimeStatus.period === 'AFTER_HOURS') {
                         setNotification('⚠️ Hiện tại đã kết thúc giờ làm việc trong ngày (Ca chiều kết thúc lúc 17:00). Không thể mở tiếp nhận khám lúc này.');
                       } else if (clinicTimeStatus.period === 'LUNCH_BREAK') {
@@ -1436,8 +1524,8 @@ export default function DoctorClinicView() {
                       }
                       return;
                     }
-                    if (todayShift?.hasShift === false) {
-                      setNotification('⚠️ Bác sĩ chưa có ca trực chính thức trong ngày hôm nay.');
+                    if (todayShift?.hasShift === false && !devMode247) {
+                      setNotification('⚠️ Bác sĩ chưa có ca trực chính thức trong ngày hôm nay. Vui lòng đăng ký ca trực!');
                       return;
                     }
                     setClinicActive(!clinicActive);
@@ -1445,7 +1533,7 @@ export default function DoctorClinicView() {
                   className={`px-3.5 py-2.5 rounded-xl font-bold text-xs transition cursor-pointer flex items-center gap-2 border shadow-xs ${
                     roomOccupantConflict
                       ? 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100'
-                      : !clinicTimeStatus.isOperating
+                      : !clinicTimeStatus.isOperating && !devMode247
                         ? clinicTimeStatus.period === 'LUNCH_BREAK'
                           ? 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
                           : 'bg-slate-100 text-slate-600 border-slate-300 hover:bg-slate-200'
@@ -1453,12 +1541,12 @@ export default function DoctorClinicView() {
                           ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
                           : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
                   }`}
-                  title={!clinicTimeStatus.isOperating ? clinicTimeStatus.statusText : 'Mở hoặc tạm dừng tiếp nhận lượt khám mới'}
+                  title={!clinicTimeStatus.isOperating && !devMode247 ? clinicTimeStatus.statusText : 'Mở hoặc tạm dừng tiếp nhận lượt khám mới'}
                 >
                   <span className={`w-2.5 h-2.5 rounded-full ${
                     roomOccupantConflict
                       ? 'bg-rose-500'
-                      : !clinicTimeStatus.isOperating
+                      : !clinicTimeStatus.isOperating && !devMode247
                         ? clinicTimeStatus.period === 'LUNCH_BREAK'
                           ? 'bg-amber-500'
                           : 'bg-slate-400'
@@ -1469,16 +1557,16 @@ export default function DoctorClinicView() {
                   <span>{
                     roomOccupantConflict
                       ? 'Buồng Trùng Lịch'
-                      : !clinicTimeStatus.isOperating
+                      : !clinicTimeStatus.isOperating && !devMode247
                         ? clinicTimeStatus.period === 'AFTER_HOURS'
                           ? 'Hết Giờ Khám'
                           : clinicTimeStatus.period === 'LUNCH_BREAK'
                             ? 'Nghỉ Trưa (12h-13h30)'
                             : 'Chưa Đến Giờ Khám'
-                        : todayShift?.hasShift === false
+                        : todayShift?.hasShift === false && !devMode247
                           ? 'Chưa Có Ca Trực'
                           : clinicActive
-                            ? 'Đang Mở Khám'
+                            ? devMode247 ? 'Mở Khám 24/7' : 'Đang Mở Khám'
                             : 'Tạm Dừng Khám'
                   }</span>
                 </button>
@@ -1505,13 +1593,37 @@ export default function DoctorClinicView() {
 
       {/* Thông báo hướng dẫn nếu hôm nay bác sĩ chưa có ca trực */}
       {todayShift?.hasShift === false && !roomOccupantConflict && (
-        <div className="p-3.5 bg-amber-50 border-2 border-amber-300 rounded-2xl text-xs text-amber-900 shadow-2xs flex items-start gap-2.5 animate-in fade-in duration-150">
-          <AlertCircle size={17} className="text-amber-600 shrink-0 mt-0.5" />
-          <div className="space-y-0.5">
-            <span className="font-extrabold text-amber-900">Hôm nay bạn chưa có ca trực được phân công:</span>
-            <p className="text-[11px] text-amber-800 leading-relaxed">
-              Theo hệ thống, bác sĩ chưa có ca trực chính thức trong ngày hôm nay ({todayVietnameseDate}). Vui lòng bấm sang tab <strong>&ldquo;Quản Lý Lịch Trực &amp; Khung Giờ Khám&rdquo;</strong> ở trên để kiểm tra hoặc đăng ký ca trực mới.
-            </p>
+        <div className="p-3.5 pr-44 sm:pr-56 bg-amber-50 border-2 border-amber-300 rounded-2xl text-xs text-amber-900 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in duration-150">
+          <div className="flex items-start gap-2.5">
+            <AlertCircle size={17} className="text-amber-600 shrink-0 mt-0.5" />
+            <div className="space-y-0.5">
+              <span className="font-extrabold text-amber-900">Hôm nay bạn chưa có ca trực được phân công:</span>
+              <p className="text-[11px] text-amber-800 leading-relaxed">
+                Theo hệ thống, bác sĩ chưa có ca trực chính thức trong ngày hôm nay ({todayVietnameseDate}).
+                {devMode247 ? ' Đang bật Chế độ 24/7: Bác sĩ có thể bấm nút bên phải để kích hoạt nhanh ca trực ngay bây giờ!' : ' Vui lòng kiểm tra hoặc đăng ký ca trực mới.'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {devMode247 ? (
+              <button
+                type="button"
+                onClick={handleQuickOpenDevShift}
+                disabled={quickShiftLoading}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold text-xs shadow-xs transition cursor-pointer"
+              >
+                <Zap size={13} />
+                <span>{quickShiftLoading ? 'Đang tạo...' : 'Kích Hoạt Ca 24/7 Nhanh'}</span>
+              </button>
+            ) : (
+              <Link
+                href="/doctor/schedule"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-xs transition cursor-pointer"
+              >
+                <Calendar size={13} />
+                <span>Đăng Ký Ca Trực</span>
+              </Link>
+            )}
           </div>
         </div>
       )}
@@ -1616,21 +1728,29 @@ export default function DoctorClinicView() {
 
             {/* Dynamic Queue Scenario Status Banner (A1 / A2 / Ngoài giờ làm việc) */}
             <div className={`mb-3 p-2.5 rounded-xl border text-xs flex items-center gap-2.5 transition shadow-2xs ${
-              !clinicTimeStatus.isOperating
+              todayShift?.hasShift === false && !devMode247
+                ? 'bg-amber-50/90 border-amber-200 text-amber-900'
+                : !clinicTimeStatus.isOperating
                 ? 'bg-slate-50 border-slate-200 text-slate-700'
-                : slotGapInfo.canInterleaveWalkin
+                : devMode247
+                  ? 'bg-emerald-50/90 border-emerald-200 text-emerald-900'
+                  : slotGapInfo.canInterleaveWalkin
                   ? 'bg-emerald-50/90 border-emerald-200 text-emerald-900'
                   : 'bg-amber-50/90 border-amber-200 text-amber-900'
             }`}>
               <div className={`p-1.5 rounded-lg shrink-0 ${
-                !clinicTimeStatus.isOperating
+                todayShift?.hasShift === false && !devMode247
+                  ? 'bg-amber-100 text-amber-700'
+                  : !clinicTimeStatus.isOperating
                   ? 'bg-slate-200 text-slate-600'
-                  : slotGapInfo.canInterleaveWalkin
-                    ? 'bg-emerald-100 text-emerald-700'
-                    : 'bg-amber-100 text-amber-700'
+                  : 'bg-emerald-100 text-emerald-700'
               }`}>
-                {!clinicTimeStatus.isOperating ? (
+                {todayShift?.hasShift === false && !devMode247 ? (
+                  <AlertCircle size={14} />
+                ) : !clinicTimeStatus.isOperating ? (
                   <Clock size={14} />
+                ) : devMode247 ? (
+                  <Zap size={14} />
                 ) : slotGapInfo.canInterleaveWalkin ? (
                   <Zap size={14} />
                 ) : (
@@ -1640,42 +1760,54 @@ export default function DoctorClinicView() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-1">
                   <span className="font-bold tracking-tight">
-                    {!clinicTimeStatus.isOperating
+                    {todayShift?.hasShift === false && !devMode247
+                      ? 'Chưa có ca trực hôm nay'
+                      : !clinicTimeStatus.isOperating
                       ? clinicTimeStatus.period === 'AFTER_HOURS'
                         ? 'Đã hết giờ nhận khám trong ngày'
                         : clinicTimeStatus.period === 'LUNCH_BREAK'
                           ? 'Đang trong giờ nghỉ trưa'
                           : 'Chưa mở ca khám sáng'
-                      : slotGapInfo.canInterleaveWalkin
+                      : devMode247
+                        ? 'Chế độ 24/7: Sẵn sàng nhận khám'
+                        : slotGapInfo.canInterleaveWalkin
                         ? 'Luồng xen kẽ vãng lai khả dụng'
                         : 'Khóa chen ca — Chờ ca hẹn đúng giờ'}
                   </span>
                   <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded font-semibold ${
-                    !clinicTimeStatus.isOperating
+                    todayShift?.hasShift === false && !devMode247
+                      ? 'bg-amber-100 text-amber-800'
+                      : !clinicTimeStatus.isOperating
                       ? 'bg-slate-200 text-slate-700'
-                      : slotGapInfo.canInterleaveWalkin
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : 'bg-amber-100 text-amber-800'
+                      : 'bg-emerald-100 text-emerald-800'
                   }`}>
-                    {!clinicTimeStatus.isOperating
+                    {todayShift?.hasShift === false && !devMode247
+                      ? 'Chưa trực'
+                      : !clinicTimeStatus.isOperating
                       ? clinicTimeStatus.period === 'AFTER_HOURS'
                         ? 'Đã đóng buồng'
                         : clinicTimeStatus.period === 'LUNCH_BREAK'
                           ? 'Nghỉ trưa'
                           : 'Chưa mở'
-                      : slotGapInfo.gapMinutes !== null
+                      : devMode247
+                        ? '24/7'
+                        : slotGapInfo.gapMinutes !== null
                         ? `Còn ~${slotGapInfo.gapMinutes}p`
                         : 'Trống slot'}
                   </span>
                 </div>
                 <p className="text-[11px] opacity-85 truncate mt-0.5">
-                  {!clinicTimeStatus.isOperating
+                  {todayShift?.hasShift === false && !devMode247
+                    ? 'Bác sĩ cần đăng ký ca trực để bắt đầu tiếp nhận bệnh nhân'
+                    : !clinicTimeStatus.isOperating
                     ? clinicTimeStatus.period === 'AFTER_HOURS'
                       ? 'Ca chiều kết thúc lúc 17:00 • Hệ thống tạm dừng tiếp nhận và gọi khám mới'
                       : clinicTimeStatus.period === 'LUNCH_BREAK'
                         ? 'Phòng khám tạm nghỉ trưa từ 12:00 đến 13:30 • Ca chiều bắt đầu lúc 13:30'
                         : 'Phòng khám bắt đầu đón lượt khám sáng từ lúc 08:00'
-                    : slotGapInfo.canInterleaveWalkin
+                    : devMode247
+                      ? 'Bỏ qua ràng buộc giờ hành chính • Cho phép đón và gọi ca khám xuyên ca'
+                      : slotGapInfo.canInterleaveWalkin
                       ? (slotGapInfo.gapMinutes !== null 
                           ? `Khoảng trống ≥${slotGapInfo.minBuffer}p trước ca ${slotGapInfo.nextUpcomingTimeStr} • Có thể xen kẽ ca W` 
                           : 'Không có ca hẹn sắp tới • Sẵn sàng đón ca A và W')
@@ -1878,22 +2010,9 @@ export default function DoctorClinicView() {
                           </span>
                         )}
                         {patient.status === 'COMPLETED' && (
-                          <div className="flex items-center gap-1.5">
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-                              ĐÃ KHÁM
-                            </span>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleReopenConsultation(patient.originalIndex);
-                              }}
-                              className="px-2 py-0.5 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md transition shadow-xs cursor-pointer flex items-center gap-0.5"
-                              title="Bấm để mở lại ca khám này nếu bấm nhầm"
-                            >
-                              <RotateCcw size={10} /> Mở lại
-                            </button>
-                          </div>
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                            ĐÃ KHÁM
+                          </span>
                         )}
                         {patient.status === 'DEFERRED' && (
                           <div className="flex flex-col items-end gap-1">
@@ -1979,30 +2098,74 @@ export default function DoctorClinicView() {
           {!currentPatient ? (
             <div className="bg-white rounded-2xl p-12 text-center shadow-sm border border-slate-200 py-24">
               <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 border ${
-                !clinicTimeStatus.isOperating
-                  ? 'bg-slate-100 text-slate-500 border-slate-200'
-                  : 'bg-teal-50 text-teal-700 border-teal-100'
+                todayShift?.hasShift === false && !devMode247
+                  ? 'bg-amber-50 text-amber-600 border-amber-200'
+                  : !clinicTimeStatus.isOperating
+                    ? 'bg-slate-100 text-slate-500 border-slate-200'
+                    : 'bg-teal-50 text-teal-700 border-teal-100'
               }`}>
-                {!clinicTimeStatus.isOperating ? <Clock size={32} /> : <Stethoscope size={32} />}
+                {todayShift?.hasShift === false && !devMode247 ? (
+                  <CalendarX size={32} />
+                ) : !clinicTimeStatus.isOperating ? (
+                  <Clock size={32} />
+                ) : devMode247 ? (
+                  <Zap size={32} />
+                ) : (
+                  <Stethoscope size={32} />
+                )}
               </div>
               <h3 className="text-lg font-bold text-slate-800">
-                {!clinicTimeStatus.isOperating
-                  ? clinicTimeStatus.period === 'AFTER_HOURS'
-                    ? 'Phòng Khám Đã Hết Giờ Làm Việc'
-                    : clinicTimeStatus.period === 'LUNCH_BREAK'
-                      ? 'Đang Giờ Nghỉ Trưa (12:00 - 13:30)'
-                      : 'Chưa Đến Giờ Mở Ca Trực (08:00)'
-                  : 'Buồng Khám Đang Sẵn Sàng Tiếp Nhận'}
+                {todayShift?.hasShift === false && !devMode247
+                  ? 'Bác Sĩ Chưa Có Ca Trực Hôm Nay'
+                  : !clinicTimeStatus.isOperating
+                    ? clinicTimeStatus.period === 'AFTER_HOURS'
+                      ? 'Phòng Khám Đã Hết Giờ Làm Việc'
+                      : clinicTimeStatus.period === 'LUNCH_BREAK'
+                        ? 'Đang Giờ Nghỉ Trưa (12:00 - 13:30)'
+                        : 'Chưa Đến Giờ Mở Ca Trực (08:00)'
+                    : devMode247
+                      ? 'Buồng Khám 24/7 Sẵn Sàng Tiếp Nhận'
+                      : 'Buồng Khám Đang Sẵn Sàng Tiếp Nhận'}
               </h3>
               <p className="text-xs text-slate-500 mt-2 max-w-md mx-auto leading-relaxed">
-                {!clinicTimeStatus.isOperating
-                  ? clinicTimeStatus.period === 'AFTER_HOURS'
+                {todayShift?.hasShift === false && !devMode247 ? (
+                  <>
+                    Theo hệ thống, hôm nay bạn chưa có ca trực chính thức nào ({todayVietnameseDate}). Vui lòng bấm sang tab <strong>&ldquo;Quản Lý Lịch Trực &amp; Khung Giờ Khám&rdquo;</strong> ở trên để đăng ký ca trực mới.
+                  </>
+                ) : !clinicTimeStatus.isOperating ? (
+                  clinicTimeStatus.period === 'AFTER_HOURS'
                     ? 'Đã kết thúc các ca trực trong ngày (Ca sáng: 08:00 - 12:00, Ca chiều: 13:30 - 17:00). Bác sĩ vui lòng xem lại lịch sử khám hoặc đăng ký ca trực mới cho ngày mai.'
                     : clinicTimeStatus.period === 'LUNCH_BREAK'
                       ? 'Phòng khám tạm nghỉ trưa từ 12:00 đến 13:30. Ca khám chiều sẽ tự động mở tiếp nhận lúc 13:30.'
                       : 'Ca trực sáng sẽ chính thức bắt đầu tiếp nhận bệnh nhân từ lúc 08:00.'
-                  : 'Hiện chưa có lượt khám nào trong phòng. Bác sĩ vui lòng chọn bệnh nhân trong danh sách hàng đợi bên trái hoặc bấm "Gọi Bệnh Nhân Tiếp Theo" để bắt đầu tiếp nhận ca mới.'}
+                ) : devMode247 ? (
+                  'Chế độ Develop 24/7 đang hoạt động. Buồng khám luôn mở, bác sĩ có thể tiếp nhận bệnh nhân vãng lai hoặc ca đặt hẹn bất kỳ lúc nào.'
+                ) : (
+                  'Hiện chưa có lượt khám nào trong phòng. Bác sĩ vui lòng chọn bệnh nhân trong danh sách hàng đợi bên trái hoặc bấm "Gọi Bệnh Nhân Tiếp Theo" để bắt đầu tiếp nhận ca mới.'
+                )}
               </p>
+              {todayShift?.hasShift === false && (
+                <div className="mt-5 flex items-center justify-center gap-3 flex-wrap">
+                  <Link
+                    href="/doctor/schedule"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-teal-700 hover:bg-teal-800 text-white rounded-xl font-bold text-xs shadow-md transition cursor-pointer"
+                  >
+                    <Calendar size={15} />
+                    <span>Quản Lý &amp; Đăng Ký Ca Trực</span>
+                  </Link>
+                  {devMode247 && (
+                    <button
+                      type="button"
+                      onClick={handleQuickOpenDevShift}
+                      disabled={quickShiftLoading}
+                      className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-xl font-bold text-xs shadow-md transition cursor-pointer"
+                    >
+                      <Zap size={15} />
+                      <span>{quickShiftLoading ? 'Đang tạo ca...' : 'Kích Hoạt Ca Trực Nhanh 24/7'}</span>
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           ) : (
             <div className="bg-white rounded-2xl p-3.5 sm:p-6 shadow-sm border border-slate-200 space-y-4 sm:space-y-5">
@@ -2475,28 +2638,10 @@ export default function DoctorClinicView() {
                 </div>
               </div>
             ) : currentPatient.status === 'COMPLETED' ? (
-              /* Trường hợp ca ĐÃ KHÁM: Chỉ có nút mở lại nếu bấm nhầm */
-              <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-6 text-center space-y-4 my-2">
-                <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center mx-auto">
-                  <CheckCircle2 size={24} />
-                </div>
-                <div>
-                  <h4 className="font-bold text-emerald-900 text-sm">Ca Khám Này Đã Hoàn Tất</h4>
-                  <p className="text-xs text-emerald-700 mt-1 max-w-md mx-auto leading-relaxed">
-                    Hồ sơ khám bệnh đã được kết thúc thành công. Nếu bác sĩ vô tình bấm nhầm hoàn tất sớm, 
-                    hãy bấm nút bên dưới để mở lại ca khám và tiếp tục bổ sung thông tin.
-                  </p>
-                </div>
-                <div>
-                  <button
-                    type="button"
-                    onClick={() => handleReopenConsultation(activePatientIndex)}
-                    className="px-6 py-3.5 bg-teal-700 hover:bg-teal-800 text-white font-bold rounded-xl text-xs transition shadow-md shadow-teal-700/20 flex items-center justify-center gap-2 mx-auto cursor-pointer"
-                  >
-                    <RotateCcw size={16} />
-                    <span>MỞ LẠI CA KHÁM NÀY (NẾU BẤM NHẦM)</span>
-                  </button>
-                </div>
+              /* Trường hợp ca ĐÃ KHÁM: Thông báo hoàn tất ca khám */
+              <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-4 text-center my-2 flex items-center justify-center gap-2 text-emerald-900 font-bold text-sm">
+                <CheckCircle2 size={18} className="text-emerald-600" />
+                <span>Ca Khám Này Đã Hoàn Tất</span>
               </div>
             ) : (
               /* Các trạng thái đặc biệt: Tạm hoãn, Chờ KQ, Vắng mặt */
@@ -2618,23 +2763,42 @@ export default function DoctorClinicView() {
         </div>
       )}
 
-      {/* ── Modal In Đơn Thuốc A5 Chuẩn Y Tế Ngay Sau Khi Hoàn Tất ── */}
+      {/* ── Modal In & Xem Lại Đơn Thuốc Đã Lưu (Responsive High Density Layout - Fits in 1 Screen) ── */}
       {showPrescriptionPrintModal && lastSavedPrescription && (
-        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-8 shadow-2xl border border-slate-200 space-y-6 my-8 animate-in fade-in zoom-in-95 duration-200">
-            {/* Action Bar (Ẩn khi in ấn) */}
-            <div className="flex items-center justify-between pb-4 border-b border-slate-200 print:hidden">
-              <div className="flex items-center gap-2 text-teal-800 font-bold">
-                <Printer size={20} className="text-teal-700" />
-                <span>Đơn Thuốc Điện Tử Đã Lưu Thành Công</span>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-1.5 sm:p-4 overflow-y-auto"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowPrescriptionPrintModal(false);
+            }
+          }}
+        >
+          <div className="bg-white rounded-2xl sm:rounded-3xl max-w-4xl w-full shadow-2xl border border-slate-200 my-auto animate-in fade-in zoom-in-95 duration-200 flex flex-col relative max-h-[96vh] overflow-hidden">
+            {/* Header Action Bar (Ẩn khi in ấn) - Tương thích chuẩn Mobile & Desktop */}
+            <div className="bg-gradient-to-r from-teal-800 to-emerald-900 text-white px-3 sm:px-4 py-2 sm:py-2.5 flex items-center justify-between shrink-0 print:hidden shadow-sm gap-1.5">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-white/20 flex items-center justify-center font-bold shrink-0">
+                  <Printer size={14} />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-bold text-xs sm:text-sm truncate">Đơn Thuốc Đã Lưu</h3>
+                  <div className="flex items-center gap-1.5 text-[9px] sm:text-[10px] text-teal-200 font-mono truncate">
+                    <span>Mã: {lastSavedPrescription.prescription?.prescriptionId || 'PR-ONLINE'}</span>
+                    <span className="hidden sm:inline">•</span>
+                    <span className="hidden sm:inline">Ca: {lastSavedPrescription.patient?.bookingCode}</span>
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 shrink-0">
                 <button
                   type="button"
                   onClick={() => window.print()}
-                  className="px-4 py-2 bg-teal-700 hover:bg-teal-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+                  className="px-2.5 sm:px-3 py-1.5 bg-white text-teal-800 hover:bg-teal-50 rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-sm cursor-pointer whitespace-nowrap"
+                  title="In đơn thuốc A5/A4"
                 >
-                  <Printer size={15} /> In Đơn Thuốc (A5/A4)
+                  <Printer size={13} />
+                  <span className="hidden sm:inline">In Đơn (A5/A4)</span>
+                  <span className="sm:hidden">In</span>
                 </button>
                 <button
                   type="button"
@@ -2642,151 +2806,150 @@ export default function DoctorClinicView() {
                     setShowPrescriptionPrintModal(false);
                     handleCallNext();
                   }}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+                  className="px-2.5 sm:px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-sm cursor-pointer whitespace-nowrap"
+                  title="Hoàn tất ca này và gọi bệnh nhân kế tiếp"
                 >
-                  <ArrowRight size={15} /> Gọi Ca Tiếp Theo
+                  <ArrowRight size={13} />
+                  <span className="hidden sm:inline">Gọi Ca Tiếp Theo</span>
+                  <span className="sm:hidden">Gọi Tiếp</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowPrescriptionPrintModal(false)}
-                  className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg cursor-pointer"
+                  className="p-1.5 sm:px-2.5 sm:py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0"
+                  title="Đóng cửa sổ (hoặc bấm ESC)"
                 >
-                  <X size={18} />
+                  <X size={15} />
+                  <span className="hidden sm:inline">Đóng</span>
                 </button>
               </div>
             </div>
 
-            {/* Printable Prescription Content (Chuẩn A5) - PREMIUM MEDICAL DESIGN */}
-            <div className="relative border-2 border-slate-300 p-8 rounded-lg bg-white space-y-6 text-slate-800 text-sm font-serif max-w-[650px] mx-auto shadow-[0_0_20px_rgba(0,0,0,0.1)]">
-              {/* Watermark / Background Logo */}
-              <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none">
-                <Stethoscope size={400} />
-              </div>
-              
-              {/* Header - Clinic Info */}
-              <div className="flex justify-between items-start border-b-2 border-teal-800 pb-5">
-                <div className="flex gap-4">
-                  <div className="w-16 h-16 bg-teal-800 rounded-lg flex items-center justify-center text-white shrink-0 shadow-inner">
-                    <ShieldCheck size={36} />
+            {/* Inner Prescription Body (Compact 2-Column Medical Form) */}
+            <div className="p-2 sm:p-3.5 bg-slate-50 overflow-y-auto max-h-[calc(96vh-48px)]">
+              <div className="relative border border-slate-300 p-3 sm:p-4 rounded-xl bg-white text-slate-800 text-xs sm:text-sm font-sans w-full shadow-sm space-y-2">
+                {/* Header: Phòng khám & Tiêu đề */}
+                <div className="flex items-center justify-between border-b-2 border-teal-800 pb-1.5 gap-2">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 bg-teal-800 rounded-lg flex items-center justify-center text-white shrink-0 shadow-inner">
+                      <ShieldCheck size={16} />
+                    </div>
+                    <div className="min-w-0">
+                      <h2 className="font-black text-teal-900 text-xs sm:text-sm uppercase tracking-tight truncate">MEDSCHED CLINIC</h2>
+                      <p className="text-[9px] sm:text-[10px] text-slate-600 font-bold truncate">Khoa Khám Bệnh - Ngoại Trú</p>
+                      <p className="text-[8px] sm:text-[9px] text-slate-500 truncate hidden xs:block">123 Nguyễn Văn Cừ, Q.5 • Hotline: 1900 8888</p>
+                    </div>
                   </div>
-                  <div>
-                    <h2 className="font-black text-teal-900 text-lg uppercase tracking-widest font-sans">MEDSCHED CLINIC</h2>
-                    <p className="text-[11px] text-slate-600 font-bold mt-1 uppercase">Khoa Khám Bệnh - Chuyên Khoa Ngoại Trú</p>
-                    <p className="text-[11px] text-slate-500 mt-0.5">📍 123 Nguyễn Văn Cừ, Quận 5, TP.HCM</p>
-                    <p className="text-[11px] text-slate-500">📞 Hotline: 1900 8888 • 🌐 medsched.vn</p>
+
+                  <div className="text-center shrink-0">
+                    <h1 className="text-xs sm:text-base font-black text-slate-900 tracking-tight uppercase">
+                      ĐƠN THUỐC ĐIỆN TỬ
+                    </h1>
+                    <p className="text-[8px] sm:text-[9px] text-slate-400 font-sans tracking-widest uppercase">PRESCRIPTION</p>
                   </div>
-                </div>
-                <div className="text-right flex flex-col items-end">
-                  <QrCode size={46} className="text-slate-800 mb-1.5" />
-                  <div className="font-mono font-bold text-[11px] text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-100">
-                    Mã Đơn: {lastSavedPrescription.prescription?.prescriptionId || 'PR-2026-ONLINE'}
-                  </div>
-                  <div className="font-mono text-[10px] text-slate-500 mt-1">
-                    Ca Khám: {lastSavedPrescription.patient?.bookingCode}
-                  </div>
-                </div>
-              </div>
 
-              {/* Title */}
-              <div className="text-center py-2 space-y-1">
-                <h1 className="text-2xl font-black text-slate-900 tracking-widest font-sans uppercase">
-                  ĐƠN THUỐC ĐIỆN TỬ
-                </h1>
-                <p className="text-[11px] text-slate-500 font-sans italic tracking-widest">PRESCRIPTION</p>
-              </div>
-
-              {/* Patient Info */}
-              <div className="grid grid-cols-2 gap-y-3 gap-x-6 bg-slate-50 p-4 rounded-xl border border-slate-200 text-sm">
-                <div className="flex gap-2">
-                  <span className="text-slate-500 shrink-0">Họ và tên:</span>
-                  <span className="font-bold text-slate-900 uppercase truncate">{lastSavedPrescription.patient?.patientName}</span>
-                </div>
-                <div className="flex gap-2">
-                  <span className="text-slate-500 shrink-0">Giới tính/Tuổi:</span>
-                  <span className="font-semibold text-slate-800">
-                    {lastSavedPrescription.patient?.gender} • {new Date().getFullYear() - (lastSavedPrescription.patient?.birthYear || 1990)} tuổi
-                  </span>
-                </div>
-                <div className="flex gap-2">
-                  <span className="text-slate-500 shrink-0">Điện thoại:</span>
-                  <span className="font-mono font-semibold text-slate-800">{lastSavedPrescription.patient?.phone}</span>
-                </div>
-                <div className="flex gap-2">
-                  <span className="text-slate-500 shrink-0">Số định danh:</span>
-                  <span className="font-mono font-semibold text-slate-800">{lastSavedPrescription.patient?.cccd || 'Không có'}</span>
-                </div>
-              </div>
-
-              {/* Diagnosis */}
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-2 text-teal-800 border-b border-teal-100 pb-1">
-                  <Activity size={16} />
-                  <span className="font-bold uppercase text-xs tracking-wider">Chẩn đoán xác định</span>
-                </div>
-                <p className="px-2 py-1 text-slate-900 font-medium italic">
-                  {lastSavedPrescription.diagnosis}
-                </p>
-              </div>
-
-              {/* Medicines List */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 text-teal-800 border-b border-teal-100 pb-1">
-                  <Pill size={16} />
-                  <span className="font-bold uppercase text-xs tracking-wider">Chỉ định dùng thuốc</span>
-                </div>
-                <div className="space-y-4 pl-1">
-                  {lastSavedPrescription.items?.map((item: any, idx: number) => (
-                    <div key={idx} className="flex justify-between items-start gap-4">
-                      <div className="space-y-1">
-                        <div className="font-bold text-slate-900 text-[15px] flex items-start gap-1">
-                          <span className="text-teal-700 w-5">{idx + 1}.</span>
-                          <span>{item.medicineName}</span>
-                        </div>
-                        <div className="text-[13px] text-slate-700 italic ml-6 border-l-2 border-slate-200 pl-3">
-                          HDSD: {item.dosage}
-                        </div>
+                  <div className="text-right flex items-center gap-1.5 shrink-0">
+                    <div className="hidden sm:block text-right">
+                      <div className="font-mono font-bold text-[9px] text-teal-800 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-100">
+                        {lastSavedPrescription.prescription?.prescriptionId || 'PR-2026-ONLINE'}
                       </div>
-                      <div className="text-right shrink-0 bg-slate-50 px-3 py-1 rounded-md border border-slate-100">
-                        <div className="font-black text-slate-800">
-                          {item.quantity} {item.unit}
-                        </div>
+                      <div className="font-mono text-[8px] text-slate-500 mt-0.5">
+                        Ca: {lastSavedPrescription.patient?.bookingCode}
                       </div>
                     </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Doctor Advice */}
-              <div className="space-y-1.5 pt-2">
-                <div className="flex items-center gap-2 text-amber-700 border-b border-amber-100 pb-1">
-                  <HeartPulse size={16} />
-                  <span className="font-bold uppercase text-xs tracking-wider">Lời dặn của Bác sĩ</span>
-                </div>
-                <p className="px-2 py-1 text-amber-950 italic text-[13px] font-sans bg-amber-50/30 rounded">
-                  &ldquo;{lastSavedPrescription.doctorAdvice}&rdquo;
-                </p>
-              </div>
-
-              {/* Footer Signatures */}
-              <div className="pt-8 pb-4 flex justify-between items-end">
-                <div className="text-[11px] text-slate-500 space-y-1 font-sans">
-                  <p className="flex items-center gap-1.5"><Check size={12} className="text-teal-600"/> Tái khám xin mang theo đơn này.</p>
-                  <p className="flex items-center gap-1.5"><Check size={12} className="text-teal-600"/> Đơn thuốc có giá trị mua trong vòng 05 ngày.</p>
-                </div>
-                <div className="text-center space-y-1.5 w-48">
-                  <p className="text-[12px] text-slate-600 italic font-sans">
-                    Ngày {new Date().getDate().toString().padStart(2, '0')} tháng {(new Date().getMonth() + 1).toString().padStart(2, '0')} năm {new Date().getFullYear()}
-                  </p>
-                  <p className="font-bold text-slate-900 uppercase text-[12px] font-sans">Bác Sĩ Điều Trị</p>
-                  <div className="h-16 flex items-center justify-center">
-                    {/* Placeholder chữ ký */}
-                    <span className="font-serif italic text-2xl text-teal-800 opacity-80 transform -rotate-6">
-                      {lastSavedPrescription.prescription?.doctorName?.split(' ').pop() || 'BS.CKI'}
-                    </span>
+                    <QrCode size={26} className="text-slate-800 shrink-0" />
                   </div>
-                  <p className="font-bold text-slate-900 text-[13px] font-sans border-t border-slate-200 pt-2">
-                    {lastSavedPrescription.prescription?.doctorName || 'BS. Chuyên Khoa'}
-                  </p>
+                </div>
+
+                {/* Patient Summary & Diagnosis Strip */}
+                <div className="bg-slate-50/90 p-2 rounded-lg border border-slate-200 text-xs space-y-1">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2">
+                    <div>
+                      <span className="text-[9px] text-slate-400 font-bold uppercase block">Họ và tên</span>
+                      <strong className="text-slate-900 text-xs uppercase truncate block">{lastSavedPrescription.patient?.patientName}</strong>
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-slate-400 font-bold uppercase block">Giới tính / Tuổi</span>
+                      <span className="font-semibold text-slate-800 text-xs">
+                        {lastSavedPrescription.patient?.gender} • {new Date().getFullYear() - (lastSavedPrescription.patient?.birthYear || 1990)} tuổi
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-slate-400 font-bold uppercase block">Điện thoại</span>
+                      <span className="font-mono font-semibold text-slate-800 text-xs">{lastSavedPrescription.patient?.phone}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-slate-400 font-bold uppercase block">CCCD</span>
+                      <span className="font-mono font-semibold text-slate-800 text-xs">{lastSavedPrescription.patient?.cccd || 'Không có'}</span>
+                    </div>
+                  </div>
+                  <div className="pt-1 border-t border-slate-200/70 flex items-start sm:items-center gap-1.5 text-xs">
+                    <Activity size={13} className="text-teal-700 shrink-0 mt-0.5 sm:mt-0" />
+                    <span className="font-bold text-teal-800 text-[10px] uppercase shrink-0">Chẩn đoán:</span>
+                    <span className="font-semibold text-slate-900 text-xs leading-snug">{lastSavedPrescription.diagnosis}</span>
+                  </div>
+                </div>
+
+                {/* 2-Column Core: Medicines (Right) + Advice & Signatures (Left) */}
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-2.5 sm:gap-3 items-start">
+                  {/* Cột Phải (7/12): Danh sách thuốc chỉ định */}
+                  <div className="md:col-span-7 flex flex-col gap-1">
+                    <div className="flex items-center justify-between text-teal-800 font-bold text-xs uppercase border-b border-teal-100 pb-1">
+                      <span className="flex items-center gap-1">
+                        <Pill size={13} />
+                        <span>Chỉ định dùng thuốc ({lastSavedPrescription.items?.length || 0} loại)</span>
+                      </span>
+                    </div>
+                    <div className="space-y-1.5 md:max-h-[220px] md:overflow-y-auto pr-1">
+                      {lastSavedPrescription.items?.map((item: any, idx: number) => (
+                        <div key={idx} className="bg-slate-50 border border-slate-200/80 rounded-lg p-1.5 sm:p-2 flex justify-between items-start gap-2 hover:bg-teal-50/20 transition">
+                          <div className="min-w-0 flex-1 space-y-0.5">
+                            <div className="font-bold text-slate-900 text-xs flex items-start gap-1">
+                              <span className="text-teal-700 font-black w-4 shrink-0">{idx + 1}.</span>
+                              <span className="truncate leading-tight">{item.medicineName}</span>
+                            </div>
+                            <div className="text-[10px] sm:text-[11px] text-slate-600 ml-4 border-l-2 border-teal-400 pl-2 leading-tight">
+                              HDSD: {item.dosage}
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0 bg-white px-2 py-0.5 rounded border border-slate-200 font-black text-slate-800 text-xs whitespace-nowrap shadow-2xs">
+                            {item.quantity} {item.unit}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Cột Trái (5/12): Lời dặn & Chữ ký */}
+                  <div className="md:col-span-5 flex flex-col justify-between h-full gap-2 border-t md:border-t-0 md:border-l border-slate-200 md:pl-3 pt-2 md:pt-0">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1 text-amber-800 font-bold text-xs uppercase">
+                        <HeartPulse size={13} />
+                        <span>Lời dặn Bác sĩ</span>
+                      </div>
+                      <p className="p-1.5 sm:p-2 text-amber-950 text-xs italic bg-amber-50/70 border border-amber-200/60 rounded-lg leading-relaxed">
+                        &ldquo;{lastSavedPrescription.doctorAdvice}&rdquo;
+                      </p>
+                    </div>
+
+                    <div className="p-1.5 sm:p-2 bg-slate-50 rounded-lg border border-slate-200 text-center space-y-0.5">
+                      <div className="text-[9px] text-slate-500 flex items-center justify-center gap-1">
+                        <span>✓ Tái khám mang theo đơn • HSD 05 ngày</span>
+                      </div>
+                      <p className="text-[9px] text-slate-500 italic">
+                        Ngày {new Date().getDate().toString().padStart(2, '0')} tháng {(new Date().getMonth() + 1).toString().padStart(2, '0')} năm {new Date().getFullYear()}
+                      </p>
+                      <p className="font-bold text-slate-900 uppercase text-[10px]">BÁC SĨ ĐIỀU TRỊ</p>
+                      <div className="py-0.5">
+                        <span className="italic text-sm sm:text-base text-teal-800 font-bold tracking-wide">
+                          {lastSavedPrescription.prescription?.doctorName?.split(' ').pop() || 'BS.CKI'}
+                        </span>
+                      </div>
+                      <p className="font-bold text-slate-800 text-[11px] border-t border-slate-200/80 pt-0.5">
+                        {lastSavedPrescription.prescription?.doctorName || 'BS. Chuyên Khoa'}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

@@ -26,6 +26,7 @@ import {
   Sparkles,
   Info,
   Zap,
+  Trash2,
   X
 } from 'lucide-react';
 import { 
@@ -33,9 +34,13 @@ import {
   getClinicScheduleConfig, 
   saveClinicScheduleConfig, 
   calculateSlotsForShift,
-  SCHEDULE_CONFIG_UPDATED_EVENT 
+  SCHEDULE_CONFIG_UPDATED_EVENT,
+  ALL_OPERATING_DAYS_247,
+  STANDARD_OPERATING_DAYS,
+  DEFAULT_CLINIC_SCHEDULE_CONFIG
 } from '@/shared/lib/scheduleConfig';
 import { api } from '@/shared/lib/api';
+import { getLocalDateString } from '@/shared/lib/formatters';
 import AlertMessage from '@/shared/components/Feedback/AlertMessage';
 
 export default function ScheduleConfigManager() {
@@ -45,7 +50,7 @@ export default function ScheduleConfigManager() {
   const [saveLoading, setSaveLoading] = useState(false);
 
   // State cho Tab 2: Quản lý Ca trực thực tế của Bác sĩ
-  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [selectedDate, setSelectedDate] = useState<string>(getLocalDateString());
   const [schedules, setSchedules] = useState<any[]>([]);
   const [doctors, setDoctors] = useState<any[]>([]);
   const [loadingSchedules, setLoadingSchedules] = useState(false);
@@ -54,16 +59,21 @@ export default function ScheduleConfigManager() {
   // Modal tạo ca trực bổ sung
   const [showAddScheduleModal, setShowAddScheduleModal] = useState(false);
   const [newScheduleDoctorId, setNewScheduleDoctorId] = useState('');
-  const [newScheduleDate, setNewScheduleDate] = useState(new Date().toISOString().slice(0, 10));
-  const [newScheduleShift, setNewScheduleShift] = useState<'MORNING' | 'AFTERNOON' | 'EVENING'>('MORNING');
+  const [newScheduleDate, setNewScheduleDate] = useState(getLocalDateString());
+  const [newScheduleShift, setNewScheduleShift] = useState<'NIGHT' | 'MORNING' | 'AFTERNOON' | 'EVENING'>('MORNING');
   const [newScheduleRoom, setNewScheduleRoom] = useState('P.101');
   const [addScheduleLoading, setAddScheduleLoading] = useState(false);
   const [syncingWeek, setSyncingWeek] = useState(false);
+  const [resettingSchedules, setResettingSchedules] = useState(false);
 
   // Modal đổi buồng khám khẩn cấp (Emergency Room Reassign)
   const [changingRoomSchedule, setChangingRoomSchedule] = useState<any | null>(null);
   const [targetReassignRoom, setTargetReassignRoom] = useState<string>('P.101');
   const [changingRoomLoading, setChangingRoomLoading] = useState(false);
+
+  // Modal xác nhận tắt Chế Độ Develop 24/7 (Cách 2: Cleanup Sandbox Modal)
+  const [showCleanupModal, setShowCleanupModal] = useState(false);
+  const [cleaningUp, setCleaningUp] = useState(false);
 
   // Bộ lọc Chi nhánh & Bác sĩ cho Tab 2
   const [filterCenter, setFilterCenter] = useState<string>('ALL');
@@ -138,15 +148,40 @@ export default function ScheduleConfigManager() {
     }
   }, [activeTab, selectedDate]);
 
-  // Đồng bộ chế độ xếp lịch từ backend khi khởi tạo
+  // Đồng bộ chế độ xếp lịch & chế độ Develop 24/7 từ backend khi khởi tạo
   useEffect(() => {
     api.getScheduleMode().then((res) => {
       if (res) {
-        setConfig((prev) => ({
-          ...prev,
-          autoScheduleEnabled: res.autoScheduleEnabled,
-          minWorkHoursPerDay: res.minWorkHoursPerDay || 6,
-        }));
+        setConfig((prev) => {
+          const isDev = res.devMode247 ?? prev.devMode247 ?? false;
+          const updated: ClinicScheduleConfig = {
+            ...prev,
+            autoScheduleEnabled: res.autoScheduleEnabled,
+            minWorkHoursPerDay: res.minWorkHoursPerDay || 6,
+            devMode247: isDev,
+            ...(isDev
+              ? {
+                  operatingDays: { ...ALL_OPERATING_DAYS_247 },
+                  nightShift: {
+                    ...(prev.nightShift || DEFAULT_CLINIC_SCHEDULE_CONFIG.nightShift),
+                    enabled: true,
+                    startTime: prev.nightShift?.startTime || '00:00',
+                    endTime: prev.nightShift?.endTime || '08:00',
+                  },
+                  morningShift: { ...prev.morningShift, enabled: true },
+                  afternoonShift: { ...prev.afternoonShift, enabled: true },
+                  eveningShift: {
+                    ...prev.eveningShift,
+                    enabled: true,
+                    startTime: prev.eveningShift.startTime || '17:00',
+                    endTime: (!prev.eveningShift.endTime || prev.eveningShift.endTime === '20:30') ? '23:30' : prev.eveningShift.endTime,
+                  },
+                }
+              : {}),
+          };
+          saveClinicScheduleConfig(updated, 'Quản Trị Viên (Admin)');
+          return updated;
+        });
       }
     }).catch((err) => console.warn('Lỗi lấy chế độ xếp lịch từ server:', err));
   }, []);
@@ -158,11 +193,13 @@ export default function ScheduleConfigManager() {
       const res = await api.updateScheduleMode({
         autoScheduleEnabled: enabled,
         minWorkHoursPerDay: config.minWorkHoursPerDay || 6,
+        devMode247: config.devMode247,
       });
       const newConfig = {
         ...config,
         autoScheduleEnabled: res.autoScheduleEnabled,
         minWorkHoursPerDay: res.minWorkHoursPerDay || 6,
+        devMode247: res.devMode247 ?? config.devMode247,
       };
       saveClinicScheduleConfig(newConfig, 'Quản Trị Viên (Admin)');
       setConfig(newConfig);
@@ -179,6 +216,93 @@ export default function ScheduleConfigManager() {
     }
   };
 
+  // Xử lý khi bấm nút chuyển đổi Chế Độ Develop 24/7
+  const handleToggleDevModeClick = () => {
+    if (config.devMode247) {
+      // Đang BẬT -> Muốn TẮT -> Hiện Hộp thoại xác nhận thông minh (Cách 2)
+      setShowCleanupModal(true);
+    } else {
+      // Đang TẮT -> Muốn BẬT -> Kích hoạt ngay lập tức
+      executeToggleDevMode(true, false);
+    }
+  };
+
+  // Thực thi chuyển đổi chế độ Develop 24/7 (có hoặc không dọn dẹp dữ liệu test)
+  const executeToggleDevMode = async (enabled: boolean, cleanupTestData: boolean) => {
+    try {
+      setSaveLoading(true);
+      if (cleanupTestData) {
+        setCleaningUp(true);
+      }
+      const res = await api.updateScheduleMode({
+        autoScheduleEnabled: config.autoScheduleEnabled,
+        minWorkHoursPerDay: config.minWorkHoursPerDay || 6,
+        devMode247: enabled,
+        cleanupTestData,
+      });
+      const isDev = res.devMode247 ?? enabled;
+      const newConfig: ClinicScheduleConfig = {
+        ...config,
+        devMode247: isDev,
+        operatingDays: isDev ? { ...ALL_OPERATING_DAYS_247 } : { ...STANDARD_OPERATING_DAYS },
+        nightShift: {
+          ...(config.nightShift || DEFAULT_CLINIC_SCHEDULE_CONFIG.nightShift),
+          enabled: isDev,
+          startTime: config.nightShift?.startTime || '00:00',
+          endTime: config.nightShift?.endTime || '08:00',
+        },
+        morningShift: {
+          ...config.morningShift,
+          enabled: true,
+        },
+        afternoonShift: {
+          ...config.afternoonShift,
+          enabled: true,
+        },
+        eveningShift: {
+          ...config.eveningShift,
+          enabled: isDev,
+          startTime: config.eveningShift.startTime || '17:00',
+          endTime: isDev
+            ? ((!config.eveningShift.endTime || config.eveningShift.endTime === '20:30') ? '23:30' : config.eveningShift.endTime)
+            : config.eveningShift.endTime,
+        },
+      };
+      saveClinicScheduleConfig(newConfig, 'Quản Trị Viên (Admin)');
+      setConfig(newConfig);
+      setShowCleanupModal(false);
+
+      if (isDev) {
+        setMessage({
+          type: 'success',
+          text: '⚡ ĐÃ KÍCH HOẠT [CHẾ ĐỘ DEVELOP 24/7]: Hệ thống hoạt động 24/7 không kể giờ hành chính! Đã tự động kích hoạt TOÀN BỘ 7 ngày trong tuần và 4 ca khám (Ca Đêm 00:00 - 08:00, Ca Sáng, Chiều, Tối 17:00 - 23:30). Mọi thao tác sau khi bật có thể được tự động xóa sạch khi tắt.',
+        });
+      } else if (cleanupTestData) {
+        const schedCount = res.cleanedSchedulesCount ?? 0;
+        const apptCount = res.cleanedAppointmentsCount ?? 0;
+        setMessage({
+          type: 'success',
+          text: `🗑️ ĐÃ TẮT 24/7 & DỌN DẸP SẠCH: Đã xóa ${schedCount} ca trực và ${apptCount} lịch hẹn test tạo trong phiên 24/7. Hệ thống đã trở về giờ hành chính chuẩn an toàn!`,
+        });
+      } else {
+        setMessage({
+          type: 'success',
+          text: '🛡️ ĐÃ TẮT [CHẾ ĐỘ DEVELOP 24/7]: Bảo lưu các ca trực và lịch hẹn đã đăng ký. Hệ thống trở về quy chuẩn giờ hành chính thông thường (T2 - T6, 07:30 - 17:00).',
+        });
+      }
+
+      // Tải lại danh sách ca trực nếu đang mở tab ca trực
+      if (activeTab === 'doctorSchedules') {
+        loadDoctorSchedules();
+      }
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err?.message || 'Không thể cập nhật chế độ Develop 24/7.' });
+    } finally {
+      setSaveLoading(false);
+      setCleaningUp(false);
+    }
+  };
+
   // Lưu cấu hình giờ khám
   const handleSaveConfig = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -187,6 +311,7 @@ export default function ScheduleConfigManager() {
       await api.updateScheduleMode({
         autoScheduleEnabled: config.autoScheduleEnabled,
         minWorkHoursPerDay: config.minWorkHoursPerDay || 6,
+        devMode247: config.devMode247,
       }).catch((e) => console.warn('Lỗi đồng bộ chế độ xếp lịch:', e));
 
       const saved = saveClinicScheduleConfig(config, 'Quản Trị Viên (Admin)');
@@ -228,8 +353,21 @@ export default function ScheduleConfigManager() {
     }
     setAddScheduleLoading(true);
     try {
-      const startT = newScheduleShift === 'MORNING' ? config.morningShift.startTime : newScheduleShift === 'AFTERNOON' ? config.afternoonShift.startTime : config.eveningShift.startTime;
-      const endT = newScheduleShift === 'MORNING' ? config.morningShift.endTime : newScheduleShift === 'AFTERNOON' ? config.afternoonShift.endTime : config.eveningShift.endTime;
+      const startT = newScheduleShift === 'NIGHT'
+        ? (config.nightShift?.startTime || '00:00')
+        : newScheduleShift === 'MORNING'
+        ? config.morningShift.startTime
+        : newScheduleShift === 'AFTERNOON'
+        ? config.afternoonShift.startTime
+        : config.eveningShift.startTime;
+
+      const endT = newScheduleShift === 'NIGHT'
+        ? (config.nightShift?.endTime || '08:00')
+        : newScheduleShift === 'MORNING'
+        ? config.morningShift.endTime
+        : newScheduleShift === 'AFTERNOON'
+        ? config.afternoonShift.endTime
+        : config.eveningShift.endTime;
 
       await api.createDoctorSchedule({
         doctorId: newScheduleDoctorId,
@@ -292,7 +430,37 @@ export default function ScheduleConfigManager() {
     }
   };
 
+  // Quản Trị Viên dọn sạch toàn bộ ca trực trống chưa có người đặt để đưa số liệu về 0
+  const handleResetUnbookedSchedules = async () => {
+    if (!window.confirm('Bạn có chắc chắn muốn dọn sạch toàn bộ các ca trực chưa có bệnh nhân đặt lịch để đưa số ca trực về 0 không?')) {
+      return;
+    }
+    setResettingSchedules(true);
+    try {
+      const res = await api.resetUnbookedSchedules();
+      setMessage({
+        type: 'success',
+        text: `🗑️ ${res.message || 'Đã dọn dẹp các ca trực trống thành công!'}`,
+      });
+      loadDoctorSchedules();
+    } catch (err: any) {
+      setMessage({
+        type: 'error',
+        text: err?.message || 'Không thể dọn dẹp ca trực trống.',
+      });
+    } finally {
+      setResettingSchedules(false);
+    }
+  };
+
   // Tính trước các slot sinh ra
+  const nightSlots = config.nightShift?.enabled
+    ? calculateSlotsForShift(
+        config.nightShift.startTime || '00:00',
+        config.nightShift.endTime || '08:00',
+        config.slotDurationMinutes
+      )
+    : [];
   const morningSlots = calculateSlotsForShift(
     config.morningShift.startTime,
     config.morningShift.endTime,
@@ -309,9 +477,14 @@ export default function ScheduleConfigManager() {
 
   return (
     <div className="space-y-5 animate-in fade-in duration-200">
-      {/* Alert message */}
+      {/* Cửa sổ thông báo ghim cố định góc trên bên phải màn hình */}
       {message && (
-        <AlertMessage type={message.type} message={message.text} onClose={() => setMessage(null)} />
+        <AlertMessage
+          pinned
+          type={message.type}
+          message={message.text}
+          onClose={() => setMessage(null)}
+        />
       )}
 
       {/* Header & Quick Navigation */}
@@ -376,144 +549,156 @@ export default function ScheduleConfigManager() {
       {/* ── TAB 1: CẤU HÌNH CA KHÁM TOÀN VIỆN ── */}
       {activeTab === 'shifts' && (
         <form onSubmit={handleSaveConfig} className="space-y-5">
-          {/* ── BẢNG ĐIỀU KHIỂN CHẾ ĐỘ XẾP LỊCH TOÀN VIỆN ── */}
-          <div className="bg-gradient-to-br from-slate-900 via-pine-teal to-teal-900 p-5 rounded-3xl text-white shadow-lg space-y-4 border border-teal-500/30">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-teal-400/20 text-teal-300 flex items-center justify-center font-bold border border-teal-400/30 shadow-inner">
-                  <Sparkles size={22} className="text-teal-300 animate-pulse" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h2 className="text-base sm:text-lg font-black text-white">Chế Độ Xếp Lịch Toàn Viện</h2>
-                    <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider ${
-                      config.autoScheduleEnabled
-                        ? 'bg-cyan-500/20 text-cyan-200 border border-cyan-400/30'
-                        : 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/30'
-                    }`}>
-                      {config.autoScheduleEnabled ? 'Tự Động 7 Ngày' : 'Thủ Công (Khuyến Nghị Demo)'}
-                    </span>
+          {/* ── BẢNG ĐIỀU KHIỂN CHẾ ĐỘ XẾP LỊCH & CHẾ ĐỘ DEVELOP 24/7 ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Card 1: Chế Độ Xếp Lịch Toàn Viện */}
+            <div className="bg-gradient-to-br from-slate-900 via-pine-teal to-teal-900 p-5 rounded-3xl text-white shadow-lg space-y-3 border border-teal-500/30 flex flex-col justify-between">
+              <div className="space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-teal-400/20 text-teal-300 flex items-center justify-center font-bold border border-teal-400/30 shadow-inner shrink-0">
+                      <Sparkles size={22} className="text-teal-300 animate-pulse" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h2 className="text-base font-black text-white">Chế Độ Xếp Lịch Toàn Viện</h2>
+                        <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider ${
+                          config.autoScheduleEnabled
+                            ? 'bg-cyan-500/20 text-cyan-200 border border-cyan-400/30'
+                            : 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/30'
+                        }`}>
+                          {config.autoScheduleEnabled ? 'Tự Động 7 Ngày (BẬT)' : 'Thủ Công Demo (TẮT)'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-teal-100/70 mt-1 leading-relaxed">
+                        {config.autoScheduleEnabled
+                          ? '⚡ Đang BẬT: Hệ thống tự động quét và sinh ca trực chuẩn 7 ngày lúc 17:00 hằng ngày.'
+                          : '🛡️ Đang TẮT: Bác sĩ tự do mở ca trực thực tế. Bệnh nhân thấy đúng 100% lịch thật.'}
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-xs text-teal-100/70 mt-0.5">
-                    Lựa chọn giữa cơ chế tự động sinh lịch trực toàn viện hoặc để Bác sĩ tự do mở ca trực demo.
-                  </p>
                 </div>
               </div>
 
-              {/* Input cấu hình số giờ tối thiểu / ngày */}
-              <div className="flex items-center gap-2 bg-black/25 px-3 py-1.5 rounded-xl border border-white/10">
-                <span className="text-[11px] text-teal-200 font-semibold">Chỉ tiêu tối thiểu:</span>
-                <input
-                  type="number"
-                  min={1}
-                  max={12}
-                  value={config.minWorkHoursPerDay || 6}
-                  onChange={(e) => setConfig({ ...config, minWorkHoursPerDay: Math.max(1, Number(e.target.value)) })}
-                  className="w-12 px-2 py-0.5 text-center font-black bg-white/15 text-white rounded-lg border border-teal-400/40 text-xs focus:ring-2 focus:ring-teal-400 outline-none"
-                />
-                <span className="text-[11px] text-teal-200 font-bold">giờ/ngày</span>
+              {/* Controls */}
+              <div className="flex items-center justify-between gap-3 pt-3 border-t border-white/10 flex-wrap">
+                <div className="flex items-center gap-2 bg-black/25 px-3 py-1.5 rounded-2xl border border-white/10">
+                  <span className="text-[11px] text-teal-200 font-semibold">Chỉ tiêu:</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={12}
+                    value={config.minWorkHoursPerDay || 6}
+                    onChange={(e) => setConfig({ ...config, minWorkHoursPerDay: Math.max(1, Number(e.target.value)) })}
+                    className="w-10 px-1 py-0.5 text-center font-black bg-white/15 text-white rounded-lg border border-teal-400/40 text-xs focus:ring-2 focus:ring-teal-400 outline-none"
+                  />
+                  <span className="text-[11px] text-teal-200 font-bold">giờ/ngày</span>
+                </div>
+
+                <div className="flex items-center gap-2.5 bg-black/30 p-1.5 px-3 rounded-2xl border border-white/10 shadow-inner">
+                  <span className="text-xs font-bold text-teal-200">
+                    {config.autoScheduleEnabled ? 'BẬT (Tự Động)' : 'TẮT (Thủ Công)'}
+                  </span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={config.autoScheduleEnabled}
+                    onClick={() => handleToggleScheduleMode(!config.autoScheduleEnabled)}
+                    className={`relative inline-flex h-6 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                      config.autoScheduleEnabled ? 'bg-cyan-500 shadow-sm shadow-cyan-400/50' : 'bg-slate-700'
+                    }`}
+                    title="Bật/Tắt chế độ tự động xếp lịch toàn viện"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                        config.autoScheduleEnabled ? 'translate-x-6' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
               </div>
             </div>
 
-            {/* 2 Chế độ dạng Thẻ Card trực quan */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-              {/* Card 1: Bác sĩ tự đặt lịch thủ công (Demo) */}
-              <div
-                onClick={() => handleToggleScheduleMode(false)}
-                className={`relative p-4 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between gap-3 ${
-                  !config.autoScheduleEnabled
-                    ? 'bg-white/15 border-emerald-400 shadow-md shadow-emerald-500/20 ring-2 ring-emerald-400/40'
-                    : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
-                }`}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2.5">
-                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold ${
-                      !config.autoScheduleEnabled ? 'bg-emerald-500 text-white' : 'bg-white/10 text-white/60'
+            {/* Card 2: Chế Độ Develop 24/7 (Vận Hành Ngoài Giờ Hành Chính) */}
+            <div className={`p-5 rounded-3xl text-white shadow-lg space-y-3 border transition-all duration-300 flex flex-col justify-between ${
+              config.devMode247
+                ? 'bg-gradient-to-br from-slate-900 via-purple-950 to-indigo-950 border-purple-500/50 shadow-purple-900/30'
+                : 'bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border-slate-700/60'
+            }`}>
+              <div className="space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-bold border shadow-inner shrink-0 ${
+                      config.devMode247
+                        ? 'bg-amber-400/20 text-amber-300 border-amber-400/40'
+                        : 'bg-slate-700/40 text-slate-400 border-slate-600/40'
                     }`}>
-                      <UserCheck size={18} />
+                      <Zap size={22} className={config.devMode247 ? 'text-amber-300 animate-bounce' : 'text-slate-400'} />
                     </div>
                     <div>
-                      <h3 className="text-sm font-extrabold text-white flex items-center gap-1.5">
-                        <span>Bác Sĩ Tự Đặt Lịch Thủ Công</span>
-                        <span className="text-[10px] bg-amber-400/20 text-amber-200 px-1.5 py-0.5 rounded border border-amber-400/40 font-bold">
-                          Kịch Bản Demo Chính
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h2 className="text-base font-black text-white">Chế Độ Develop 24/7</h2>
+                        <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider ${
+                          config.devMode247
+                            ? 'bg-amber-400/20 text-amber-300 border border-amber-400/40'
+                            : 'bg-slate-700/60 text-slate-300 border border-slate-600/40'
+                        }`}>
+                          {config.devMode247 ? '24/7 Hoạt Động (BẬT)' : 'Giờ Hành Chính (TẮT)'}
                         </span>
-                      </h3>
-                      <p className="text-[11px] text-teal-100/70 mt-0.5">
-                        Kiểm soát công suất nghiêm ngặt theo tiêu chuẩn phòng khám.
+                      </div>
+                      <p className="text-xs text-slate-300/80 mt-1 leading-relaxed">
+                        {config.devMode247
+                          ? '🚀 Đang BẬT: Hệ thống hoạt động 24/7! Mở ca tối (17h - 23h), Bác sĩ đăng ký ca trực mọi lúc không bị chặn giờ hành chính.'
+                          : '🏢 Đang TẮT: Áp dụng quy chuẩn giờ hành chính (07:30 - 17:00), đóng ca và chuyển ngày sau 17:00.'}
                       </p>
                     </div>
                   </div>
-                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                    !config.autoScheduleEnabled ? 'border-emerald-400 bg-emerald-500 text-white' : 'border-white/30'
-                  }`}>
-                    {!config.autoScheduleEnabled && <CheckCircle2 size={13} className="text-white" />}
-                  </div>
                 </div>
-
-                <ul className="text-[11px] space-y-1 text-teal-100/80 bg-black/20 p-2.5 rounded-xl border border-white/5">
-                  <li className="flex items-center gap-1.5">
-                    <span className="text-emerald-400 font-bold">✓</span>
-                    <span><strong>Không giới hạn số ngày:</strong> Bác sĩ tự do mở lịch bao nhiêu ngày tùy ý.</span>
-                  </li>
-                  <li className="flex items-center gap-1.5">
-                    <span className="text-emerald-400 font-bold">✓</span>
-                    <span><strong>Chỉ tiêu {config.minWorkHoursPerDay || 6} tiếng/ngày:</strong> Buộc hoàn tất đủ tối thiểu mới được đăng ký ngày kế tiếp.</span>
-                  </li>
-                  <li className="flex items-center gap-1.5">
-                    <span className="text-emerald-400 font-bold">✓</span>
-                    <span><strong>Bệnh nhân thấy đúng 100% lịch thật:</strong> Không bị can thiệp bởi khung giờ tự sinh ảo.</span>
-                  </li>
-                </ul>
               </div>
 
-              {/* Card 2: Tự động toàn viện (Auto-Schedule) */}
-              <div
-                onClick={() => handleToggleScheduleMode(true)}
-                className={`relative p-4 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between gap-3 ${
-                  config.autoScheduleEnabled
-                    ? 'bg-white/15 border-cyan-400 shadow-md shadow-cyan-500/20 ring-2 ring-cyan-400/40'
-                    : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
-                }`}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2.5">
-                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold ${
-                      config.autoScheduleEnabled ? 'bg-cyan-500 text-white' : 'bg-white/10 text-white/60'
-                    }`}>
-                      <Zap size={18} />
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-extrabold text-white flex items-center gap-1.5">
-                        <span>Tự Động Toàn Viện (Auto-Schedule)</span>
-                      </h3>
-                      <p className="text-[11px] text-teal-100/70 mt-0.5">
-                        Cơ chế vận hành dự phòng toàn viện lúc cao điểm.
-                      </p>
-                    </div>
-                  </div>
-                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                    config.autoScheduleEnabled ? 'border-cyan-400 bg-cyan-500 text-white' : 'border-white/30'
-                  }`}>
-                    {config.autoScheduleEnabled && <CheckCircle2 size={13} className="text-white" />}
-                  </div>
+              {/* Controls */}
+              <div className="flex items-center justify-between gap-3 pt-3 border-t border-white/10 flex-wrap">
+                <div className="text-[11px] text-purple-200/80 font-medium">
+                  {config.devMode247 ? '✓ Đang mở ca tối & đêm (17:00 - 23:00)' : '• Chỉ mở ca sáng & chiều'}
                 </div>
 
-                <ul className="text-[11px] space-y-1 text-teal-100/80 bg-black/20 p-2.5 rounded-xl border border-white/5">
-                  <li className="flex items-center gap-1.5">
-                    <span className="text-cyan-400 font-bold">✓</span>
-                    <span><strong>Tự động quét &amp; sinh ca 7 ngày:</strong> Cron Job 17:00 hằng ngày tự tạo ca trực cho bác sĩ chưa xếp lịch.</span>
-                  </li>
-                  <li className="flex items-center gap-1.5">
-                    <span className="text-cyan-400 font-bold">✓</span>
-                    <span><strong>Tự sinh bù slots ảo:</strong> Đảm bảo bệnh nhân luôn tìm thấy khung giờ 08:00 - 17:00.</span>
-                  </li>
-                  <li className="flex items-center gap-1.5">
-                    <span className="text-cyan-400 font-bold">✓</span>
-                    <span><strong>Phù hợp:</strong> Khi cần đảm bảo công suất tối đa mà không phụ thuộc vào thao tác từng bác sĩ.</span>
-                  </li>
-                </ul>
+                <div className="flex items-center gap-2.5">
+                  {config.devMode247 && (
+                    <button
+                      type="button"
+                      disabled={saveLoading || cleaningUp}
+                      onClick={() => setShowCleanupModal(true)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-200 hover:text-white bg-rose-500/25 hover:bg-rose-500/40 border border-rose-400/40 rounded-xl transition-all shadow-xs"
+                      title="Dọn dẹp nhanh các ca trực và lịch hẹn kiểm thử phát sinh trong phiên 24/7"
+                    >
+                      <Trash2 size={13} className="text-rose-300" />
+                      <span>Dọn Dẹp Test</span>
+                    </button>
+                  )}
+                  <div className="flex items-center gap-2.5 bg-black/30 p-1.5 px-3 rounded-2xl border border-white/10 shadow-inner">
+                    <span className={`text-xs font-bold ${config.devMode247 ? 'text-amber-300' : 'text-slate-400'}`}>
+                      {config.devMode247 ? 'BẬT (24/7)' : 'TẮT (Hành chính)'}
+                    </span>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={config.devMode247}
+                      onClick={handleToggleDevModeClick}
+                      className={`relative inline-flex h-6 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        config.devMode247 ? 'bg-gradient-to-r from-amber-500 to-purple-600 shadow-sm shadow-amber-500/50' : 'bg-slate-700'
+                      }`}
+                      title="Bật/Tắt chế độ Develop 24/7 hoạt động ngoài giờ hành chính"
+                    >
+                      <span
+                        aria-hidden="true"
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                          config.devMode247 ? 'translate-x-6' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -551,13 +736,29 @@ export default function ScheduleConfigManager() {
             </div>
 
             {/* Operating Days */}
-            <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs space-y-3 md:col-span-2">
-              <div className="flex items-center gap-2 text-slate-800 font-bold text-sm">
-                <Calendar size={17} className="text-teal-primary" />
-                <span>Ngày Tiếp Nhận Khám Bệnh Trong Tuần</span>
+            <div className={`p-5 rounded-2xl border shadow-xs space-y-3 md:col-span-2 transition-all duration-200 ${
+              config.devMode247 ? 'bg-amber-50/20 border-amber-300 shadow-amber-50/50' : 'bg-white border-slate-200/90'
+            }`}>
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2 text-slate-800 font-bold text-sm">
+                  <Calendar size={17} className="text-teal-primary" />
+                  <span>Ngày Tiếp Nhận Khám Bệnh Trong Tuần</span>
+                </div>
+                {config.devMode247 ? (
+                  <span className="text-[11px] font-extrabold text-amber-800 bg-amber-100 border border-amber-300 px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-2xs">
+                    <Lock size={12} className="text-amber-700" />
+                    <span>24/7 BẬT: Đã khóa cố định 7/7 ngày (Không thể chỉnh sửa)</span>
+                  </span>
+                ) : (
+                  <span className="text-[11px] font-semibold text-slate-500">
+                    Bấm để bật/tắt từng ngày tiếp nhận
+                  </span>
+                )}
               </div>
               <p className="text-xs text-slate-500">
-                Các ngày bật màu xanh là những ngày phòng khám mở cửa tiếp đón bệnh nhân đặt lịch.
+                {config.devMode247
+                  ? 'Chế độ Develop 24/7 đang kích hoạt: Hệ thống mở cửa phục vụ liên tục mọi ngày trong tuần (T2 đến CN). Các ngày đã được khóa cố định.'
+                  : 'Các ngày bật màu xanh là những ngày phòng khám mở cửa tiếp đón bệnh nhân đặt lịch.'}
               </p>
               <div className="grid grid-cols-4 sm:grid-cols-7 gap-2 pt-1">
                 {[
@@ -569,28 +770,40 @@ export default function ScheduleConfigManager() {
                   { key: 'saturday', label: 'T7', name: 'Thứ 7' },
                   { key: 'sunday', label: 'CN', name: 'Chủ Nhật' },
                 ].map((d) => {
-                  const isChecked = (config.operatingDays as any)[d.key];
+                  const isChecked = Boolean((config.operatingDays as any)[d.key]);
+                  const isDisabled = Boolean(config.devMode247);
                   return (
                     <button
                       key={d.key}
                       type="button"
-                      onClick={() =>
-                        setConfig({
-                          ...config,
-                          operatingDays: {
-                            ...config.operatingDays,
-                            [d.key]: !isChecked,
-                          },
-                        })
-                      }
-                      className={`py-2.5 px-2 rounded-xl text-center text-xs font-bold transition cursor-pointer border ${
-                        isChecked
-                          ? 'bg-emerald-50 text-emerald-800 border-emerald-300 shadow-2xs'
-                          : 'bg-slate-50 text-slate-400 border-slate-200 line-through'
+                      disabled={isDisabled}
+                      onClick={() => {
+                        if (!isDisabled) {
+                          setConfig({
+                            ...config,
+                            operatingDays: {
+                              ...config.operatingDays,
+                              [d.key]: !isChecked,
+                            },
+                          });
+                        }
+                      }}
+                      title={isDisabled ? `Đã khóa cố định bởi Chế Độ 24/7 (${d.name})` : `Nhấp để chuyển trạng thái ngày ${d.name}`}
+                      className={`py-2.5 px-2 rounded-xl text-center text-xs font-bold transition border relative ${
+                        isDisabled
+                          ? 'bg-emerald-100/80 text-emerald-950 border-emerald-300 cursor-not-allowed opacity-90 select-none'
+                          : isChecked
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-300 shadow-2xs hover:bg-emerald-100 cursor-pointer'
+                          : 'bg-slate-50 text-slate-400 border-slate-200 line-through hover:bg-slate-100 cursor-pointer'
                       }`}
                     >
+                      {isDisabled && (
+                        <div className="absolute top-1 right-1">
+                          <Lock size={9} className="text-emerald-700 opacity-80" />
+                        </div>
+                      )}
                       <div>{d.label}</div>
-                      <div className="text-[9px] font-normal">{isChecked ? 'Mở' : 'Nghỉ'}</div>
+                      <div className="text-[9px] font-normal">{isDisabled ? 'Mở (24/7)' : isChecked ? 'Mở' : 'Nghỉ'}</div>
                     </button>
                   );
                 })}
@@ -598,27 +811,158 @@ export default function ScheduleConfigManager() {
             </div>
           </div>
 
-          {/* Shifts Details: Morning, Afternoon, Evening */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+          {/* Shifts Details: Night (00:00 - 08:00), Morning, Afternoon, Evening */}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+            {/* Ca Đêm (00:00 - 08:00) */}
+            <div className={`p-5 rounded-2xl border shadow-xs space-y-4 transition-all duration-200 ${
+              config.nightShift?.enabled ? 'bg-indigo-50/25 border-indigo-300 shadow-indigo-100/50' : 'bg-white border-slate-200/90'
+            }`}>
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100 flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold">
+                    <Moon size={15} />
+                  </div>
+                  <span className="font-bold text-slate-800 text-sm">{config.nightShift?.name || 'Ca Đêm (00:00 - 08:00)'}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {config.nightShift?.enabled && (
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800">
+                      {nightSlots.length} Khung Giờ
+                    </span>
+                  )}
+                  {config.devMode247 ? (
+                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1 shadow-2xs cursor-not-allowed select-none">
+                      <Lock size={11} className="text-amber-700" />
+                      24/7 Khóa Mở
+                    </span>
+                  ) : (
+                    <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-bold text-indigo-800">
+                      <input
+                        type="checkbox"
+                        checked={config.nightShift?.enabled ?? false}
+                        onChange={(e) =>
+                          setConfig({
+                            ...config,
+                            nightShift: { ...(config.nightShift || DEFAULT_CLINIC_SCHEDULE_CONFIG.nightShift), enabled: e.target.checked },
+                          })
+                        }
+                        className="rounded text-indigo-600 cursor-pointer"
+                      />
+                      <span>{config.nightShift?.enabled ? 'Đang mở' : 'Đang tắt'}</span>
+                    </label>
+                  )}
+                </div>
+              </div>
+
+              {config.nightShift?.enabled ? (
+                <>
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1 flex items-center gap-1">
+                        <span>Giờ bắt đầu</span>
+                        {config.devMode247 && <Lock size={10} className="text-slate-400" />}
+                      </label>
+                      <input
+                        type="time"
+                        disabled={config.devMode247}
+                        readOnly={config.devMode247}
+                        value={config.nightShift?.startTime || '00:00'}
+                        onChange={(e) =>
+                          setConfig({
+                            ...config,
+                            nightShift: { ...(config.nightShift || DEFAULT_CLINIC_SCHEDULE_CONFIG.nightShift), startTime: e.target.value },
+                          })
+                        }
+                        className={`w-full px-3 py-2 border rounded-xl font-mono text-sm font-bold ${
+                          config.devMode247
+                            ? 'bg-slate-100 border-slate-300 text-slate-500 cursor-not-allowed select-none'
+                            : 'bg-slate-50 border-slate-200 text-slate-800'
+                        }`}
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1 flex items-center gap-1">
+                        <span>Giờ kết thúc</span>
+                        {config.devMode247 && <Lock size={10} className="text-slate-400" />}
+                      </label>
+                      <input
+                        type="time"
+                        disabled={config.devMode247}
+                        readOnly={config.devMode247}
+                        value={config.nightShift?.endTime || '08:00'}
+                        onChange={(e) =>
+                          setConfig({
+                            ...config,
+                            nightShift: { ...(config.nightShift || DEFAULT_CLINIC_SCHEDULE_CONFIG.nightShift), endTime: e.target.value },
+                          })
+                        }
+                        className={`w-full px-3 py-2 border rounded-xl font-mono text-sm font-bold ${
+                          config.devMode247
+                            ? 'bg-slate-100 border-slate-300 text-slate-500 cursor-not-allowed select-none'
+                            : 'bg-slate-50 border-slate-200 text-slate-800'
+                        }`}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <span className="text-[11px] font-bold text-slate-500 block mb-1.5">
+                      Mô phỏng {nightSlots.length} slot sinh ra:
+                    </span>
+                    <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-1">
+                      {nightSlots.map((s, idx) => (
+                        <span
+                          key={idx}
+                          className="px-2 py-1 rounded-md bg-indigo-50 text-indigo-900 border border-indigo-200 text-[10.5px] font-mono font-bold"
+                        >
+                          {s.startTime} - {s.endTime}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="py-8 text-center text-slate-400 text-xs">
+                  Ca trực đêm hiện đang tắt. Bấm chọn ô ở trên hoặc bật Chế Độ 24/7 để kích hoạt.
+                </div>
+              )}
+            </div>
+
             {/* Ca Sáng */}
-            <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs space-y-4">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+            <div className={`p-5 rounded-2xl border shadow-xs space-y-4 transition-all duration-200 ${
+              config.devMode247 ? 'bg-amber-50/15 border-amber-300/80 shadow-amber-50/40' : 'bg-white border-slate-200/90'
+            }`}>
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100 flex-wrap gap-2">
                 <div className="flex items-center gap-2">
                   <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
                     <Sun size={15} />
                   </div>
                   <span className="font-bold text-slate-800 text-sm">{config.morningShift.name}</span>
                 </div>
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                  {morningSlots.length} Khung Giờ
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                    {morningSlots.length} Khung Giờ
+                  </span>
+                  {config.devMode247 && (
+                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1 shadow-2xs cursor-not-allowed select-none">
+                      <Lock size={11} className="text-amber-700" />
+                      24/7 Khóa Cố Định
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Giờ bắt đầu</label>
+                  <label className="block font-bold text-slate-700 mb-1 flex items-center gap-1">
+                    <span>Giờ bắt đầu</span>
+                    {config.devMode247 && <Lock size={10} className="text-slate-400" />}
+                  </label>
                   <input
                     type="time"
+                    disabled={config.devMode247}
+                    readOnly={config.devMode247}
                     value={config.morningShift.startTime}
                     onChange={(e) =>
                       setConfig({
@@ -626,13 +970,22 @@ export default function ScheduleConfigManager() {
                         morningShift: { ...config.morningShift, startTime: e.target.value },
                       })
                     }
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-sm font-bold"
+                    className={`w-full px-3 py-2 border rounded-xl font-mono text-sm font-bold ${
+                      config.devMode247
+                        ? 'bg-slate-100 border-slate-300 text-slate-500 cursor-not-allowed select-none'
+                        : 'bg-slate-50 border-slate-200 text-slate-800'
+                    }`}
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Giờ kết thúc</label>
+                  <label className="block font-bold text-slate-700 mb-1 flex items-center gap-1">
+                    <span>Giờ kết thúc</span>
+                    {config.devMode247 && <Lock size={10} className="text-slate-400" />}
+                  </label>
                   <input
                     type="time"
+                    disabled={config.devMode247}
+                    readOnly={config.devMode247}
                     value={config.morningShift.endTime}
                     onChange={(e) =>
                       setConfig({
@@ -640,7 +993,11 @@ export default function ScheduleConfigManager() {
                         morningShift: { ...config.morningShift, endTime: e.target.value },
                       })
                     }
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-sm font-bold"
+                    className={`w-full px-3 py-2 border rounded-xl font-mono text-sm font-bold ${
+                      config.devMode247
+                        ? 'bg-slate-100 border-slate-300 text-slate-500 cursor-not-allowed select-none'
+                        : 'bg-slate-50 border-slate-200 text-slate-800'
+                    }`}
                   />
                 </div>
               </div>
@@ -664,24 +1021,39 @@ export default function ScheduleConfigManager() {
             </div>
 
             {/* Ca Chiều */}
-            <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs space-y-4">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+            <div className={`p-5 rounded-2xl border shadow-xs space-y-4 transition-all duration-200 ${
+              config.devMode247 ? 'bg-blue-50/15 border-blue-300/80 shadow-blue-50/40' : 'bg-white border-slate-200/90'
+            }`}>
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100 flex-wrap gap-2">
                 <div className="flex items-center gap-2">
                   <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center font-bold">
                     <Sun size={15} />
                   </div>
                   <span className="font-bold text-slate-800 text-sm">{config.afternoonShift.name}</span>
                 </div>
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
-                  {afternoonSlots.length} Khung Giờ
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+                    {afternoonSlots.length} Khung Giờ
+                  </span>
+                  {config.devMode247 && (
+                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1 shadow-2xs cursor-not-allowed select-none">
+                      <Lock size={11} className="text-amber-700" />
+                      24/7 Khóa Cố Định
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Giờ bắt đầu</label>
+                  <label className="block font-bold text-slate-700 mb-1 flex items-center gap-1">
+                    <span>Giờ bắt đầu</span>
+                    {config.devMode247 && <Lock size={10} className="text-slate-400" />}
+                  </label>
                   <input
                     type="time"
+                    disabled={config.devMode247}
+                    readOnly={config.devMode247}
                     value={config.afternoonShift.startTime}
                     onChange={(e) =>
                       setConfig({
@@ -689,13 +1061,22 @@ export default function ScheduleConfigManager() {
                         afternoonShift: { ...config.afternoonShift, startTime: e.target.value },
                       })
                     }
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-sm font-bold"
+                    className={`w-full px-3 py-2 border rounded-xl font-mono text-sm font-bold ${
+                      config.devMode247
+                        ? 'bg-slate-100 border-slate-300 text-slate-500 cursor-not-allowed select-none'
+                        : 'bg-slate-50 border-slate-200 text-slate-800'
+                    }`}
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Giờ kết thúc</label>
+                  <label className="block font-bold text-slate-700 mb-1 flex items-center gap-1">
+                    <span>Giờ kết thúc</span>
+                    {config.devMode247 && <Lock size={10} className="text-slate-400" />}
+                  </label>
                   <input
                     type="time"
+                    disabled={config.devMode247}
+                    readOnly={config.devMode247}
                     value={config.afternoonShift.endTime}
                     onChange={(e) =>
                       setConfig({
@@ -703,7 +1084,11 @@ export default function ScheduleConfigManager() {
                         afternoonShift: { ...config.afternoonShift, endTime: e.target.value },
                       })
                     }
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-sm font-bold"
+                    className={`w-full px-3 py-2 border rounded-xl font-mono text-sm font-bold ${
+                      config.devMode247
+                        ? 'bg-slate-100 border-slate-300 text-slate-500 cursor-not-allowed select-none'
+                        : 'bg-slate-50 border-slate-200 text-slate-800'
+                    }`}
                   />
                 </div>
               </div>
@@ -727,37 +1112,58 @@ export default function ScheduleConfigManager() {
             </div>
 
             {/* Ca Tối (Ngoài Giờ) */}
-            <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs space-y-4">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+            <div className={`p-5 rounded-2xl border shadow-xs space-y-4 transition-all duration-200 ${
+              config.devMode247 ? 'bg-purple-50/25 border-purple-300 shadow-purple-100/50' : 'bg-white border-slate-200/90'
+            }`}>
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100 flex-wrap gap-2">
                 <div className="flex items-center gap-2">
                   <div className="w-7 h-7 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center font-bold">
                     <Moon size={15} />
                   </div>
                   <span className="font-bold text-slate-800 text-sm">{config.eveningShift.name}</span>
                 </div>
-                <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-bold text-purple-800">
-                  <input
-                    type="checkbox"
-                    checked={config.eveningShift.enabled}
-                    onChange={(e) =>
-                      setConfig({
-                        ...config,
-                        eveningShift: { ...config.eveningShift, enabled: e.target.checked },
-                      })
-                    }
-                    className="rounded text-purple-600"
-                  />
-                  <span>{config.eveningShift.enabled ? 'Đang mở' : 'Đang tắt'}</span>
-                </label>
+                <div className="flex items-center gap-2">
+                  {config.eveningShift.enabled && (
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800">
+                      {eveningSlots.length} Khung Giờ
+                    </span>
+                  )}
+                  {config.devMode247 ? (
+                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1 shadow-2xs cursor-not-allowed select-none">
+                      <Lock size={11} className="text-amber-700" />
+                      24/7 Khóa Mở
+                    </span>
+                  ) : (
+                    <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-bold text-purple-800">
+                      <input
+                        type="checkbox"
+                        checked={config.eveningShift.enabled}
+                        onChange={(e) =>
+                          setConfig({
+                            ...config,
+                            eveningShift: { ...config.eveningShift, enabled: e.target.checked },
+                          })
+                        }
+                        className="rounded text-purple-600 cursor-pointer"
+                      />
+                      <span>{config.eveningShift.enabled ? 'Đang mở' : 'Đang tắt'}</span>
+                    </label>
+                  )}
+                </div>
               </div>
 
               {config.eveningShift.enabled ? (
                 <>
                   <div className="grid grid-cols-2 gap-3 text-xs">
                     <div>
-                      <label className="block font-bold text-slate-700 mb-1">Giờ bắt đầu</label>
+                      <label className="block font-bold text-slate-700 mb-1 flex items-center gap-1">
+                        <span>Giờ bắt đầu</span>
+                        {config.devMode247 && <Lock size={10} className="text-slate-400" />}
+                      </label>
                       <input
                         type="time"
+                        disabled={config.devMode247}
+                        readOnly={config.devMode247}
                         value={config.eveningShift.startTime}
                         onChange={(e) =>
                           setConfig({
@@ -765,13 +1171,22 @@ export default function ScheduleConfigManager() {
                             eveningShift: { ...config.eveningShift, startTime: e.target.value },
                           })
                         }
-                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-sm font-bold"
+                        className={`w-full px-3 py-2 border rounded-xl font-mono text-sm font-bold ${
+                          config.devMode247
+                            ? 'bg-slate-100 border-slate-300 text-slate-500 cursor-not-allowed select-none'
+                            : 'bg-slate-50 border-slate-200 text-slate-800'
+                        }`}
                       />
                     </div>
                     <div>
-                      <label className="block font-bold text-slate-700 mb-1">Giờ kết thúc</label>
+                      <label className="block font-bold text-slate-700 mb-1 flex items-center gap-1">
+                        <span>Giờ kết thúc</span>
+                        {config.devMode247 && <Lock size={10} className="text-slate-400" />}
+                      </label>
                       <input
                         type="time"
+                        disabled={config.devMode247}
+                        readOnly={config.devMode247}
                         value={config.eveningShift.endTime}
                         onChange={(e) =>
                           setConfig({
@@ -779,7 +1194,11 @@ export default function ScheduleConfigManager() {
                             eveningShift: { ...config.eveningShift, endTime: e.target.value },
                           })
                         }
-                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-sm font-bold"
+                        className={`w-full px-3 py-2 border rounded-xl font-mono text-sm font-bold ${
+                          config.devMode247
+                            ? 'bg-slate-100 border-slate-300 text-slate-500 cursor-not-allowed select-none'
+                            : 'bg-slate-50 border-slate-200 text-slate-800'
+                        }`}
                       />
                     </div>
                   </div>
@@ -970,7 +1389,7 @@ export default function ScheduleConfigManager() {
               />
               <button
                 type="button"
-                onClick={() => setSelectedDate(new Date().toISOString().slice(0, 10))}
+                onClick={() => setSelectedDate(getLocalDateString())}
                 className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
               >
                 Hôm nay
@@ -997,6 +1416,17 @@ export default function ScheduleConfigManager() {
               >
                 <Sparkles size={14} className={syncingWeek ? 'animate-spin text-emerald-600' : 'text-emerald-600'} />
                 <span>{syncingWeek ? 'Đang đồng bộ...' : 'Tự Động Sinh Lịch 7 Ngày Tới (1 Tuần)'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleResetUnbookedSchedules}
+                disabled={resettingSchedules || schedules.length === 0}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold rounded-xl transition cursor-pointer disabled:opacity-50"
+                title="Dọn dẹp sạch toàn bộ các ca trực chưa có người đặt, đưa số ca trực về 0 để Bác sĩ tự đăng ký lại từ đầu"
+              >
+                <Trash2 size={14} className={resettingSchedules ? 'animate-spin text-rose-600' : 'text-rose-600'} />
+                <span>{resettingSchedules ? 'Đang dọn...' : 'Xóa Ca Trực Trống (Reset Về 0)'}</span>
               </button>
 
               <button
@@ -1269,6 +1699,7 @@ export default function ScheduleConfigManager() {
                     onChange={(e) => setNewScheduleShift(e.target.value as any)}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-bold"
                   >
+                    <option value="NIGHT">Ca Đêm ({config.nightShift?.startTime || '00:00'} - {config.nightShift?.endTime || '08:00'})</option>
                     <option value="MORNING">Ca Sáng ({config.morningShift.startTime} - {config.morningShift.endTime})</option>
                     <option value="AFTERNOON">Ca Chiều ({config.afternoonShift.startTime} - {config.afternoonShift.endTime})</option>
                     <option value="EVENING">Ca Tối ({config.eveningShift.startTime} - {config.eveningShift.endTime})</option>
@@ -1413,6 +1844,111 @@ export default function ScheduleConfigManager() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Cách 2: Hộp thoại xác nhận thông minh khi tắt Chế Độ Develop 24/7 */}
+      {showCleanupModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden transform transition-all animate-scaleUp">
+            {/* Header */}
+            <div className="p-6 bg-gradient-to-r from-amber-500/10 via-rose-500/10 to-purple-500/10 dark:from-amber-950/30 dark:via-rose-950/30 dark:to-purple-950/30 border-b border-slate-100 dark:border-slate-800 flex items-start gap-4">
+              <div className="w-12 h-12 rounded-xl bg-amber-500/20 text-amber-500 flex items-center justify-center shrink-0">
+                <AlertTriangle size={26} className="text-amber-500 animate-pulse" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                  Xác Nhận Tắt Chế Độ Develop 24/7
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  Bạn đang yêu cầu tắt môi trường thử nghiệm vận hành 24/7 toàn viện.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCleanupModal(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg"
+                disabled={cleaningUp || saveLoading}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                Trong quá trình bật <strong className="text-amber-600 dark:text-amber-400">Develop 24/7</strong>, có thể đã phát sinh các ca trực đêm, ca cuối tuần hoặc lượt đặt lịch thử nghiệm. Vui lòng chọn phương án xử lý dữ liệu:
+              </p>
+
+              {/* 3 Action Options */}
+              <div className="space-y-3 pt-1">
+                {/* Lựa chọn 1: Tắt & Xóa Sạch Dữ Liệu Test (Primary) */}
+                <button
+                  type="button"
+                  disabled={cleaningUp || saveLoading}
+                  onClick={() => executeToggleDevMode(false, true)}
+                  className="w-full text-left p-4 rounded-xl border-2 border-rose-300 dark:border-rose-900/60 bg-rose-50/70 dark:bg-rose-950/20 hover:bg-rose-100/80 dark:hover:bg-rose-900/30 hover:border-rose-500 transition-all group flex items-start gap-3 shadow-sm"
+                >
+                  <div className="p-2.5 rounded-lg bg-rose-600 text-white shrink-0 group-hover:scale-110 transition-transform">
+                    <Trash2 size={20} />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-rose-700 dark:text-rose-300 text-sm group-hover:underline">
+                        1. Tắt & Xóa Sạch Dữ Liệu Test (Khuyến Nghị)
+                      </span>
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-200 dark:bg-rose-900/60 text-rose-800 dark:text-rose-200">
+                        Clean Sandbox
+                      </span>
+                    </div>
+                    <p className="text-xs text-rose-600/90 dark:text-rose-400/90 mt-1 leading-normal">
+                      Tự động dọn dẹp sạch toàn bộ ca trực Bác sĩ, khung giờ (TimeSlots) và lịch hẹn được tạo trong phiên 24/7 vừa rồi. Trả hệ thống về trạng thái sạch sẽ trước khi test.
+                    </p>
+                  </div>
+                </button>
+
+                {/* Lựa chọn 2: Tắt nhưng giữ lại dữ liệu */}
+                <button
+                  type="button"
+                  disabled={cleaningUp || saveLoading}
+                  onClick={() => executeToggleDevMode(false, false)}
+                  className="w-full text-left p-4 rounded-xl border border-slate-200 dark:border-slate-700/80 bg-slate-50 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all group flex items-start gap-3"
+                >
+                  <div className="p-2.5 rounded-lg bg-slate-600 text-white shrink-0 group-hover:scale-110 transition-transform">
+                    <Save size={20} />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-800 dark:text-slate-200 text-sm group-hover:underline">
+                        2. Tắt Nhưng Giữ Lại Dữ Liệu
+                      </span>
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                        Keep Data
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-normal">
+                      Chỉ tắt cờ 24/7 về giờ hành chính chuẩn (T2 - T6, 07:30 - 17:00). Toàn bộ ca trực và lịch hẹn đã đăng ký vẫn được bảo lưu nguyên vẹn trong hệ thống.
+                    </p>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <span className="text-xs text-slate-400">
+                {cleaningUp ? 'Đang dọn dẹp dữ liệu...' : 'Thao tác an toàn • Không mất dữ liệu gốc'}
+              </span>
+              <button
+                type="button"
+                disabled={cleaningUp || saveLoading}
+                onClick={() => setShowCleanupModal(false)}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors"
+              >
+                ❌ Hủy Bỏ (Tiếp Tục Bật 24/7)
+              </button>
+            </div>
           </div>
         </div>
       )}

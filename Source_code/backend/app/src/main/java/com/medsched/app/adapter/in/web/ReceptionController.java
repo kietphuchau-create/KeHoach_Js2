@@ -22,6 +22,7 @@ import com.medsched.persistence.repository.DoctorJpaRepository;
 import com.medsched.persistence.repository.PatientProfileJpaRepository;
 import com.medsched.persistence.repository.TimeSlotJpaRepository;
 import com.medsched.persistence.repository.UserJpaRepository;
+import java.util.Map;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -69,8 +70,18 @@ public class ReceptionController {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private com.medsched.persistence.repository.UserMedicalCenterRoleJpaRepository userMedicalCenterRoleJpaRepository;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.medsched.persistence.repository.DoctorScheduleJpaRepository doctorScheduleJpaRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.medsched.persistence.repository.PaymentJpaRepository paymentJpaRepository;
+
     public void setClock(Clock clock) {
         this.clock = clock;
+    }
+
+    public void setDoctorScheduleJpaRepository(com.medsched.persistence.repository.DoctorScheduleJpaRepository doctorScheduleJpaRepository) {
+        this.doctorScheduleJpaRepository = doctorScheduleJpaRepository;
     }
 
     public void setSpecialtyJpaRepository(com.medsched.persistence.repository.SpecialtyJpaRepository specialtyJpaRepository) {
@@ -135,6 +146,9 @@ public class ReceptionController {
      * 3. Nếu ca khám vãng lai (không gắn slot): Phải nằm trong khung giờ làm việc phòng khám.
      */
     private void validateCheckinTimeWindow(AppointmentEntity app) {
+        if (com.medsched.doctor.DoctorScheduleService.isDevMode247Active()) {
+            return; // Cho phép hoạt động 24/7 khi Chế Độ Develop 24/7 đang BẬT
+        }
         if (app.getStatus() == AppointmentStatus.CANCELLED) {
             throw new IllegalArgumentException("Lịch hẹn này đã bị hủy, không thể làm thủ tục tiếp đón!");
         }
@@ -198,6 +212,9 @@ public class ReceptionController {
      * - Ngoài các khung giờ trên (nghỉ trưa 12:00-13:30, sau 17:00, cuối tuần) đều bị từ chối.
      */
     private void validateWalkinBusinessHours() {
+        if (com.medsched.doctor.DoctorScheduleService.isDevMode247Active()) {
+            return; // Cho phép tiếp đón 24/7 khi Chế Độ Develop 24/7 đang BẬT
+        }
         ZonedDateTime nowVn = clock.instant().atZone(VN_ZONE);
         DayOfWeek day = nowVn.getDayOfWeek();
         if (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY) {
@@ -230,10 +247,17 @@ public class ReceptionController {
             String doctorId,
             String specialty,
             String password,
-            String medicalCenterId
+            String medicalCenterId,
+            String symptoms,
+            String gender,
+            Integer birthYear
     ) {
         public WalkinRequest(String fullName, String phone, String cccdNumber, String doctorId, String specialty, String password) {
-            this(fullName, phone, cccdNumber, doctorId, specialty, password, null);
+            this(fullName, phone, cccdNumber, doctorId, specialty, password, null, null, null, null);
+        }
+
+        public WalkinRequest(String fullName, String phone, String cccdNumber, String doctorId, String specialty, String password, String medicalCenterId) {
+            this(fullName, phone, cccdNumber, doctorId, specialty, password, medicalCenterId, null, null, null);
         }
     }
 
@@ -497,6 +521,10 @@ public class ReceptionController {
             );
             walkinApp.setCheckinMethod(CheckinMethod.CCCD_QR);
             walkinApp.setCheckInTime(Instant.now());
+            if (com.medsched.doctor.DoctorScheduleService.isDevMode247Active()) {
+                walkinApp.setDevSessionId(com.medsched.doctor.DoctorScheduleService.getCurrentDevSessionId());
+                walkinApp.setTestData(true);
+            }
             walkinApp = appointmentJpaRepository.save(walkinApp);
 
             Appointment domain = appointmentRepositoryPort.findById(walkinApp.getId()).orElse(null);
@@ -529,29 +557,25 @@ public class ReceptionController {
                 : null;
         String email = cleanPhone + "@medsched.vn";
 
-        // 1. Tìm hoặc tạo User tài khoản
-        UserEntity user = null;
-        if (!cleanPhone.isBlank()) {
-            user = userJpaRepository.findByPhone(cleanPhone).orElse(null);
+        // 1. Kiểm tra không cho trùng SĐT tài khoản
+        if ((!cleanPhone.isBlank() && userJpaRepository.findByPhone(cleanPhone).isPresent())
+                || userJpaRepository.findByEmail(email).isPresent()) {
+            throw new IllegalArgumentException("Số điện thoại đã tồn tại trên hệ thống, yêu cầu lễ tân hoặc khách hàng kiểm tra lại");
         }
-        if (user == null) {
-            user = userJpaRepository.findByEmail(email).orElse(null);
-        }
-        if (user == null) {
-            String rawPass = req.password() != null && !req.password().isBlank() ? req.password() : "Med@1234";
-            user = new UserEntity(
-                    UUID.randomUUID().toString(),
-                    email,
-                    passwordEncoder.encode(rawPass),
-                    cleanName,
-                    cleanPhone,
-                    true,
-                    Instant.now(),
-                    Instant.now()
-            );
-            user.setCurrentSessionId(UUID.randomUUID().toString());
-            user = userJpaRepository.save(user);
-        }
+
+        String rawPass = req.password() != null && !req.password().isBlank() ? req.password() : "Med@1234";
+        UserEntity user = new UserEntity(
+                UUID.randomUUID().toString(),
+                email,
+                passwordEncoder.encode(rawPass),
+                cleanName,
+                cleanPhone,
+                true,
+                Instant.now(),
+                Instant.now()
+        );
+        user.setCurrentSessionId(UUID.randomUUID().toString());
+        user = userJpaRepository.save(user);
 
         // 2. Tìm hoặc tạo PatientProfileEntity
         final String userId = user.getId();
@@ -579,8 +603,17 @@ public class ReceptionController {
         } else if (cccdNumber != null) {
             profile.setCccdNumber(cccdNumber);
             profile.setUpdatedAt(Instant.now());
-            patientProfileJpaRepository.save(profile);
         }
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh"));
+        if (req.gender() != null && !req.gender().isBlank()) {
+            try {
+                profile.setGender(com.medsched.persistence.enums.Gender.valueOf(req.gender().toUpperCase()));
+            } catch (Exception ignored) {}
+        }
+        if (req.birthYear() != null && req.birthYear() > 1900 && req.birthYear() <= today.getYear()) {
+            profile.setDateOfBirth(LocalDate.of(req.birthYear(), 1, 1));
+        }
+        patientProfileJpaRepository.save(profile);
 
         // 3. Phân bổ Bác sĩ khám
         DoctorEntity doctor = null;
@@ -597,15 +630,34 @@ public class ReceptionController {
         if (doctor != null) {
             Optional<UserEntity> docUserOpt = userJpaRepository.findById(doctor.getUserId());
             if (docUserOpt.isPresent()) {
-                String prefix = doctor.getAcademicTitle() != null && !doctor.getAcademicTitle().isBlank()
-                        ? doctor.getAcademicTitle() + " "
-                        : "BS. ";
-                doctorName = prefix + docUserOpt.get().getFullName();
+                String uName = docUserOpt.get().getFullName();
+                String title = doctor.getAcademicTitle() != null && !doctor.getAcademicTitle().isBlank()
+                        ? doctor.getAcademicTitle().trim()
+                        : "BS.";
+                if (uName != null && !uName.isBlank()) {
+                    if (uName.toLowerCase().startsWith(title.toLowerCase())) {
+                        doctorName = uName;
+                    } else {
+                        doctorName = title + " " + uName;
+                    }
+                }
+            }
+        }
+
+        // 3.1. Ràng buộc nghiệp vụ: Bác sĩ được chọn BẮT BUỘC phải có ca trực hoạt động (ACTIVE) trong ngày hôm nay
+        if (doctorScheduleJpaRepository != null) {
+            List<com.medsched.persistence.entity.DoctorScheduleEntity> todaySchedules =
+                    doctorScheduleJpaRepository.findByDoctorIdAndWorkDate(doctorId, today);
+            boolean hasActiveSchedule = todaySchedules.stream().anyMatch(s -> s.getStatus() == com.medsched.persistence.enums.ScheduleStatus.ACTIVE);
+            if (!hasActiveSchedule) {
+                throw new IllegalArgumentException(
+                        "Bác sĩ " + doctorName + " không có ca trực nào trong ngày hôm nay ("
+                        + today.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                        + "). Vui lòng chọn Bác sĩ đang có ca trực hoặc phân công ca trực trước!");
             }
         }
 
         // 4. Kiểm soát hạn ngạch vãng lai & tính STT hôm nay của Bác sĩ (truy vấn SQL B-tree trực tiếp)
-        LocalDate today = LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh"));
         Instant startOfDay = today.atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh")).toInstant();
         Instant endOfDay = today.plusDays(1).atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh")).toInstant();
 
@@ -640,8 +692,15 @@ public class ReceptionController {
                 Instant.now(),
                 Instant.now()
         );
+        if (req.symptoms() != null && !req.symptoms().isBlank()) {
+            app.setPatientSymptoms(req.symptoms().trim());
+        }
         app.setCheckinMethod(CheckinMethod.MANUAL);
         app.setCheckInTime(Instant.now());
+        if (com.medsched.doctor.DoctorScheduleService.isDevMode247Active()) {
+            app.setDevSessionId(com.medsched.doctor.DoctorScheduleService.getCurrentDevSessionId());
+            app.setTestData(true);
+        }
         app = appointmentJpaRepository.save(app);
 
         WalkinResponse res = new WalkinResponse(
@@ -756,10 +815,17 @@ public class ReceptionController {
         if (doctor != null) {
             Optional<UserEntity> docUserOpt = userJpaRepository.findById(doctor.getUserId());
             if (docUserOpt.isPresent()) {
-                String prefix = doctor.getAcademicTitle() != null && !doctor.getAcademicTitle().isBlank()
-                        ? doctor.getAcademicTitle() + " "
-                        : "BS. ";
-                doctorName = prefix + docUserOpt.get().getFullName();
+                String uName = docUserOpt.get().getFullName();
+                String title = doctor.getAcademicTitle() != null && !doctor.getAcademicTitle().isBlank()
+                        ? doctor.getAcademicTitle().trim()
+                        : "BS.";
+                if (uName != null && !uName.isBlank()) {
+                    if (uName.toLowerCase().startsWith(title.toLowerCase())) {
+                        doctorName = uName;
+                    } else {
+                        doctorName = title + " " + uName;
+                    }
+                }
             }
         }
 
@@ -859,6 +925,10 @@ public class ReceptionController {
         if (checkInTime != null) {
             app.setCheckInTime(checkInTime);
         }
+        if (com.medsched.doctor.DoctorScheduleService.isDevMode247Active()) {
+            app.setDevSessionId(com.medsched.doctor.DoctorScheduleService.getCurrentDevSessionId());
+            app.setTestData(true);
+        }
         app = appointmentJpaRepository.save(app);
 
         String displayDate = targetDate.toString();
@@ -920,6 +990,59 @@ public class ReceptionController {
             @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) LocalDate to) {
 
         return ResponseEntity.ok(receptionHistoryService.getReceptionHistory(q, method, status, from, to));
+    }
+
+    /**
+     * Lễ tân / Quản trị viên xóa ca tiếp đón test hoặc nhập nhầm.
+     */
+    @DeleteMapping("/appointments/{id}")
+    @PreAuthorize("hasAnyRole('STAFF', 'ADMIN')")
+    @Transactional
+    public ResponseEntity<Map<String, Object>> deleteReceptionAppointment(@PathVariable String id) {
+        return appointmentJpaRepository.findById(id).map(app -> {
+            if (app.getSlotId() != null) {
+                timeSlotJpaRepository.findById(app.getSlotId()).ifPresent(slot -> {
+                    slot.setStatus(com.medsched.persistence.enums.SlotStatus.AVAILABLE);
+                    slot.setUpdatedAt(Instant.now());
+                    timeSlotJpaRepository.save(slot);
+                });
+            }
+            if (paymentJpaRepository != null) {
+                try {
+                    var payments = paymentJpaRepository.findByAppointmentId(id);
+                    if (payments != null && !payments.isEmpty()) {
+                        paymentJpaRepository.deleteAll(payments);
+                    }
+                } catch (Exception ignored) {}
+            }
+            String patientId = app.getPatientProfileId();
+            String code = app.getBookingCode();
+            appointmentJpaRepository.delete(app);
+            appointmentJpaRepository.flush();
+
+            // Nếu bệnh nhân vãng lai test này không còn ca khám nào khác thì dọn dẹp profile & user test
+            if (patientId != null) {
+                long remaining = appointmentJpaRepository.findByPatientProfileIdOrderByCreatedAtDesc(patientId).size();
+                if (remaining == 0) {
+                    patientProfileJpaRepository.findById(patientId).ifPresent(profile -> {
+                        String userId = profile.getUserId();
+                        patientProfileJpaRepository.delete(profile);
+                        if (userId != null) {
+                            userJpaRepository.findById(userId).ifPresent(u -> {
+                                if (u.getEmail() != null && u.getEmail().endsWith("@medsched.vn")) {
+                                    userJpaRepository.delete(u);
+                                }
+                            });
+                        }
+                    });
+                }
+            }
+
+            return ResponseEntity.ok(Map.<String, Object>of(
+                    "success", true,
+                    "message", "Đã xóa thành công lượt tiếp đón " + code
+            ));
+        }).orElse(ResponseEntity.notFound().build());
     }
 }
 

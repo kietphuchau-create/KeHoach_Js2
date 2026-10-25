@@ -37,6 +37,7 @@ import AlertMessage from '@/shared/components/Feedback/AlertMessage';
 import { useSingleTabLock } from '@/shared/hooks/useSingleTabLock';
 import SingleTabLockOverlay from '@/shared/components/Feedback/SingleTabLockOverlay';
 import LoginForm from '@/modules/auth/components/LoginForm';
+import { releaseDoctorRoomToBackup } from '@/shared/lib/clinicRooms';
 
 export interface UserItem {
   id: string;
@@ -315,9 +316,22 @@ export default function UserTable() {
     setMessage(null);
     try {
       await api.updateUserStatus(user.id, newStatus);
+      
+      // Nếu là Bác sĩ nghỉ việc / bị khóa tài khoản -> Tự động chuyển buồng khám thành Phòng Dự Phòng
+      let extraNote = '';
+      if (newStatus === false) {
+        const isDoctor = user.roles?.some(r => r.toUpperCase().includes('DOCTOR')) || !!user.roomNumber;
+        if (isDoctor) {
+          const freedRoom = releaseDoctorRoomToBackup(user.id, user.roomNumber);
+          if (freedRoom) {
+            extraNote = ` Đồng thời buồng khám [${freedRoom.code} - ${freedRoom.name}] đã tự động được chuyển thành Phòng Dự Phòng.`;
+          }
+        }
+      }
+
       setMessage({ 
         type: 'success', 
-        text: `Đã ${newStatus ? 'kích hoạt' : 'vô hiệu hóa'} thành công tài khoản ${user.email}!` 
+        text: `Đã ${newStatus ? 'kích hoạt' : 'vô hiệu hóa'} thành công tài khoản ${user.email}!${extraNote}` 
       });
       setUsers(prev => {
         if (selectedRole === 'LOCKED' && newStatus === true) {

@@ -573,20 +573,43 @@ public class TriageController {
             return reply.append("• Hiện chưa có bác sĩ trực được cập nhật cho chuyên khoa này. Bạn vẫn có thể mở trang đặt lịch để xem các lựa chọn mới nhất.")
                     .toString();
         }
-        reply.append("• Bác sĩ phù hợp đang nhận lịch:");
-        for (var doctor : booking.doctors().stream().limit(3).toList()) {
-            reply.append("\n  - ").append(doctorDisplayName(doctor));
+
+        List<PatientBookingRecommendationService.DoctorOption> availableDocs = booking.doctors().stream()
+                .filter(d -> d.availableSlots() != null && !d.availableSlots().isEmpty())
+                .toList();
+        List<PatientBookingRecommendationService.DoctorOption> unavailableDocs = booking.doctors().stream()
+                .filter(d -> d.availableSlots() == null || d.availableSlots().isEmpty())
+                .toList();
+
+        if (availableDocs.isEmpty()) {
+            String docNames = unavailableDocs.stream()
+                    .map(this::doctorDisplayName)
+                    .reduce((a, b) -> a + ", " + b)
+                    .orElse("Bác sĩ chuyên khoa");
+            reply.append("• Bác sĩ **").append(docNames)
+                    .append("** tại phòng khám có thể điều trị những triệu chứng mà bạn nêu, nhưng hiện tại chưa có ca khám sẵn sàng. Bạn vui lòng quay lại sau hoặc chọn ngày khám khác nhé!\n\n")
+                    .append("📞 Hoặc bạn có thể liên hệ hotline 1900 1234 để được nhân viên tiếp đón hỗ trợ xếp ca khám ưu tiên.");
+            return reply.toString();
+        }
+
+        reply.append("• Bác sĩ chuyên môn đang có ca khám sẵn sàng:");
+        for (var doctor : availableDocs.stream().limit(3).toList()) {
+            reply.append("\n  - **").append(doctorDisplayName(doctor)).append("**");
             if (doctor.roomNumber() != null && !doctor.roomNumber().isBlank()) {
                 reply.append(" — phòng ").append(doctor.roomNumber());
             }
             if (doctor.consultationFee() != null) {
                 reply.append(", phí khám ").append(formatVnd(doctor.consultationFee()));
             }
-            if (!doctor.availableSlots().isEmpty()) {
-                reply.append(". Lịch gần nhất: ").append(doctor.availableSlots().get(0).displayTime());
-            } else {
-                reply.append(". Chưa có khung giờ trống được công bố");
-            }
+            reply.append(". Lịch gần nhất: **").append(doctor.availableSlots().get(0).displayTime()).append("**");
+        }
+        if (!unavailableDocs.isEmpty()) {
+            String unavailNames = unavailableDocs.stream()
+                    .map(this::doctorDisplayName)
+                    .reduce((a, b) -> a + ", " + b)
+                    .orElse("");
+            reply.append("\n\n*(Lưu ý: Bác sĩ ").append(unavailNames)
+                    .append(" cũng chuyên về lĩnh vực này nhưng hiện tại chưa có ca khám mở sẵn trong ngày.)*");
         }
         reply.append("\n\nBạn có thể bấm “Đặt lịch khám” bên dưới; hệ thống sẽ điền sẵn chuyên khoa, bác sĩ gợi ý và triệu chứng đã cung cấp.");
         return reply.toString();

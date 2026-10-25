@@ -23,6 +23,7 @@ import {
   Receipt
 } from 'lucide-react';
 import { api, getAuthToken, getAuthUser, ConsultationHistoryItem, PrescriptionDetail } from '@/shared/lib/api';
+import { getLocalDateString } from '@/shared/lib/formatters';
 
 export default function DoctorHistoryView() {
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -50,18 +51,18 @@ export default function DoctorHistoryView() {
       const today = new Date();
 
       if (datePreset === 'TODAY') {
-        from = today.toISOString().slice(0, 10);
+        from = getLocalDateString(today);
         to = from;
       } else if (datePreset === 'LAST_7_DAYS') {
         const d = new Date();
         d.setDate(d.getDate() - 7);
-        from = d.toISOString().slice(0, 10);
-        to = today.toISOString().slice(0, 10);
+        from = getLocalDateString(d);
+        to = getLocalDateString(today);
       } else if (datePreset === 'LAST_30_DAYS') {
         const d = new Date();
         d.setDate(d.getDate() - 30);
-        from = d.toISOString().slice(0, 10);
-        to = today.toISOString().slice(0, 10);
+        from = getLocalDateString(d);
+        to = getLocalDateString(today);
       }
 
       const res = await api.getDoctorConsultationHistory({

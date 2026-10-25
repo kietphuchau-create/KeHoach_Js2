@@ -21,9 +21,21 @@ public class AppUserDetailsService implements UserDetailsService {
 
     @Override
     @Transactional(readOnly = true)
-    public AppUserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        UserEntity user = users.findByEmail(email)
-                .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy tài khoản: " + email));
+    public AppUserDetails loadUserByUsername(String identifier) throws UsernameNotFoundException {
+        String clean = identifier != null ? identifier.trim() : "";
+        UserEntity user = users.findByEmail(clean.toLowerCase()).orElse(null);
+        if (user == null) {
+            String phone = clean.replaceAll("[\\s.-]", "");
+            if (phone.startsWith("+84")) {
+                phone = "0" + phone.substring(3);
+            } else if (phone.startsWith("84") && phone.length() == 11) {
+                phone = "0" + phone.substring(2);
+            }
+            user = users.findByPhone(phone).orElse(null);
+        }
+        if (user == null) {
+            throw new UsernameNotFoundException("Không tìm thấy tài khoản: " + identifier);
+        }
         return new AppUserDetails(user, roles.findByUserIdAndActiveTrue(user.getId()));
     }
 
