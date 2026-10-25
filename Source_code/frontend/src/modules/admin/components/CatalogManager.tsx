@@ -17,7 +17,10 @@ import {
   Wrench,
   MapPin,
   ExternalLink,
-  Navigation
+  Navigation,
+  ShieldCheck,
+  UserCheck,
+  UserX
 } from 'lucide-react';
 import { api } from '@/shared/lib/api';
 import LoadingSpinner from '@/shared/components/Feedback/LoadingSpinner';
@@ -35,6 +38,8 @@ import {
   updateClinicRoom, 
   deleteClinicRoom, 
   toggleClinicRoomStatus,
+  releaseDoctorRoomToBackup,
+  assignDoctorToRoom,
   ROOMS_UPDATED_EVENT 
 } from '@/shared/lib/clinicRooms';
 
@@ -47,6 +52,7 @@ export default function CatalogManager() {
   const [specialties, setSpecialties] = useState<any[]>([]);
   const [services, setServices] = useState<any[]>([]);
   const [rooms, setRooms] = useState<ClinicRoom[]>([]);
+  const [doctors, setDoctors] = useState<any[]>([]);
   
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -58,18 +64,22 @@ export default function CatalogManager() {
   const [formData, setFormData] = useState<any>({});
   const [hasPinnedLocation, setHasPinnedLocation] = useState<boolean>(false);
   const [centerCoordinates, setCenterCoordinates] = useState<{ lat?: number; lng?: number }>({});
+  const [roomDigits, setRoomDigits] = useState<string>('');
+  const [floorNumber, setFloorNumber] = useState<string>('1');
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [c, s, sv] = await Promise.all([
+      const [c, s, sv, docs] = await Promise.all([
         api.getMedicalCenters(),
         api.getSpecialties(),
-        api.getServices()
+        api.getServices(),
+        api.getDoctors().catch(() => [])
       ]);
       setCenters(c);
       setSpecialties(s);
       setServices(sv);
+      setDoctors(docs || []);
       setRooms(getClinicRooms());
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || 'Lỗi tải danh mục' });
@@ -106,11 +116,21 @@ export default function CatalogManager() {
     } else if (activeTab === 'services') {
       setFormData(item || { code: '', name: '', description: '', price: 0, estimatedDurationMinutes: 15, specialtyId: specialties[0]?.id || '' });
     } else if (activeTab === 'rooms') {
+      const initCode = item?.code || 'P.103';
+      const initFloor = item?.floor || 'Tầng 1';
+      const digits = initCode.replace(/^P\./i, '').replace(/\D/g, '');
+      const fl = initFloor.replace(/\D/g, '') || '1';
+      setRoomDigits(digits);
+      setFloorNumber(fl);
       setFormData(item ? { ...item } : { 
-        code: 'P.', 
+        code: digits ? `P.${digits}` : 'P.103', 
         name: '', 
-        floor: 'Tầng 1', 
-        medicalCenterName: centers[0]?.name || 'Phòng Khám Đa Khoa MedSched - Chi Nhánh Quận 1', 
+        floor: `Tầng ${fl}`, 
+        medicalCenterName: centers[0]?.name || 'Phòng Khám Đa Khoa MedSched - Chi Nhánh Trịnh Đình Thảo (ITC)', 
+        assignedDoctorId: '',
+        assignedDoctorName: '',
+        specialtyName: specialties[0]?.name || 'Đa Khoa',
+        isBackupRoom: true,
         status: 'active',
         note: '' 
       });
@@ -173,19 +193,95 @@ export default function CatalogManager() {
         setMessage({ type: 'success', text: `Lưu dịch vụ khám thành công!` });
         loadData();
       } else if (activeTab === 'rooms') {
+        const cleanCode = (formData.code || '').trim().toUpperCase();
+        const digits = cleanCode.replace(/^P\./, '').trim();
+
+        // 1. Ràng buộc mã phòng: phải có dạng P.xxx (sau P. chỉ là số, tối thiểu 2 chữ số)
+        if (!digits || !/^\d{2,5}$/.test(digits)) {
+          setMessage({ 
+            type: 'error', 
+            text: '⚠️ Mã phòng không hợp lệ! Vui lòng chỉ nhập số phòng (từ 2 đến 5 chữ số, ví dụ: 101, 205 để tạo mã P.101, P.205).' 
+          });
+          setLoading(false);
+          return;
+        }
+
+        // 2. Ràng buộc tầng: chỉ là số nguyên dương
+        const floorDigits = (formData.floor || '').replace(/\D/g, '');
+        if (!floorDigits || Number(floorDigits) < 1) {
+          setMessage({ 
+            type: 'error', 
+            text: '⚠️ Vị trí tầng không hợp lệ! Vui lòng chỉ nhập số tầng (ví dụ: 1, 2, 3...).' 
+          });
+          setLoading(false);
+          return;
+        }
+
+        // 3. Ràng buộc tên phòng
+        if (!formData.name || !formData.name.trim()) {
+          setMessage({
+            type: 'error',
+            text: '⚠️ Vui lòng nhập tên phòng khám (ví dụ: Phòng Khám Nhi Đồng, Phòng Khám Tai Mũi Họng...)'
+          });
+          setLoading(false);
+          return;
+        }
+
+        // 4. Ràng buộc trùng lặp mã phòng
+        const currentRooms = getClinicRooms();
+        const isDuplicate = currentRooms.some(
+          (r) => r.code.toUpperCase() === cleanCode && (modalMode === 'create' || r.id !== editingId)
+        );
+        if (isDuplicate) {
+          setMessage({ 
+            type: 'error', 
+            text: `⚠️ Mã phòng khám [${cleanCode}] đã tồn tại trong danh mục! Vui lòng chọn số phòng khác.` 
+          });
+          setLoading(false);
+          return;
+        }
+
+        const normalizedFloor = `Tầng ${floorDigits}`;
+
+        // Xử lý gán bác sĩ phụ trách và cờ phòng dự phòng
+        const assignedDoc = doctors.find(d => (d.userId || d.id) === formData.assignedDoctorId);
+        const assignedDoctorId = assignedDoc ? (assignedDoc.userId || assignedDoc.id) : null;
+        const assignedDoctorName = assignedDoc ? assignedDoc.fullName : null;
+        const isBackupRoom = !assignedDoc;
+        const finalSpecialty = formData.specialtyName || assignedDoc?.specialtyName || 'Đa Khoa';
+
         if (modalMode === 'create') {
           addClinicRoom({
-            code: formData.code,
-            name: formData.name,
-            floor: formData.floor,
+            code: cleanCode,
+            name: formData.name.trim(),
+            floor: normalizedFloor,
             medicalCenterName: formData.medicalCenterName,
             status: formData.status || 'active',
-            note: formData.note,
+            note: formData.note?.trim() || '',
+            assignedDoctorId,
+            assignedDoctorName,
+            specialtyName: finalSpecialty,
+            isBackupRoom,
           });
-          setMessage({ type: 'success', text: `Đã mở mới phòng khám ${formData.code.toUpperCase()} thành công!` });
+          setMessage({ 
+            type: 'success', 
+            text: `Đã mở mới phòng khám ${cleanCode} (${normalizedFloor})! ${assignedDoc ? `Đã gán riêng cho Bác sĩ ${assignedDoc.fullName}.` : 'Phòng được lưu làm Phòng Dự Phòng.'}` 
+          });
         } else {
-          updateClinicRoom(editingId!, formData);
-          setMessage({ type: 'success', text: `Cập nhật phòng khám ${formData.code} thành công!` });
+          updateClinicRoom(editingId!, {
+            ...formData,
+            code: cleanCode,
+            name: formData.name.trim(),
+            floor: normalizedFloor,
+            assignedDoctorId,
+            assignedDoctorName,
+            specialtyName: finalSpecialty,
+            isBackupRoom,
+          });
+          setMessage({ 
+            type: 'success', 
+            text: `Cập nhật phòng khám ${cleanCode} thành công! ${assignedDoc ? `Bác sĩ phụ trách: ${assignedDoc.fullName}.` : 'Đang là Phòng Dự Phòng.'}` 
+          });
         }
         setRooms(getClinicRooms());
       }
@@ -228,6 +324,20 @@ export default function CatalogManager() {
     toggleClinicRoomStatus(id);
     setRooms(getClinicRooms());
     setMessage({ type: 'success', text: `Đã cập nhật trạng thái phòng ${code} thành công!` });
+  };
+
+  const handleReleaseRoomToBackup = (id: string, code: string, doctorName?: string | null) => {
+    if (!window.confirm(`Bạn có chắc muốn giải phóng phòng [${code}] của Bác sĩ "${doctorName || 'hiện tại'}" thành Phòng Dự Phòng? Bác sĩ sẽ không còn phòng riêng cố định.`)) return;
+    updateClinicRoom(id, {
+      assignedDoctorId: null,
+      assignedDoctorName: null,
+      isBackupRoom: true,
+    });
+    setRooms(getClinicRooms());
+    setMessage({ 
+      type: 'success', 
+      text: `Đã chuyển buồng khám [${code}] thành Phòng Dự Phòng thành công!` 
+    });
   };
 
   const handleToggleLockdown = async (id: string, currentlyActive: boolean, centerName: string) => {
@@ -435,90 +545,139 @@ export default function CatalogManager() {
     }
 
     if (activeTab === 'rooms') {
+      const doctorsWithoutRoom = doctors.filter(
+        d => !rooms.some(r => r.assignedDoctorId === (d.userId || d.id))
+      );
+
       return (
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-700 uppercase">
-              <th className="py-3 px-3.5 whitespace-nowrap w-20">Mã Phòng</th>
-              <th className="py-3 px-3.5 font-bold">Tên Phòng Khám</th>
-              <th className="py-3 px-2 whitespace-nowrap text-center w-20">Tầng</th>
-              <th className="py-3 px-3 whitespace-nowrap w-36">Chi Nhánh</th>
-              <th className="py-3 px-3 text-slate-600 max-w-[180px]">Ghi Chú / Thiết Bị</th>
-              <th className="py-3 px-3 whitespace-nowrap text-center w-36">Trạng Thái</th>
-              <th className="py-3 px-3.5 text-right whitespace-nowrap w-28">Thao Tác</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 text-sm">
-            {rooms.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="py-8 text-center text-slate-500">
-                  Chưa có phòng khám nào được cấu hình. Bấm "Thêm Mới Phòng Khám" để tạo.
-                </td>
+        <div className="space-y-3">
+          {doctorsWithoutRoom.length > 0 && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between text-xs text-amber-900 gap-2">
+              <div className="flex items-center gap-2">
+                <AlertTriangle size={16} className="text-amber-600 shrink-0" />
+                <span>
+                  <strong>Lưu ý quản lý buồng phòng:</strong> Hiện có <strong>{doctorsWithoutRoom.length}</strong> Bác sĩ chưa có phòng riêng cố định ({doctorsWithoutRoom.map(d => d.fullName).slice(0, 3).join(', ')}{doctorsWithoutRoom.length > 3 ? '...' : ''}). Bạn có thể gán các phòng dự phòng bên dưới cho bác sĩ!
+                </span>
+              </div>
+              <button
+                onClick={() => openModal('create')}
+                className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg shrink-0 transition"
+              >
+                + Mở Phòng Mới
+              </button>
+            </div>
+          )}
+
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-700 uppercase">
+                <th className="py-3 px-3.5 whitespace-nowrap w-20">Mã Phòng</th>
+                <th className="py-3 px-3.5 font-bold">Tên Phòng Khám</th>
+                <th className="py-3 px-3 whitespace-nowrap">Bác Sĩ Phụ Trách / Dự Phòng</th>
+                <th className="py-3 px-2 whitespace-nowrap text-center w-16">Tầng</th>
+                <th className="py-3 px-3 whitespace-nowrap w-36">Chi Nhánh</th>
+                <th className="py-3 px-3 whitespace-nowrap text-center w-32">Trạng Thái</th>
+                <th className="py-3 px-3.5 text-right whitespace-nowrap w-28">Thao Tác</th>
               </tr>
-            ) : (
-              rooms.map(r => (
-                <tr key={r.id} className="hover:bg-slate-50 transition">
-                  <td className="py-3 px-3.5 font-mono font-bold text-blue-700 whitespace-nowrap">{r.code}</td>
-                  <td className="py-3 px-3.5 font-semibold text-slate-800 leading-snug">{r.name}</td>
-                  <td className="py-3 px-2 whitespace-nowrap text-center">
-                    <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap">
-                      {r.floor}
-                    </span>
-                  </td>
-                  <td className="py-3 px-3 whitespace-nowrap">
-                    <span 
-                      className="inline-flex items-center px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 font-semibold text-xs border border-blue-100" 
-                      title={r.medicalCenterName}
-                    >
-                      {r.medicalCenterName?.includes('Quận 1') ? 'CN Quận 1' : r.medicalCenterName?.includes('Quận 7') ? 'CN Quận 7' : r.medicalCenterName?.replace('Phòng Khám Đa Khoa MedSched - ', '') || r.medicalCenterName}
-                    </span>
-                  </td>
-                  <td className="py-3 px-3 text-slate-500 text-xs max-w-[180px] truncate" title={r.note || ''}>
-                    {r.note || '—'}
-                  </td>
-                  <td className="py-3 px-3 whitespace-nowrap text-center">
-                    {r.status === 'active' ? (
-                      <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap">
-                        <CheckCircle2 size={12} />
-                        Sẵn sàng khám
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap">
-                        <Wrench size={12} />
-                        Đang bảo trì
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-3 px-3.5 text-right whitespace-nowrap">
-                    <div className="inline-flex items-center justify-end gap-1 whitespace-nowrap">
-                      <button 
-                        onClick={() => openModal('edit', r)} 
-                        className="p-1.5 text-blue-600 hover:bg-blue-50 hover:text-blue-700 rounded-lg transition cursor-pointer" 
-                        title="Sửa phòng khám"
-                      >
-                        <Edit2 size={16} />
-                      </button>
-                      <button 
-                        onClick={() => handleToggleRoomStatus(r.id, r.status, r.code)} 
-                        className={`p-1.5 rounded-lg transition cursor-pointer ${r.status === 'active' ? 'text-amber-600 hover:bg-amber-50 hover:text-amber-700' : 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700'}`}
-                        title={r.status === 'active' ? 'Chuyển sang bảo trì' : 'Mở lại hoạt động'}
-                      >
-                        <Wrench size={16} />
-                      </button>
-                      <button 
-                        onClick={() => handleDelete(r.id)} 
-                        className="p-1.5 text-rose-600 hover:bg-rose-50 hover:text-rose-700 rounded-lg transition cursor-pointer" 
-                        title="Xóa phòng khám"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-sm">
+              {rooms.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-8 text-center text-slate-500">
+                    Chưa có phòng khám nào được cấu hình. Bấm "Mở Thêm Phòng Khám" để tạo.
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : (
+                rooms.map(r => (
+                  <tr key={r.id} className="hover:bg-slate-50 transition">
+                    <td className="py-3 px-3.5 font-mono font-bold text-blue-700 whitespace-nowrap">{r.code}</td>
+                    <td className="py-3 px-3.5 font-semibold text-slate-800 leading-snug">
+                      <div>{r.name}</div>
+                      {r.specialtyName && (
+                        <span className="text-[11px] text-slate-500 font-normal">
+                          Khoa: {r.specialtyName}
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3 px-3 whitespace-nowrap">
+                      {r.assignedDoctorName ? (
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-teal-50 text-teal-800 border border-teal-200 font-bold text-xs shadow-2xs">
+                          <Stethoscope size={13} className="text-teal-600 shrink-0" />
+                          <span>{r.assignedDoctorName}</span>
+                        </div>
+                      ) : (
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-200 font-bold text-xs shadow-2xs">
+                          <ShieldCheck size={13} className="text-purple-600 shrink-0" />
+                          <span>Phòng Dự Phòng ({r.specialtyName || 'Chung'})</span>
+                        </div>
+                      )}
+                    </td>
+                    <td className="py-3 px-2 whitespace-nowrap text-center">
+                      <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap">
+                        {r.floor}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 whitespace-nowrap">
+                      <span 
+                        className="inline-flex items-center px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 font-semibold text-xs border border-blue-100" 
+                        title={r.medicalCenterName}
+                      >
+                        {r.medicalCenterName?.includes('Trần Đại Nghĩa') ? 'CN Trần Đại Nghĩa' : r.medicalCenterName?.includes('Trịnh Đình Thảo') ? 'CN Trịnh Đình Thảo' : r.medicalCenterName?.replace('Phòng Khám Đa Khoa MedSched - ', '') || r.medicalCenterName}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 whitespace-nowrap text-center">
+                      {r.status === 'active' ? (
+                        <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap">
+                          <CheckCircle2 size={12} />
+                          Sẵn sàng
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap">
+                          <Wrench size={12} />
+                          Bảo trì
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3 px-3.5 text-right whitespace-nowrap">
+                      <div className="inline-flex items-center justify-end gap-1 whitespace-nowrap">
+                        <button 
+                          onClick={() => openModal('edit', r)} 
+                          className="p-1.5 text-blue-600 hover:bg-blue-50 hover:text-blue-700 rounded-lg transition cursor-pointer" 
+                          title="Sửa phòng / Gán bác sĩ"
+                        >
+                          <Edit2 size={16} />
+                        </button>
+                        {r.assignedDoctorName && (
+                          <button 
+                            onClick={() => handleReleaseRoomToBackup(r.id, r.code, r.assignedDoctorName)} 
+                            className="p-1.5 text-purple-600 hover:bg-purple-50 hover:text-purple-700 rounded-lg transition cursor-pointer" 
+                            title="Giải phóng phòng này thành Phòng Dự Phòng"
+                          >
+                            <UserX size={16} />
+                          </button>
+                        )}
+                        <button 
+                          onClick={() => handleToggleRoomStatus(r.id, r.status, r.code)} 
+                          className={`p-1.5 rounded-lg transition cursor-pointer ${r.status === 'active' ? 'text-amber-600 hover:bg-amber-50 hover:text-amber-700' : 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700'}`}
+                          title={r.status === 'active' ? 'Chuyển sang bảo trì' : 'Mở lại hoạt động'}
+                        >
+                          <Wrench size={16} />
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(r.id)} 
+                          className="p-1.5 text-rose-600 hover:bg-rose-50 hover:text-rose-700 rounded-lg transition cursor-pointer" 
+                          title="Xóa phòng khám"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       );
     }
   };
@@ -714,24 +873,60 @@ export default function CatalogManager() {
                 <>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Mã Phòng <span className="text-red-500">*</span></label>
-                      <input 
-                        required 
-                        placeholder="Ví dụ: P.209" 
-                        className="w-full border border-slate-200 p-2.5 rounded-xl font-mono font-bold text-blue-700 focus:ring-2 focus:ring-blue-500" 
-                        value={formData.code} 
-                        onChange={e => setFormData({...formData, code: e.target.value})} 
-                      />
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                        Số / Mã Phòng <span className="text-red-500">*</span>
+                      </label>
+                      <div className="flex rounded-xl shadow-2xs overflow-hidden border border-slate-200 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500">
+                        <span className="inline-flex items-center px-3.5 bg-blue-50 text-blue-700 text-xs font-black select-none border-r border-slate-200">
+                          P.
+                        </span>
+                        <input 
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          required 
+                          maxLength={5}
+                          placeholder="101, 205..." 
+                          className="w-full p-2.5 font-mono font-black text-blue-700 outline-none text-sm bg-white" 
+                          value={roomDigits} 
+                          onChange={e => {
+                            const val = e.target.value.replace(/\D/g, '');
+                            setRoomDigits(val);
+                            setFormData({ ...formData, code: val ? `P.${val}` : '' });
+                          }} 
+                        />
+                      </div>
+                      <span className="text-[10px] text-slate-500 mt-1 block">
+                        Chỉ nhập số phòng (Lưu: <strong className="text-blue-700">{formData.code || 'P._'}</strong>)
+                      </span>
                     </div>
+
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Vị Trí / Tầng <span className="text-red-500">*</span></label>
-                      <input 
-                        required 
-                        placeholder="Ví dụ: Tầng 2" 
-                        className="w-full border border-slate-200 p-2.5 rounded-xl focus:ring-2 focus:ring-blue-500" 
-                        value={formData.floor} 
-                        onChange={e => setFormData({...formData, floor: e.target.value})} 
-                      />
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                        Vị Trí / Tầng <span className="text-red-500">*</span>
+                      </label>
+                      <div className="flex rounded-xl shadow-2xs overflow-hidden border border-slate-200 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500">
+                        <span className="inline-flex items-center px-3 bg-slate-100 text-slate-600 text-xs font-bold select-none border-r border-slate-200">
+                          Tầng
+                        </span>
+                        <input 
+                          type="number"
+                          min={1}
+                          max={99}
+                          required 
+                          placeholder="1, 2, 3..." 
+                          className="w-full p-2.5 font-bold text-slate-800 outline-none text-sm bg-white" 
+                          value={floorNumber} 
+                          onChange={e => {
+                            const val = e.target.value.replace(/\D/g, '');
+                            setFloorNumber(val);
+                            setFormData({ ...formData, floor: val ? `Tầng ${val}` : '' });
+                          }} 
+                        />
+                      </div>
+                      <span className="text-[10px] text-slate-500 mt-1 block">
+                        Chỉ nhập số tầng (Lưu: <strong className="text-slate-700">{formData.floor || 'Tầng _'}</strong>)
+                      </span>
                     </div>
                   </div>
 
@@ -744,6 +939,70 @@ export default function CatalogManager() {
                       value={formData.name} 
                       onChange={e => setFormData({...formData, name: e.target.value})} 
                     />
+                  </div>
+
+                  {/* Gán Bác sĩ phụ trách chính & Chuyên khoa trang thiết bị */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 bg-blue-50/60 border border-blue-200 rounded-2xl">
+                    <div>
+                      <label className="block text-xs font-bold text-blue-900 uppercase mb-1 flex items-center justify-between">
+                        <span>Bác Sĩ Phụ Trách (Phòng Riêng)</span>
+                      </label>
+                      <select
+                        className="w-full border border-blue-200 p-2 rounded-xl focus:ring-2 focus:ring-blue-500 text-xs font-bold bg-white text-slate-800"
+                        value={formData.assignedDoctorId || ''}
+                        onChange={e => {
+                          const docId = e.target.value;
+                          const doc = doctors.find(d => (d.userId || d.id) === docId);
+                          setFormData({
+                            ...formData,
+                            assignedDoctorId: docId,
+                            assignedDoctorName: doc ? doc.fullName : '',
+                            specialtyName: doc?.specialtyName || formData.specialtyName || 'Đa Khoa',
+                            isBackupRoom: !docId,
+                          });
+                        }}
+                      >
+                        <option value="">📦 Phòng Dự Phòng (Chưa gán bác sĩ)</option>
+                        <optgroup label="Bác sĩ ưu tiên (Chưa có phòng riêng)">
+                          {doctors.filter(d => !rooms.some(r => r.assignedDoctorId === (d.userId || d.id) && r.id !== editingId)).map(d => (
+                            <option key={d.id} value={d.userId || d.id} className="font-bold text-blue-700">
+                              ⭐ {d.fullName} ({d.specialtyName || 'Đa khoa'})
+                            </option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="Bác sĩ đã có phòng riêng">
+                          {doctors.filter(d => rooms.some(r => r.assignedDoctorId === (d.userId || d.id) && r.id !== editingId)).map(d => (
+                            <option key={d.id} value={d.userId || d.id} className="text-slate-500">
+                              👨‍⚕️ {d.fullName} ({d.specialtyName || 'Đa khoa'}) [Buồng: {d.roomNumber || 'P._'}]
+                            </option>
+                          ))}
+                        </optgroup>
+                      </select>
+                      <span className="text-[10px] text-blue-700 mt-1 block">
+                        {formData.assignedDoctorId ? '🎯 Bác sĩ sẽ có buồng khám chính cố định.' : '📦 Phòng lưu dưới dạng Dự phòng dùng chung.'}
+                      </span>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-blue-900 uppercase mb-1">
+                        Chuyên Khoa Trang Thiết Bị <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        required
+                        className="w-full border border-blue-200 p-2 rounded-xl focus:ring-2 focus:ring-blue-500 text-xs font-bold bg-white text-slate-800"
+                        value={formData.specialtyName || 'Đa Khoa'}
+                        onChange={e => setFormData({ ...formData, specialtyName: e.target.value })}
+                      >
+                        <option value="Đa Khoa">Đa Khoa &amp; Cấp Cứu Ban Đầu</option>
+                        {specialties.map(s => (
+                          <option key={s.id} value={s.name}>{s.name}</option>
+                        ))}
+                        <option value="Tư Vấn & Tiền Phẫu">Tư Vấn Chuyên Sâu &amp; Tiền Phẫu VIP</option>
+                      </select>
+                      <span className="text-[10px] text-blue-700 mt-1 block">
+                        Đảm bảo phòng dự phòng đúng máy móc chuyên môn.
+                      </span>
+                    </div>
                   </div>
 
                   <div>
@@ -813,7 +1072,11 @@ export default function CatalogManager() {
                     {loading ? (
                       <span>Đang lưu...</span>
                     ) : (
-                      <span>{modalMode === 'create' ? 'Thêm Chi Nhánh' : 'Lưu Thay Đổi'}</span>
+                      <span>
+                        {modalMode === 'create' 
+                          ? (activeTab === 'centers' ? 'Thêm Chi Nhánh' : activeTab === 'specialties' ? 'Thêm Chuyên Khoa' : activeTab === 'services' ? 'Thêm Dịch Vụ' : 'Thêm Phòng Khám') 
+                          : 'Lưu Thay Đổi'}
+                      </span>
                     )}
                   </button>
                 </div>

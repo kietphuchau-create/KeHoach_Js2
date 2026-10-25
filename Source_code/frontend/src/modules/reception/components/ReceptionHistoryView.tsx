@@ -24,9 +24,11 @@ import {
   Building2,
   Stethoscope,
   Share2,
-  Check
+  Check,
+  Trash2
 } from 'lucide-react';
 import { api, ReceptionHistoryItem, ReceptionHistorySummary } from '@/shared/lib/api';
+import { getLocalDateString } from '@/shared/lib/formatters';
 
 export default function ReceptionHistoryView() {
   const [historyItems, setHistoryItems] = useState<ReceptionHistoryItem[]>([]);
@@ -49,6 +51,36 @@ export default function ReceptionHistoryView() {
   // Modal Chi tiết & In Phiếu Tiếp Đón
   const [selectedItem, setSelectedItem] = useState<ReceptionHistoryItem | null>(null);
   const [copiedPhone, setCopiedPhone] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleDeleteItem = async (item: ReceptionHistoryItem) => {
+    const ok = window.confirm(
+      `Bạn có chắc chắn muốn xóa lượt tiếp đón [${item.bookingCode}] (#${item.queueNumber}) của bệnh nhân "${item.patientName}" không?\n\nThao tác này sẽ xóa sạch phiếu khám và tài khoản test khỏi hệ thống.`
+    );
+    if (!ok) return;
+
+    try {
+      setDeletingId(item.appointmentId);
+      await api.deleteReceptionAppointment(item.appointmentId);
+      setHistoryItems((prev) => prev.filter((x) => x.appointmentId !== item.appointmentId));
+      
+      // Đồng bộ ngay lập tức sang giao diện buồng khám Bác sĩ (/doctor) qua BroadcastChannel
+      try {
+        const syncChannel = new BroadcastChannel('medsched_queue_sync');
+        syncChannel.postMessage({ type: 'QUEUE_UPDATED' });
+        syncChannel.close();
+      } catch {}
+
+      // Tải lại toàn bộ dữ liệu & làm mới ngay các thẻ thống kê tổng hợp (Summary KPIs) về 0
+      await loadData();
+
+      alert(`Đã xóa thành công lượt tiếp đón [${item.bookingCode}]!`);
+    } catch (err: any) {
+      alert(`Lỗi khi xóa lượt tiếp đón: ${err?.message || 'Không thể xóa'}`);
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -58,18 +90,18 @@ export default function ReceptionHistoryView() {
       const today = new Date();
 
       if (datePreset === 'TODAY') {
-        from = today.toISOString().slice(0, 10);
+        from = getLocalDateString(today);
         to = from;
       } else if (datePreset === 'LAST_7_DAYS') {
         const d = new Date();
         d.setDate(d.getDate() - 7);
-        from = d.toISOString().slice(0, 10);
-        to = today.toISOString().slice(0, 10);
+        from = getLocalDateString(d);
+        to = getLocalDateString(today);
       } else if (datePreset === 'LAST_30_DAYS') {
         const d = new Date();
         d.setDate(d.getDate() - 30);
-        from = d.toISOString().slice(0, 10);
-        to = today.toISOString().slice(0, 10);
+        from = getLocalDateString(d);
+        to = getLocalDateString(today);
       }
 
       const res = await api.getReceptionHistory({
@@ -492,6 +524,16 @@ export default function ReceptionHistoryView() {
                         >
                           <Eye size={13} />
                           <span>Chi Tiết</span>
+                        </button>
+                        <button
+                          type="button"
+                          disabled={deletingId === item.appointmentId}
+                          onClick={() => handleDeleteItem(item)}
+                          className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg border border-rose-200 bg-rose-50/70 hover:bg-rose-100 text-rose-700 font-semibold transition cursor-pointer shadow-2xs hover:border-rose-300 text-xs"
+                          title="Xóa lượt tiếp đón test này"
+                        >
+                          <Trash2 size={13} className="text-rose-600" />
+                          <span>{deletingId === item.appointmentId ? 'Đang xóa...' : 'Xóa'}</span>
                         </button>
                       </div>
                     </td>

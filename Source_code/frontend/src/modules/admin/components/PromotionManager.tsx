@@ -30,13 +30,14 @@ import {
 import { 
   Promotion, 
   DiscountType,
-  getPromotions, 
-  addPromotion, 
-  updatePromotion, 
-  deletePromotion, 
-  togglePromotionStatus,
+  getPromotionsFromDb, 
+  addPromotionToDb, 
+  updatePromotionInDb, 
+  deletePromotionFromDb, 
+  togglePromotionStatusInDb,
   PROMOTIONS_UPDATED_EVENT 
 } from '@/shared/lib/promotions';
+import { getLocalDateString } from '@/shared/lib/formatters';
 import AlertMessage from '@/shared/components/Feedback/AlertMessage';
 
 export default function PromotionManager() {
@@ -74,19 +75,26 @@ export default function PromotionManager() {
     discountType: 'FREE_DEPOSIT',
     discountValue: 100,
     maxUses: '',
-    startDate: new Date().toISOString().slice(0, 10),
+    startDate: getLocalDateString(),
     endDate: '2026-12-31',
     status: 'active',
     targetAudience: 'Toàn bộ bệnh nhân',
   });
 
-  const loadData = () => {
-    setPromotions(getPromotions());
+  const loadData = async () => {
+    try {
+      const data = await getPromotionsFromDb();
+      setPromotions(data);
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   useEffect(() => {
     loadData();
-    const handleUpdate = () => loadData();
+    const handleUpdate = () => {
+      loadData();
+    };
     window.addEventListener(PROMOTIONS_UPDATED_EVENT, handleUpdate);
     return () => window.removeEventListener(PROMOTIONS_UPDATED_EVENT, handleUpdate);
   }, []);
@@ -107,7 +115,7 @@ export default function PromotionManager() {
       discountType: 'FREE_DEPOSIT',
       discountValue: 100,
       maxUses: '',
-      startDate: new Date().toISOString().slice(0, 10),
+      startDate: getLocalDateString(),
       endDate: '2026-12-31',
       status: 'active',
       targetAudience: 'Toàn bộ bệnh nhân',
@@ -133,7 +141,7 @@ export default function PromotionManager() {
     setShowModal(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       if (!formData.code.trim()) {
@@ -144,7 +152,7 @@ export default function PromotionManager() {
       }
 
       if (modalMode === 'create') {
-        addPromotion({
+        await addPromotionToDb({
           code: formData.code.trim().toUpperCase(),
           name: formData.name.trim(),
           description: formData.description.trim(),
@@ -156,9 +164,9 @@ export default function PromotionManager() {
           status: formData.status,
           targetAudience: formData.targetAudience.trim(),
         });
-        setMessage({ type: 'success', text: `Tạo mã khuyến mãi [${formData.code.toUpperCase()}] thành công! Khách hàng có thể nhập mã này ngay khi đặt lịch.` });
+        setMessage({ type: 'success', text: `Tạo mã khuyến mãi [${formData.code.toUpperCase()}] thành công vào CSDL MySQL!` });
       } else if (editingId) {
-        updatePromotion(editingId, {
+        await updatePromotionInDb(editingId, {
           code: formData.code.trim().toUpperCase(),
           name: formData.name.trim(),
           description: formData.description.trim(),
@@ -170,27 +178,35 @@ export default function PromotionManager() {
           status: formData.status,
           targetAudience: formData.targetAudience.trim(),
         });
-        setMessage({ type: 'success', text: `Cập nhật thông tin mã [${formData.code.toUpperCase()}] thành công!` });
+        setMessage({ type: 'success', text: `Cập nhật thông tin mã [${formData.code.toUpperCase()}] trong MySQL thành công!` });
       }
 
       setShowModal(false);
-      loadData();
+      await loadData();
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || 'Lỗi xử lý mã khuyến mãi.' });
     }
   };
 
-  const handleToggle = (id: string, code: string) => {
-    togglePromotionStatus(id);
-    setMessage({ type: 'success', text: `Đã thay đổi trạng thái mã [${code}]!` });
-    loadData();
+  const handleToggle = async (id: string, code: string) => {
+    try {
+      await togglePromotionStatusInDb(id);
+      setMessage({ type: 'success', text: `Đã thay đổi trạng thái mã [${code}] trên CSDL MySQL!` });
+      await loadData();
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'Lỗi đổi trạng thái mã.' });
+    }
   };
 
-  const handleDelete = (id: string, code: string) => {
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa vĩnh viễn mã khuyến mãi [${code}]?`)) return;
-    deletePromotion(id);
-    setMessage({ type: 'success', text: `Đã xóa thành công mã khuyến mãi [${code}].` });
-    loadData();
+  const handleDelete = async (id: string, code: string) => {
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa vĩnh viễn mã khuyến mãi [${code}] khỏi CSDL MySQL?`)) return;
+    try {
+      await deletePromotionFromDb(id);
+      setMessage({ type: 'success', text: `Đã xóa thành công mã khuyến mãi [${code}] khỏi CSDL MySQL.` });
+      await loadData();
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'Lỗi xóa mã.' });
+    }
   };
 
   // Lọc dữ liệu

@@ -5,6 +5,7 @@ import HeaderNav from "@/shared/components/HeaderNav/HeaderNav";
 import Footer from "@/shared/components/Footer/Footer";
 import FloatingWidgets from "@/shared/components/FloatingWidgets/FloatingWidgets";
 import ConcurrentSessionModal from "@/shared/components/Feedback/ConcurrentSessionModal";
+import DevModeGlobalIndicator from "@/shared/components/Feedback/DevModeGlobalIndicator";
 import AppMainLayout from "@/shared/components/Layout/AppMainLayout";
 import BookingMethodModal from "@/shared/components/BookingMethodModal/BookingMethodModal";
 
@@ -26,6 +27,7 @@ export default function RootLayout({
   return (
     <html lang="vi" className="scroll-smooth overflow-x-hidden" suppressHydrationWarning>
       <body className="min-h-screen w-full bg-mint-soft text-slate-800 flex flex-col antialiased overflow-x-hidden font-sans">
+        <DevModeGlobalIndicator />
         <ConcurrentSessionModal />
         <BookingMethodModal />
         <HeaderNav />

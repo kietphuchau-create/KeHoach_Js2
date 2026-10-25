@@ -94,6 +94,11 @@ public class DoctorPrescriptionService {
                     + "). Bệnh nhân phải hoàn thành check-in tại quầy hoặc kiosk trước khi Bác sĩ gọi vào phòng khám!");
         }
 
+        // Khi Chế độ Develop 24/7 đang BẬT: Bỏ qua mọi ràng buộc ngoài giờ hành chính & cuối tuần để phục vụ demo / nghiệm thu
+        if (DoctorScheduleService.isDevMode247Active()) {
+            return;
+        }
+
         ZonedDateTime nowVn = clock.instant().atZone(VN_ZONE);
         DayOfWeek day = nowVn.getDayOfWeek();
         if (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY) {
@@ -616,29 +621,31 @@ public class DoctorPrescriptionService {
             throw new IllegalArgumentException("Ca khám đã hoàn tất trước đó.");
         }
 
-        ZonedDateTime nowVn = clock.instant().atZone(VN_ZONE);
-        DayOfWeek day = nowVn.getDayOfWeek();
-        if (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY) {
-            throw new IllegalArgumentException(
-                    "Phòng khám không tiếp nhận bệnh nhân vào cuối tuần (Thứ Bảy & Chủ Nhật).");
-        }
+        if (!DoctorScheduleService.isDevMode247Active()) {
+            ZonedDateTime nowVn = clock.instant().atZone(VN_ZONE);
+            DayOfWeek day = nowVn.getDayOfWeek();
+            if (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY) {
+                throw new IllegalArgumentException(
+                        "Phòng khám không tiếp nhận bệnh nhân vào cuối tuần (Thứ Bảy & Chủ Nhật).");
+            }
 
-        LocalTime nowTime = nowVn.toLocalTime();
-        boolean morning = !nowTime.isBefore(LocalTime.of(8, 0)) && nowTime.isBefore(LocalTime.of(12, 0));
-        boolean afternoon = !nowTime.isBefore(LocalTime.of(13, 30)) && nowTime.isBefore(LocalTime.of(17, 0));
+            LocalTime nowTime = nowVn.toLocalTime();
+            boolean morning = !nowTime.isBefore(LocalTime.of(8, 0)) && nowTime.isBefore(LocalTime.of(12, 0));
+            boolean afternoon = !nowTime.isBefore(LocalTime.of(13, 30)) && nowTime.isBefore(LocalTime.of(17, 0));
 
-        if (!morning && !afternoon) {
-            throw new IllegalArgumentException(
-                    "Ngoài giờ làm việc của phòng khám (Ca sáng: 08:00 - 12:00, Ca chiều: 13:30 - 17:00).");
-        }
+            if (!morning && !afternoon) {
+                throw new IllegalArgumentException(
+                        "Ngoài giờ làm việc của phòng khám (Ca sáng: 08:00 - 12:00, Ca chiều: 13:30 - 17:00).");
+            }
 
-        if (appointment.getSlotId() != null) {
-            TimeSlotEntity slot = timeSlotRepository.findById(appointment.getSlotId()).orElse(null);
-            if (slot != null && slot.getStartTime() != null) {
-                LocalDate slotDate = slot.getStartTime().atZone(VN_ZONE).toLocalDate();
-                if (!slotDate.isEqual(nowVn.toLocalDate())) {
-                    throw new IllegalArgumentException("Ca khám này không thuộc ngày hôm nay (Ngày hẹn: "
-                            + slotDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) + ").");
+            if (appointment.getSlotId() != null) {
+                TimeSlotEntity slot = timeSlotRepository.findById(appointment.getSlotId()).orElse(null);
+                if (slot != null && slot.getStartTime() != null) {
+                    LocalDate slotDate = slot.getStartTime().atZone(VN_ZONE).toLocalDate();
+                    if (!slotDate.isEqual(nowVn.toLocalDate())) {
+                        throw new IllegalArgumentException("Ca khám này không thuộc ngày hôm nay (Ngày hẹn: "
+                                + slotDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) + ").");
+                    }
                 }
             }
         }

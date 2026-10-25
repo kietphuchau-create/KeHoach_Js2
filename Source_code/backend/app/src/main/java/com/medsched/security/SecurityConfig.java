@@ -89,13 +89,25 @@ public class SecurityConfig {
                                                                 "/api/v1/services/**",
                                                                 "/api/services/**",
                                                                 "/api/v1/doctors/**",
-                                                                "/api/doctors/**")
+                                                                "/api/doctors/**",
+                                                                "/api/v1/doctor/schedules/dev-mode",
+                                                                "/api/doctor/schedules/dev-mode",
+                                                                "/api/v1/doctor/schedules/mode",
+                                                                "/api/doctor/schedules/mode",
+                                                                "/api/v1/admin/promotions/**",
+                                                                "/api/admin/promotions/**",
+                                                                "/api/v1/promotions/**",
+                                                                "/api/promotions/**")
                                                 .permitAll()
 
-                                                // 3. Khách xem danh sách slot giờ khám và tra cứu mã booking
+                                                // 3. Khách xem danh sách slot giờ khám, tra cứu lịch trực bác sĩ và tra cứu mã booking
                                                 .requestMatchers(HttpMethod.GET,
                                                                 "/api/appointments/doctors/*/slots",
                                                                 "/api/v1/appointments/doctors/*/slots",
+                                                                "/api/doctor/schedules",
+                                                                "/api/v1/doctor/schedules",
+                                                                "/api/doctor/schedules/**",
+                                                                "/api/v1/doctor/schedules/**",
                                                                 "/api/appointments/booking-code/*",
                                                                 "/api/v1/appointments/booking-code/*")
                                                 .permitAll()
@@ -127,7 +139,11 @@ public class SecurityConfig {
                                                 // 5. Phân quyền theo vai trò cụ thể
                                                 .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                                                 .requestMatchers("/api/v1/doctor/schedules/**",
-                                                                "/api/doctor/schedules/**")
+                                                                "/api/doctor/schedules/**",
+                                                                "/api/v1/doctor/queue/**",
+                                                                "/api/doctor/queue/**",
+                                                                "/api/v1/doctor/queue",
+                                                                "/api/doctor/queue")
                                                 .hasAnyRole("STAFF", "DOCTOR", "ADMIN")
                                                 .requestMatchers("/api/v1/doctor/**", "/api/doctor/**")
                                                 .hasAnyRole("DOCTOR", "ADMIN")

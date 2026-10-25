@@ -178,11 +178,14 @@ public class AppointmentController {
         ZoneId vnZone = ZoneId.of("Asia/Ho_Chi_Minh");
         LocalDate date = LocalDate.now(vnZone);
         LocalTime nowTime = LocalTime.now(vnZone);
-        if (nowTime.isAfter(LocalTime.of(16, 30))) {
+        boolean isDev = com.medsched.doctor.DoctorScheduleService.isDevMode247Active();
+        if (!isDev && nowTime.isAfter(LocalTime.of(16, 30))) {
             date = date.plusDays(1);
         }
-        while (date.getDayOfWeek() == DayOfWeek.SATURDAY || date.getDayOfWeek() == DayOfWeek.SUNDAY) {
-            date = date.plusDays(1);
+        if (!isDev) {
+            while (date.getDayOfWeek() == DayOfWeek.SATURDAY || date.getDayOfWeek() == DayOfWeek.SUNDAY) {
+                date = date.plusDays(1);
+            }
         }
         return date;
     }
@@ -200,12 +203,14 @@ public class AppointmentController {
         List<TimeSlotEntity> available = timeSlotJpaRepository.findByDoctorIdAndStatusOrderByStartTimeAsc(doctorId, SlotStatus.AVAILABLE);
         List<String> validIds = new ArrayList<>();
         ZoneId vnZone = ZoneId.of("Asia/Ho_Chi_Minh");
+        LocalTime minSlotTime = com.medsched.doctor.DoctorScheduleService.isDevMode247Active() ? LocalTime.of(0, 0) : LocalTime.of(7, 30);
+        LocalTime maxSlotTime = com.medsched.doctor.DoctorScheduleService.isDevMode247Active() ? LocalTime.of(23, 59) : LocalTime.of(21, 0);
         for (TimeSlotEntity s : available) {
             if (s.getStartTime() != null && s.getStartTime().isAfter(now)) {
                 ZonedDateTime zdt = s.getStartTime().atZone(vnZone);
                 LocalTime t = zdt.toLocalTime();
-                // Hỗ trợ cả ca sáng, ca chiều và ca tối (07:30 - 21:00)
-                if (!t.isBefore(LocalTime.of(7, 30)) && !t.isAfter(LocalTime.of(21, 0))) {
+                // Hỗ trợ cả ca đêm, ca sáng, ca chiều và ca tối (00:00 - 23:59 nếu bật devMode247)
+                if (!t.isBefore(minSlotTime) && !t.isAfter(maxSlotTime)) {
                     validIds.add(s.getId());
                 }
             }
@@ -354,8 +359,47 @@ public class AppointmentController {
         List<TimeSlotEntity> slots = timeSlotJpaRepository.findByDoctorIdAndStartTimeBetweenOrderByStartTimeAsc(
                 doctorId, dayStart, dayEnd);
 
-        // Nếu bác sĩ chưa có slot nào trong ngày này, tự động sinh ca trực & các slot khám chuẩn
+        boolean isAutoMode = com.medsched.doctor.DoctorScheduleService.isAutoScheduleActive();
+
+        // Nếu Chế Độ Bác Sĩ Tự Đặt Lịch Thủ Công đang BẬT (!isAutoMode):
+        // 1. Kiểm tra xem Bác sĩ có ca trực thực sự (ACTIVE) trong ngày này hay không.
+        // 2. Nếu Bác sĩ chưa đăng ký ca trực hoặc chỉ có ca trực mẫu tự sinh 8:00-17:00 chưa có hẹn:
+        //    Dọn dẹp các slot trống tự sinh (SlotStatus.AVAILABLE) và trả về rỗng.
+        if (!isAutoMode) {
+            List<DoctorScheduleEntity> activeSchedules = doctorScheduleJpaRepository.findByDoctorIdAndWorkDate(doctorId, targetDate)
+                    .stream()
+                    .filter(s -> s.getStatus() == ScheduleStatus.ACTIVE)
+                    .toList();
+
+            boolean hasBookedSlots = slots.stream().anyMatch(s -> s.getStatus() == SlotStatus.BOOKED);
+            boolean isAutoPlaceholder = !activeSchedules.isEmpty()
+                    && activeSchedules.size() == 1
+                    && activeSchedules.get(0).getStartTime().equals(LocalTime.of(8, 0))
+                    && activeSchedules.get(0).getEndTime().equals(LocalTime.of(17, 0))
+                    && !hasBookedSlots;
+
+            if (activeSchedules.isEmpty() || isAutoPlaceholder) {
+                if (isAutoPlaceholder) {
+                    doctorScheduleJpaRepository.deleteAll(activeSchedules);
+                }
+                if (!slots.isEmpty()) {
+                    List<TimeSlotEntity> unbooked = slots.stream()
+                            .filter(s -> s.getStatus() == SlotStatus.AVAILABLE)
+                            .toList();
+                    if (!unbooked.isEmpty()) {
+                        timeSlotJpaRepository.deleteAll(unbooked);
+                    }
+                }
+                return ResponseEntity.ok(Collections.emptyList());
+            }
+        }
+
+        // Nếu bác sĩ chưa có slot nào trong ngày này, chỉ tự động sinh khi ở chế độ TỰ ĐỘNG (Auto-Schedule)
         if (slots.isEmpty()) {
+            if (!isAutoMode) {
+                return ResponseEntity.ok(Collections.emptyList());
+            }
+
             Instant now = Instant.now();
             List<DoctorScheduleEntity> existingSchedules = doctorScheduleJpaRepository.findByDoctorIdAndWorkDate(doctorId, targetDate);
             String scheduleId;
@@ -377,7 +421,7 @@ public class AppointmentController {
                 doctorScheduleJpaRepository.save(newSchedule);
             }
 
-            List<LocalTime[]> standardTimes = List.of(
+            List<LocalTime[]> standardTimes = new ArrayList<>(List.of(
                     // Ca Sáng (08:00 - 12:00)
                     new LocalTime[]{LocalTime.of(8, 0), LocalTime.of(8, 30)},
                     new LocalTime[]{LocalTime.of(8, 30), LocalTime.of(9, 0)},
@@ -395,7 +439,40 @@ public class AppointmentController {
                     new LocalTime[]{LocalTime.of(15, 30), LocalTime.of(16, 0)},
                     new LocalTime[]{LocalTime.of(16, 0), LocalTime.of(16, 30)},
                     new LocalTime[]{LocalTime.of(16, 30), LocalTime.of(17, 0)}
-            );
+            ));
+            if (com.medsched.doctor.DoctorScheduleService.isDevMode247Active()) {
+                // Ca Đêm (00:00 - 08:00) và Ca Tối (17:00 - 23:30) cho Chế Độ Develop 24/7
+                standardTimes.addAll(List.of(
+                        new LocalTime[]{LocalTime.of(0, 0), LocalTime.of(0, 30)},
+                        new LocalTime[]{LocalTime.of(0, 30), LocalTime.of(1, 0)},
+                        new LocalTime[]{LocalTime.of(1, 0), LocalTime.of(1, 30)},
+                        new LocalTime[]{LocalTime.of(1, 30), LocalTime.of(2, 0)},
+                        new LocalTime[]{LocalTime.of(2, 0), LocalTime.of(2, 30)},
+                        new LocalTime[]{LocalTime.of(2, 30), LocalTime.of(3, 0)},
+                        new LocalTime[]{LocalTime.of(3, 0), LocalTime.of(3, 30)},
+                        new LocalTime[]{LocalTime.of(3, 30), LocalTime.of(4, 0)},
+                        new LocalTime[]{LocalTime.of(4, 0), LocalTime.of(4, 30)},
+                        new LocalTime[]{LocalTime.of(4, 30), LocalTime.of(5, 0)},
+                        new LocalTime[]{LocalTime.of(5, 0), LocalTime.of(5, 30)},
+                        new LocalTime[]{LocalTime.of(5, 30), LocalTime.of(6, 0)},
+                        new LocalTime[]{LocalTime.of(6, 0), LocalTime.of(6, 30)},
+                        new LocalTime[]{LocalTime.of(6, 30), LocalTime.of(7, 0)},
+                        new LocalTime[]{LocalTime.of(7, 0), LocalTime.of(7, 30)},
+                        new LocalTime[]{LocalTime.of(17, 0), LocalTime.of(17, 30)},
+                        new LocalTime[]{LocalTime.of(17, 30), LocalTime.of(18, 0)},
+                        new LocalTime[]{LocalTime.of(18, 0), LocalTime.of(18, 30)},
+                        new LocalTime[]{LocalTime.of(18, 30), LocalTime.of(19, 0)},
+                        new LocalTime[]{LocalTime.of(19, 0), LocalTime.of(19, 30)},
+                        new LocalTime[]{LocalTime.of(19, 30), LocalTime.of(20, 0)},
+                        new LocalTime[]{LocalTime.of(20, 0), LocalTime.of(20, 30)},
+                        new LocalTime[]{LocalTime.of(20, 30), LocalTime.of(21, 0)},
+                        new LocalTime[]{LocalTime.of(21, 0), LocalTime.of(21, 30)},
+                        new LocalTime[]{LocalTime.of(21, 30), LocalTime.of(22, 0)},
+                        new LocalTime[]{LocalTime.of(22, 0), LocalTime.of(22, 30)},
+                        new LocalTime[]{LocalTime.of(22, 30), LocalTime.of(23, 0)},
+                        new LocalTime[]{LocalTime.of(23, 0), LocalTime.of(23, 30)}
+                ));
+            }
             List<TimeSlotEntity> created = new ArrayList<>();
             for (LocalTime[] pair : standardTimes) {
                 Instant slotStart = targetDate.atTime(pair[0]).atZone(vnZone).toInstant();
@@ -497,6 +574,16 @@ public class AppointmentController {
                 if (slot != null && slot.getStartTime() != null) {
                     slotTime = timeFormatter.format(slot.getStartTime()) + " - " + timeFormatter.format(slot.getEndTime());
                     appointmentDate = dateFormatter.format(slot.getStartTime());
+                }
+            } else if (e.getQueueType() == com.medsched.persistence.enums.QueueType.WALKIN
+                    || (e.getBookingCode() != null && e.getBookingCode().startsWith("WALK-"))
+                    || (e.getQueueNumber() != null && e.getQueueNumber().startsWith("W-"))) {
+                Instant refTime = e.getCheckInTime() != null ? e.getCheckInTime() : e.getCreatedAt();
+                if (refTime != null) {
+                    slotTime = "Khám ngay (Tiếp nhận: " + timeFormatter.format(refTime) + ")";
+                    appointmentDate = dateFormatter.format(refTime);
+                } else {
+                    slotTime = "Khám ngay tại quầy";
                 }
             }
 

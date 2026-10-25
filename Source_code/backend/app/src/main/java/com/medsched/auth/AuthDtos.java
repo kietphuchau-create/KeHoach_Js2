@@ -39,7 +39,7 @@ public final class AuthDtos {
 
     /** Shared by all four roles: Customer, Doctor, Staff, Admin. */
     public record LoginRequest(
-            @NotBlank(message = "Email không được để trống")
+            @NotBlank(message = "Email hoặc số điện thoại không được để trống")
             String email,
 
             @NotBlank(message = "Mật khẩu không được để trống")

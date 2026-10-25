@@ -16,7 +16,13 @@ import {
 } from 'lucide-react';
 import { api } from '@/shared/lib/api';
 import AlertMessage from '@/shared/components/Feedback/AlertMessage';
-import { getClinicRooms, ROOMS_UPDATED_EVENT, ClinicRoom } from '@/shared/lib/clinicRooms';
+import { 
+  getClinicRooms, 
+  ROOMS_UPDATED_EVENT, 
+  ClinicRoom, 
+  addClinicRoom, 
+  assignDoctorToRoom 
+} from '@/shared/lib/clinicRooms';
 import { 
   validateFullName, 
   validatePhone, 
@@ -63,7 +69,11 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
     const refreshRooms = () => {
       const rooms = getClinicRooms();
       setAvailableRooms(rooms);
-      if (rooms.length > 0 && !selectedRoom) {
+      // Ưu tiên chọn phòng dự phòng đầu tiên nếu có
+      const firstBackup = rooms.find(r => r.isBackupRoom || !r.assignedDoctorName);
+      if (firstBackup) {
+        setSelectedRoom(firstBackup.code);
+      } else if (rooms.length > 0 && !selectedRoom) {
         setSelectedRoom(rooms[0].code);
       }
     };
@@ -85,6 +95,49 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
     bio: '',
   });
 
+  const selectedCenter = medicalCenters.find(c => c.id === doctorForm.medicalCenterId);
+  const selectedCenterName = selectedCenter?.name || '';
+
+  // Lọc danh sách buồng khám theo đúng Chi Nhánh công tác của Bác Sĩ
+  const branchRooms = useMemo(() => {
+    if (!selectedCenterName) return availableRooms;
+    const isTrinhDinhThao = selectedCenterName.toLowerCase().includes('trịnh đình thảo') || selectedCenterName.toLowerCase().includes('itc');
+    const isTranDaiNghia = selectedCenterName.toLowerCase().includes('trần đại nghĩa');
+
+    return availableRooms.filter(r => {
+      if (isTrinhDinhThao) {
+        return r.medicalCenterName.toLowerCase().includes('trịnh đình thảo') || r.medicalCenterName.toLowerCase().includes('itc');
+      }
+      if (isTranDaiNghia) {
+        return r.medicalCenterName.toLowerCase().includes('trần đại nghĩa');
+      }
+      return r.medicalCenterName === selectedCenterName;
+    });
+  }, [availableRooms, selectedCenterName]);
+
+  const backupRooms = useMemo(() => {
+    return branchRooms.filter(r => r.isBackupRoom || !r.assignedDoctorName);
+  }, [branchRooms]);
+
+  const occupiedRooms = useMemo(() => {
+    return branchRooms.filter(r => !r.isBackupRoom && r.assignedDoctorName);
+  }, [branchRooms]);
+
+  // Khi đổi Chi Nhánh, nếu phòng đang chọn không thuộc chi nhánh hoặc đã có bác sĩ, tự động chọn phòng dự phòng đầu tiên
+  useEffect(() => {
+    if (isCustomRoom) return;
+    const currentRoomObj = branchRooms.find(r => r.code === selectedRoom);
+    if (!currentRoomObj || (!currentRoomObj.isBackupRoom && currentRoomObj.assignedDoctorName)) {
+      if (backupRooms.length > 0) {
+        setSelectedRoom(backupRooms[0].code);
+      } else {
+        // Chi nhánh không còn buồng dự phòng -> Tự chuyển sang chế độ tạo số phòng mới
+        setIsCustomRoom(true);
+        setCustomRoomValue('');
+      }
+    }
+  }, [branchRooms, backupRooms, selectedRoom, isCustomRoom]);
+
   // Ràng buộc từng ký tự thời gian thực (Real-time Validation)
   const fullNameValidation = useMemo(() => validateFullName(doctorForm.fullName), [doctorForm.fullName]);
   const emailValidation = useMemo(() => validateEmail(doctorForm.email), [doctorForm.email]);
@@ -92,7 +145,10 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
   const passwordValidation = useMemo(() => validateTemporaryPassword(doctorForm.temporaryPassword), [doctorForm.temporaryPassword]);
 
   const isFormValid = useMemo(() => {
-    const roomValid = isCustomRoom ? Boolean(customRoomValue.trim()) : Boolean(selectedRoom);
+    const isRoomOccupied = !isCustomRoom && occupiedRooms.some(r => r.code === selectedRoom);
+    const roomValid = isCustomRoom 
+      ? Boolean(customRoomValue.trim()) 
+      : Boolean(selectedRoom && !isRoomOccupied);
     const titleValid = !isCustomTitle || (Boolean(customTitleValue.trim()) && customTitleValue.trim().length >= 2);
     return fullNameValidation.isValid &&
       emailValidation.isValid &&
@@ -102,7 +158,7 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
       Boolean(doctorForm.specialtyId) &&
       roomValid &&
       titleValid;
-  }, [fullNameValidation, emailValidation, phoneValidation, passwordValidation, doctorForm.medicalCenterId, doctorForm.specialtyId, isCustomRoom, customRoomValue, selectedRoom, isCustomTitle, customTitleValue]);
+  }, [fullNameValidation, emailValidation, phoneValidation, passwordValidation, doctorForm.medicalCenterId, doctorForm.specialtyId, isCustomRoom, customRoomValue, selectedRoom, occupiedRooms, isCustomTitle, customTitleValue]);
 
   const handleCreateDoctor = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -120,6 +176,15 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
 
     if (!finalRoomNumber) {
       setMessage({ type: 'error', text: 'Vui lòng chọn hoặc nhập phòng khám làm việc cho Bác sĩ.' });
+      setLoading(false);
+      return;
+    }
+
+    if (!isCustomRoom && occupiedRooms.some(r => r.code === finalRoomNumber)) {
+      setMessage({ 
+        type: 'error', 
+        text: `Buồng khám [${finalRoomNumber}] đã có Bác sĩ phụ trách. Để đảm bảo mỗi bác sĩ một phòng riêng, vui lòng chọn Buồng Dự Phòng hoặc nhập mã buồng khám mới!` 
+      });
       setLoading(false);
       return;
     }
@@ -148,9 +213,32 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
         bio: doctorForm.bio.trim(),
       });
 
+      // Cập nhật cấu hình buồng khám: Gán phòng riêng cho bác sĩ mới tạo
+      const selectedSpec = specialties.find((s: any) => s.id === doctorForm.specialtyId);
+      const centerObj = medicalCenters.find(c => c.id === doctorForm.medicalCenterId);
+      const existing = availableRooms.find(r => r.code.toUpperCase() === finalRoomNumber.toUpperCase());
+      if (!existing) {
+        addClinicRoom({
+          code: finalRoomNumber,
+          name: `Phòng Khám ${selectedSpec?.name || 'Chuyên Khoa'}`,
+          floor: 'Tầng 1',
+          medicalCenterName: centerObj?.name || 'Phòng Khám Đa Khoa MedSched',
+          status: 'active',
+          note: `Buồng khám riêng của BS. ${doctorForm.fullName.trim()}`,
+          assignedDoctorName: doctorForm.fullName.trim(),
+          specialtyName: selectedSpec?.name || 'Đa Khoa',
+          isBackupRoom: false,
+        });
+      } else {
+        assignDoctorToRoom(finalRoomNumber, {
+          fullName: doctorForm.fullName.trim(),
+          specialtyName: selectedSpec?.name,
+        });
+      }
+
       setMessage({
         type: 'success',
-        text: `Tạo tài khoản Bác sĩ thành công cho: ${doctorForm.email} tại phòng [${finalRoomNumber}] (${finalAcademicTitle})! Mật khẩu mặc định: ${doctorForm.temporaryPassword || 'Medsched@123'}`,
+        text: `Tạo tài khoản Bác sĩ thành công cho: ${doctorForm.email} tại buồng [${finalRoomNumber}] (${finalAcademicTitle})! Phòng đã được gán quyền riêng cho Bác sĩ. Mật khẩu: ${doctorForm.temporaryPassword || 'Medsched@123'}`,
       });
 
       const newInitialSpecs = specialties.filter((s: any) => s.medicalCenterId === initialCenterId);
@@ -376,34 +464,85 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
               }}
               className="w-full px-3 py-2.5 bg-white border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm font-semibold text-slate-800"
             >
-              <optgroup label="Danh mục phòng khám tiêu chuẩn">
-                {availableRooms.map((room) => (
-                  <option key={room.id} value={room.code}>
-                    {room.code} - {room.name} ({room.floor})
-                  </option>
-                ))}
-              </optgroup>
+              {backupRooms.length > 0 && (
+                <optgroup label={`📦 Buồng khám Dự Phòng tại chi nhánh (${backupRooms.length} buồng trống khả dụng)`}>
+                  {backupRooms.map((room) => (
+                    <option key={room.id} value={room.code}>
+                      🟢 {room.code} - {room.name} ({room.floor})
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {occupiedRooms.length > 0 && (
+                <optgroup label="⛔ Buồng khám ĐANG BẬN (Đã có Bác sĩ phụ trách - BỊ KHÓA)">
+                  {occupiedRooms.map((room) => (
+                    <option 
+                      key={room.id} 
+                      value={room.code} 
+                      disabled 
+                      className="text-slate-400 bg-slate-100 cursor-not-allowed font-normal"
+                    >
+                      ⛔ {room.code} - {room.name} (Đang dùng: {room.assignedDoctorName})
+                    </option>
+                  ))}
+                </optgroup>
+              )}
               <option value="CUSTOM" className="text-blue-600 font-bold">
-                ➕ Mở phòng mới / Nhập mã phòng khác...
+                ➕ Mở buồng khám mới (Nhập số phòng...)
               </option>
             </select>
           </div>
 
           {isCustomRoom ? (
             <div>
-              <input
-                type="text"
-                required
-                value={customRoomValue}
-                onChange={(e) => setCustomRoomValue(e.target.value)}
-                placeholder="Nhập mã phòng (Ví dụ: P.209, P.301, P.210...)"
-                className="w-full px-3 py-2.5 bg-white border-2 border-blue-400 rounded-xl focus:ring-2 focus:ring-blue-500 text-sm font-bold text-blue-700 placeholder:text-slate-400 placeholder:font-normal"
-                autoFocus
-              />
+              <div className="flex rounded-xl overflow-hidden border-2 border-blue-400 focus-within:ring-2 focus-within:ring-blue-500">
+                <span className="inline-flex items-center px-3 bg-blue-100/70 text-blue-800 text-xs font-black select-none border-r border-blue-300">
+                  P.
+                </span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  required
+                  maxLength={5}
+                  value={customRoomValue.replace(/^P\./i, '').replace(/\D/g, '')}
+                  onChange={(e) => {
+                    const digits = e.target.value.replace(/\D/g, '');
+                    setCustomRoomValue(digits ? `P.${digits}` : '');
+                  }}
+                  placeholder="Nhập số phòng (103, 301...)"
+                  className="w-full px-3 py-2 bg-white text-sm font-bold text-blue-700 outline-none"
+                  autoFocus
+                />
+              </div>
+              <span className="text-[10px] text-blue-600 mt-0.5 block">
+                Chỉ nhập số (Mã lưu: <strong>{customRoomValue || 'P._'}</strong>)
+              </span>
             </div>
           ) : (
             <div className="flex items-center text-xs text-slate-600 bg-white/70 px-3 py-2 rounded-xl border border-blue-100">
-              <span>Đang phân công: <strong>{selectedRoom}</strong> ({availableRooms.find(r => r.code === selectedRoom)?.name || 'Phòng khám chuyên khoa'})</span>
+              {(() => {
+                const cur = branchRooms.find(r => r.code === selectedRoom);
+                if (!cur) return <span>Đang phân công: <strong>{selectedRoom}</strong></span>;
+                const isOccupied = !cur.isBackupRoom && Boolean(cur.assignedDoctorName);
+                return (
+                  <div className="space-y-0.5">
+                    <div className="font-bold text-slate-800">
+                      Buồng: <span className="text-blue-700">{cur.code}</span> - {cur.name} ({cur.floor})
+                    </div>
+                    <div className="text-[11px]">
+                      {isOccupied ? (
+                        <span className="text-red-600 font-bold flex items-center gap-1">
+                          ⛔ Buồng đang bận: BS. {cur.assignedDoctorName} (Không thể gán trùng)
+                        </span>
+                      ) : (
+                        <span className="text-emerald-700 font-bold flex items-center gap-1">
+                          🟢 Buồng Dự Phòng tại chi nhánh (Sẵn sàng tiếp nhận Bác sĩ mới)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
         </div>

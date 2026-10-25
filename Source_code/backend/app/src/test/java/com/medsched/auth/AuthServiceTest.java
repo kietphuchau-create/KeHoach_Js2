@@ -137,6 +137,21 @@ class AuthServiceTest {
     }
 
     @Test
+    @DisplayName("Register rejects a duplicate phone number")
+    void registerRejectsDuplicatePhone() {
+        when(users.existsByEmail("moi@gmail.com")).thenReturn(false);
+        when(users.existsByPhone("0912345678")).thenReturn(true);
+
+        assertThatThrownBy(() -> authService.register(
+                new AuthDtos.RegisterRequest("moi@gmail.com", "Matkhau@123", "A", "0912345678")))
+                .isInstanceOf(AppExceptions.ConflictException.class)
+                .hasMessageContaining("Số điện thoại này đã được đăng ký");
+
+        verify(users, never()).save(any());
+        verify(patientProfiles, never()).save(any());
+    }
+
+    @Test
     @DisplayName("Login lets the authentication error bubble up for the error handler to translate")
     void loginPropagatesBadCredentials() {
         when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))

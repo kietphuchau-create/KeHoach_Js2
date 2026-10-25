@@ -73,3 +73,16 @@ export const formatDoctorFullName = (academicTitle?: string | null, fullName?: s
   }
   return cleanDoctorFullName(`${title} ${cleanName}`);
 };
+
+/**
+ * Lấy chuỗi ngày YYYY-MM-DD theo giờ địa phương (Việt Nam UTC+7).
+ * Tuyệt đối không dùng new Date().toISOString().slice(0, 10) vì sẽ bị lùi về ngày hôm trước 
+ * vào khung giờ từ 00:00 đến 07:00 sáng tại Việt Nam do chênh lệch múi giờ UTC.
+ */
+export const getLocalDateString = (d: Date = new Date()): string => {
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${year}-${month}-${day}`;
+};
+

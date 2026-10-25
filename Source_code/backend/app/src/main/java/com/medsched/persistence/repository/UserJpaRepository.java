@@ -18,6 +18,10 @@ public interface UserJpaRepository extends JpaRepository<UserEntity, String> {
 
     boolean existsByEmail(String email);
 
+    boolean existsByPhone(String phone);
+
+    boolean existsByPhoneAndIdNot(String phone, String id);
+
     long countByActiveTrue();
 
     long countByActiveFalse();
