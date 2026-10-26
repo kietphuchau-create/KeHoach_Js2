@@ -37,6 +37,7 @@ import {
 import { api } from '@/shared/lib/api';
 import { formatDoctorFullName } from '@/shared/lib/formatters';
 import { getClinicScheduleConfig, SCHEDULE_CONFIG_UPDATED_EVENT } from '@/shared/lib/scheduleConfig';
+import AlertMessage from '@/shared/components/Feedback/AlertMessage';
 
 interface ReceptionScheduleBoardProps {
   onSelectSlotForWalkin?: (doctor: any, slot: any, date: string) => void;
@@ -501,9 +502,8 @@ export default function ReceptionScheduleBoard({
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
-      {/* ── Header Điều Khiển & Bộ Lọc Tra Cứu ── */}
-      <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-xs space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* ── Header Điều Khiển & Bộ Lọc Tra Cứu (Tối Giản, Không Khung Trắng Bọc Ngoài) ── */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-1">
           <div className="space-y-1">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-teal-50 text-teal-800 border border-teal-200">
               <CalendarDays size={14} className="text-teal-600" />
@@ -600,35 +600,39 @@ export default function ReceptionScheduleBoard({
               </button>
             </div>
           </div>
+      </div>
+
+      {/* ── Thanh KPI Thống Kê Toàn Viện (4 Card Độc Lập Chuẩn Layout) ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+        <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-xs hover:border-slate-300 transition">
+          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Bác sĩ trực</span>
+          <div className="text-xl font-black text-slate-800 mt-1 font-mono">{clinicMetrics.doctorCount} bác sĩ</div>
+          <span className="text-[10px] text-slate-400 mt-0.5 block">Đang sẵn sàng phân bổ ca</span>
         </div>
 
-        {/* Thanh KPI Thống Kê Toàn Viện */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-100">
-          <div className="p-3 bg-slate-50/80 rounded-2xl border border-slate-200/80">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Bác sĩ trực</span>
-            <div className="text-lg font-black text-slate-800 mt-0.5">{clinicMetrics.doctorCount} bác sĩ</div>
-          </div>
-
-          <div className="p-3 bg-slate-50/80 rounded-2xl border border-slate-200/80">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Buồng khám mở</span>
-            <div className="text-lg font-black text-slate-800 mt-0.5">{clinicMetrics.roomCount} buồng khám</div>
-          </div>
-
-          <div className="p-3 bg-emerald-50/80 rounded-2xl border border-emerald-200">
-            <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block flex items-center gap-1">
-              <Zap size={11} className="text-emerald-600" />
-              <span>Slot trống đón khách</span>
-            </span>
-            <div className="text-lg font-black text-emerald-700 mt-0.5">
-              {clinicMetrics.totalEligibleAvailable} khung giờ
-            </div>
-          </div>
-
-          <div className="p-3 bg-blue-50/80 rounded-2xl border border-blue-200">
-            <span className="text-[10px] font-bold text-blue-800 uppercase tracking-wider block">Bệnh nhân đã đặt</span>
-            <div className="text-lg font-black text-blue-700 mt-0.5">{clinicMetrics.totalBooked} lượt khám</div>
-          </div>
+        <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-xs hover:border-slate-300 transition">
+          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Buồng khám mở</span>
+          <div className="text-xl font-black text-slate-800 mt-1 font-mono">{clinicMetrics.roomCount} buồng khám</div>
+          <span className="text-[10px] text-slate-400 mt-0.5 block">Phòng chức năng hoạt động</span>
         </div>
+
+        <div className="p-4 bg-white rounded-2xl border border-emerald-200 shadow-xs hover:border-emerald-300 transition">
+          <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block flex items-center gap-1">
+            <Zap size={12} className="text-emerald-600" />
+            <span>Slot trống đón khách</span>
+          </span>
+          <div className="text-xl font-black text-emerald-700 mt-1 font-mono">
+            {clinicMetrics.totalEligibleAvailable} khung giờ
+          </div>
+          <span className="text-[10px] text-emerald-600/70 mt-0.5 block">Khả dụng đặt hẹn ngay</span>
+        </div>
+
+        <div className="p-4 bg-white rounded-2xl border border-blue-200 shadow-xs hover:border-blue-300 transition">
+          <span className="text-[10px] font-bold text-blue-800 uppercase tracking-wider block">Bệnh nhân đã đặt</span>
+          <div className="text-xl font-black text-blue-700 mt-1 font-mono">{clinicMetrics.totalBooked} lượt khám</div>
+          <span className="text-[10px] text-blue-600/70 mt-0.5 block">Đã có người đăng ký</span>
+        </div>
+      </div>
 
         {/* Banner Thông Báo Trạng Thái Thông Minh (Sau 17:00 / Xem Ngày Mai) */}
         {isToday && isAfter17h && (
@@ -689,10 +693,12 @@ export default function ReceptionScheduleBoard({
         )}
 
         {syncSuccessMsg && (
-          <div className="p-3 bg-emerald-50 border border-emerald-300 text-emerald-900 rounded-2xl text-xs font-semibold flex items-center gap-2 animate-in fade-in">
-            <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
-            <span>{syncSuccessMsg}</span>
-          </div>
+          <AlertMessage
+            pinned
+            type="success"
+            message={syncSuccessMsg}
+            onClose={() => setSyncSuccessMsg(null)}
+          />
         )}
 
         {/* Banner Quy tắc đón khách vãng lai (Đồng bộ theo cấu hình Admin) */}
@@ -708,8 +714,8 @@ export default function ReceptionScheduleBoard({
           </div>
         </div>
 
-        {/* Bộ Lọc Tìm Kiếm & Chuyên Khoa */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-1">
+      {/* Bộ Lọc Tìm Kiếm & Chuyên Khoa */}
+      <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           {/* Ô tìm kiếm */}
           <div className="relative flex-1">
             <input
@@ -761,7 +767,6 @@ export default function ReceptionScheduleBoard({
             <span>Chỉ Bác Sĩ Còn Giờ Trống</span>
           </button>
         </div>
-      </div>
 
       {/* ── Danh Sách Lưới Thẻ Bác Sĩ (Doctor Cards Grid) ── */}
       {loading ? (

@@ -70,8 +70,7 @@ public class SecurityConfig {
                                                                 "/health",
                                                                 "/api/health",
                                                                 "/api/v1/health",
-                                                                "/actuator/**", // <-- Dòng 72: Mở đường dẫn cho
-                                                                                // Prometheus cào số liệu
+                                                                "/actuator/**", // <-- Mở đường dẫn cho Prometheus cào số liệu
                                                                 "/error",
                                                                 "/api/v1/auth/**",
                                                                 "/v3/api-docs/**",
@@ -100,7 +99,8 @@ public class SecurityConfig {
                                                                 "/api/promotions/**")
                                                 .permitAll()
 
-                                                // 3. Khách xem danh sách slot giờ khám, tra cứu lịch trực bác sĩ và tra cứu mã booking
+                                                // 3. Khách xem danh sách slot giờ khám, tra cứu lịch trực bác sĩ và tra
+                                                // cứu mã booking
                                                 .requestMatchers(HttpMethod.GET,
                                                                 "/api/appointments/doctors/*/slots",
                                                                 "/api/v1/appointments/doctors/*/slots",

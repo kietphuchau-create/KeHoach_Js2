@@ -683,17 +683,17 @@ export default function CatalogManager() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+    <div className="space-y-6 animate-in fade-in duration-150">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pt-1">
         <div>
-          <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">Quản Lý Danh Mục Phòng Khám</h1>
-          <p className="text-slate-500 text-sm mt-1">Cấu hình chi nhánh, chuyên khoa, dịch vụ và danh sách các phòng khám thực tế để phân công bác sĩ.</p>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Quản Lý Danh Mục Phòng Khám</h1>
+          <p className="text-slate-500 text-xs mt-1">Cấu hình chi nhánh, chuyên khoa, dịch vụ và danh sách các phòng khám thực tế để phân công bác sĩ.</p>
         </div>
         <button
           onClick={() => openModal('create')}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-bold shadow-sm transition cursor-pointer"
+          className="flex items-center gap-2 bg-teal-primary hover:bg-pine-teal text-white px-4 py-2.5 rounded-xl font-bold shadow-xs transition cursor-pointer text-xs"
         >
-          <Plus size={18} />
+          <Plus size={16} />
           <span>
             {activeTab === 'centers' && 'Thêm Mới Chi Nhánh'}
             {activeTab === 'specialties' && 'Thêm Mới Chuyên Khoa'}
@@ -703,7 +703,7 @@ export default function CatalogManager() {
         </button>
       </div>
 
-      {message && <AlertMessage type={message.type} message={message.text} onClose={() => setMessage(null)} />}
+      {message && <AlertMessage pinned type={message.type} message={message.text} onClose={() => setMessage(null)} />}
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="flex border-b border-slate-200 flex-wrap">

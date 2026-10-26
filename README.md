@@ -9,16 +9,16 @@
 
 ---
 
-## 👥 1. BẢNG PHÂN CÔNG NHIỆM VỤ NHÓM (6 THÀNH VIÊN)
+## 👥 1. BẢNG PHÂN CÔNG NHIỆM VỤ NHÓM (6 THÀNH VIÊN — LỚP CD25CT_CLC)
 
-| STT | Họ và tên | Vai trò | Nhiệm vụ chính phụ trách | Thư mục làm việc trọng tâm |
-| :---: | :--- | :---: | :--- | :--- |
-| **1** | **Châu Tuấn Kiệt** | **Leader** | Quản lý tiến độ, thiết kế kiến trúc toàn hệ thống, điều phối tích hợp và thuyết trình. | `backend/core/port`, `README.md` |
-| **2** | **Nguyễn Văn Hiếu** | **Backend Dev** | Phát triển Use Cases lõi, API Time-slots, khóa lạc quan Concurrency, Spring Security JWT. | `backend/core/usecase`, `backend/app/adapter/in/web` |
-| **3** | **Lê Thành Tài** | **Database / Persistence** | Tối ưu hóa 16 bảng chuẩn 3NF, tính toàn vẹn CSDL XAMPP, viết Flyway migrations. | `backend/app/adapter/out/persistence`, `database/` |
-| **4** | **Nguyễn Thị Yến Nhi** | **Business Analyst (BA)** | Đặc tả 26 tính năng F01–F26, ma trận phân quyền RBAC, kiểm thử chấp nhận người dùng (UAT). | `docs/`, kịch bản nghiệm thu |
-| **5** | **Tân Cùng Bàn** *(Tân)* | **AI Engineer** | Tích hợp Spring AI ChatClient, Prompt engineering cho Triage phân loại khoa, tóm tắt bệnh án 2 dòng. | `backend/app/adapter/out/ai` |
-| **6** | **Trang Huynh** *(Trang)* | **Frontend Dev** | Xây dựng UI/UX Next.js 15, kết nối REST API, quản lý trạng thái đặt lịch và phân quyền giao diện. | `frontend/` |
+| STT | MSSV | Họ và tên | Vai trò | Nhiệm vụ chính phụ trách | Thư mục làm việc trọng tâm |
+| :---: | :---: | :--- | :---: | :--- | :--- |
+| **1** | **506250495** | **Châu Tuấn Kiệt** | **Leader / Architect** | Quản lý tiến độ, thiết kế kiến trúc toàn hệ thống, điều phối tích hợp và thuyết trình. | `backend/core/port`, `README.md` |
+| **2** | **501250367** | **Nguyễn Văn Hiếu** | **Backend Dev** | Phát triển Use Cases lõi, API Time-slots, khóa lạc quan Concurrency, Spring Security JWT. | `backend/core/usecase`, `backend/app/adapter/in/web` |
+| **3** | **501250471** | **Lê Thành Tài** | **Database / Persistence** | Tối ưu hóa 23 bảng chuẩn 3NF, tính toàn vẹn CSDL, viết Flyway migrations & seed data. | `backend/app/adapter/out/persistence`, `database/` |
+| **4** | **501250114** | **Huỳnh Thị Kim Trang** | **Frontend Dev** | Xây dựng UI/UX Next.js 15, kết nối REST API, quản lý trạng thái đặt lịch và phân quyền giao diện. | `frontend/` |
+| **5** | **501250145** | **Nguyễn Thị Yến Nhi** | **Business Analyst (BA)** | Đặc tả tài liệu SRS, kịch bản Test Cases, ma trận phân quyền RBAC, kiểm thử chấp nhận (UAT). | `docs/`, kịch bản nghiệm thu |
+| **6** | **501250392** | **Trần Nhật Tân** | **AI Engineer / QA** | Tích hợp Spring AI ChatClient, Prompt engineering cho Triage phân loại khoa, kiểm thử tải JMeter. | `backend/app/adapter/out/ai` |
 
 ---
 

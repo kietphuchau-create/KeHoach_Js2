@@ -487,35 +487,7 @@ export default function ScheduleConfigManager() {
         />
       )}
 
-      {/* Header & Quick Navigation */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 bg-white p-4 sm:p-5 rounded-2xl border border-mint-light shadow-xs">
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-teal-primary text-white flex items-center justify-center font-bold shadow-xs">
-            <Clock size={20} />
-          </div>
-          <div>
-            <h1 className="text-lg sm:text-xl font-extrabold text-pine-teal">Cấu Hình Khung Giờ Khám &amp; Ca Trực</h1>
-            <p className="text-xs text-slate-500">Quản trị thời gian ca sáng, ca chiều, thời lượng slot khám và phân ca trực bác sĩ.</p>
-          </div>
-        </div>
 
-        <div className="flex items-center gap-2 w-full md:w-auto justify-end flex-wrap">
-          <Link
-            href="/admin/promotions"
-            className="inline-flex items-center gap-1.5 px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold rounded-xl transition border border-amber-200 cursor-pointer"
-          >
-            <Ticket size={14} />
-            <span>Quản Lý Mã Khuyến Mãi</span>
-          </Link>
-          <Link
-            href="/admin/catalog"
-            className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
-          >
-            <DoorOpen size={14} />
-            <span>Danh Mục &amp; Buồng Khám</span>
-          </Link>
-        </div>
-      </div>
 
       {/* Tabs */}
       <div className="flex items-center gap-2 border-b border-mint-light pb-2">
@@ -1377,41 +1349,37 @@ export default function ScheduleConfigManager() {
       {/* ── TAB 2: QUẢN LÝ CA TRỰC & KHÓA GIỜ KHÁM BÁC SĨ ── */}
       {activeTab === 'doctorSchedules' && (
         <div className="space-y-4">
-          {/* Toolbar */}
-          <div className="bg-white p-4 rounded-2xl border border-mint-light shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <label className="text-xs font-bold text-slate-700 whitespace-nowrap">Chọn Ngày Khám:</label>
+          {/* Toolbar - Đảm bảo luôn nằm trên cùng 1 hàng duy nhất */}
+          <div className="bg-white p-3 sm:p-4 rounded-2xl border border-mint-light shadow-xs flex items-center justify-between gap-3 overflow-x-auto no-scrollbar flex-nowrap">
+            {/* Nhóm Chọn Ngày Khám - Luôn thẳng hàng */}
+            <div className="flex items-center gap-2 shrink-0 flex-nowrap">
+              <label className="text-xs font-bold text-slate-700 whitespace-nowrap flex items-center gap-1.5">
+                <Calendar size={14} className="text-teal-primary" />
+                <span>Chọn Ngày Khám:</span>
+              </label>
               <input
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
-                className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold font-mono focus:bg-white"
+                className="px-2.5 py-1.5 bg-slate-50 hover:bg-white border border-slate-200 rounded-xl text-xs font-bold font-mono focus:bg-white focus:ring-2 focus:ring-teal-primary/30 outline-none transition cursor-pointer"
               />
               <button
                 type="button"
                 onClick={() => setSelectedDate(getLocalDateString())}
-                className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
+                className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer whitespace-nowrap shrink-0 shadow-2xs"
+                title="Chọn ngày hôm nay"
               >
                 Hôm nay
               </button>
             </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={loadDoctorSchedules}
-                disabled={loadingSchedules}
-                className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
-              >
-                <RefreshCw size={14} className={loadingSchedules ? 'animate-spin' : ''} />
-                <span>Làm mới</span>
-              </button>
-
+            {/* Nhóm Nút Thao Tác Ca Trực - Cố định 1 hàng */}
+            <div className="flex items-center gap-2 shrink-0 flex-nowrap">
               <button
                 type="button"
                 onClick={handleAutoGenerateWeek}
                 disabled={syncingWeek}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold rounded-xl transition cursor-pointer disabled:opacity-60"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold rounded-xl transition cursor-pointer disabled:opacity-60 whitespace-nowrap shadow-2xs shrink-0"
                 title="Tự động kiểm tra và sinh lịch khám chuẩn (Sáng + Chiều, mỗi slot 30 phút) cho toàn bộ bác sĩ trong 7 ngày tới (1 tuần)"
               >
                 <Sparkles size={14} className={syncingWeek ? 'animate-spin text-emerald-600' : 'text-emerald-600'} />
@@ -1422,31 +1390,22 @@ export default function ScheduleConfigManager() {
                 type="button"
                 onClick={handleResetUnbookedSchedules}
                 disabled={resettingSchedules || schedules.length === 0}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold rounded-xl transition cursor-pointer disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold rounded-xl transition cursor-pointer disabled:opacity-50 whitespace-nowrap shadow-2xs shrink-0"
                 title="Dọn dẹp sạch toàn bộ các ca trực chưa có người đặt, đưa số ca trực về 0 để Bác sĩ tự đăng ký lại từ đầu"
               >
-                <Trash2 size={14} className={resettingSchedules ? 'animate-spin text-rose-600' : 'text-rose-600'} />
+                <Trash2 size={13} className={resettingSchedules ? 'animate-spin text-rose-600' : 'text-rose-600'} />
                 <span>{resettingSchedules ? 'Đang dọn...' : 'Xóa Ca Trực Trống (Reset Về 0)'}</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setShowAddScheduleModal(true)}
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-pine-teal hover:bg-pine-teal-hover text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-xs"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-pine-teal hover:bg-pine-teal-hover text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-xs whitespace-nowrap shrink-0"
+                title="Phân công ca trực mới"
               >
                 <Plus size={15} />
                 <span>Phân Công Ca Trực Mới</span>
               </button>
-            </div>
-          </div>
-
-          {/* Banner thông báo quy định phân ca 1 Chi nhánh/ngày */}
-          <div className="bg-amber-50/80 border border-amber-200/90 rounded-2xl p-3.5 text-xs text-amber-900 flex items-start sm:items-center justify-between gap-3 shadow-2xs">
-            <div className="flex items-start sm:items-center gap-2.5">
-              <Info size={18} className="text-amber-700 shrink-0 mt-0.5 sm:mt-0" />
-              <div className="leading-relaxed">
-                <strong>Quy định phòng khám (Đã khóa đa chi nhánh theo buổi):</strong> Trong cùng một ngày làm việc, mỗi Bác sĩ chỉ được trực tại <strong>1 Chi nhánh duy nhất (1 Buồng khám cố định)</strong> để bảo đảm chất lượng tiếp đón và người bệnh không phải di chuyển giữa các buổi khám. Bác sĩ có thể trực tại các chi nhánh khác nhau theo từng ngày làm việc riêng biệt.
-              </div>
             </div>
           </div>
 

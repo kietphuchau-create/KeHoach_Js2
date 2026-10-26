@@ -1461,121 +1461,119 @@ export default function DoctorClinicView() {
 
   return (
     <div className="space-y-6">
-          {/* ── Top Clinic Banner (Thu Gọn: Chỉ Giữ Icon Cửa & Tên Phòng Khám) ── */}
-          <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden">
-            <div className="p-5 sm:p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-              {/* Tiêu đề: Chỉ giữ icon cửa và tên phòng khám */}
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-700 border border-teal-200/80 flex items-center justify-center shrink-0 shadow-2xs">
-                  <DoorOpen size={20} />
+          {/* ── Top Clinic Header (Tối Giản, Không Khung Trắng Bọc Ngoài) ── */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pt-1">
+            {/* Tiêu đề: Chỉ giữ icon cửa và tên phòng khám */}
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-700 border border-teal-200/80 flex items-center justify-center shrink-0 shadow-2xs">
+                <DoorOpen size={20} />
+              </div>
+              <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                {currentRoomInfo.name}
+              </h1>
+            </div>
+
+            {/* Cụm Thống Kê Gọn & Nút Trạng Thái Mở Khám */}
+            <div className="flex items-center gap-3 shrink-0 self-start lg:self-center">
+              {/* Bộ đếm thống kê ca khám */}
+              <div className="bg-white border border-slate-200/80 shadow-xs rounded-xl p-2 px-3 flex items-center gap-3 text-xs">
+                <div className="flex items-center gap-1.5 pr-3 border-r border-slate-200">
+                  <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+                  <span className="text-slate-500">Sẽ đến:</span>
+                  <span className="font-bold text-blue-700">{upcomingCount} ca</span>
                 </div>
-                <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">
-                  {currentRoomInfo.name}
-                </h1>
+                <div className="flex items-center gap-1.5 pr-3 border-r border-slate-200">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                  <span className="text-slate-500">Đang chờ:</span>
+                  <span className="font-bold text-amber-700">{waitingCount} ca</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                  <span className="text-slate-500">Đã xong:</span>
+                  <span className="font-bold text-emerald-700">{completedCount} ca</span>
+                </div>
               </div>
 
-              {/* Cụm Thống Kê Gọn & Nút Trạng Thái Mở Khám */}
-              <div className="flex items-center gap-3 shrink-0 self-start lg:self-center">
-                {/* Bộ đếm thống kê ca khám */}
-                <div className="bg-slate-50/80 border border-slate-200 rounded-xl p-2 px-3 flex items-center gap-3 text-xs">
-                  <div className="flex items-center gap-1.5 pr-3 border-r border-slate-200">
-                    <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
-                    <span className="text-slate-500">Sẽ đến:</span>
-                    <span className="font-bold text-blue-700">{upcomingCount} ca</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 pr-3 border-r border-slate-200">
-                    <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
-                    <span className="text-slate-500">Đang chờ:</span>
-                    <span className="font-bold text-amber-700">{waitingCount} ca</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                    <span className="text-slate-500">Đã xong:</span>
-                    <span className="font-bold text-emerald-700">{completedCount} ca</span>
-                  </div>
-                </div>
+              {/* Nút Trợ Lý AI Y Tế (MCP Protocol) */}
+              <button
+                type="button"
+                onClick={() => setShowAiModal(true)}
+                className="px-3.5 py-2.5 rounded-xl font-bold text-xs bg-gradient-to-r from-teal-700 to-teal-900 hover:from-teal-800 hover:to-slate-900 text-white transition cursor-pointer flex items-center gap-2 border border-teal-500/40 shadow-sm"
+                title="Mở Trợ lý AI Y Tế MedSched (Tóm tắt bệnh án, tra cứu tương tác thuốc)"
+              >
+                <Bot size={16} className="text-teal-300 animate-pulse" />
+                <span>Trợ Lý AI Bác Sĩ</span>
+              </button>
 
-                {/* Nút Trợ Lý AI Y Tế (MCP Protocol) */}
-                <button
-                  type="button"
-                  onClick={() => setShowAiModal(true)}
-                  className="px-3.5 py-2.5 rounded-xl font-bold text-xs bg-gradient-to-r from-teal-700 to-teal-900 hover:from-teal-800 hover:to-slate-900 text-white transition cursor-pointer flex items-center gap-2 border border-teal-500/40 shadow-sm"
-                  title="Mở Trợ lý AI Y Tế MedSched (Tóm tắt bệnh án, tra cứu tương tác thuốc)"
-                >
-                  <Bot size={16} className="text-teal-300 animate-pulse" />
-                  <span>Trợ Lý AI Bác Sĩ</span>
-                </button>
-
-                {/* Công tắc Mở/Dừng Phòng Khám (Đồng bộ theo khung giờ làm việc thực tế) */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (roomOccupantConflict) {
-                      setNotification(`⛔ ${roomOccupantConflict}`);
-                      return;
+              {/* Công tắc Mở/Dừng Phòng Khám (Đồng bộ theo khung giờ làm việc thực tế) */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (roomOccupantConflict) {
+                    setNotification(`⛔ ${roomOccupantConflict}`);
+                    return;
+                  }
+                  if (!clinicTimeStatus.isOperating && !devMode247) {
+                    if (clinicTimeStatus.period === 'AFTER_HOURS') {
+                      setNotification('⚠️ Hiện tại đã kết thúc giờ làm việc trong ngày (Ca chiều kết thúc lúc 17:00). Không thể mở tiếp nhận khám lúc này.');
+                    } else if (clinicTimeStatus.period === 'LUNCH_BREAK') {
+                      setNotification('⚠️ Hiện tại đang trong giờ nghỉ trưa (12:00 - 13:30). Ca chiều sẽ bắt đầu lúc 13:30.');
+                    } else {
+                      setNotification('⚠️ Phòng khám chưa mở ca trực sáng (bắt đầu lúc 08:00).');
                     }
-                    if (!clinicTimeStatus.isOperating && !devMode247) {
-                      if (clinicTimeStatus.period === 'AFTER_HOURS') {
-                        setNotification('⚠️ Hiện tại đã kết thúc giờ làm việc trong ngày (Ca chiều kết thúc lúc 17:00). Không thể mở tiếp nhận khám lúc này.');
-                      } else if (clinicTimeStatus.period === 'LUNCH_BREAK') {
-                        setNotification('⚠️ Hiện tại đang trong giờ nghỉ trưa (12:00 - 13:30). Ca chiều sẽ bắt đầu lúc 13:30.');
-                      } else {
-                        setNotification('⚠️ Phòng khám chưa mở ca trực sáng (bắt đầu lúc 08:00).');
-                      }
-                      return;
-                    }
-                    if (todayShift?.hasShift === false && !devMode247) {
-                      setNotification('⚠️ Bác sĩ chưa có ca trực chính thức trong ngày hôm nay. Vui lòng đăng ký ca trực!');
-                      return;
-                    }
-                    setClinicActive(!clinicActive);
-                  }}
-                  className={`px-3.5 py-2.5 rounded-xl font-bold text-xs transition cursor-pointer flex items-center gap-2 border shadow-xs ${
-                    roomOccupantConflict
-                      ? 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100'
-                      : !clinicTimeStatus.isOperating && !devMode247
-                        ? clinicTimeStatus.period === 'LUNCH_BREAK'
-                          ? 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
-                          : 'bg-slate-100 text-slate-600 border-slate-300 hover:bg-slate-200'
+                    return;
+                  }
+                  if (todayShift?.hasShift === false && !devMode247) {
+                    setNotification('⚠️ Bác sĩ chưa có ca trực chính thức trong ngày hôm nay. Vui lòng đăng ký ca trực!');
+                    return;
+                  }
+                  setClinicActive(!clinicActive);
+                }}
+                className={`px-3.5 py-2.5 rounded-xl font-bold text-xs transition cursor-pointer flex items-center gap-2 border shadow-xs ${
+                  roomOccupantConflict
+                    ? 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100'
+                    : !clinicTimeStatus.isOperating && !devMode247
+                      ? clinicTimeStatus.period === 'LUNCH_BREAK'
+                        ? 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
+                        : 'bg-slate-100 text-slate-600 border-slate-300 hover:bg-slate-200'
+                      : clinicActive
+                        ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                        : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
+                }`}
+                title={!clinicTimeStatus.isOperating && !devMode247 ? clinicTimeStatus.statusText : 'Mở hoặc tạm dừng tiếp nhận lượt khám mới'}
+              >
+                <span className={`w-2.5 h-2.5 rounded-full ${
+                  roomOccupantConflict
+                    ? 'bg-rose-500'
+                    : !clinicTimeStatus.isOperating && !devMode247
+                      ? clinicTimeStatus.period === 'LUNCH_BREAK'
+                        ? 'bg-amber-500'
+                        : 'bg-slate-400'
+                      : clinicActive
+                        ? 'bg-emerald-500 animate-pulse'
+                        : 'bg-slate-400'
+                }`} />
+                <span>{
+                  roomOccupantConflict
+                    ? 'Buồng Trùng Lịch'
+                    : !clinicTimeStatus.isOperating && !devMode247
+                      ? clinicTimeStatus.period === 'AFTER_HOURS'
+                        ? 'Hết Giờ Khám'
+                        : clinicTimeStatus.period === 'LUNCH_BREAK'
+                          ? 'Nghỉ Trưa (12h-13h30)'
+                          : 'Chưa Đến Giờ Khám'
+                      : todayShift?.hasShift === false && !devMode247
+                        ? 'Chưa Có Ca Trực'
                         : clinicActive
-                          ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
-                          : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
-                  }`}
-                  title={!clinicTimeStatus.isOperating && !devMode247 ? clinicTimeStatus.statusText : 'Mở hoặc tạm dừng tiếp nhận lượt khám mới'}
-                >
-                  <span className={`w-2.5 h-2.5 rounded-full ${
-                    roomOccupantConflict
-                      ? 'bg-rose-500'
-                      : !clinicTimeStatus.isOperating && !devMode247
-                        ? clinicTimeStatus.period === 'LUNCH_BREAK'
-                          ? 'bg-amber-500'
-                          : 'bg-slate-400'
-                        : clinicActive
-                          ? 'bg-emerald-500 animate-pulse'
-                          : 'bg-slate-400'
-                  }`} />
-                  <span>{
-                    roomOccupantConflict
-                      ? 'Buồng Trùng Lịch'
-                      : !clinicTimeStatus.isOperating && !devMode247
-                        ? clinicTimeStatus.period === 'AFTER_HOURS'
-                          ? 'Hết Giờ Khám'
-                          : clinicTimeStatus.period === 'LUNCH_BREAK'
-                            ? 'Nghỉ Trưa (12h-13h30)'
-                            : 'Chưa Đến Giờ Khám'
-                        : todayShift?.hasShift === false && !devMode247
-                          ? 'Chưa Có Ca Trực'
-                          : clinicActive
-                            ? devMode247 ? 'Mở Khám 24/7' : 'Đang Mở Khám'
-                            : 'Tạm Dừng Khám'
-                  }</span>
-                </button>
-              </div>
+                          ? devMode247 ? 'Mở Khám 24/7' : 'Đang Mở Khám'
+                          : 'Tạm Dừng Khám'
+                }</span>
+              </button>
             </div>
           </div>
 
       {notification && (
-        <AlertMessage type="info" message={notification} onClose={() => setNotification(null)} />
+        <AlertMessage pinned type="info" message={notification} onClose={() => setNotification(null)} />
       )}
 
       {/* Cảnh báo xung đột buồng khám nếu có bác sĩ khác trực */}

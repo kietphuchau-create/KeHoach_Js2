@@ -429,9 +429,9 @@ export default function UserTable() {
 
   return (
     <div className="space-y-4">
-      {/* Alert message */}
+      {/* Alert message (Ghim nổi góc trên bên phải) */}
       {message && (
-        <AlertMessage type={message.type} message={message.text} onClose={() => setMessage(null)} />
+        <AlertMessage pinned type={message.type} message={message.text} onClose={() => setMessage(null)} />
       )}
 
       {/* Filter & Actions Toolbar (Đã xóa khung trắng bao quanh) */}
@@ -820,10 +820,10 @@ export default function UserTable() {
 
       {/* Modal Đặt lại mật khẩu */}
       {resetModalUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-xl border border-mint-light w-full max-w-md overflow-hidden transform transition-all">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-xl border border-mint-light w-full max-w-md overflow-hidden transform transition-all max-h-[calc(100vh-2rem)] flex flex-col my-auto">
             {/* Modal Header */}
-            <div className="bg-mint-soft px-6 py-4 border-b border-mint-light flex items-center justify-between">
+            <div className="bg-mint-soft px-5 py-3.5 border-b border-mint-light flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2 text-pine-teal font-bold text-base">
                 <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center">
                   <KeyRound size={18} />
@@ -839,7 +839,7 @@ export default function UserTable() {
             </div>
 
             {/* Modal Body */}
-            <form onSubmit={handleResetPassword} className="p-6 space-y-4">
+            <form onSubmit={handleResetPassword} className="p-5 space-y-4 overflow-y-auto flex-1">
               <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs space-y-1">
                 <div className="text-slate-500">Tài khoản được đặt lại:</div>
                 <div className="font-bold text-slate-800 text-sm">{resetModalUser.fullName || 'Chưa đặt tên'}</div>
@@ -917,36 +917,44 @@ export default function UserTable() {
       )}
 
       {/* ── Modal Xem Chi Tiết Người Dùng ── */}
+      {/* ── Modal Xem Chi Tiết Người Dùng (High-Density, Scrollable, Không bị hàn chết) ── */}
       {detailUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200">
-            {/* Header Modal */}
-            <div className="bg-gradient-to-r from-teal-700 via-emerald-800 to-slate-900 text-white p-6 relative">
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-150"
+          onClick={() => setDetailUser(null)}
+        >
+          <div 
+            className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl border border-slate-100 flex flex-col max-h-[calc(100vh-2rem)] my-auto animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header Modal - Gọn gàng, độ tương phản cao */}
+            <div className="bg-gradient-to-r from-teal-800 via-emerald-800 to-slate-900 text-white px-5 py-3.5 relative shrink-0">
               <button
                 type="button"
                 onClick={() => setDetailUser(null)}
-                className="absolute top-4 right-4 text-white/70 hover:text-white p-1 rounded-full hover:bg-white/10 transition cursor-pointer"
+                className="absolute top-3 right-3 text-white/70 hover:text-white p-1 rounded-full hover:bg-white/10 transition cursor-pointer"
+                title="Đóng (Esc)"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
 
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-xs text-white border border-white/30 flex items-center justify-center font-extrabold text-2xl shadow-inner">
+              <div className="flex items-center gap-3 pr-8">
+                <div className="w-11 h-11 rounded-xl bg-white/20 backdrop-blur-xs text-white border border-white/30 flex items-center justify-center font-extrabold text-lg shadow-inner shrink-0">
                   {detailUser.fullName ? detailUser.fullName.charAt(0).toUpperCase() : 'U'}
                 </div>
-                <div>
-                  <h3 className="font-extrabold text-lg text-white leading-tight">
+                <div className="min-w-0">
+                  <h3 className="font-extrabold text-base text-white leading-tight truncate">
                     {detailUser.fullName || 'Người dùng chưa đặt tên'}
                   </h3>
-                  <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                  <div className="flex flex-wrap items-center gap-1.5 mt-1">
                     {roleBadge(detailUser.roles)}
                     {detailUser.active ? (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-300 bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-400/30">
-                        <CheckCircle2 size={11} /> Hoạt động
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-300 bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-400/30">
+                        <CheckCircle2 size={10} /> Hoạt động
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-300 bg-rose-950/60 px-2 py-0.5 rounded-full border border-rose-400/30">
-                        <XCircle size={11} /> Đã khóa
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-rose-300 bg-rose-950/60 px-2 py-0.5 rounded-full border border-rose-400/30">
+                        <XCircle size={10} /> Đã khóa
                       </span>
                     )}
                   </div>
@@ -954,68 +962,48 @@ export default function UserTable() {
               </div>
             </div>
 
-            {/* Body Modal */}
-            <div className="p-6 space-y-4 max-h-[75vh] overflow-y-auto text-sm">
-              {/* User ID with Copy */}
-              <div className="bg-slate-50 border border-slate-200/80 p-3.5 rounded-2xl flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Mã Định Danh Người Dùng (UUID):</span>
-                  <span className="font-mono text-xs text-slate-800 break-all select-all font-semibold">
-                    {detailUser.id}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    navigator.clipboard.writeText(detailUser.id);
-                    setCopied(true);
-                    setTimeout(() => setCopied(false), 2000);
-                  }}
-                  className="shrink-0 p-2 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl text-slate-600 transition cursor-pointer"
-                  title="Sao chép UUID"
-                >
-                  {copied ? <Check size={16} className="text-emerald-600" /> : <Copy size={16} />}
-                </button>
-              </div>
-
-              {/* Thông tin liên lạc */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="bg-slate-50 border border-slate-200/80 p-3.5 rounded-2xl">
-                  <div className="flex items-center gap-2 text-slate-500 mb-1 text-xs font-semibold">
-                    <Mail size={14} className="text-teal-primary" />
+            {/* Body Modal - High Density Layout, cuộn mượt mà */}
+            <div className="p-4 sm:p-5 space-y-3 flex-1 overflow-y-auto text-xs">
+              {/* Thông tin liên lạc (Email & SĐT gom 2 cột gọn) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="bg-slate-50 border border-slate-200/80 p-2.5 rounded-xl">
+                  <div className="flex items-center gap-1.5 text-slate-500 mb-0.5 text-[11px] font-semibold">
+                    <Mail size={13} className="text-teal-primary" />
                     <span>Email Đăng Nhập:</span>
                   </div>
-                  <div className="font-semibold text-slate-800 break-all">{detailUser.email}</div>
+                  <div className="font-semibold text-slate-800 truncate text-xs" title={detailUser.email}>
+                    {detailUser.email}
+                  </div>
                 </div>
 
-                <div className="bg-slate-50 border border-slate-200/80 p-3.5 rounded-2xl">
-                  <div className="flex items-center gap-2 text-slate-500 mb-1 text-xs font-semibold">
-                    <Phone size={14} className="text-teal-primary" />
+                <div className="bg-slate-50 border border-slate-200/80 p-2.5 rounded-xl">
+                  <div className="flex items-center gap-1.5 text-slate-500 mb-0.5 text-[11px] font-semibold">
+                    <Phone size={13} className="text-teal-primary" />
                     <span>Số Điện Thoại:</span>
                   </div>
-                  <div className="font-semibold text-slate-800">
+                  <div className="font-semibold text-slate-800 text-xs">
                     {detailUser.phone || <span className="text-slate-400 font-normal italic">Chưa đăng ký SĐT</span>}
                   </div>
                 </div>
               </div>
 
-              {/* Thông tin chuyên khoa dành riêng cho Bác Sĩ */}
+              {/* Thông tin chuyên khoa dành riêng cho Bác Sĩ (Gom gọn gàng chuẩn y khoa) */}
               {(detailUser.roles.includes('ROLE_DOCTOR') || detailUser.specialtyName) && (
-                <div className="bg-gradient-to-br from-sky-50 to-indigo-50/50 border border-sky-200/90 p-4 rounded-2xl space-y-2.5">
+                <div className="bg-gradient-to-br from-sky-50 to-indigo-50/40 border border-sky-200/80 p-3 rounded-xl space-y-2">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-sky-900 text-xs font-bold uppercase">
-                      <Stethoscope size={16} className="text-sky-700" />
-                      <span>Thông Tin Chuyên Khoa Bác Sĩ:</span>
+                    <div className="flex items-center gap-1.5 text-sky-900 text-xs font-bold uppercase">
+                      <Stethoscope size={15} className="text-sky-700" />
+                      <span>Chuyên Môn Bác Sĩ:</span>
                     </div>
                     <span className="text-[10px] font-bold bg-sky-200/70 text-sky-900 px-2 py-0.5 rounded-full">
-                      Bác sĩ chuyên môn
+                      Khám Lâm Sàng
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                    <div className="bg-white/80 p-2.5 rounded-xl border border-sky-100">
-                      <span className="text-slate-400 block text-[11px] mb-0.5">Chuyên Khoa Phụ Trách:</span>
-                      <strong className="text-sky-950 font-bold text-sm block">
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="bg-white/90 p-2 rounded-lg border border-sky-100">
+                      <span className="text-slate-400 block text-[10px]">Chuyên Khoa:</span>
+                      <strong className="text-sky-950 font-bold text-xs truncate block">
                         {detailUser.specialtyName || 
                           (detailUser.email.includes('minhanh') ? 'Chuyên khoa Da liễu' : 
                            detailUser.email.includes('tranhung') ? 'Khoa Nội tổng quát' : 
@@ -1023,9 +1011,9 @@ export default function UserTable() {
                       </strong>
                     </div>
 
-                    <div className="bg-white/80 p-2.5 rounded-xl border border-sky-100">
-                      <span className="text-slate-400 block text-[11px] mb-0.5">Phòng Khám / Làm Việc:</span>
-                      <strong className="text-slate-800 font-semibold block">
+                    <div className="bg-white/90 p-2 rounded-lg border border-sky-100">
+                      <span className="text-slate-400 block text-[10px]">Buồng Khám:</span>
+                      <strong className="text-slate-800 font-bold text-xs truncate block">
                         {detailUser.roomNumber || 
                           (detailUser.email.includes('minhanh') ? 'Phòng P.205' : 
                            detailUser.email.includes('tranhung') ? 'Phòng P.208' : 
@@ -1033,9 +1021,9 @@ export default function UserTable() {
                       </strong>
                     </div>
 
-                    <div className="sm:col-span-2 bg-white/80 p-2.5 rounded-xl border border-sky-100">
-                      <span className="text-slate-400 block text-[11px] mb-0.5">Học Vị / Chức Danh:</span>
-                      <strong className="text-slate-800 font-semibold block">
+                    <div className="col-span-2 bg-white/90 p-2 rounded-lg border border-sky-100">
+                      <span className="text-slate-400 block text-[10px]">Học Vị / Chức Danh:</span>
+                      <strong className="text-slate-800 font-semibold text-xs block">
                         {detailUser.academicTitle || 
                           (detailUser.email.includes('minhanh') ? 'BS.CKII' : 
                            detailUser.email.includes('tranhung') ? 'PGS.TS' : 
@@ -1047,12 +1035,12 @@ export default function UserTable() {
               )}
 
               {/* Chi nhánh phòng khám trực thuộc */}
-              <div className="bg-emerald-50/60 border border-emerald-100 p-4 rounded-2xl">
-                <div className="flex items-center gap-2 text-emerald-800 text-xs font-bold uppercase mb-1">
-                  <Building2 size={15} className="text-emerald-700" />
+              <div className="bg-emerald-50/60 border border-emerald-100 p-2.5 rounded-xl">
+                <div className="flex items-center gap-1.5 text-emerald-800 text-[11px] font-bold uppercase mb-0.5">
+                  <Building2 size={13} className="text-emerald-700" />
                   <span>Chi Nhánh Phòng Khám Trực Thuộc:</span>
                 </div>
-                <div className="text-sm font-semibold text-slate-800">
+                <div className="text-xs font-semibold text-slate-800">
                   {detailUser.medicalCenterName || (
                     <span className="text-slate-500 font-normal italic">
                       Tài khoản Bệnh nhân toàn cục (Không cố định chi nhánh)
@@ -1062,12 +1050,12 @@ export default function UserTable() {
               </div>
 
               {/* Ngày tạo tài khoản */}
-              <div className="bg-slate-50 border border-slate-200/80 p-3.5 rounded-2xl flex items-center justify-between">
-                <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
-                  <Calendar size={15} className="text-slate-400" />
+              <div className="bg-slate-50 border border-slate-200/80 px-3 py-2 rounded-xl flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1.5 text-slate-500">
+                  <Calendar size={13} className="text-slate-400" />
                   <span>Thời Gian Tạo Tài Khoản:</span>
                 </div>
-                <span className="text-xs font-semibold text-slate-700">
+                <span className="font-semibold text-slate-700">
                   {detailUser.createdAt 
                     ? new Date(detailUser.createdAt).toLocaleString('vi-VN') 
                     : 'Hệ thống khởi tạo'}
@@ -1075,9 +1063,9 @@ export default function UserTable() {
               </div>
             </div>
 
-            {/* Footer Modal Actions */}
-            <div className="bg-slate-50 px-6 py-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
+            {/* Footer Modal Actions - Luôn ghim cố định trong tầm mắt */}
+            <div className="bg-slate-50 px-4 sm:px-5 py-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 shrink-0">
+              <div className="flex items-center gap-1.5">
                 {detailUser.roles.includes('ROLE_DOCTOR') && (
                   <button
                     type="button"
@@ -1089,10 +1077,10 @@ export default function UserTable() {
                       setCustomRoom(target.roomNumber || '');
                       setIsCustomRoom(!APPROVED_CLINIC_ROOMS.some(r => r.roomNumber === target.roomNumber));
                     }}
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 bg-purple-50 text-purple-800 hover:bg-purple-100 border border-purple-200 rounded-xl transition cursor-pointer"
+                    className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1.5 bg-purple-50 text-purple-800 hover:bg-purple-100 border border-purple-200 rounded-xl transition cursor-pointer"
                   >
-                    <DoorOpen size={14} />
-                    <span>Phân buồng khám</span>
+                    <DoorOpen size={13} />
+                    <span>Phân buồng</span>
                   </button>
                 )}
 
@@ -1105,9 +1093,9 @@ export default function UserTable() {
                     setNewPassword('Medsched@123');
                     setShowPassword(false);
                   }}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200 rounded-xl transition cursor-pointer"
+                  className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1.5 bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200 rounded-xl transition cursor-pointer"
                 >
-                  <KeyRound size={14} />
+                  <KeyRound size={13} />
                   <span>Đặt lại MK</span>
                 </button>
 
@@ -1118,14 +1106,14 @@ export default function UserTable() {
                       handleToggleStatus(detailUser);
                       setDetailUser(prev => prev ? { ...prev, active: !prev.active } : null);
                     }}
-                    className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border transition cursor-pointer ${
+                    className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1.5 rounded-xl border transition cursor-pointer ${
                       detailUser.active
                         ? 'bg-rose-50 text-rose-700 hover:bg-rose-100 border-rose-200'
                         : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border-emerald-200'
                     }`}
                   >
-                    {detailUser.active ? <Lock size={14} /> : <CheckCircle2 size={14} />}
-                    <span>{detailUser.active ? 'Khóa tài khoản' : 'Mở khóa'}</span>
+                    {detailUser.active ? <Lock size={13} /> : <CheckCircle2 size={13} />}
+                    <span>{detailUser.active ? 'Khóa TK' : 'Mở khóa'}</span>
                   </button>
                 )}
               </div>
@@ -1133,7 +1121,7 @@ export default function UserTable() {
               <button
                 type="button"
                 onClick={() => setDetailUser(null)}
-                className="px-4 py-2 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
+                className="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 border border-slate-300 text-slate-800 text-xs font-bold rounded-xl transition cursor-pointer ml-auto"
               >
                 Đóng
               </button>
@@ -1144,10 +1132,10 @@ export default function UserTable() {
 
       {/* Modal Phân Bổ Buồng Khám Bác Sĩ */}
       {assignModalUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl border border-purple-100 w-full max-w-lg overflow-hidden transform transition-all">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl border border-purple-100 w-full max-w-lg overflow-hidden transform transition-all max-h-[calc(100vh-2rem)] flex flex-col my-auto">
             {/* Header */}
-            <div className="bg-gradient-to-r from-purple-50 to-indigo-50 px-6 py-4 border-b border-purple-100 flex items-center justify-between">
+            <div className="bg-gradient-to-r from-purple-50 to-indigo-50 px-5 py-3.5 border-b border-purple-100 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2.5 text-purple-900 font-bold text-base">
                 <div className="w-9 h-9 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-xs">
                   <DoorOpen size={20} />
@@ -1166,7 +1154,7 @@ export default function UserTable() {
             </div>
 
             {/* Form Body */}
-            <form onSubmit={handleAssignRoom} className="p-6 space-y-4">
+            <form onSubmit={handleAssignRoom} className="p-4 sm:p-5 space-y-3.5 overflow-y-auto flex-1">
               {/* Doctor Info Card */}
               <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200/80 text-xs flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-700 font-bold flex items-center justify-center text-sm shrink-0 border border-purple-200">
@@ -1298,7 +1286,7 @@ export default function UserTable() {
               })()}
 
               {/* Actions */}
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5 shrink-0">
                 <button
                   type="button"
                   onClick={() => setAssignModalUser(null)}

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
 
 interface AlertMessageProps {
@@ -20,15 +20,26 @@ export default function AlertMessage({
   pinned = false,
   autoDismissDuration = 5000,
 }: AlertMessageProps) {
+  const [dismissed, setDismissed] = useState(false);
+
   useEffect(() => {
-    if (!pinned || !onClose || !message) return;
+    setDismissed(false);
+  }, [message]);
+
+  const handleDismiss = () => {
+    setDismissed(true);
+    if (onClose) onClose();
+  };
+
+  useEffect(() => {
+    if (!pinned || !message || dismissed) return;
     const timer = setTimeout(() => {
-      onClose();
+      handleDismiss();
     }, autoDismissDuration);
     return () => clearTimeout(timer);
-  }, [pinned, onClose, message, autoDismissDuration]);
+  }, [pinned, message, dismissed, autoDismissDuration]);
 
-  if (!message) return null;
+  if (!message || dismissed) return null;
 
   const config = {
     success: {
@@ -78,17 +89,15 @@ export default function AlertMessage({
               {message}
             </p>
           </div>
-          {onClose && (
-            <button
-              type="button"
-              onClick={onClose}
-              className="text-slate-400 hover:text-slate-700 hover:bg-slate-100 p-1.5 rounded-xl transition cursor-pointer shrink-0"
-              title="Đóng thông báo"
-              aria-label="Đóng thông báo"
-            >
-              <X size={16} />
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={handleDismiss}
+            className="text-slate-400 hover:text-slate-700 hover:bg-slate-100 p-1.5 rounded-xl transition cursor-pointer shrink-0"
+            title="Đóng thông báo"
+            aria-label="Đóng thông báo"
+          >
+            <X size={16} />
+          </button>
         </div>
       </div>
     );
@@ -109,7 +118,7 @@ export default function AlertMessage({
       {onClose && (
         <button
           type="button"
-          onClick={onClose}
+          onClick={handleDismiss}
           className="opacity-60 hover:opacity-100 transition p-1 shrink-0 cursor-pointer"
           aria-label="Đóng thông báo"
         >

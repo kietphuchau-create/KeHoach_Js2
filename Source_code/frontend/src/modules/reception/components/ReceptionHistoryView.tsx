@@ -207,9 +207,9 @@ export default function ReceptionHistoryView() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 animate-in fade-in duration-150">
-      {/* ── Breadcrumb & Action Toolbar ── */}
-      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+    <div className="space-y-6 animate-in fade-in duration-150">
+      {/* ── Breadcrumb & Action Toolbar (Tối giản, không còn khung trắng bọc ngoài) ── */}
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pt-1">
         <div>
           <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 mb-1">
             <span className="text-teal-primary font-bold">medsched.hospital.vn</span>
@@ -220,7 +220,7 @@ export default function ReceptionHistoryView() {
               RECEPTION ARCHIVE
             </span>
           </div>
-          <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2.5">
+          <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2.5">
             <UserCheck className="text-pine-teal" size={26} />
             Lịch Sử Tiếp Đón &amp; Check-in Bệnh Nhân
           </h1>
@@ -240,7 +240,7 @@ export default function ReceptionHistoryView() {
           <button
             onClick={() => loadData()}
             disabled={loading}
-            className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-pine-teal transition cursor-pointer"
+            className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-pine-teal transition cursor-pointer shadow-2xs bg-white"
             title="Làm mới danh sách"
           >
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
