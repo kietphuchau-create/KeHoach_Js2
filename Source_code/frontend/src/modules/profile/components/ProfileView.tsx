@@ -10,7 +10,6 @@ import AlertMessage from '@/shared/components/Feedback/AlertMessage';
 
 export default function ProfileView() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'info' | 'password' | 'doctor'>('info');
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
@@ -97,6 +96,33 @@ export default function ProfileView() {
     }
     loadData();
   }, [router]);
+
+  useEffect(() => {
+    const handleUrlTarget = () => {
+      if (typeof window !== 'undefined') {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('tab') === 'password' || window.location.hash === '#doi-mat-khau') {
+          setTimeout(() => {
+            document.getElementById('doi-mat-khau')?.scrollIntoView({ behavior: 'smooth' });
+          }, 150);
+        }
+      }
+    };
+    handleUrlTarget();
+    window.addEventListener('popstate', handleUrlTarget);
+    const handleScrollTarget = (e: any) => {
+      if (e?.detail?.target === 'password' || e?.detail?.tab === 'password') {
+        document.getElementById('doi-mat-khau')?.scrollIntoView({ behavior: 'smooth' });
+      } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    };
+    window.addEventListener('medsched:switch_profile_tab', handleScrollTarget);
+    return () => {
+      window.removeEventListener('popstate', handleUrlTarget);
+      window.removeEventListener('medsched:switch_profile_tab', handleScrollTarget);
+    };
+  }, []);
 
   const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -192,6 +218,9 @@ export default function ProfileView() {
   };
 
   const handleLogout = () => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('medsched_doctor_active_room');
+    }
     clearAuthSession();
     router.push('/login');
   };
@@ -232,354 +261,219 @@ export default function ProfileView() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto py-4 space-y-4">
-      {/* Return button & Logout */}
-      <div className="flex items-center justify-between">
-        <Link href={backLinkHref} className="inline-flex items-center gap-2 text-sm text-slate-600 hover:text-pine-teal font-medium transition">
-          <ArrowLeft size={16} /> {backLinkLabel}
-        </Link>
-        <button
-          onClick={handleLogout}
-          className="inline-flex items-center gap-1.5 text-sm text-red-600 hover:text-red-700 font-semibold px-3 py-1.5 rounded-lg border border-red-200 hover:bg-red-50 transition cursor-pointer"
-        >
-          <LogOut size={16} /> Đăng xuất
-        </button>
-      </div>
-
-      <div className="bg-white rounded-2xl shadow-sm border border-mint-light overflow-hidden">
-        {/* Header Profile */}
-        <div className="bg-gradient-to-r from-pine-teal to-teal-primary p-6 text-white flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-white/15 backdrop-blur-xs flex items-center justify-center text-2xl font-black border-2 border-white/40 shadow-sm text-white">
-              {(profile.fullName || 'U').charAt(0).toUpperCase()}
-            </div>
-            <div>
-              <h2 className="text-2xl font-extrabold tracking-tight">{profile.fullName || 'Người dùng'}</h2>
-              <div className="text-mint-light/90 text-sm mt-1 flex flex-wrap items-center gap-2">
-                <span>{profile.email}</span>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {getCleanRoleBadges(profile.roles).map((badge) => (
-                    <span
-                      key={badge.label}
-                      className={`border px-2.5 py-0.5 rounded-full text-xs font-semibold backdrop-blur-xs ${badge.bg}`}
-                    >
-                      {badge.label}
-                    </span>
-                  ))}
-                </div>
+    <div className="max-w-6xl mx-auto py-3 px-3 sm:px-6 space-y-3">
+      {/* Banner Tóm tắt người dùng - Compact Horizontal */}
+      <div className="bg-gradient-to-r from-pine-teal to-teal-primary px-5 py-3 rounded-2xl text-white shadow-sm flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5 min-w-0">
+          <div className="w-11 h-11 rounded-xl bg-white/15 backdrop-blur-xs flex items-center justify-center text-lg font-black border border-white/30 shadow-xs shrink-0 text-white">
+            {(profile.fullName || 'U').charAt(0).toUpperCase()}
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h2 className="text-base sm:text-lg font-extrabold tracking-tight truncate leading-tight">
+                {profile.fullName || 'Người dùng'}
+              </h2>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {getCleanRoleBadges(profile.roles).map((badge) => (
+                  <span
+                    key={badge.label}
+                    className={`border px-2 py-0.5 rounded-full text-[10px] font-semibold backdrop-blur-xs ${badge.bg}`}
+                  >
+                    {badge.label}
+                  </span>
+                ))}
               </div>
             </div>
+            <p className="text-mint-light/90 text-xs mt-0.5 truncate">
+              {profile.email} {profile.phone ? `• ${profile.phone}` : ''}
+            </p>
           </div>
         </div>
+      </div>
 
-        {/* Tab Switching */}
-        <div className="flex border-b border-mint-light bg-mint-soft text-sm font-semibold">
-          <button
-            type="button"
-            onClick={() => { setActiveTab('info'); setMessage(null); setError(null); }}
-            className={`flex-1 py-3.5 text-center transition flex items-center justify-center gap-2 cursor-pointer ${
-              activeTab === 'info'
-                ? 'border-b-2 border-pine-teal text-pine-teal bg-white font-bold'
-                : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <User size={18} />
-            Thông Tin Cá Nhân
-          </button>
-          <button
-            type="button"
-            onClick={() => { setActiveTab('password'); setMessage(null); setError(null); }}
-            className={`flex-1 py-3.5 text-center transition flex items-center justify-center gap-2 cursor-pointer ${
-              activeTab === 'password'
-                ? 'border-b-2 border-pine-teal text-pine-teal bg-white font-bold'
-                : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <KeyRound size={18} />
-            Đổi Mật Khẩu
-          </button>
-          {isDoctor && (
+      {/* Notifications */}
+      {message && (
+        <AlertMessage pinned type="success" message={message} onClose={() => setMessage(null)} />
+      )}
+      {error && (
+        <AlertMessage pinned type="error" message={error} onClose={() => setError(null)} />
+      )}
+
+      {/* Card Thông Tin Hồ Sơ */}
+      <div className="bg-white rounded-2xl shadow-sm border border-mint-light p-4 sm:p-5">
+        <form onSubmit={handleProfileSubmit} className="space-y-3">
+          {/* Hàng 1: Họ tên + SĐT + Email */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">Họ và tên *</label>
+              <input
+                type="text"
+                required
+                value={profile.fullName}
+                onChange={(e) => setProfile({ ...profile, fullName: e.target.value })}
+                className="w-full px-3 py-2 border border-mint-light bg-mint-soft rounded-lg outline-none focus:bg-white focus:ring-1 focus:ring-pine-teal focus:border-teal-primary transition text-xs font-medium"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">Số điện thoại *</label>
+              <input
+                type="tel"
+                required
+                value={profile.phone}
+                onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
+                className="w-full px-3 py-2 border border-mint-light bg-mint-soft rounded-lg outline-none focus:bg-white focus:ring-1 focus:ring-pine-teal focus:border-teal-primary transition text-xs font-medium"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">Email tài khoản</label>
+              <input
+                type="email"
+                disabled
+                value={profile.email}
+                className="w-full px-3 py-2 border border-slate-200 bg-slate-100 text-slate-500 rounded-lg cursor-not-allowed text-xs font-medium"
+              />
+            </div>
+          </div>
+
+          {/* Hàng 2: CCCD + BHYT + Ngày sinh + Giới tính */}
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">Số CCCD / CMND</label>
+              <input
+                type="text"
+                maxLength={12}
+                value={patientForm.cccdNumber}
+                onChange={(e) => setPatientForm({ ...patientForm, cccdNumber: e.target.value.replace(/\D/g, '') })}
+                placeholder="079201008899"
+                className="w-full px-3 py-2 border border-mint-light bg-mint-soft rounded-lg outline-none focus:bg-white focus:ring-1 focus:ring-pine-teal focus:border-teal-primary transition text-xs font-mono"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">Mã thẻ BHYT</label>
+              <input
+                type="text"
+                maxLength={15}
+                value={patientForm.healthInsuranceNo}
+                onChange={(e) => setPatientForm({ ...patientForm, healthInsuranceNo: e.target.value.toUpperCase() })}
+                placeholder="DN4790123456789"
+                className="w-full px-3 py-2 border border-mint-light bg-mint-soft rounded-lg outline-none focus:bg-white focus:ring-1 focus:ring-pine-teal focus:border-teal-primary transition text-xs font-mono uppercase"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">Ngày sinh</label>
+              <input
+                type="date"
+                value={patientForm.dateOfBirth}
+                onChange={(e) => setPatientForm({ ...patientForm, dateOfBirth: e.target.value })}
+                className="w-full px-3 py-2 border border-mint-light bg-mint-soft rounded-lg outline-none focus:bg-white focus:ring-1 focus:ring-pine-teal focus:border-teal-primary transition text-xs"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">Giới tính</label>
+              <select
+                value={patientForm.gender}
+                onChange={(e) => setPatientForm({ ...patientForm, gender: e.target.value as any })}
+                className="w-full px-3 py-2 border border-mint-light bg-mint-soft rounded-lg outline-none focus:bg-white focus:ring-1 focus:ring-pine-teal focus:border-teal-primary transition text-xs cursor-pointer"
+              >
+                <option value="MALE">Nam</option>
+                <option value="FEMALE">Nữ</option>
+                <option value="OTHER">Khác</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Hàng 3: Địa chỉ thường trú */}
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-700 mb-1">Địa chỉ thường trú / Tạm trú</label>
+            <input
+              type="text"
+              value={patientForm.address}
+              onChange={(e) => setPatientForm({ ...patientForm, address: e.target.value })}
+              placeholder="Số nhà, đường, phường/xã, quận/huyện, tỉnh/thành phố..."
+              className="w-full px-3 py-2 border border-mint-light bg-mint-soft rounded-lg outline-none focus:bg-white focus:ring-1 focus:ring-pine-teal focus:border-teal-primary transition text-xs"
+            />
+          </div>
+
+          {/* Hàng 4: Tiền sử bệnh án */}
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-700 mb-1">Tiền sử bệnh án & Dị ứng thuốc</label>
+            <textarea
+              rows={2}
+              value={patientForm.medicalHistory}
+              onChange={(e) => setPatientForm({ ...patientForm, medicalHistory: e.target.value })}
+              placeholder="Ví dụ: Tăng huyết áp, dị ứng Penicillin..."
+              className="w-full px-3 py-2 border border-mint-light bg-mint-soft rounded-lg outline-none focus:bg-white focus:ring-1 focus:ring-pine-teal focus:border-teal-primary transition text-xs"
+            />
+          </div>
+
+          {/* Nút lưu */}
+          <div className="pt-1 flex justify-end">
             <button
-              type="button"
-              onClick={() => { setActiveTab('doctor'); setMessage(null); setError(null); }}
-              className={`flex-1 py-3.5 text-center transition flex items-center justify-center gap-2 cursor-pointer ${
-                activeTab === 'doctor'
-                  ? 'border-b-2 border-pine-teal text-pine-teal bg-white font-bold'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
+              type="submit"
+              disabled={loading}
+              className="bg-pine-teal hover:bg-pine-teal-hover text-white font-bold px-6 py-2.5 rounded-xl shadow-xs transition disabled:opacity-50 flex items-center gap-1.5 cursor-pointer text-xs"
             >
-              <Stethoscope size={18} />
-              Hồ Sơ Bác Sĩ
+              <Save size={15} />
+              {loading ? 'Đang lưu...' : 'Lưu Thay Đổi Hồ Sơ'}
             </button>
-          )}
-        </div>
+          </div>
+        </form>
+      </div>
 
-        <div className="p-6">
-          {/* Notifications */}
-          {message && (
-            <div className="mb-5">
-              <AlertMessage type="success" message={message} onClose={() => setMessage(null)} />
-            </div>
-          )}
+      {/* Card Bác sĩ (chỉ hiển thị nếu là Bác sĩ) */}
+      {isDoctor && (
+        <div className="bg-white rounded-2xl shadow-sm border border-mint-light p-4 sm:p-5">
+          <div className="border-b border-mint-light pb-2 mb-3">
+            <h3 className="text-xs sm:text-sm font-bold text-slate-800 flex items-center gap-1.5">
+              <Stethoscope className="text-blue-600" size={16} />
+              Hồ Sơ Chuyên Môn Bác Sĩ
+            </h3>
+          </div>
 
-          {error && (
-            <div className="mb-5">
-              <AlertMessage type="error" message={error} onClose={() => setError(null)} />
-            </div>
-          )}
-
-          {/* TAB 1: Sửa thông tin cá nhân */}
-          {activeTab === 'info' && (
-            <form onSubmit={handleProfileSubmit} className="space-y-4">
+          <form onSubmit={handleDoctorSubmit} className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Họ và tên</label>
-                <div className="relative">
-                  <User className="absolute left-3 top-3 text-slate-400" size={18} />
-                  <input
-                    type="text"
-                    required
-                    value={profile.fullName}
-                    onChange={(e) => setProfile({ ...profile, fullName: e.target.value })}
-                    className="w-full pl-10 pr-4 py-2.5 border border-mint-light bg-mint-soft rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-pine-teal/30 focus:border-teal-primary transition text-sm"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Email tài khoản (Chỉ xem)</label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-3 text-slate-400" size={18} />
-                  <input
-                    type="email"
-                    disabled
-                    value={profile.email}
-                    className="w-full pl-10 pr-4 py-2.5 border border-slate-200 bg-slate-100 text-slate-500 rounded-xl cursor-not-allowed text-sm"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Số điện thoại</label>
-                <div className="relative">
-                  <Phone className="absolute left-3 top-3 text-slate-400" size={18} />
-                  <input
-                    type="tel"
-                    required
-                    value={profile.phone}
-                    onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
-                    className="w-full pl-10 pr-4 py-2.5 border border-mint-light bg-mint-soft rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-pine-teal/30 focus:border-teal-primary transition text-sm"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-mint-light space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-pine-teal" />
-                    Hồ Sơ Y Tế & Thông Tin Khám Chữa Bệnh
-                  </h3>
-                  <span className="text-xs text-slate-500">Phục vụ xuất vé hẹn & thanh toán BHYT</span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Số Căn Cước Công Dân (CCCD / CMND)
-                    </label>
-                    <input
-                      type="text"
-                      maxLength={12}
-                      value={patientForm.cccdNumber}
-                      onChange={(e) => setPatientForm({ ...patientForm, cccdNumber: e.target.value.replace(/\D/g, '') })}
-                      placeholder="Nhập 9-12 số (Ví dụ: 079201008899)"
-                      className="w-full px-3.5 py-2.5 border border-mint-light bg-mint-soft rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-pine-teal/30 focus:border-teal-primary transition text-sm font-mono"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Mã Số Thẻ BHYT (Nếu có)
-                    </label>
-                    <input
-                      type="text"
-                      maxLength={15}
-                      value={patientForm.healthInsuranceNo}
-                      onChange={(e) => setPatientForm({ ...patientForm, healthInsuranceNo: e.target.value.toUpperCase() })}
-                      placeholder="Ví dụ: DN4790123456789"
-                      className="w-full px-3.5 py-2.5 border border-mint-light bg-mint-soft rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-pine-teal/30 focus:border-teal-primary transition text-sm font-mono uppercase"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Ngày Sinh
-                    </label>
-                    <input
-                      type="date"
-                      value={patientForm.dateOfBirth}
-                      onChange={(e) => setPatientForm({ ...patientForm, dateOfBirth: e.target.value })}
-                      className="w-full px-3.5 py-2.5 border border-mint-light bg-mint-soft rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-pine-teal/30 focus:border-teal-primary transition text-sm"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Giới Tính
-                    </label>
-                    <select
-                      value={patientForm.gender}
-                      onChange={(e) => setPatientForm({ ...patientForm, gender: e.target.value as any })}
-                      className="w-full px-3.5 py-2.5 border border-mint-light bg-mint-soft rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-pine-teal/30 focus:border-teal-primary transition text-sm cursor-pointer"
-                    >
-                      <option value="MALE">Nam</option>
-                      <option value="FEMALE">Nữ</option>
-                      <option value="OTHER">Khác</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Địa Chỉ Thường Trú / Tạm Trú
-                  </label>
-                  <input
-                    type="text"
-                    value={patientForm.address}
-                    onChange={(e) => setPatientForm({ ...patientForm, address: e.target.value })}
-                    placeholder="Số nhà, đường, phường/xã, quận/huyện, tỉnh/thành phố..."
-                    className="w-full px-3.5 py-2.5 border border-mint-light bg-mint-soft rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-pine-teal/30 focus:border-teal-primary transition text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Tiền Sử Bệnh Án & Dị Ứng Thuốc
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={patientForm.medicalHistory}
-                    onChange={(e) => setPatientForm({ ...patientForm, medicalHistory: e.target.value })}
-                    placeholder="Ví dụ: Tăng huyết áp, dị ứng kháng sinh Penicillin, dị ứng phấn hoa..."
-                    className="w-full px-3.5 py-2.5 border border-mint-light bg-mint-soft rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-pine-teal/30 focus:border-teal-primary transition text-sm"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-3">
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="bg-pine-teal hover:bg-pine-teal-hover text-white font-bold px-6 py-2.5 rounded-xl shadow-xs transition disabled:opacity-50 flex items-center gap-2 cursor-pointer text-sm"
-                >
-                  <Save size={18} />
-                  {loading ? 'Đang lưu...' : 'Lưu Thay Đổi Hồ Sơ'}
-                </button>
-              </div>
-            </form>
-          )}
-
-          {/* TAB 2: Đổi mật khẩu */}
-          {activeTab === 'password' && (
-            <form onSubmit={handlePasswordSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Mật khẩu hiện tại</label>
-                <div className="relative">
-                  <KeyRound className="absolute left-3 top-3 text-slate-400" size={18} />
-                  <input
-                    type="password"
-                    required
-                    value={passwords.currentPassword}
-                    onChange={(e) => setPasswords({ ...passwords, currentPassword: e.target.value })}
-                    placeholder="Nhập mật khẩu đang dùng"
-                    className="w-full pl-10 pr-4 py-2.5 border border-mint-light bg-mint-soft rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-pine-teal/30 focus:border-teal-primary transition text-sm"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Mật khẩu mới</label>
-                <div className="relative">
-                  <KeyRound className="absolute left-3 top-3 text-slate-400" size={18} />
-                  <input
-                    type="password"
-                    required
-                    minLength={6}
-                    value={passwords.newPassword}
-                    onChange={(e) => setPasswords({ ...passwords, newPassword: e.target.value })}
-                    placeholder="Tối thiểu 6 ký tự"
-                    className="w-full pl-10 pr-4 py-2.5 border border-mint-light bg-mint-soft rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-pine-teal/30 focus:border-teal-primary transition text-sm"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Xác nhận mật khẩu mới</label>
-                <div className="relative">
-                  <KeyRound className="absolute left-3 top-3 text-slate-400" size={18} />
-                  <input
-                    type="password"
-                    required
-                    value={passwords.confirmPassword}
-                    onChange={(e) => setPasswords({ ...passwords, confirmPassword: e.target.value })}
-                    placeholder="Nhập lại mật khẩu mới"
-                    className="w-full pl-10 pr-4 py-2.5 border border-mint-light bg-mint-soft rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-pine-teal/30 focus:border-teal-primary transition text-sm"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-3">
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="bg-pine-teal hover:bg-pine-teal-hover text-white font-bold px-6 py-2.5 rounded-xl shadow-xs transition disabled:opacity-50 flex items-center gap-2 cursor-pointer text-sm"
-                >
-                  <KeyRound size={18} />
-                  {loading ? 'Đang xử lý...' : 'Xác nhận Đổi mật khẩu'}
-                </button>
-              </div>
-            </form>
-          )}
-
-          {/* TAB 3: Bác sĩ cập nhật hồ sơ chuyên môn */}
-          {activeTab === 'doctor' && isDoctor && (
-            <form onSubmit={handleDoctorSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Học vị / Chức danh</label>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">Học vị / Chức danh *</label>
                 <input
                   type="text"
                   required
                   value={doctorForm.academicTitle}
                   onChange={(e) => setDoctorForm({ ...doctorForm, academicTitle: e.target.value })}
-                  placeholder="BS.CKI, BS.CKII, ThS, PGS.TS..."
-                  className="w-full px-3.5 py-2.5 border border-slate-200 bg-slate-50 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500 text-sm"
+                  placeholder="BS.CKI, ThS, PGS.TS..."
+                  className="w-full px-3 py-1.5 border border-slate-200 bg-slate-50 rounded-lg outline-none focus:bg-white focus:ring-1 focus:ring-emerald-500 text-xs"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Tiểu sử & Chuyên môn giới thiệu</label>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">Tiểu sử & Giới thiệu</label>
                 <textarea
-                  rows={3}
+                  rows={2}
                   value={doctorForm.bio}
                   onChange={(e) => setDoctorForm({ ...doctorForm, bio: e.target.value })}
-                  placeholder="Giới thiệu kinh nghiệm khám chữa bệnh, chứng chỉ hành nghề..."
-                  className="w-full px-3.5 py-2.5 border border-slate-200 bg-slate-50 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-emerald-500 text-sm"
+                  placeholder="Kinh nghiệm khám chữa bệnh, chứng chỉ hành nghề..."
+                  className="w-full px-3 py-1.5 border border-slate-200 bg-slate-50 rounded-lg outline-none focus:bg-white focus:ring-1 focus:ring-emerald-500 text-xs"
                 />
               </div>
+            </div>
 
-              <div className="pt-3">
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl shadow-sm transition disabled:bg-emerald-300 flex items-center gap-2 cursor-pointer"
-                >
-                  <Save size={18} />
-                  {loading ? 'Đang lưu...' : 'Lưu hồ sơ Bác sĩ'}
-                </button>
-              </div>
-            </form>
-          )}
+            <div className="pt-1 flex justify-end">
+              <button
+                type="submit"
+                disabled={loading}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-5 py-2 rounded-xl shadow-xs transition disabled:bg-emerald-300 flex items-center gap-1.5 cursor-pointer text-xs"
+              >
+                <Save size={15} />
+                {loading ? 'Đang lưu...' : 'Lưu hồ sơ Bác sĩ'}
+              </button>
+            </div>
+          </form>
         </div>
-      </div>
+      )}
     </div>
   );
 }

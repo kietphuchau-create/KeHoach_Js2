@@ -243,95 +243,14 @@ export default function StatisticsOverview() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-in fade-in duration-150">
-      {/* ── Thanh Context Bar kiểu Google Analytics (Màu Cam / Header Tối Giản) ── */}
-      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 mb-1">
-            <span className="text-amber-600 font-bold">medsched.clinic.vn</span>
-            <span>&rsaquo;</span>
-            <span className="text-slate-700">Phân Hệ Thống Kê &amp; Báo Cáo Phòng Khám</span>
-            <span>&rsaquo;</span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-              AUDIENCE OVERVIEW
-            </span>
-          </div>
-
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2.5">
-            <BarChart3 className="text-sky-600" size={26} />
-            <span>
-              {activeRole === 'ROLE_ADMIN' && 'Tổng Quan Hoạt Động Toàn Viện'}
-              {activeRole === 'ROLE_DOCTOR' && (
-                isAdmin 
-                  ? `Báo Cáo Năng Suất - ${dataset.selectedDoctorName || 'Bác Sĩ'}`
-                  : `Báo Cáo Năng Suất Cá Nhân - ${currentUser?.fullName || dataset.selectedDoctorName || 'Bác Sĩ'}`
-              )}
-              {activeRole === 'ROLE_STAFF' && 'Báo Cáo Tiếp Đón & Thu Ngân Ca Trực'}
-            </span>
-            {isLoading && (
-              <RefreshCw size={16} className="text-sky-500 animate-spin ml-1" />
-            )}
-          </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            {activeRole === 'ROLE_ADMIN' && 'Số liệu toàn diện về lưu lượng bệnh nhân, doanh thu viện phí và hiệu suất bác sĩ.'}
-            {activeRole === 'ROLE_DOCTOR' && (
-              isAdmin
-                ? `Chi tiết các ca khám hoàn tất, đơn thuốc đã kê và thời gian trung bình của ${dataset.selectedDoctorName || 'bác sĩ'}.`
-                : `Theo dõi tiến độ khám cá nhân, thời gian trung bình/ca và các bệnh lý bạn đã kê đơn trong kỳ.`
-            )}
-            {activeRole === 'ROLE_STAFF' && 'Kiểm soát số lượng check-in sảnh chờ, ca vãng lai và kết toán tiền thu ca trực.'}
-          </p>
-        </div>
-
-        {/* Thanh Điều Khiển Bộ Lọc Thời Gian Google Analytics (Date Picker Preset) */}
-        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-start md:justify-end">
-          <div className="relative">
-            <select
-              value={presetRange}
-              onChange={(e: any) => setPresetRange(e.target.value)}
-              className="appearance-none bg-slate-50 hover:bg-slate-100 border border-slate-300 text-slate-800 text-xs font-bold rounded-xl px-3.5 py-2.5 pr-8 focus:ring-2 focus:ring-sky-500 focus:outline-none transition cursor-pointer shadow-2xs"
-            >
-              <option value="TODAY">📅 Hôm nay (Thời gian thực)</option>
-              <option value="LAST_7_DAYS">📅 7 ngày gần nhất</option>
-              <option value="LAST_30_DAYS">📅 30 ngày gần nhất</option>
-              <option value="THIS_MONTH">📅 Tháng này (Tháng 10/2026)</option>
-            </select>
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400">
-              <Calendar size={14} />
-            </div>
-          </div>
-
-          {/* Nút Trợ Lý AI Báo Cáo (MCP Analytics) */}
-          <button
-            type="button"
-            onClick={() => setShowAiModal(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-gradient-to-r from-teal-700 to-teal-900 hover:from-teal-800 hover:to-slate-900 text-white border border-teal-500/40 transition cursor-pointer shadow-md"
-            title="Hỏi đáp và trích xuất số liệu phòng khám thông minh qua AI (MCP)"
-          >
-            <Bot size={15} className="text-teal-300 animate-pulse" />
-            <span>Trợ Lý AI Báo Cáo</span>
-          </button>
-
-          {/* Nút Xuất Báo Cáo CSV / Excel */}
-          <button
-            type="button"
-            onClick={handleExport}
-            disabled={isExporting}
-            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-white text-slate-700 hover:bg-slate-50 border border-slate-300 transition cursor-pointer shadow-2xs"
-            title="Xuất dữ liệu thống kê ra file Excel / CSV có dấu tiếng Việt"
-          >
-            <FileSpreadsheet size={15} className="text-emerald-600" />
-            <span>{isExporting ? 'Đang Xuất...' : 'Xuất Báo Cáo'}</span>
-          </button>
-        </div>
-      </div>
-
-      {/* ── Bộ Chọn Phạm Vi Báo Cáo (Scope Selector Cho Ban Quản Trị / Demo) ── */}
-      {isAdmin && (
-        <div className="bg-gradient-to-r from-sky-50/80 via-white to-sky-50/80 border border-sky-200/90 rounded-2xl p-3.5 px-4 flex flex-wrap items-center justify-between gap-3 text-xs shadow-2xs">
+      {/* ── Thanh Điều Khiển: Phạm Vi Phân Tích & Bộ Lọc Thời Gian / Nút Báo Cáo ── */}
+      <div className="bg-white p-3.5 px-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-wrap items-center justify-between gap-3 text-xs">
+        {/* Bên trái: Phạm vi phân tích */}
+        {isAdmin ? (
           <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2 font-bold text-slate-800">
-              <span className="p-1.5 rounded-lg bg-sky-100 text-sky-700">
-                <Filter size={15} />
+            <div className="flex items-center gap-2 font-bold text-slate-700">
+              <span className="p-1.5 rounded-lg bg-teal-50 text-teal-primary border border-teal-100">
+                <Filter size={14} />
               </span>
               <span>Phạm vi phân tích:</span>
             </div>
@@ -355,7 +274,7 @@ export default function StatisticsOverview() {
                     setSelectedMetricId('doctor_visits');
                   }
                 }}
-                className="appearance-none bg-white hover:bg-slate-50 border border-sky-300 font-bold text-slate-800 text-xs rounded-xl pl-3.5 pr-8 py-2 focus:ring-2 focus:ring-sky-500 focus:outline-none transition cursor-pointer shadow-2xs"
+                className="appearance-none bg-slate-50 hover:bg-slate-100/80 border border-slate-200 font-bold text-slate-800 text-xs rounded-xl pl-3.5 pr-8 py-2 focus:ring-2 focus:ring-teal-primary focus:outline-none transition cursor-pointer shadow-xs"
               >
                 <option value="ROLE_ADMIN">🏥 Toàn Viện (Ban Giám Đốc / Toàn Bộ Phòng Khám)</option>
                 <optgroup label="🩺 Báo cáo theo Bác Sĩ (Số liệu cá nhân thực tế)">
@@ -377,34 +296,58 @@ export default function StatisticsOverview() {
               </div>
             </div>
           </div>
-
-          <div className="flex items-center gap-2 text-xs">
-            {activeRole === 'ROLE_DOCTOR' ? (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Đang xem dữ liệu thực của <strong>{dataset.selectedDoctorName || 'bác sĩ'}</strong>
-              </span>
-            ) : activeRole === 'ROLE_ADMIN' ? (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-50 text-sky-700 border border-sky-200 font-medium">
-                <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
-                Tổng hợp tất cả chuyên khoa &amp; luồng khám
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-medium">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                Thống kê quầy tiếp đón bệnh nhân
-              </span>
-            )}
+        ) : (
+          <div className="flex items-center gap-2 font-bold text-slate-800">
+            <span className="p-1.5 rounded-lg bg-teal-50 text-teal-primary border border-teal-100">
+              <BarChart3 size={15} />
+            </span>
+            <span>
+              {activeRole === 'ROLE_DOCTOR' && `Báo Cáo Năng Suất - ${currentUser?.fullName || dataset.selectedDoctorName || 'Bác Sĩ'}`}
+              {activeRole === 'ROLE_STAFF' && 'Báo Cáo Tiếp Đón & Thu Ngân Ca Trực'}
+            </span>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* ── Thống kê ca trực & khung giờ khám bệnh (Chuyển từ Lịch trực sang) ── */}
-      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-xs space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+        {/* Bên phải: Bộ lọc 30 ngày, Trợ lý AI và Xuất báo cáo (Đem xuống ngang hàng) */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Bộ lọc thời gian */}
+          <div className="relative">
+            <select
+              value={presetRange}
+              onChange={(e: any) => setPresetRange(e.target.value)}
+              className="appearance-none bg-slate-50 hover:bg-slate-100/80 border border-slate-200 text-slate-800 text-xs font-bold rounded-xl px-3.5 py-2 pr-8 focus:ring-2 focus:ring-teal-primary focus:outline-none transition cursor-pointer shadow-xs"
+            >
+              <option value="TODAY">📅 Hôm nay (Thời gian thực)</option>
+              <option value="LAST_7_DAYS">📅 7 ngày gần nhất</option>
+              <option value="LAST_30_DAYS">📅 30 ngày gần nhất</option>
+              <option value="THIS_MONTH">📅 Tháng này (Tháng 10/2026)</option>
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400">
+              <Calendar size={13} />
+            </div>
+          </div>
+
+
+          {/* Nút Xuất Báo Cáo CSV / Excel */}
+          <button
+            type="button"
+            onClick={handleExport}
+            disabled={isExporting}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 transition cursor-pointer shadow-xs"
+            title="Xuất dữ liệu thống kê ra file Excel / CSV có dấu tiếng Việt"
+          >
+            <FileSpreadsheet size={14} className="text-emerald-600" />
+            <span>{isExporting ? 'Đang Xuất...' : 'Xuất Báo Cáo'}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* ── Thống kê ca trực & khung giờ khám bệnh (Giải phóng 4 Card độc lập, bỏ khung bọc ngoài) ── */}
+      <div className="space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-teal-50 border border-teal-200 text-teal-800 flex items-center justify-center font-bold">
-              <Calendar size={16} />
+            <div className="w-7 h-7 rounded-lg bg-teal-50 border border-teal-200 text-teal-800 flex items-center justify-center font-bold">
+              <Calendar size={15} />
             </div>
             <div>
               <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
@@ -425,25 +368,25 @@ export default function StatisticsOverview() {
           </Link>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200/80 shadow-2xs hover:bg-slate-50 transition">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs hover:border-slate-300 transition">
             <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Tổng số ca trực</div>
-            <div className="text-xl font-black text-slate-800 mt-1">{scheduleStats.totalShifts} ca</div>
+            <div className="text-xl sm:text-2xl font-black text-slate-800 mt-1 font-mono">{scheduleStats.totalShifts} ca</div>
             <div className="text-[10px] text-slate-400 mt-0.5">Ca làm việc đã đăng ký</div>
           </div>
-          <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200/80 shadow-2xs hover:bg-slate-50 transition">
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs hover:border-teal-200 transition">
             <div className="text-[11px] font-bold text-teal-700 uppercase tracking-wider">Tổng khung giờ</div>
-            <div className="text-xl font-black text-teal-800 mt-1">{scheduleStats.totalSlotsCount} slots</div>
+            <div className="text-xl sm:text-2xl font-black text-teal-800 mt-1 font-mono">{scheduleStats.totalSlotsCount} slots</div>
             <div className="text-[10px] text-teal-600/70 mt-0.5">Tổng số lượt khám mở</div>
           </div>
-          <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200/80 shadow-2xs hover:bg-slate-50 transition">
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs hover:border-emerald-200 transition">
             <div className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider">Khung giờ còn trống</div>
-            <div className="text-xl font-black text-emerald-700 mt-1">{scheduleStats.totalAvailableCount} slots</div>
+            <div className="text-xl sm:text-2xl font-black text-emerald-700 mt-1 font-mono">{scheduleStats.totalAvailableCount} slots</div>
             <div className="text-[10px] text-emerald-600/70 mt-0.5">Khả dụng đón bệnh nhân</div>
           </div>
-          <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200/80 shadow-2xs hover:bg-slate-50 transition">
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs hover:border-blue-200 transition">
             <div className="text-[11px] font-bold text-blue-700 uppercase tracking-wider">Đã có người đặt</div>
-            <div className="text-xl font-black text-blue-700 mt-1">{scheduleStats.totalBookedCount} bệnh nhân</div>
+            <div className="text-xl sm:text-2xl font-black text-blue-700 mt-1 font-mono">{scheduleStats.totalBookedCount} bệnh nhân</div>
             <div className="text-[10px] text-blue-600/70 mt-0.5">Lịch hẹn đã xác nhận</div>
           </div>
         </div>

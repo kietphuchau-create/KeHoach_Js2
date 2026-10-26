@@ -1586,6 +1586,7 @@ export default function BookingMethodSelector({
   const [qrCountdown, setQrCountdown] = useState<number>(300);
   const [isCheckingAuto, setIsCheckingAuto] = useState<boolean>(false);
   const [isPaymentVerified, setIsPaymentVerified] = useState<boolean>(false);
+  const isPaymentVerifiedRef = useRef<boolean>(false);
   const [payOsData, setPayOsData] = useState<{
     accountNumber?: string;
     accountName?: string;
@@ -1714,8 +1715,9 @@ export default function BookingMethodSelector({
         if (res?.status === 'SUCCEEDED' || res?.success) {
           clearInterval(polling);
           clearInterval(timer);
+          isPaymentVerifiedRef.current = true;
           setIsPaymentVerified(true);
-          handleConfirmFinalBooking();
+          handleConfirmFinalBooking(true);
         }
       } catch (err) {
         // Tiếp tục polling ngầm
@@ -1851,6 +1853,7 @@ export default function BookingMethodSelector({
     setCustomNatureInput('');
     setOtherSymptomDetail('');
     setIsPaymentVerified(false);
+    isPaymentVerifiedRef.current = false;
     setCheckManualMessage('');
     setPromoCode('');
     setPromoSuccessMsg('');
@@ -2657,6 +2660,8 @@ export default function BookingMethodSelector({
       const valRes = validatePromotion(foundPromo, 2000);
       const isFree = valRes.valid ? valRes.isFree : (foundPromo !== 'DEMO2K' && foundPromo !== 'UDAI2K');
       if (isFree) {
+        setIsPaymentVerified(true);
+        isPaymentVerifiedRef.current = true;
         setPromoSuccessMsg(`Áp dụng thành công mã ${foundPromo}! Giảm 100% tiền cọc (0 VNĐ).`);
         api.confirmRealPayment({
           bookingCode: transferBookingCode,
@@ -3315,9 +3320,10 @@ export default function BookingMethodSelector({
       const isFree = valRes.valid ? valRes.isFree : (code !== 'DEMO2K' && code !== 'UDAI2K');
       if (isFree) {
         setIsPaymentVerified(true);
+        isPaymentVerifiedRef.current = true;
         setPromoSuccessMsg(valRes.valid ? `Áp dụng thành công mã ${code}! ${valRes.message}` : `Áp dụng thành công mã ${code}! Giảm 100% tiền cọc (0 VNĐ).`);
         setTimeout(() => {
-          handleConfirmFinalBooking();
+          handleConfirmFinalBooking(true);
         }, 800);
       } else {
         setPaymentTab('vietqr');
@@ -3343,8 +3349,9 @@ export default function BookingMethodSelector({
 
       if (res?.status === 'SUCCEEDED' || res?.success) {
         setIsPaymentVerified(true);
+        isPaymentVerifiedRef.current = true;
         setCheckManualMessage('✓ Đã xác thực thành công giao dịch chuyển khoản 2.000 VNĐ từ ngân hàng! Đang cấp vé hẹn...');
-        await handleConfirmFinalBooking();
+        await handleConfirmFinalBooking(true);
       } else {
         setCheckManualMessage(
           `Hệ thống chưa nhận được khoản chuyển 2.000 VNĐ với nội dung "MEDPAY ${targetCode}". Nếu bạn vừa chuyển trên App ngân hàng, vui lòng đợi 5-10 giây để cổng ngân hàng cập nhật rồi bấm kiểm tra lại (hoặc sang tab "Nhập Mã Ưu Đãi" để đặt chỗ miễn phí).`
@@ -3358,11 +3365,12 @@ export default function BookingMethodSelector({
   };
 
   // Hoàn tất đặt chỗ (Bước 6) — GHI NHẬN CSDL VÀ CHUYỂN CONFIRMED
-  const handleConfirmFinalBooking = async () => {
+  const handleConfirmFinalBooking = async (bypassVerification: boolean | unknown = false) => {
     if (isBookingSubmitting) return;
 
-    // Bắt buộc phải có xác nhận thanh toán thật qua VietQR hoặc mã ưu đãi 0đ
-    if (!isPaymentVerified && !promoCode) {
+    const isBypassed = bypassVerification === true;
+    // Bắt buộc phải có xác nhận thanh toán thật qua VietQR hoặc mã ưu đãi 0đ (kiểm tra cả ref và bypass)
+    if (!isBypassed && !isPaymentVerified && !isPaymentVerifiedRef.current && !promoCode) {
       setCheckManualMessage('Vui lòng quét mã VietQR chuyển khoản 2.000 VNĐ hoặc nhập mã ưu đãi trước khi cấp vé hẹn.');
       return;
     }
@@ -3473,6 +3481,7 @@ export default function BookingMethodSelector({
       isInitiatingAptRef.current = false;
       setAiStep('SELECT_DOCTOR_SLOT');
       setIsPaymentVerified(false);
+      isPaymentVerifiedRef.current = false;
       setTransferBookingCode('');
       setPayOsData(null);
       setCreatedAppointment(null);
@@ -4560,7 +4569,7 @@ export default function BookingMethodSelector({
                               promoSuccessMsg && isPaymentVerified ? (
                                 <button
                                   type="button"
-                                  onClick={handleConfirmFinalBooking}
+                                  onClick={() => handleConfirmFinalBooking()}
                                   disabled={isBookingSubmitting}
                                   className="w-full py-3 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
                                 >

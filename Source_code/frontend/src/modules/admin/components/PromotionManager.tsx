@@ -231,45 +231,12 @@ export default function PromotionManager() {
 
   return (
     <div className="space-y-5 animate-in fade-in duration-200">
-      {/* Alert Message */}
+      {/* Alert Message (Ghim nổi góc trên bên phải) */}
       {message && (
-        <AlertMessage type={message.type} message={message.text} onClose={() => setMessage(null)} />
+        <AlertMessage pinned type={message.type} message={message.text} onClose={() => setMessage(null)} />
       )}
 
-      {/* Top Header & Fast Cross-Navigation */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 bg-white p-4 sm:p-5 rounded-2xl border border-mint-light shadow-xs">
-        <div>
-          <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold shadow-xs">
-              <Ticket size={20} />
-            </div>
-            <div>
-              <h1 className="text-lg sm:text-xl font-extrabold text-pine-teal">Quản Lý Mã Khuyến Mãi &amp; Voucher</h1>
-              <p className="text-xs text-slate-500">Cấu hình mã ưu đãi, voucher giảm tiền cọc và theo dõi số lượt sử dụng thực tế.</p>
-            </div>
-          </div>
-        </div>
 
-        {/* Action Button */}
-        <div className="flex items-center gap-2 w-full md:w-auto justify-end flex-wrap">
-          <Link
-            href="/admin/schedule-config"
-            className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
-          >
-            <Clock size={14} />
-            <span>Cấu Hình Giờ Khám</span>
-          </Link>
-
-          <button
-            type="button"
-            onClick={handleOpenCreateModal}
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-xs"
-          >
-            <Plus size={15} />
-            <span>Tạo Mã Mới</span>
-          </button>
-        </div>
-      </div>
 
       {/* KPI Stats Row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
@@ -320,8 +287,8 @@ export default function PromotionManager() {
 
       {/* Toolbar: Search & Filter Tabs */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        {/* Tabs */}
-        <div className="flex items-center gap-1.5 bg-white p-1 rounded-xl border border-mint-light shadow-xs overflow-x-auto no-scrollbar">
+        {/* Tabs - Đã xóa khung trắng bao quanh, chuẩn hóa từng nút rời */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar whitespace-nowrap shrink-0">
           {[
             { id: 'ALL', label: 'Tất cả' },
             { id: 'active', label: 'Đang hoạt động' },
@@ -330,35 +297,46 @@ export default function PromotionManager() {
             <button
               key={tab.id}
               onClick={() => { setStatusFilter(tab.id as any); setCurrentPage(0); }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer whitespace-nowrap ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 shrink-0 whitespace-nowrap shadow-xs border ${
                 statusFilter === tab.id
-                  ? 'bg-pine-teal text-white shadow-2xs'
-                  : 'text-slate-600 hover:text-pine-teal hover:bg-mint-soft'
+                  ? 'bg-pine-teal text-white border-pine-teal'
+                  : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'
               }`}
             >
-              {tab.label}
+              <span>{tab.label}</span>
             </button>
           ))}
         </div>
 
-        {/* Search Input */}
-        <div className="relative w-full sm:w-72">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(0); }}
-            placeholder="Tìm theo mã, tên ưu đãi..."
-            className="w-full pl-9 pr-4 py-2 text-xs bg-white border border-mint-light rounded-xl focus:outline-none focus:ring-2 focus:ring-pine-teal/30 shadow-xs"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-            >
-              <X size={14} />
-            </button>
-          )}
+        {/* Search Input & Create Button */}
+        <div className="flex items-center gap-2.5 w-full sm:w-auto">
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(0); }}
+              placeholder="Tìm theo mã, tên ưu đãi..."
+              className="w-full pl-9 pr-4 py-2 text-xs bg-white border border-mint-light rounded-xl focus:outline-none focus:ring-2 focus:ring-pine-teal/30 shadow-xs"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={handleOpenCreateModal}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-xs whitespace-nowrap shrink-0"
+          >
+            <Plus size={15} />
+            <span>Tạo Mã Mới</span>
+          </button>
         </div>
       </div>
 

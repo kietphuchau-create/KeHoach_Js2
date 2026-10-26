@@ -118,9 +118,9 @@ export default function DoctorHistoryView() {
   const totalRevenue = historyList.reduce((acc, h) => acc + (Number(h.totalMedicineAmount) || 0), 0);
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 pb-16 animate-in fade-in duration-150">
-      {/* ── 1. Header Banner & Nút Điều Hướng ── */}
-      <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/90 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+    <div className="space-y-6 pb-12 animate-in fade-in duration-150">
+      {/* ── 1. Header Banner & Nút Điều Hướng (Tối Giản, Không Khung Trắng Bọc Ngoài) ── */}
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pt-1">
         <div>
           <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 mb-1">
             <span className="text-teal-700 font-bold">medsched.hospital.vn</span>
@@ -154,7 +154,7 @@ export default function DoctorHistoryView() {
             type="button"
             onClick={() => loadHistory()}
             disabled={loading}
-            className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition cursor-pointer"
+            className="p-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl transition cursor-pointer shadow-2xs"
             title="Làm mới danh sách"
           >
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />

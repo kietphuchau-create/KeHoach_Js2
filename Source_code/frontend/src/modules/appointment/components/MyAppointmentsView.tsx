@@ -468,27 +468,28 @@ export default function MyAppointmentsView() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50/50 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-5xl mx-auto space-y-6">
-        
-        {/* Header Title Section */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-5 sm:p-6 rounded-2xl border border-mint-light shadow-xs">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
-              Phiếu Khám Và Lịch Sử Hẹn
-            </h1>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Link
-              href="/booking"
-              className="flex items-center gap-2 text-xs font-bold text-white bg-pine-teal hover:bg-pine-teal-hover px-4 py-2 rounded-xl shadow-xs transition cursor-pointer"
-            >
-              <PlusCircle size={15} />
-              <span>Đặt Lịch Khám Mới</span>
-            </Link>
-          </div>
+    <div className="space-y-6 animate-in fade-in duration-150">
+      {/* Header Title Section */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-1">
+        <div>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+            Phiếu Khám Và Lịch Sử Hẹn
+          </h1>
+          <p className="text-xs text-slate-500 mt-1">
+            Quản lý danh sách các lượt đặt lịch, tra cứu mã QR tiếp đón và kết quả khám bệnh.
+          </p>
         </div>
+
+        <div className="flex items-center gap-3">
+          <Link
+            href="/booking"
+            className="flex items-center gap-2 text-xs font-bold text-white bg-pine-teal hover:bg-pine-teal-hover px-4 py-2.5 rounded-xl shadow-xs transition cursor-pointer"
+          >
+            <PlusCircle size={15} />
+            <span>Đặt Lịch Khám Mới</span>
+          </Link>
+        </div>
+      </div>
 
         {/* Filter Tabs */}
         {/* Mobile Dropdown (lg:hidden) */}
@@ -653,9 +654,10 @@ export default function MyAppointmentsView() {
           })}
         </div>
 
-        {/* Success Alert */}
+        {/* Success Alert (Ghim nổi góc trên bên phải) */}
         {cancelSuccessMsg && (
           <AlertMessage
+            pinned
             type="success"
             message={cancelSuccessMsg}
             onClose={() => setCancelSuccessMsg(null)}
@@ -664,15 +666,17 @@ export default function MyAppointmentsView() {
 
         {rescheduleSuccessMsg && (
           <AlertMessage
+            pinned
             type="success"
             message={rescheduleSuccessMsg}
             onClose={() => setRescheduleSuccessMsg(null)}
           />
         )}
 
-        {/* Error Alert */}
+        {/* Error Alert (Ghim nổi góc trên bên phải) */}
         {error && (
           <AlertMessage
+            pinned
             type="error"
             message={error}
             onClose={() => setError(null)}
@@ -916,7 +920,6 @@ export default function MyAppointmentsView() {
             })}
           </div>
         )}
-      </div>
 
       {/* QR Code Check-in Modal */}
       {selectedAppointment && (
