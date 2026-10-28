@@ -36,13 +36,27 @@ public class AiRequestGuard {
     private final java.util.function.Supplier<Bucket> bucketFactory;
 
     public Decision check(String key, String message) {
+        return check(key, message, "");
+    }
+
+    /**
+     * Kiểm tra yêu cầu AI theo cả nội dung và ngữ cảnh hội thoại. Cùng một câu
+     * trả lời ngắn (ví dụ "không" hoặc "tiểu buốt") vẫn hợp lệ nếu bệnh nhân
+     * đang trả lời một câu hỏi làm rõ mới; chỉ yêu cầu lặp trong cùng ngữ cảnh
+     * mới được xem là thao tác gửi trùng.
+     */
+    public Decision check(String key, String message, String conversationContext) {
         if (message == null || message.isBlank()) return Decision.reject("Tin nhắn không được để trống.", 0);
         if (message.length() > maxMessageChars) {
             return Decision.reject("Tin nhắn quá dài. Vui lòng rút gọn còn tối đa " + maxMessageChars + " ký tự.", 0);
         }
         String safeKey = key == null || key.isBlank() ? "anonymous" : key;
         Instant now = Instant.now();
-        String fingerprint = message.trim().toLowerCase(java.util.Locale.ROOT);
+        String normalizedMessage = message.trim().toLowerCase(java.util.Locale.ROOT);
+        String normalizedContext = conversationContext == null
+                ? ""
+                : conversationContext.trim().toLowerCase(java.util.Locale.ROOT);
+        String fingerprint = normalizedMessage + "|ctx:" + Integer.toHexString(normalizedContext.hashCode());
         DuplicateState duplicate = duplicateStates.computeIfAbsent(safeKey, ignored -> new DuplicateState());
         synchronized (duplicate) {
             if (fingerprint.equals(duplicate.lastMessage) && duplicate.lastAt != null

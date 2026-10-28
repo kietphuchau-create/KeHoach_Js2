@@ -2,7 +2,6 @@ package com.medsched.app.adapter.in.web;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.medsched.app.adapter.in.ai.MedSchedAiTools;
-import com.medsched.app.adapter.out.ai.GeminiGeneralAssistantService;
 import com.medsched.app.adapter.out.ai.InternalKnowledgeRagService;
 import com.medsched.app.adapter.out.ai.PatientBookingRecommendationService;
 import com.medsched.core.port.out.AiTriagePort;
@@ -23,7 +22,6 @@ import org.springframework.security.test.context.support.WithMockUser;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -65,14 +63,13 @@ class TriageControllerIntegrationTest {
     private InternalKnowledgeRagService knowledgeRag;
 
     @MockBean
-    private GeminiGeneralAssistantService generalAssistant;
-
-    @MockBean
     private PatientBookingRecommendationService bookingRecommendations;
 
     @BeforeEach
     void allowAiRequests() {
         given(aiRequestGuard.check(any(), any()))
+                .willReturn(new AiRequestGuard.Decision(true, null, 0));
+        given(aiRequestGuard.check(any(), any(), any()))
                 .willReturn(new AiRequestGuard.Decision(true, null, 0));
     }
 
@@ -170,19 +167,75 @@ class TriageControllerIntegrationTest {
 
     @Test
     @WithMockUser(username = "patient@medsched.vn", roles = "PATIENT")
-    @DisplayName("Unrelated new question uses real AI instead of repeating old symptom")
-    void unrelatedQuestionUsesGeneralAi() throws Exception {
+    @DisplayName("Unrelated patient question is rejected without using an external AI")
+    void unrelatedQuestionIsRejected() throws Exception {
         String context = "[USER] Tôi bị đau đầu\n[ASSISTANT] Bạn đau ở vị trí nào?";
-        given(generalAssistant.answerDetailed("Thủ đô của Nhật Bản là gì?", "PATIENT", context))
-                .willReturn(Optional.of(new GeminiGeneralAssistantService.AiAnswer(
-                        "Thủ đô của Nhật Bản là Tokyo.", "OPENROUTER_API")));
+        given(knowledgeRag.retrieve(any())).willReturn(java.util.Optional.empty());
+        given(knowledgeRag.isMedicalQuestion(any())).willReturn(false);
         var request = new TriageController.ChatRequest("Thủ đô của Nhật Bản là gì?", "PATIENT", context);
 
         mockMvc.perform(post("/api/ai/chat")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.reply").value("Thủ đô của Nhật Bản là Tokyo."))
-                .andExpect(jsonPath("$.answerSource").value("OPENROUTER_API"));
+                .andExpect(jsonPath("$.reply").value(org.hamcrest.Matchers.containsString("chỉ hỗ trợ các vấn đề thuộc lĩnh vực y tế")))
+                .andExpect(jsonPath("$.answerSource").value("UNRELATED_GUARDRAIL"));
+    }
+
+    @Test
+    @WithMockUser(username = "patient@medsched.vn", roles = "PATIENT")
+    @DisplayName("Negative answer to an early clarification asks for enough detail to book")
+    void negativeAnswerWithInsufficientDetailsRequestsBetterDescription() throws Exception {
+        String context = "[USER] Tôi bị đau bụng bên phải\n"
+                + "[ASSISTANT] Cảm giác khó chịu là âm ỉ, nhói, quặn, nóng rát hay kiểu nào khác?";
+        var request = new TriageController.ChatRequest("không gì cả", "PATIENT", context);
+
+        mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reply").value(org.hamcrest.Matchers.containsString("chưa có đủ thông tin")))
+                .andExpect(jsonPath("$.reply").value(org.hamcrest.Matchers.containsString("hỗ trợ bạn đặt lịch ngay")))
+                .andExpect(jsonPath("$.answerSource").value("CLARIFICATION"));
+    }
+
+    @Test
+    @WithMockUser(username = "patient@medsched.vn", roles = "PATIENT")
+    @DisplayName("Negative answer after sufficient symptom details proceeds to booking support")
+    void negativeAnswerWithEnoughDetailsProceedsToTriage() throws Exception {
+        String context = "[USER] Tôi đau bụng bên phải, quặn từng cơn từ 2 ngày nay, mức độ 6/10\n"
+                + "[ASSISTANT] Bạn có kèm sốt, buồn nôn, nôn hoặc tiêu chảy không?";
+        given(aiTools.triagePatientSymptoms(any(), eq(""))).willReturn("""
+                {"specialtyCode":"INTERNAL_MEDICINE","specialtyName":"Khoa Nội Tổng Quát",
+                 "clinicalSummary":"Đau bụng bên phải, quặn từng cơn 2 ngày, mức độ 6/10",
+                 "recommendedService":"Khám Nội Tổng Quát","estimatedFee":"200.000 VNĐ",
+                 "preparationAdvice":"Mang theo hồ sơ cũ","isEmergency":false}
+                """);
+        given(bookingRecommendations.recommend("INTERNAL_MEDICINE")).willReturn(java.util.Optional.empty());
+        var request = new TriageController.ChatRequest("không", "PATIENT", context);
+
+        mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.executedTool").value("triage_patient_symptoms"))
+                .andExpect(jsonPath("$.reply").value(org.hamcrest.Matchers.containsString("Cảm ơn bạn đã cung cấp đủ thông tin")))
+                .andExpect(jsonPath("$.answerSource").value("MCP_TOOL"));
+    }
+
+    @Test
+    @WithMockUser(username = "patient@medsched.vn", roles = "PATIENT")
+    @DisplayName("Unsupported medical question reports that MedSched does not treat it")
+    void unsupportedMedicalQuestionUsesScopeGuardrail() throws Exception {
+        given(knowledgeRag.retrieve(any())).willReturn(java.util.Optional.empty());
+        given(knowledgeRag.isMedicalQuestion("MedSched có điều trị ung thư không?")).willReturn(true);
+        var request = new TriageController.ChatRequest("MedSched có điều trị ung thư không?", "PATIENT", "");
+
+        mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reply").value(org.hamcrest.Matchers.containsString("không điều trị")))
+                .andExpect(jsonPath("$.answerSource").value("INTERNAL_SCOPE_GUARDRAIL"));
     }
 }

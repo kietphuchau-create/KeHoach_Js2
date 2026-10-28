@@ -19,10 +19,13 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -169,5 +172,20 @@ class AppointmentControllerTest {
         mockMvc.perform(get("/api/v1/appointments/booking-code/MED269780"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.bookingCode").value("MED269780"));
+    }
+
+    @Test
+    @DisplayName("GET doctor slots không tự tạo lịch giả khi bác sĩ chưa mở lịch")
+    void getDoctorSlotsReturnsEmptyWithoutCreatingSchedule() throws Exception {
+        given(timeSlotJpaRepository.findByDoctorIdAndStartTimeBetweenOrderByStartTimeAsc(
+                any(), any(), any())).willReturn(List.of());
+
+        mockMvc.perform(get("/api/appointments/doctors/doc-1/slots")
+                        .param("date", "2030-01-02"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isEmpty());
+
+        verify(doctorScheduleJpaRepository, never()).save(any());
+        verify(timeSlotJpaRepository, never()).saveAll(any());
     }
 }
