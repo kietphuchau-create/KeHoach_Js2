@@ -29,8 +29,10 @@
 
 | Tên biến (Key) | Giá trị (Value) | Ghi chú |
 |:---|:---|:---|
-| `MAIL_USERNAME` | `kietphuchau@gmail.com` | Tài khoản Gmail gửi OTP |
-| `MAIL_PASSWORD` | `tfloxaswoahvffmz` | Mật khẩu ứng dụng Google (đã test thành công 100%) |
+| `MAIL_USERNAME` | `<email-gửi-otp>` | Tài khoản Gmail gửi OTP; cấu hình trực tiếp trên Render, không commit vào Git |
+| `MAIL_PASSWORD` | `<app-password-mới>` | App Password phải được lưu trong secret manager của Render |
+
+> App Password từng xuất hiện trong Git phải được thu hồi và tạo lại trước khi triển khai.
 
 - [ ] Nhấn **Save Changes** để lưu cấu hình.
 

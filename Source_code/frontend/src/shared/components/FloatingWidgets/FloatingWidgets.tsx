@@ -1,16 +1,42 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Phone, ArrowUp, MessageCircle, Bot, Sparkles } from 'lucide-react';
-import { useRouter, usePathname } from 'next/navigation';
+import { Phone, ArrowUp, Bot } from 'lucide-react';
+import { usePathname } from 'next/navigation';
 import UniversalAiAssistantModal from '@/shared/components/Feedback/UniversalAiAssistantModal';
-import { getAuthToken } from '@/shared/lib/api';
+import { getAuthUser } from '@/shared/lib/api';
+
+type InternalAssistantRole = 'STAFF' | 'DOCTOR' | 'ADMIN';
 
 export default function FloatingWidgets() {
-  const router = useRouter();
   const pathname = usePathname();
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [showAiModal, setShowAiModal] = useState(false);
+  const [assistantRole, setAssistantRole] = useState<InternalAssistantRole | null>(null);
+
+  useEffect(() => {
+    const syncAssistantRole = () => {
+      const user = getAuthUser();
+      const roles: string[] = user?.roles || [];
+      const legacyRole = String(user?.role || '').toUpperCase();
+      const hasRole = (role: string) => roles.some(value => value === role || value.startsWith(`${role}@`));
+
+      if (hasRole('ROLE_ADMIN') || legacyRole === 'ADMIN' || legacyRole === 'ROLE_ADMIN') {
+        setAssistantRole('ADMIN');
+      } else if (hasRole('ROLE_DOCTOR') || legacyRole === 'DOCTOR' || legacyRole === 'ROLE_DOCTOR') {
+        setAssistantRole('DOCTOR');
+      } else if (hasRole('ROLE_STAFF') || legacyRole === 'STAFF' || legacyRole === 'ROLE_STAFF') {
+        setAssistantRole('STAFF');
+      } else {
+        setAssistantRole(null);
+        setShowAiModal(false);
+      }
+    };
+
+    syncAssistantRole();
+    window.addEventListener('auth-change', syncAssistantRole);
+    return () => window.removeEventListener('auth-change', syncAssistantRole);
+  }, [pathname]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -25,24 +51,8 @@ export default function FloatingWidgets() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Dọn dẹp cờ cũ nếu còn sót lại để tránh tự động hiện khung chat không mong muốn
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      sessionStorage.removeItem('medsched_open_ai');
-    }
-  }, []);
-
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleOpenAi = () => {
-    const token = getAuthToken();
-    if (!token) {
-      router.push(`/login?reason=ai_required&redirect=${encodeURIComponent(pathname || '/')}`);
-      return;
-    }
-    setShowAiModal(true);
   };
 
   // Không hiển thị nút nổi trên các trang xác thực, chọn phương thức đặt lịch
@@ -56,34 +66,27 @@ export default function FloatingWidgets() {
     return null;
   }
 
-  // Xác định vai trò mặc định theo URL
-  const defaultRole = pathname.startsWith('/reception')
-    ? 'STAFF'
-    : pathname.startsWith('/doctor')
-    ? 'DOCTOR'
-    : pathname.startsWith('/admin') || pathname.startsWith('/statistics')
-    ? 'ADMIN'
-    : 'PATIENT';
-
   return (
     <>
       <div className="fixed bottom-3 right-2.5 sm:bottom-6 sm:right-5 z-40 flex flex-col items-center gap-2 sm:gap-2.5 select-none">
-        {/* Nút Trợ Lý AI Thông Minh (MCP) - Không hiển thị ở trang đặt lịch khám thủ công để trải nghiệm thuần tuý */}
-        {!pathname?.startsWith('/booking') && (
+
+        {/* Trợ lý AI nội bộ cho Bác sĩ, Lễ tân và Quản trị viên */}
+        {assistantRole && (
           <button
             type="button"
-            onClick={handleOpenAi}
-            title="Trợ lý AI MedSched (MCP Protocol)"
-            className="w-10 h-10 sm:w-13 sm:h-13 rounded-full bg-gradient-to-tr from-teal-700 to-teal-500 text-white flex items-center justify-center shadow-xl hover:scale-110 active:scale-95 transition-all duration-300 group relative cursor-pointer ring-4 ring-teal-400/30 animate-bounce hover:animate-none"
+            onClick={() => setShowAiModal(true)}
+            title={assistantRole === 'DOCTOR'
+              ? 'Mở Trợ lý AI Bác sĩ'
+              : assistantRole === 'STAFF'
+                ? 'Mở Trợ lý AI Lễ tân'
+                : 'Mở Trợ lý AI Quản trị viên'}
+            aria-label="Mở Trợ lý AI MedSched"
+            className="w-11 h-11 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-teal-600 via-teal-700 to-slate-900 text-white flex items-center justify-center shadow-xl shadow-teal-900/25 hover:scale-110 active:scale-95 transition-all duration-300 group relative cursor-pointer border-2 border-white/80"
           >
-            <Bot size={22} className="group-hover:rotate-12 transition-transform" />
-            <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 border-2 border-white"></span>
-            </span>
-            <span className="absolute right-full mr-2.5 px-2.5 py-1 rounded-lg bg-slate-900 text-white text-[11px] font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none shadow-md flex items-center gap-1.5">
-              <Sparkles size={13} className="text-amber-400" />
-              Trợ Lý AI (Lễ tân, Bác sĩ, Admin)
+            <Bot className="w-5 h-5 sm:w-6 sm:h-6" />
+            <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 border-2 border-white animate-pulse" />
+            <span className="absolute right-full mr-2.5 px-2.5 py-1 rounded-lg bg-slate-900 text-white text-[11px] font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none shadow-md">
+              Trợ lý AI {assistantRole === 'DOCTOR' ? 'Bác sĩ' : assistantRole === 'STAFF' ? 'Lễ tân' : 'Quản trị'}
             </span>
           </button>
         )}
@@ -128,11 +131,14 @@ export default function FloatingWidgets() {
         )}
       </div>
 
-      <UniversalAiAssistantModal
-        isOpen={showAiModal}
-        onClose={() => setShowAiModal(false)}
-        defaultRole={defaultRole as any}
-      />
+      {assistantRole && (
+        <UniversalAiAssistantModal
+          isOpen={showAiModal}
+          onClose={() => setShowAiModal(false)}
+          defaultRole={assistantRole}
+        />
+      )}
+
     </>
   );
 }

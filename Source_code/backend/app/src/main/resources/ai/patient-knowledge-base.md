@@ -23,3 +23,19 @@ Nếu có đau ngực dữ dội, khó thở nặng, ngất, méo miệng, yếu
 ## Giới hạn tư vấn AI
 keywords: ai, chẩn đoán, tư vấn, thuốc, bệnh gì, kết quả
 Chatbox chỉ hỗ trợ thông tin phòng khám và định hướng ban đầu, không thay thế bác sĩ và không tự kê đơn. Với câu hỏi về chẩn đoán hoặc thuốc, bạn nên đặt lịch để được bác sĩ thăm khám trực tiếp.
+
+## Chức năng dành cho bệnh nhân
+keywords: chức năng, tính năng, tài khoản, hồ sơ, đơn thuốc, lịch sử, đổi lịch, hủy lịch
+MedSched hỗ trợ đăng ký và đăng nhập, quản lý hồ sơ cá nhân, tìm cơ sở - chuyên khoa - bác sĩ, đặt lịch theo khung giờ trống, xem hoặc đổi/hủy lịch hẹn, xem đơn thuốc và theo dõi trạng thái tiếp đón. Thao tác thay đổi lịch phụ thuộc trạng thái lịch hẹn và quy định của cơ sở.
+
+## Quy trình đặt và khám
+keywords: quy trình, các bước, đặt khám, thanh toán, xác nhận, hàng đợi
+Quy trình thông thường gồm chọn cơ sở, chuyên khoa hoặc bác sĩ, chọn dịch vụ và khung giờ còn trống, xác nhận thông tin, thanh toán nếu lịch yêu cầu, nhận mã đặt lịch, check-in tại lễ tân và chờ đến lượt khám. Khung giờ hợp lệ phải là giờ còn trống do hệ thống cung cấp.
+
+## Thanh toán và hóa đơn
+keywords: thanh toán, hóa đơn, giao dịch, trạng thái thanh toán, hoàn tiền
+MedSched hiển thị trạng thái giao dịch và hóa đơn gắn với lịch khám. Nếu thanh toán chưa được ghi nhận hoặc số tiền không khớp, người bệnh nên giữ mã giao dịch và liên hệ lễ tân; chatbox không tự xác nhận hay thay đổi giao dịch.
+
+## Bảo mật dữ liệu
+keywords: bảo mật, riêng tư, dữ liệu cá nhân, hồ sơ bệnh án, mật khẩu, otp
+Chatbox chỉ dùng dữ liệu công khai của cơ sở và dữ liệu được phép theo vai trò. Chatbox không cung cấp mật khẩu, mã OTP, thông tin đăng nhập, hồ sơ bệnh án hoặc dữ liệu cá nhân của người khác.

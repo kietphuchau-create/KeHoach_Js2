@@ -38,9 +38,10 @@ type AssistantRole = 'STAFF' | 'DOCTOR' | 'ADMIN' | 'PATIENT';
 function resolveAssistantRole(defaultRole: AssistantRole): AssistantRole {
   const user = getAuthUser();
   const roles: string[] = user?.roles || [];
-  if (roles.includes('ROLE_ADMIN')) return 'ADMIN';
-  if (roles.includes('ROLE_DOCTOR')) return 'DOCTOR';
-  if (roles.includes('ROLE_STAFF')) return 'STAFF';
+  const hasRole = (role: string) => roles.some(value => value === role || value.startsWith(`${role}@`));
+  if (hasRole('ROLE_ADMIN')) return 'ADMIN';
+  if (hasRole('ROLE_DOCTOR')) return 'DOCTOR';
+  if (hasRole('ROLE_STAFF')) return 'STAFF';
   if (user) {
     const role = String(user.role || 'PATIENT').toUpperCase().replace('ROLE_', '');
     return ['STAFF', 'DOCTOR', 'ADMIN', 'PATIENT'].includes(role) ? role as AssistantRole : 'PATIENT';
@@ -123,7 +124,21 @@ export default function UniversalAiAssistantModal({
     const firstDoctor = Array.isArray(support?.doctors) ? support.doctors[0] : null;
     if (firstDoctor?.doctorId) params.set('doctorId', firstDoctor.doctorId);
     const firstSlot = firstDoctor?.availableSlots?.[0];
-    if (firstSlot?.slotId) params.set('slotId', firstSlot.slotId);
+    if (firstSlot?.slotId) {
+      params.set('slotId', firstSlot.slotId);
+      if (firstSlot.startTime) {
+        const dateParts = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Asia/Ho_Chi_Minh',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+        }).formatToParts(new Date(firstSlot.startTime));
+        const year = dateParts.find((part) => part.type === 'year')?.value;
+        const month = dateParts.find((part) => part.type === 'month')?.value;
+        const day = dateParts.find((part) => part.type === 'day')?.value;
+        if (year && month && day) params.set('bookingDate', `${year}-${month}-${day}`);
+      }
+    }
     router.push(`${support?.bookingPath || '/booking'}?${params.toString()}`);
     onClose();
   };
@@ -148,34 +163,6 @@ export default function UniversalAiAssistantModal({
 
     setMessages((prev) => [...prev, userMsg]);
     setInput('');
-
-    // Clinical Guardrail: Chặn phép toán và spam ký tự phi y tế
-    const cleanQuery = query.trim();
-    const isMathExpr = /[\+\*\/=\%\^]/.test(cleanQuery) && /^[\d\s\+\-\*\/=\.,\(\)\%\^\&]+$/.test(cleanQuery);
-    const isMathWord = /(bằng mấy|bằng bao nhiêu|giải toán|phép tính|tính giúp)/i.test(cleanQuery);
-    const isSpamSymbols = /^[!@#$%^&*()_+=\-\[\]{}|\\:;"'<>,.?/~`\s]+$/.test(cleanQuery) && cleanQuery.length >= 2;
-
-    if (isMathExpr || isMathWord) {
-      const aiMsg: Message = {
-        id: (Date.now() + 1).toString(),
-        sender: 'ai',
-        text: 'Dạ, em là Trợ lý Y tế MedSched, chuyên hỗ trợ tư vấn sức khỏe ban đầu, định hướng chuyên khoa và quy trình khám chữa bệnh tại MedSched. Em không hỗ trợ giải toán hoặc các câu hỏi ngoài phạm vi y tế. Bạn đang có dấu hiệu hoặc vấn đề sức khỏe nào cần tư vấn không ạ?',
-        time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-      };
-      setMessages((prev) => [...prev, aiMsg]);
-      return;
-    }
-
-    if (isSpamSymbols) {
-      const aiMsg: Message = {
-        id: (Date.now() + 1).toString(),
-        sender: 'ai',
-        text: 'Dạ, MedSched chưa nhận diện được thông tin từ tin nhắn của bạn. Bạn vui lòng mô tả cảm giác khó chịu hoặc triệu chứng bệnh đang gặp phải nhé!',
-        time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-      };
-      setMessages((prev) => [...prev, aiMsg]);
-      return;
-    }
 
     setLoading(true);
 

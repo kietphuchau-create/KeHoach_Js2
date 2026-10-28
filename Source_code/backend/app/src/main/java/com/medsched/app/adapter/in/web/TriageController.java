@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.medsched.app.adapter.in.ai.MedSchedAiTools;
 import com.medsched.core.port.out.AiTriagePort;
 import com.medsched.core.port.out.TriageEvaluation;
-import com.medsched.app.adapter.out.ai.GeminiGeneralAssistantService;
 import com.medsched.app.adapter.out.ai.InternalKnowledgeRagService;
 import com.medsched.app.adapter.out.ai.PatientBookingRecommendationService;
 import org.springframework.http.ResponseEntity;
@@ -19,6 +18,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.ArrayList;
+import java.text.Normalizer;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -32,20 +32,17 @@ public class TriageController {
     private final AiTriagePort aiTriagePort;
     private final MedSchedAiTools aiTools;
     private final AiRequestGuard aiRequestGuard;
-    private final GeminiGeneralAssistantService generalAssistant;
     private final InternalKnowledgeRagService knowledgeRag;
     private final PatientBookingRecommendationService bookingRecommendations;
     private final ObjectMapper objectMapper;
 
     public TriageController(AiTriagePort aiTriagePort, MedSchedAiTools aiTools, AiRequestGuard aiRequestGuard,
-                            GeminiGeneralAssistantService generalAssistant,
                             InternalKnowledgeRagService knowledgeRag,
                             PatientBookingRecommendationService bookingRecommendations,
                             ObjectMapper objectMapper) {
         this.aiTriagePort = aiTriagePort;
         this.aiTools = aiTools;
         this.aiRequestGuard = aiRequestGuard;
-        this.generalAssistant = generalAssistant;
         this.knowledgeRag = knowledgeRag;
         this.bookingRecommendations = bookingRecommendations;
         this.objectMapper = objectMapper;
@@ -136,7 +133,7 @@ public class TriageController {
             return ResponseEntity.status(403).body(chatError("Bạn không có quyền dùng trợ lý AI ở chế độ " + role + "."));
         }
         String identity = actualRole != null ? SecurityContextHolder.getContext().getAuthentication().getName() : "ip:" + httpRequest.getRemoteAddr();
-        AiRequestGuard.Decision guard = aiRequestGuard.check(identity, msg);
+        AiRequestGuard.Decision guard = aiRequestGuard.check(identity, msg, request.context());
         if (!guard.allowed()) {
             return ResponseEntity.status(429).header(HttpHeaders.RETRY_AFTER, String.valueOf(guard.retryAfterSeconds()))
                     .body(chatError(guard.message()));
@@ -184,7 +181,7 @@ public class TriageController {
         String explicitFamily = explicitSymptomFamily(lower);
         boolean continuation = explicitFamily == null && isLikelyClinicalAnswer(lower, lastAssistant);
         if (!looksLikeSymptomTriage(lower) && !continuation) {
-            return aiFirstOrInternal(message, "PATIENT", context,
+            return answerFromInternalKnowledge(message, true,
                     "Mình chưa có đủ thông tin để trả lời chắc chắn. Bạn có thể diễn đạt câu hỏi rõ hơn một chút nhé.");
         }
 
@@ -196,15 +193,18 @@ public class TriageController {
         }
 
         String family = episode.family();
+        boolean negativeFollowUp = isNegativeClinicalAnswer(lower);
         String primaryQuestion = missingPrimaryQuestion(story, family);
         if (primaryQuestion != null) {
+            if (negativeFollowUp) return insufficientSymptomDetail(family);
             return new ChatResult(primaryQuestion, null, "CLARIFICATION");
         }
         String courseQuestion = missingCourseQuestion(story);
         if (courseQuestion != null) {
+            if (negativeFollowUp) return insufficientSymptomDetail(family);
             return new ChatResult(courseQuestion, null, "CLARIFICATION");
         }
-        if (!hasAssociatedSymptoms(story)) {
+        if (!hasAssociatedSymptoms(story) && !negativeFollowUp) {
             return new ChatResult(associatedSymptomQuestion(family), null, "CLARIFICATION");
         }
 
@@ -236,7 +236,7 @@ public class TriageController {
             String raw = aiTools.getAdminAccountOverview();
             return new ChatResult(formatAdminAccounts(raw), "admin_account_overview", "MCP_TOOL");
         }
-        return aiFirstOrInternal(message, "ADMIN", context,
+        return answerFromInternalKnowledge(message, false,
                 "Tôi có thể tổng hợp dữ liệu vận hành, tài khoản đang hoạt động hoặc bị khóa, số hồ sơ bệnh nhân, bác sĩ, thuốc và tình hình khám theo ngày, tuần hoặc tháng. Bạn có thể hỏi tự nhiên, chẳng hạn: “Hiện có bao nhiêu tài khoản bị khóa?”");
     }
 
@@ -263,7 +263,7 @@ public class TriageController {
             String raw = aiTools.searchPatient(keyword);
             return new ChatResult(formatPatientSearch(raw, keyword), "search_patient", "MCP_TOOL");
         }
-        return aiFirstOrInternal(message, "STAFF", context,
+        return answerFromInternalKnowledge(message, false,
                 "Tôi có thể hỗ trợ tra cứu bệnh nhân, kiểm tra vé hẹn, tiếp đón, xem hàng đợi và liệt kê các bệnh nhân mới nhất trong ngày. Bạn cứ hỏi theo cách tự nhiên, tôi sẽ tự chọn dữ liệu phù hợp.");
     }
 
@@ -290,19 +290,57 @@ public class TriageController {
             String raw = aiTools.triagePatientSymptoms(message, "");
             return new ChatResult(formatTriageForDoctor(raw), "triage_patient_symptoms", "MCP_TOOL");
         }
-        return aiFirstOrInternal(message, "DOCTOR", context,
+        return answerFromInternalKnowledge(message, false,
                 "Tôi có thể hỗ trợ bác sĩ xem tải khám hôm nay, tóm tắt bệnh án theo mã, tra cứu danh mục thuốc và phân tích triệu chứng để tham khảo chuyên khoa. Vui lòng nêu câu hỏi hoặc mã ca khám cụ thể.");
     }
 
-    private ChatResult aiFirstOrInternal(String message, String role, String context, String fallback) {
-        var aiAnswer = generalAssistant.answerDetailed(message, role, context);
-        if (aiAnswer.isPresent()) {
-            return new ChatResult(aiAnswer.get().text(), null, aiAnswer.get().source());
+    private ChatResult answerFromInternalKnowledge(String message, boolean patient, String fallback) {
+        boolean medicalQuestion = patient && knowledgeRag.isMedicalQuestion(message);
+        if (patient && !medicalQuestion && !knowledgeRag.isClinicQuestion(message)) {
+            return unrelatedQuestion();
+        }
+        if (medicalQuestion && knowledgeRag.isUnsupportedMedicalTopic(message)) {
+            return unsupportedMedicalTopic();
         }
         var ragAnswer = knowledgeRag.retrieve(message);
-        return ragAnswer
-                .map(answer -> new ChatResult(answer.text() + "\n\nNguồn: dữ liệu hướng dẫn nội bộ MedSched.", "internal_rag_retrieval", "INTERNAL_RAG"))
-                .orElseGet(() -> new ChatResult(fallback, null, "LOCAL_ASSISTANT"));
+        if (ragAnswer.isPresent()) {
+            return new ChatResult(ragAnswer.get().text() + "\n\nNguồn: dữ liệu nội bộ MedSched.",
+                    "internal_rag_retrieval", "INTERNAL_RAG");
+        }
+        if (medicalQuestion) {
+            return unsupportedMedicalTopic();
+        }
+        if (patient) {
+            return unrelatedQuestion();
+        }
+        return new ChatResult(fallback, null, "LOCAL_ASSISTANT");
+    }
+
+    private ChatResult unsupportedMedicalTopic() {
+        return new ChatResult(
+                "Hệ thống MedSched hiện không điều trị hoặc chưa có dữ liệu nội bộ về vấn đề y tế này. Bạn vui lòng liên hệ cơ sở y tế có chuyên khoa phù hợp.",
+                null, "INTERNAL_SCOPE_GUARDRAIL");
+    }
+
+    private ChatResult unrelatedQuestion() {
+        return new ChatResult(
+                "Xin lỗi, hệ thống MedSched chỉ hỗ trợ các vấn đề thuộc lĩnh vực y tế và thông tin khám chữa bệnh tại MedSched. Hệ thống chưa hỗ trợ câu hỏi không liên quan đến phạm vi này.",
+                null, "UNRELATED_GUARDRAIL");
+    }
+
+    private ChatResult insufficientSymptomDetail(String family) {
+        String example = switch (family) {
+            case "HEADACHE" -> "vị trí đau đầu, cảm giác đau, thời điểm bắt đầu và mức độ từ 0 đến 10";
+            case "ABDOMINAL" -> "vị trí đau bụng, cảm giác đau, thời điểm bắt đầu và mức độ từ 0 đến 10";
+            case "CHEST" -> "vị trí đau ngực, cảm giác đau, thời điểm bắt đầu và mức độ từ 0 đến 10";
+            case "DENTAL" -> "răng hoặc vùng hàm bị đau, cảm giác đau, thời điểm bắt đầu và mức độ từ 0 đến 10";
+            case "SKIN" -> "vị trí tổn thương, hình dạng, thời điểm xuất hiện và mức độ ngứa hoặc đau";
+            default -> "vị trí khó chịu, cảm giác cụ thể, thời điểm bắt đầu và mức độ từ 0 đến 10";
+        };
+        return new ChatResult(
+                "Mình chưa có đủ thông tin để chọn chuyên khoa và khung khám phù hợp. Bạn vui lòng mô tả chi tiết hơn về "
+                        + example + ". Khi đủ thông tin, mình sẽ hỗ trợ bạn đặt lịch ngay.",
+                null, "CLARIFICATION");
     }
 
     private record ChatResult(String reply, String tool, String source, Object data) {
@@ -359,22 +397,22 @@ public class TriageController {
     }
 
     private String explicitSymptomFamily(String lower) {
-        String positive = lower;
-        for (String symptom : List.of("sốt", "khó thở", "ho", "đau họng", "đau đầu", "đau bụng",
-                "đau ngực", "đau răng", "ngứa", "nổi mẩn", "phát ban")) {
+        String positive = normalizeForMatching(lower);
+        for (String symptom : List.of("sot", "kho tho", "ho", "dau hong", "dau dau", "dau bung",
+                "dau nguc", "dau rang", "ngua", "noi man", "phat ban")) {
             positive = positive
-                    .replace("không " + symptom, "")
-                    .replace("không bị " + symptom, "")
-                    .replace("không có " + symptom, "")
-                    .replace("chưa " + symptom, "")
-                    .replace("chưa bị " + symptom, "");
+                    .replace("khong " + symptom, "")
+                    .replace("khong bi " + symptom, "")
+                    .replace("khong co " + symptom, "")
+                    .replace("chua " + symptom, "")
+                    .replace("chua bi " + symptom, "");
         }
-        if (positive.contains("đau đầu") || positive.contains("nhức đầu")) return "HEADACHE";
-        if (positive.contains("đau bụng")) return "ABDOMINAL";
-        if (positive.contains("đau ngực") || positive.contains("tức ngực")) return "CHEST";
-        if (positive.contains("đau răng") || positive.contains("nhức răng") || positive.contains("buốt răng")) return "DENTAL";
-        if (containsAny(positive, "ngứa da", "nổi mẩn", "phát ban", "mề đay")) return "SKIN";
-        if (containsAny(positive, "ho khan", "ho có đờm", "khó thở", "đau họng", "sốt")) return "RESPIRATORY";
+        if (positive.contains("dau dau") || positive.contains("nhuc dau")) return "HEADACHE";
+        if (positive.contains("dau bung")) return "ABDOMINAL";
+        if (positive.contains("dau nguc") || positive.contains("tuc nguc")) return "CHEST";
+        if (positive.contains("dau rang") || positive.contains("nhuc rang") || positive.contains("buot rang")) return "DENTAL";
+        if (containsAny(positive, "ngua da", "noi man", "phat ban", "me day")) return "SKIN";
+        if (containsAny(positive, "ho khan", "ho co dom", "kho tho", "dau hong", "sot")) return "RESPIRATORY";
         return null;
     }
 
@@ -388,7 +426,14 @@ public class TriageController {
                 "có sốt", "không sốt", "buồn nôn", "không nôn", "khó thở", "không có", "không kèm", "có kèm");
         boolean measuredDetail = Pattern.compile("\\b\\d+\\s*(phút|giờ|ngày|tuần|tháng|/\\s*10|độ)\\b",
                 Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE).matcher(lower).find();
-        return meaningfulDetail || measuredDetail;
+        return meaningfulDetail || measuredDetail || isNegativeClinicalAnswer(lower);
+    }
+
+    private boolean isNegativeClinicalAnswer(String value) {
+        if (value == null) return false;
+        String clean = value.trim().toLowerCase(Locale.ROOT)
+                .replaceAll("[.!?]+$", "").trim();
+        return clean.matches("^(dạ\\s+|ạ\\s+)?(không|không có|không có gì|không gì cả|không kèm gì|không có triệu chứng gì|không biết|chưa)$");
     }
 
     private boolean isClarificationQuestion(String text) {
@@ -472,7 +517,7 @@ public class TriageController {
 
     private boolean hasAssociatedSymptoms(String story) {
         String lower = story.toLowerCase(Locale.ROOT);
-        return containsAny(lower, "buồn nôn", "nôn", "sốt", "chóng mặt", "mờ mắt", "sợ ánh sáng", "tê", "yếu", "khó thở", "cứng cổ", "phát ban", "tiêu chảy", "không kèm", "không có triệu chứng", "không sốt", "không nôn");
+        return containsAny(lower, "buồn nôn", "nôn", "sốt", "chóng mặt", "mờ mắt", "nhìn mờ", "sợ ánh sáng", "tê", "yếu", "khó thở", "cứng cổ", "phát ban", "tiêu chảy", "không kèm", "không có triệu chứng", "không sốt", "không nôn");
     }
 
     private String associatedSymptomQuestion(String family) {
@@ -496,8 +541,20 @@ public class TriageController {
     }
 
     private boolean containsAny(String value, String... needles) {
-        for (String needle : needles) if (value.contains(needle)) return true;
+        String normalizedValue = normalizeForMatching(value);
+        for (String needle : needles) {
+            if (normalizedValue.contains(normalizeForMatching(needle))) return true;
+        }
         return false;
+    }
+
+    private String normalizeForMatching(String value) {
+        String decomposed = Normalizer.normalize(value == null ? "" : value, Normalizer.Form.NFD);
+        return decomposed.replaceAll("\\p{M}", "")
+                .toLowerCase(Locale.ROOT)
+                .replace('đ', 'd')
+                .replaceAll("[^a-z0-9/]+", " ")
+                .strip();
     }
 
     private JsonNode json(String raw) {
@@ -542,6 +599,12 @@ public class TriageController {
     private String normalizeTriageForFamily(String raw, String family) {
         JsonNode parsed = json(raw);
         if (!(parsed instanceof ObjectNode node)) return raw;
+        String specialtyCode = text(node, "specialtyCode", "").toUpperCase(Locale.ROOT);
+        if (java.util.Set.of("DERMATOLOGY", "ODONTO_STOMATOLOGY", "OPHTHALMOLOGY",
+                "PEDIATRICS", "INTERNAL_MEDICINE", "EMERGENCY").contains(specialtyCode)) {
+            return raw;
+        }
+        // Chỉ dùng ánh xạ xác định khi nhà cung cấp AI thiếu hoặc trả mã ngoài danh mục MedSched.
         switch (family) {
             case "SKIN" -> applySpecialty(node, "DERMATOLOGY", "Chuyên Khoa Da Liễu",
                     "Gói Khám & Soi Da Kỹ Thuật Số", "250.000 VNĐ");

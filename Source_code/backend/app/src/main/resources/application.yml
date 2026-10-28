@@ -35,12 +35,12 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
 
-  # Cấu hình Mail Gmail SMTP gửi OTP xác thực (có đầy đủ fallback mặc định)
+  # Thông tin đăng nhập mail bắt buộc lấy từ biến môi trường; không lưu secret trong repo.
   mail:
     host: ${MAIL_HOST:smtp.gmail.com}
     port: ${MAIL_PORT:587}
-    username: ${MAIL_USERNAME:kietphuchau@gmail.com}
-    password: ${MAIL_PASSWORD:tfloxaswoahvffmz}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
     properties:
       mail:
         smtp:
@@ -52,13 +52,6 @@ spring:
           timeout: 5000
           writetimeout: 5000
 
-  ai:
-    openai:
-      api-key: ${OPENAI_API_KEY:demo-medsched-local-api-key}
-
-# Spring AI fallback key
-spring.ai.openai.api-key: ${OPENAI_API_KEY:chua-cau-hinh}
-
 medsched:
   ai:
     guard:
@@ -66,6 +59,8 @@ medsched:
       window-seconds: ${AI_WINDOW_SECONDS:60}
       duplicate-seconds: ${AI_DUPLICATE_SECONDS:5}
       max-message-chars: ${AI_MAX_MESSAGE_CHARS:2000}
+      max-identities: ${AI_MAX_IDENTITIES:10000}
+      cleanup-millis: ${AI_CLEANUP_MILLIS:60000}
   jwt:
     secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
     access-token-duration: 3600s
@@ -94,9 +89,9 @@ app:
     expiration: 86400
 
 payos:
-  client-id: ${PAYOS_CLIENT_ID:1b71d68a-2a61-483e-ba37-37796a1d7c15}
-  api-key: ${PAYOS_API_KEY:bdab1958-4c37-4e90-be31-12e023420b9e}
-  checksum-key: ${PAYOS_CHECKSUM_KEY:7fa7c5162474d08eac1c0d100d5d95ebd3fbc1182be5b8ad5dff80e601170199}
+  client-id: ${PAYOS_CLIENT_ID:}
+  api-key: ${PAYOS_API_KEY:}
+  checksum-key: ${PAYOS_CHECKSUM_KEY:}
 
 # ==============================================================================
 # HỆ THỐNG GIÁM SÁT HẠ TẦNG & METRICS (ACTUATOR + PROMETHEUS + GRAFANA)
