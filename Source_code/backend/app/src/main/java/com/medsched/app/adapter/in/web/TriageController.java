@@ -18,6 +18,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.ArrayList;
+import java.text.Normalizer;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -396,22 +397,22 @@ public class TriageController {
     }
 
     private String explicitSymptomFamily(String lower) {
-        String positive = lower;
-        for (String symptom : List.of("sốt", "khó thở", "ho", "đau họng", "đau đầu", "đau bụng",
-                "đau ngực", "đau răng", "ngứa", "nổi mẩn", "phát ban")) {
+        String positive = normalizeForMatching(lower);
+        for (String symptom : List.of("sot", "kho tho", "ho", "dau hong", "dau dau", "dau bung",
+                "dau nguc", "dau rang", "ngua", "noi man", "phat ban")) {
             positive = positive
-                    .replace("không " + symptom, "")
-                    .replace("không bị " + symptom, "")
-                    .replace("không có " + symptom, "")
-                    .replace("chưa " + symptom, "")
-                    .replace("chưa bị " + symptom, "");
+                    .replace("khong " + symptom, "")
+                    .replace("khong bi " + symptom, "")
+                    .replace("khong co " + symptom, "")
+                    .replace("chua " + symptom, "")
+                    .replace("chua bi " + symptom, "");
         }
-        if (positive.contains("đau đầu") || positive.contains("nhức đầu")) return "HEADACHE";
-        if (positive.contains("đau bụng")) return "ABDOMINAL";
-        if (positive.contains("đau ngực") || positive.contains("tức ngực")) return "CHEST";
-        if (positive.contains("đau răng") || positive.contains("nhức răng") || positive.contains("buốt răng")) return "DENTAL";
-        if (containsAny(positive, "ngứa da", "nổi mẩn", "phát ban", "mề đay")) return "SKIN";
-        if (containsAny(positive, "ho khan", "ho có đờm", "khó thở", "đau họng", "sốt")) return "RESPIRATORY";
+        if (positive.contains("dau dau") || positive.contains("nhuc dau")) return "HEADACHE";
+        if (positive.contains("dau bung")) return "ABDOMINAL";
+        if (positive.contains("dau nguc") || positive.contains("tuc nguc")) return "CHEST";
+        if (positive.contains("dau rang") || positive.contains("nhuc rang") || positive.contains("buot rang")) return "DENTAL";
+        if (containsAny(positive, "ngua da", "noi man", "phat ban", "me day")) return "SKIN";
+        if (containsAny(positive, "ho khan", "ho co dom", "kho tho", "dau hong", "sot")) return "RESPIRATORY";
         return null;
     }
 
@@ -516,7 +517,7 @@ public class TriageController {
 
     private boolean hasAssociatedSymptoms(String story) {
         String lower = story.toLowerCase(Locale.ROOT);
-        return containsAny(lower, "buồn nôn", "nôn", "sốt", "chóng mặt", "mờ mắt", "sợ ánh sáng", "tê", "yếu", "khó thở", "cứng cổ", "phát ban", "tiêu chảy", "không kèm", "không có triệu chứng", "không sốt", "không nôn");
+        return containsAny(lower, "buồn nôn", "nôn", "sốt", "chóng mặt", "mờ mắt", "nhìn mờ", "sợ ánh sáng", "tê", "yếu", "khó thở", "cứng cổ", "phát ban", "tiêu chảy", "không kèm", "không có triệu chứng", "không sốt", "không nôn");
     }
 
     private String associatedSymptomQuestion(String family) {
@@ -540,8 +541,20 @@ public class TriageController {
     }
 
     private boolean containsAny(String value, String... needles) {
-        for (String needle : needles) if (value.contains(needle)) return true;
+        String normalizedValue = normalizeForMatching(value);
+        for (String needle : needles) {
+            if (normalizedValue.contains(normalizeForMatching(needle))) return true;
+        }
         return false;
+    }
+
+    private String normalizeForMatching(String value) {
+        String decomposed = Normalizer.normalize(value == null ? "" : value, Normalizer.Form.NFD);
+        return decomposed.replaceAll("\\p{M}", "")
+                .toLowerCase(Locale.ROOT)
+                .replace('đ', 'd')
+                .replaceAll("[^a-z0-9/]+", " ")
+                .strip();
     }
 
     private JsonNode json(String raw) {
@@ -586,6 +599,12 @@ public class TriageController {
     private String normalizeTriageForFamily(String raw, String family) {
         JsonNode parsed = json(raw);
         if (!(parsed instanceof ObjectNode node)) return raw;
+        String specialtyCode = text(node, "specialtyCode", "").toUpperCase(Locale.ROOT);
+        if (java.util.Set.of("DERMATOLOGY", "ODONTO_STOMATOLOGY", "OPHTHALMOLOGY",
+                "PEDIATRICS", "INTERNAL_MEDICINE", "EMERGENCY").contains(specialtyCode)) {
+            return raw;
+        }
+        // Chỉ dùng ánh xạ xác định khi nhà cung cấp AI thiếu hoặc trả mã ngoài danh mục MedSched.
         switch (family) {
             case "SKIN" -> applySpecialty(node, "DERMATOLOGY", "Chuyên Khoa Da Liễu",
                     "Gói Khám & Soi Da Kỹ Thuật Số", "250.000 VNĐ");
