@@ -1304,11 +1304,7 @@ export default function ReceptionView() {
                                 ? `Hôm Nay (${todayDisplay}) Chưa Có Ca Tiếp Đón Mới`
                                 : `Hôm Qua (${yesterdayDisplay}) Không Có Ca Khám Nào`}
                             </h4>
-                            <p className="text-xs text-slate-500 leading-relaxed">
-                              {feedDateFilter === 'TODAY'
-                                ? 'Hệ thống tự động làm mới hàng đợi mỗi ngày (từ 00:00) để sẵn sàng đón lượt bệnh nhân mới. Các ca tiếp đón từ hôm qua hoặc các ngày trước vẫn được lưu trữ đầy đủ trong mục Lịch Sử Tiếp Đón.'
-                                : 'Không tìm thấy hồ sơ tiếp đón nào trong ngày hôm qua. Bạn có thể bấm nút Hôm Nay bên trên hoặc mở Lịch Sử Tiếp Đón để xem tất cả.'}
-                            </p>
+
                           </div>
                           <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
                             {feedDateFilter === 'TODAY' && (
