@@ -471,38 +471,6 @@ export default function ReceptionScheduleBoard({
   }, [doctors, selectedSpecialtyId, searchTerm, filterAvailability, doctorSlotsMap, getSlotTimingInfo]);
 
   // Thống kê toàn viện trong ngày
-  const clinicMetrics = useMemo(() => {
-    let totalSlots = 0;
-    let totalBooked = 0;
-    let totalEligibleAvailable = 0;
-    const activeRooms = new Set<string>();
-
-    doctors.forEach((doc) => {
-      if (doc.roomNumber) activeRooms.add(doc.roomNumber);
-      const slots = doctorSlotsMap[doc.id] || [];
-      totalSlots += slots.length;
-
-      slots.forEach((s) => {
-        if (s.status === 'full' || s.status === 'booked') {
-          totalBooked++;
-        } else if (s.status === 'available' && !s.disabled) {
-          const timing = getSlotTimingInfo(s.time);
-          if (!timing.isPast && !timing.isUrgentTooClose) {
-            totalEligibleAvailable++;
-          }
-        }
-      });
-    });
-
-    return {
-      doctorCount: doctors.length,
-      roomCount: activeRooms.size || 6,
-      totalSlots,
-      totalBooked,
-      totalEligibleAvailable,
-    };
-  }, [doctors, doctorSlotsMap, getSlotTimingInfo]);
-
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
       {/* ── Header Điều Khiển Chọn Ngày (Tối Giản) ── */}
@@ -579,37 +547,7 @@ export default function ReceptionScheduleBoard({
         </div>
       </div>
 
-      {/* ── Thanh KPI Thống Kê Toàn Viện (4 Card Độc Lập Chuẩn Layout) ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-        <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-xs hover:border-slate-300 transition">
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Bác sĩ trực</span>
-          <div className="text-xl font-black text-slate-800 mt-1 font-mono">{clinicMetrics.doctorCount} bác sĩ</div>
-          <span className="text-[10px] text-slate-400 mt-0.5 block">Đang sẵn sàng phân bổ ca</span>
-        </div>
-
-        <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-xs hover:border-slate-300 transition">
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Buồng khám mở</span>
-          <div className="text-xl font-black text-slate-800 mt-1 font-mono">{clinicMetrics.roomCount} buồng khám</div>
-          <span className="text-[10px] text-slate-400 mt-0.5 block">Phòng chức năng hoạt động</span>
-        </div>
-
-        <div className="p-4 bg-white rounded-2xl border border-emerald-200 shadow-xs hover:border-emerald-300 transition">
-          <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block flex items-center gap-1">
-            <Zap size={12} className="text-emerald-600" />
-            <span>Slot trống đón khách</span>
-          </span>
-          <div className="text-xl font-black text-emerald-700 mt-1 font-mono">
-            {clinicMetrics.totalEligibleAvailable} khung giờ
-          </div>
-          <span className="text-[10px] text-emerald-600/70 mt-0.5 block">Khả dụng đặt hẹn ngay</span>
-        </div>
-
-        <div className="p-4 bg-white rounded-2xl border border-blue-200 shadow-xs hover:border-blue-300 transition">
-          <span className="text-[10px] font-bold text-blue-800 uppercase tracking-wider block">Bệnh nhân đã đặt</span>
-          <div className="text-xl font-black text-blue-700 mt-1 font-mono">{clinicMetrics.totalBooked} lượt khám</div>
-          <span className="text-[10px] text-blue-600/70 mt-0.5 block">Đã có người đăng ký</span>
-        </div>
-      </div>
+      
 
         {/* Banner Thông Báo Trạng Thái Thông Minh (Sau 17:00 / Xem Ngày Mai) */}
         {isToday && isAfter17h && (
