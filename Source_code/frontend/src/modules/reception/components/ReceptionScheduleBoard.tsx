@@ -41,12 +41,14 @@ import AlertMessage from '@/shared/components/Feedback/AlertMessage';
 
 interface ReceptionScheduleBoardProps {
   onSelectSlotForWalkin?: (doctor: any, slot: any, date: string) => void;
+  onBackToLiveFeed?: () => void;
   specialties?: any[];
   doctors?: any[];
 }
 
 export default function ReceptionScheduleBoard({
   onSelectSlotForWalkin,
+  onBackToLiveFeed,
   specialties = [],
   doctors = []
 }: ReceptionScheduleBoardProps) {
@@ -504,18 +506,16 @@ export default function ReceptionScheduleBoard({
     <div className="space-y-6 animate-in fade-in duration-200">
       {/* ── Header Điều Khiển & Bộ Lọc Tra Cứu (Tối Giản, Không Khung Trắng Bọc Ngoài) ── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-1">
-          <div className="space-y-1">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-teal-50 text-teal-800 border border-teal-200">
-              <CalendarDays size={14} className="text-teal-600" />
-              <span>Bảng Điều Phối Lịch Toàn Viện &amp; Khung Giờ Bác Sĩ</span>
-            </div>
-            <h2 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">
-              Tra Cứu Lịch Khám &amp; Tư Vấn Khách Vãng Lai
-            </h2>
-            <p className="text-xs text-slate-500">
-              Lễ tân tra cứu tình trạng buồng khám, giờ trống của tất cả Bác sĩ theo thời gian thực và đăng ký ngay cho khách tại quầy.
-            </p>
-          </div>
+          {onBackToLiveFeed ? (
+          <button
+            type="button"
+            onClick={onBackToLiveFeed}
+            className="inline-flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer w-fit"
+          >
+            <Clock size={14} className="text-teal-700" />
+            <span>← Quay lại Danh Sách Tiếp Đón</span>
+          </button>
+        ) : <div />}
 
           {/* Điều Khiển Chọn Ngày Khám & Chuyển Nhanh */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2.5 shrink-0">
@@ -664,33 +664,7 @@ export default function ReceptionScheduleBoard({
           </div>
         )}
 
-        {isTomorrow && (
-          <div className="p-3.5 bg-gradient-to-r from-teal-50 via-emerald-50 to-teal-50 border border-teal-200 rounded-2xl text-xs text-teal-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs animate-in fade-in">
-            <div className="flex items-center gap-2.5">
-              <div className="p-1.5 bg-teal-100 rounded-xl text-teal-700 shrink-0">
-                <Sparkles size={16} />
-              </div>
-              <div>
-                <span className="font-extrabold text-teal-950 text-sm">
-                  Đang xem Lịch trực Ngày Mai ({formatDisplayDateVN(selectedDate)})
-                </span>
-                <span className="text-teal-800 text-xs block sm:inline sm:ml-2">
-                  • Toàn bộ {clinicMetrics.doctorCount} Bác sĩ đã chốt buồng khám 🔒 • {clinicMetrics.totalEligibleAvailable} khung giờ khám sẵn sàng nhận đặt lịch.
-                </span>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={handleSyncTomorrowSchedule}
-              disabled={syncingTomorrow}
-              className="px-3.5 py-1.5 bg-white hover:bg-teal-50 text-teal-800 border border-teal-300 font-bold rounded-xl text-xs shadow-2xs transition flex items-center gap-1.5 cursor-pointer shrink-0"
-              title="Kích hoạt kiểm tra và đồng bộ lại toàn bộ lịch khám 7 ngày tới cho các Bác sĩ"
-            >
-              <RefreshCw size={13} className={syncingTomorrow ? 'animate-spin' : ''} />
-              <span>{syncingTomorrow ? 'Đang đồng bộ...' : 'Đồng bộ lại lịch tuần'}</span>
-            </button>
-          </div>
-        )}
+        
 
         {syncSuccessMsg && (
           <AlertMessage
@@ -701,18 +675,7 @@ export default function ReceptionScheduleBoard({
           />
         )}
 
-        {/* Banner Quy tắc đón khách vãng lai (Đồng bộ theo cấu hình Admin) */}
-        <div className="p-3.5 bg-amber-50/90 border border-amber-200 rounded-2xl text-xs text-amber-900 flex items-start gap-2.5">
-          <Info size={16} className="text-amber-600 shrink-0 mt-0.5" />
-          <div className="space-y-0.5">
-            <span className="font-extrabold text-amber-950 block">
-              Quy tắc tiếp nhận khách vãng lai tại quầy (Lead-time $\ge$ {typeof window !== 'undefined' ? (getClinicScheduleConfig()?.walkinMinBufferMinutes ?? 15) : 15} phút):
-            </span>
-            <p className="text-[11px] text-amber-800 leading-relaxed">
-              Để Bác sĩ kịp chuẩn bị hồ sơ bệnh án và tránh trùng giờ bệnh nhân đã hẹn, hệ thống chỉ cho phép tiếp nhận ngay đối với các khung giờ <strong>còn trống và có giờ bắt đầu cách hiện tại tối thiểu {typeof window !== 'undefined' ? (getClinicScheduleConfig()?.walkinMinBufferMinutes ?? 15) : 15} phút</strong>. Các khung giờ dưới ngưỡng này sẽ hiển thị cảnh báo <span className="font-bold text-amber-700">Sát giờ</span>.
-            </p>
-          </div>
-        </div>
+        
 
       {/* Bộ Lọc Tìm Kiếm & Chuyên Khoa */}
       <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center gap-3">

@@ -1482,28 +1482,9 @@ export default function ReceptionView() {
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-3xl border border-slate-200 shadow-2xs">
-            <div>
-              <h3 className="font-bold text-slate-800 text-base flex items-center gap-2">
-                <CalendarDays size={18} className="text-teal-600" />
-                <span>Tra Cứu Lịch Trực Bác Sĩ Toàn Viện</span>
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Bấm vào khung giờ còn trống để chọn bác sĩ và tiếp đón cho bệnh nhân vãng lai.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setMainTab('CHECK_IN')}
-              className="px-4 py-2 bg-teal-700 hover:bg-teal-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm shrink-0"
-            >
-              <Clock size={15} />
-              <span>← Quay lại Danh Sách Tiếp Đón (Live Feed)</span>
-            </button>
-          </div>
-
           <ReceptionScheduleBoard
             onSelectSlotForWalkin={handleSelectSlotForWalkin}
+            onBackToLiveFeed={() => setMainTab('CHECK_IN')}
             specialties={specialties}
             doctors={doctors}
           />
