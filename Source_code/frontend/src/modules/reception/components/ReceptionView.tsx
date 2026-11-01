@@ -1682,7 +1682,7 @@ export default function ReceptionView() {
 
                       <div>
                         <label className="block text-xs font-bold text-slate-700 mb-1">
-                          Bác sĩ &amp; Buồng khám (Chỉ hiện BS có ca trực hôm nay)
+                          Bác sĩ &amp; Phòng khám
                         </label>
                         <select
                           value={selectedDoctorId}
