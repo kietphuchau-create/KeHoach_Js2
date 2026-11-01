@@ -221,6 +221,8 @@ export default function ReceptionView() {
   }, []);
 
   const handleSelectDoctorAndOpenSlots = useCallback((doc: any) => {
+    if (!doc) return;
+    console.log('[ReceptionView] Chọn Bác sĩ và mở popup khung giờ:', doc.fullName || doc.id);
     setSelectedDoctorId(doc.id);
     setTargetDoctorForSlots(doc);
     if (selectedDoctorId !== doc.id) {
@@ -231,6 +233,10 @@ export default function ReceptionView() {
     setShowSlotModal(true);
     loadDoctorSlots(doc.id);
   }, [selectedDoctorId, loadDoctorSlots]);
+
+  const activeSlotDoctor = useMemo(() => {
+    return targetDoctorForSlots || currentSelectedDoctor || null;
+  }, [targetDoctorForSlots, currentSelectedDoctor]);
 
   const isMorningSlot = (timeStr: string) => {
     const hour = parseInt(timeStr.split(':')[0], 10) || 0;
@@ -2913,8 +2919,14 @@ export default function ReceptionView() {
 
       {/* ── Modal Popup Chọn Chuyên Khoa Khám ── */}
       {showSpecialtyModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl max-w-lg w-full max-h-[85vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden">
+        <div 
+          className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setShowSpecialtyModal(false)}
+        >
+          <div 
+            className="bg-white rounded-3xl max-w-lg w-full max-h-[85vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-teal-50/50 to-white">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-teal-100/80 text-teal-800 flex items-center justify-center">
@@ -3010,8 +3022,14 @@ export default function ReceptionView() {
 
       {/* ── Modal Popup Chọn Bác Sĩ & Buồng Khám ── */}
       {showDoctorModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl max-w-xl w-full max-h-[85vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden">
+        <div 
+          className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setShowDoctorModal(false)}
+        >
+          <div 
+            className="bg-white rounded-3xl max-w-xl w-full max-h-[85vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-blue-50/50 to-white">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-blue-100/80 text-blue-800 flex items-center justify-center">
@@ -3126,9 +3144,15 @@ export default function ReceptionView() {
       )}
 
       {/* ── Modal Popup Chọn Khung Giờ Khám Còn Trống ── */}
-      {showSlotModal && targetDoctorForSlots && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[88vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden">
+      {showSlotModal && activeSlotDoctor && (
+        <div 
+          className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setShowSlotModal(false)}
+        >
+          <div 
+            className="bg-white rounded-3xl max-w-2xl w-full max-h-[88vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Header */}
             <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-emerald-50/60 to-white">
               <div className="flex items-center gap-3">
@@ -3145,7 +3169,7 @@ export default function ReceptionView() {
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                    {formatDoctorFullName(targetDoctorForSlots.academicTitle, targetDoctorForSlots.fullName)} • Buồng {targetDoctorForSlots.roomNumber || 'P.208'} • {targetDoctorForSlots.specialtyName || walkinSpecialty}
+                    {formatDoctorFullName(activeSlotDoctor.academicTitle, activeSlotDoctor.fullName)} • Buồng {activeSlotDoctor.roomNumber || 'P.208'} • {activeSlotDoctor.specialtyName || walkinSpecialty}
                   </p>
                 </div>
               </div>
@@ -3222,7 +3246,7 @@ export default function ReceptionView() {
                   <button
                     type="button"
                     onClick={() => {
-                      setSelectedDoctorId(targetDoctorForSlots.id);
+                      setSelectedDoctorId(activeSlotDoctor.id);
                       setSelectedSlotId('');
                       setSelectedSlotTime('');
                       setShowSlotModal(false);
@@ -3236,7 +3260,7 @@ export default function ReceptionView() {
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
                   {displayedDoctorSlots.map((slot: any) => {
-                    const isSlotSelected = selectedSlotId === slot.id || (selectedSlotTime === slot.time && selectedDoctorId === targetDoctorForSlots.id);
+                    const isSlotSelected = selectedSlotId === slot.id || (selectedSlotTime === slot.time && selectedDoctorId === activeSlotDoctor.id);
                     const isFull = slot.status === 'full' || slot.status === 'BOOKED';
                     const isExpired = slot.status === 'expired';
                     const isLocked = slot.status === 'locked';
@@ -3248,12 +3272,12 @@ export default function ReceptionView() {
                         type="button"
                         disabled={!isAvailable}
                         onClick={() => {
-                          setSelectedDoctorId(targetDoctorForSlots.id);
+                          setSelectedDoctorId(activeSlotDoctor.id);
                           setSelectedSlotId(slot.id);
                           setSelectedSlotTime(slot.time);
                           setPreselectedWalkinInfo({
-                            doctorName: formatDoctorFullName(targetDoctorForSlots.academicTitle, targetDoctorForSlots.fullName),
-                            roomNumber: targetDoctorForSlots.roomNumber || 'P.208',
+                            doctorName: formatDoctorFullName(activeSlotDoctor.academicTitle, activeSlotDoctor.fullName),
+                            roomNumber: activeSlotDoctor.roomNumber || 'P.208',
                             slotTime: slot.time,
                             date: getLocalDateString(),
                           });
@@ -3320,7 +3344,7 @@ export default function ReceptionView() {
                 <button
                   type="button"
                   onClick={() => {
-                    setSelectedDoctorId(targetDoctorForSlots.id);
+                    setSelectedDoctorId(activeSlotDoctor.id);
                     setSelectedSlotId('');
                     setSelectedSlotTime('');
                     setShowSlotModal(false);
