@@ -2,6 +2,7 @@ package com.medsched.app.adapter.in.web;
 
 import io.github.bucket4j.Bucket;
 import io.github.bucket4j.ConsumptionProbe;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -22,6 +23,11 @@ public class AiRequestGuard {
     private final Map<String, BucketState> buckets = new ConcurrentHashMap<>();
     private final Map<String, DuplicateState> duplicateStates = new ConcurrentHashMap<>();
 
+    public AiRequestGuard() {
+        this(20, 60, 5, 2000, 10000);
+    }
+
+    @Autowired
     public AiRequestGuard(
             @Value("${medsched.ai.guard.max-requests-per-window:20}") int maxRequests,
             @Value("${medsched.ai.guard.window-seconds:60}") long windowSeconds,
