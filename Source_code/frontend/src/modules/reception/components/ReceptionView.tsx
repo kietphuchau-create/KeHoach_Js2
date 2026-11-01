@@ -181,6 +181,31 @@ export default function ReceptionView() {
     return doctors.find((d) => d.id === selectedDoctorId) || activeDoctorsToday.find((d) => d.id === selectedDoctorId);
   }, [doctors, activeDoctorsToday, selectedDoctorId]);
 
+  // Tự động chọn chuyên khoa có Bác sĩ trực hôm nay nếu chuyên khoa hiện tại chưa có BS
+  useEffect(() => {
+    if (activeDoctorsToday.length > 0 && specialties.length > 0) {
+      const hasDoc = activeDoctorsToday.some((d) => {
+        const dSpec = (d.specialtyName || '').toLowerCase().trim();
+        const targetSpec = (walkinSpecialty || '').toLowerCase().trim();
+        return targetSpec && (dSpec === targetSpec || dSpec.includes(targetSpec) || targetSpec.includes(dSpec));
+      });
+      if (!hasDoc) {
+        const firstSpecWithDoc = specialties.find((s) => {
+          return activeDoctorsToday.some((d) => {
+            const dSpec = (d.specialtyName || '').toLowerCase().trim();
+            const targetSpec = (s.name || '').toLowerCase().trim();
+            return dSpec === targetSpec || dSpec.includes(targetSpec) || targetSpec.includes(dSpec);
+          });
+        });
+        if (firstSpecWithDoc) {
+          setWalkinSpecialty(firstSpecWithDoc.name);
+        } else if (activeDoctorsToday[0]?.specialtyName) {
+          setWalkinSpecialty(activeDoctorsToday[0].specialtyName);
+        }
+      }
+    }
+  }, [activeDoctorsToday, specialties, walkinSpecialty]);
+
   const availableDoctorsForSpecialty = useMemo(() => {
     if (!walkinSpecialty) return activeDoctorsToday;
     return activeDoctorsToday.filter((d) => {
@@ -2905,14 +2930,34 @@ export default function ReceptionView() {
             </div>
 
             <div className="p-4 overflow-y-auto space-y-2 flex-1">
-              {specialties
-                .filter((s) => (s.name || '').toLowerCase().includes(specialtySearchTerm.toLowerCase().trim()))
-                .map((s) => {
-                  const docCount = activeDoctorsToday.filter((d) => {
-                    const dSpec = (d.specialtyName || '').toLowerCase().trim();
-                    const targetSpec = (s.name || '').toLowerCase().trim();
-                    return dSpec === targetSpec || dSpec.includes(targetSpec) || targetSpec.includes(dSpec);
-                  }).length;
+              {(() => {
+                const availableSpecialtiesWithDocs = specialties
+                  .map((s) => {
+                    const docCount = activeDoctorsToday.filter((d) => {
+                      const dSpec = (d.specialtyName || '').toLowerCase().trim();
+                      const targetSpec = (s.name || '').toLowerCase().trim();
+                      return dSpec === targetSpec || dSpec.includes(targetSpec) || targetSpec.includes(dSpec);
+                    }).length;
+                    return { ...s, docCount };
+                  })
+                  .filter((s) => s.docCount > 0)
+                  .filter((s) => (s.name || '').toLowerCase().includes(specialtySearchTerm.toLowerCase().trim()));
+
+                if (availableSpecialtiesWithDocs.length === 0) {
+                  return (
+                    <div className="p-8 text-center text-slate-400 space-y-2 bg-slate-50/60 rounded-2xl border border-dashed border-slate-200">
+                      <Stethoscope size={28} className="mx-auto text-slate-300" />
+                      <p className="text-xs font-bold text-slate-600">
+                        {specialtySearchTerm ? 'Không tìm thấy chuyên khoa phù hợp' : 'Không có chuyên khoa nào có Bác sĩ trực hôm nay'}
+                      </p>
+                      <p className="text-[11px] text-slate-400">
+                        {specialtySearchTerm ? 'Vui lòng thử từ khóa tìm kiếm khác' : 'Chỉ các chuyên khoa có Bác sĩ nhận khám mới được hiển thị tiếp đón'}
+                      </p>
+                    </div>
+                  );
+                }
+
+                return availableSpecialtiesWithDocs.map((s) => {
                   const isSelected = walkinSpecialty === s.name;
 
                   return (
@@ -2946,20 +2991,15 @@ export default function ReceptionView() {
                       </div>
 
                       <div className="shrink-0 flex items-center gap-2">
-                        {docCount > 0 ? (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            {docCount} Bác sĩ trực
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-slate-400 px-2 py-0.5 rounded-full bg-slate-100">
-                            Chưa có BS trực
-                          </span>
-                        )}
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          {s.docCount} Bác sĩ trực
+                        </span>
                         {isSelected && <Check size={16} className="text-teal-700 shrink-0" />}
                       </div>
                     </button>
                   );
-                })}
+                });
+              })()}
             </div>
           </div>
         </div>
