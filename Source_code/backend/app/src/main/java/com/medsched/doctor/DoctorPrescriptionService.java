@@ -14,6 +14,11 @@ import com.medsched.persistence.repository.PrescriptionItemJpaRepository;
 import com.medsched.persistence.repository.PrescriptionJpaRepository;
 import com.medsched.persistence.repository.UserJpaRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
+import com.medsched.persistence.repository.InvoiceJpaRepository;
+import com.medsched.persistence.repository.PaymentJpaRepository;
+import com.medsched.persistence.enums.PaymentStatus;
+import java.math.BigDecimal;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.medsched.persistence.entity.DoctorEntity;
@@ -48,6 +53,12 @@ public class DoctorPrescriptionService {
     private final UserJpaRepository userRepository;
     private final PatientProfileJpaRepository patientProfileRepository;
     private final TimeSlotJpaRepository timeSlotRepository;
+
+    @Autowired(required = false)
+    private InvoiceJpaRepository invoiceRepository;
+
+    @Autowired(required = false)
+    private PaymentJpaRepository paymentRepository;
 
     private Clock clock = Clock.system(VN_ZONE);
 
@@ -528,6 +539,24 @@ public class DoctorPrescriptionService {
                 }
             }
 
+            String invStatus = "UNPAID";
+            if (invoiceRepository != null) {
+                try {
+                    var inv = invoiceRepository.findByAppointmentId(a.getId()).orElse(null);
+                    if (inv != null && "PAID".equalsIgnoreCase(inv.getStatus())) {
+                        invStatus = "PAID";
+                    }
+                } catch (Exception ignored) {}
+            }
+            if ("UNPAID".equals(invStatus) && paymentRepository != null) {
+                try {
+                    var payments = paymentRepository.findByAppointmentId(a.getId());
+                    if (payments != null && payments.stream().anyMatch(p -> p.getStatus() == PaymentStatus.SUCCEEDED && ((p.getNote() != null && p.getNote().startsWith("FULL")) || (p.getAmount() != null && p.getAmount().compareTo(new BigDecimal("50000")) > 0)))) {
+                        invStatus = "PAID";
+                    }
+                } catch (Exception ignored) {}
+            }
+
             return new DoctorPrescriptionDtos.QueuePatientDto(
                     a.getId(),
                     formattedQueueNum,
@@ -544,7 +573,8 @@ public class DoctorPrescriptionService {
                     appointmentTime,
                     docId,
                     docName,
-                    roomNumber
+                    roomNumber,
+                    invStatus
             );
         }).toList();
     }

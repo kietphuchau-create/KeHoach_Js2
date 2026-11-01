@@ -89,9 +89,9 @@ app:
     expiration: 86400
 
 payos:
-  client-id: ${PAYOS_CLIENT_ID:}
-  api-key: ${PAYOS_API_KEY:}
-  checksum-key: ${PAYOS_CHECKSUM_KEY:}
+  client-id: ${PAYOS_CLIENT_ID:1b71d68a-2a61-483e-ba37-37796a1d7c15}
+  api-key: ${PAYOS_API_KEY:bdab1958-4c37-4e90-be31-12e023420b9e}
+  checksum-key: ${PAYOS_CHECKSUM_KEY:7fa7c5162474d08eac1c0d100d5d95ebd3fbc1182be5b8ad5dff80e601170199}
 
 # ==============================================================================
 # HỆ THỐNG GIÁM SÁT HẠ TẦNG & METRICS (ACTUATOR + PROMETHEUS + GRAFANA)

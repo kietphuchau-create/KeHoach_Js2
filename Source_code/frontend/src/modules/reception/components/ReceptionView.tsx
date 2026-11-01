@@ -520,7 +520,17 @@ export default function ReceptionView() {
       discountAmount: appliedBillingPromo?.discountAmount,
       originalTotal: originalTotal,
     });
-  }, [billingData, appliedBillingPromo]);
+    if (billingAppointmentId || billingData.bookingCode) {
+      setHistory((prev) =>
+        prev.map((h) =>
+          (billingAppointmentId && h.appointmentId === billingAppointmentId) ||
+          (billingData.bookingCode && h.bookingCode === billingData.bookingCode)
+            ? { ...h, invoiceStatus: 'PAID' }
+            : h
+        )
+      );
+    }
+  }, [billingData, appliedBillingPromo, billingAppointmentId]);
 
   // Camera QR Scanner Modal State
   const [showCameraScanner, setShowCameraScanner] = useState(false);
@@ -603,6 +613,7 @@ export default function ReceptionView() {
               room: roomTitle,
               checkInTime: timeStr,
               status: item.status === 'COMPLETED' ? 'ĐÃ KHÁM' : item.status === 'IN_CONSULTATION' ? 'ĐANG KHÁM' : 'ĐÃ TIẾP ĐÓN',
+              invoiceStatus: item.invoiceStatus || 'UNPAID',
             };
           });
         if (mapped.length > 0) {
@@ -1461,72 +1472,109 @@ export default function ReceptionView() {
                               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                                 <CheckCircle2 size={11} /> ĐÃ KHÁM
                               </span>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setBillingAppointmentId(item.appointmentId);
-                                  setBillingLoading(true);
-                                  setBillingError(null);
-                                  setBillingPayOs(null);
-                                  setBillingSuccessData(null);
-                                  setPaymentMethod('BANK_TRANSFER');
-                                  setBillingPromoCode('');
-                                  setAppliedBillingPromo(null);
-                                  setBillingPromoError(null);
-                                  api.getBillDetail(item.appointmentId)
-                                    .then((data) => {
-                                      setBillingData(data);
-                                      if (data && data.status === 'PAID') {
+                              {item.invoiceStatus === 'PAID' ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setBillingAppointmentId(item.appointmentId);
+                                    setBillingLoading(true);
+                                    setBillingError(null);
+                                    setBillingPayOs(null);
+                                    setBillingSuccessData(null);
+                                    setPaymentMethod('BANK_TRANSFER');
+                                    api.getBillDetail(item.appointmentId)
+                                      .then((data) => {
+                                        setBillingData(data);
                                         setBillingSuccessData({
                                           invoiceId: data.invoiceId,
                                           bookingCode: data.bookingCode,
                                           patientName: data.patientName,
                                           doctorName: data.doctorName,
-                                          amountPaid: Number(data.totalAmount || 0),
-                                          paymentMethod: 'ĐÃ TẤT TOÁN',
-                                          transactionRef: data.invoiceId,
+                                          amountPaid: Number(data.amountPaid || data.totalAmount || 0),
+                                          paymentMethod: data.paymentMethod || 'ĐÃ TẤT TOÁN',
+                                          transactionRef: data.invoiceNumber || data.invoiceId,
                                           paidAt: 'Đã hoàn tất',
                                           originalTotal: Number(data.totalAmount || 0),
                                         });
-                                      } else if (data) {
-                                        const amount = Number(data.totalAmount) || 0;
-                                        const cleanCode = (data.bookingCode || 'MED').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-                                        api.createRealPayment({
-                                          appointmentId: item.appointmentId,
-                                          bookingCode: cleanCode,
-                                          paymentType: 'FULL',
-                                          amount: amount,
-                                          method: 'BANK_TRANSFER',
-                                        }).then((res: any) => {
-                                          if (res) {
-                                            setBillingPayOs({
-                                              accountNumber: res.accountNumber || '18112007',
-                                              accountName: res.accountName || 'CHAU TUAN KIET',
-                                              bin: res.bin || 'KLB',
-                                              checkoutUrl: res.checkoutUrl,
-                                              qrCode: res.qrCode,
-                                              transferContent: res.transferContent || `MEDPAY ${cleanCode}`,
-                                              amount: res.amount || amount,
-                                            });
-                                          }
-                                        }).catch(() => {
-                                          setBillingPayOs({
-                                            accountNumber: '18112007',
-                                            accountName: 'CHAU TUAN KIET',
-                                            bin: 'KLB',
-                                            transferContent: `MEDPAY ${cleanCode}`,
-                                            amount: amount,
+                                      })
+                                      .catch(e => alert(e.message))
+                                      .finally(() => setBillingLoading(false));
+                                  }}
+                                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold transition shadow-sm cursor-pointer whitespace-nowrap flex items-center gap-1"
+                                  title="Đã thanh toán viện phí. Bấm để xem hoặc in biên lai"
+                                >
+                                  <Check size={11} className="stroke-[2.5]" />
+                                  <span>ĐÃ THANH TOÁN</span>
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setBillingAppointmentId(item.appointmentId);
+                                    setBillingLoading(true);
+                                    setBillingError(null);
+                                    setBillingPayOs(null);
+                                    setBillingSuccessData(null);
+                                    setPaymentMethod('BANK_TRANSFER');
+                                    setBillingPromoCode('');
+                                    setAppliedBillingPromo(null);
+                                    setBillingPromoError(null);
+                                    api.getBillDetail(item.appointmentId)
+                                      .then((data) => {
+                                        setBillingData(data);
+                                        if (data && data.status === 'PAID') {
+                                          setBillingSuccessData({
+                                            invoiceId: data.invoiceId,
+                                            bookingCode: data.bookingCode,
+                                            patientName: data.patientName,
+                                            doctorName: data.doctorName,
+                                            amountPaid: Number(data.totalAmount || 0),
+                                            paymentMethod: 'ĐÃ TẤT TOÁN',
+                                            transactionRef: data.invoiceId,
+                                            paidAt: 'Đã hoàn tất',
+                                            originalTotal: Number(data.totalAmount || 0),
                                           });
-                                        });
-                                      }
-                                    })
-                                    .catch(e => alert(e.message))
-                                    .finally(() => setBillingLoading(false));
-                                }}
-                                className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[10px] font-bold transition shadow-sm cursor-pointer whitespace-nowrap"
-                              >
-                                THU NGÂN
-                              </button>
+                                        } else if (data) {
+                                          const amount = Number(data.totalAmount) || 0;
+                                          const cleanCode = (data.bookingCode || 'MED').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+                                          api.createRealPayment({
+                                            appointmentId: item.appointmentId,
+                                            bookingCode: cleanCode,
+                                            paymentType: 'FULL',
+                                            amount: amount,
+                                            method: 'BANK_TRANSFER',
+                                          }).then((res: any) => {
+                                            if (res) {
+                                              setBillingPayOs({
+                                                accountNumber: res.accountNumber || '18112007',
+                                                accountName: res.accountName || 'CHAU TUAN KIET',
+                                                bin: res.bin || 'KLB',
+                                                checkoutUrl: res.checkoutUrl,
+                                                qrCode: res.qrCode,
+                                                transferContent: res.transferContent || `MEDPAY ${cleanCode}`,
+                                                amount: res.amount || amount,
+                                              });
+                                            }
+                                          }).catch(() => {
+                                            setBillingPayOs({
+                                              accountNumber: '18112007',
+                                              accountName: 'CHAU TUAN KIET',
+                                              bin: 'KLB',
+                                              transferContent: `MEDPAY ${cleanCode}`,
+                                              amount: amount,
+                                            });
+                                          });
+                                        }
+                                      })
+                                      .catch(e => alert(e.message))
+                                      .finally(() => setBillingLoading(false));
+                                  }}
+                                  className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[10px] font-bold transition shadow-sm cursor-pointer whitespace-nowrap flex items-center gap-1"
+                                >
+                                  <CreditCard size={11} />
+                                  <span>THU NGÂN</span>
+                                </button>
+                              )}
                             </div>
                           ) : (
                             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
