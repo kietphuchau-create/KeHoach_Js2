@@ -476,8 +476,10 @@ interface TimeShiftOption {
 }
 
 const TIME_SHIFTS: TimeShiftOption[] = [
-  { id: 'MORNING', label: 'Buổi Sáng', timeRange: '08:00 - 11:30', icon: '🌅' },
-  { id: 'AFTERNOON', label: 'Buổi Chiều', timeRange: '13:30 - 16:00', icon: '🌇' },
+  { id: 'ALL', label: 'Tất cả ca khám', timeRange: 'Cả ngày', icon: '⚡' },
+  { id: 'MORNING', label: 'Buổi Sáng', timeRange: '08:00 - 12:00', icon: '🌅' },
+  { id: 'AFTERNOON', label: 'Buổi Chiều', timeRange: '12:00 - 17:00', icon: '🌇' },
+  { id: 'EVENING', label: 'Ca Tối & Đêm', timeRange: '17:00 - 23:30', icon: '🌙' },
 ];
 
 interface DemoDoctor {
@@ -836,16 +838,12 @@ const getTodayISODate = (): string => {
 const isPastAllTodaySlots = (): boolean => {
   const now = new Date();
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
-  return currentMinutes >= 15 * 60 + 30; // 15:30
+  return currentMinutes >= 23 * 60; // 23:00 (Phòng khám tiếp nhận ca tối đến 23:30)
 };
 
 const getNextAvailableWeekday = (baseDate?: Date): string => {
   const d = baseDate ? new Date(baseDate) : new Date();
   if (!baseDate && isPastAllTodaySlots()) {
-    d.setDate(d.getDate() + 1);
-  }
-  // Bỏ qua Thứ 7 (6) và Chủ Nhật (0)
-  while (d.getDay() === 0 || d.getDay() === 6) {
     d.setDate(d.getDate() + 1);
   }
   const day = String(d.getDate()).padStart(2, '0');
@@ -874,29 +872,27 @@ const getUpcomingWeekdays = (count: number = 5): Array<{ iso: string; label: str
     cur.setDate(cur.getDate() + 1);
   }
   while (result.length < count) {
-    if (cur.getDay() !== 0 && cur.getDay() !== 6) {
-      const day = String(cur.getDate()).padStart(2, '0');
-      const month = String(cur.getMonth() + 1).padStart(2, '0');
-      const year = cur.getFullYear();
-      const iso = `${year}-${month}-${day}`;
-      const dayNames = ['Chủ Nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
-      const dayName = dayNames[cur.getDay()];
-      
-      let label = `${dayName} (${day}/${month})`;
-      if (iso === todayIso) {
-        label = `Hôm nay (${day}/${month})`;
-      } else {
-        const tom = new Date();
-        tom.setDate(tom.getDate() + 1);
-        const tomDay = String(tom.getDate()).padStart(2, '0');
-        const tomMonth = String(tom.getMonth() + 1).padStart(2, '0');
-        const tomIso = `${tom.getFullYear()}-${tomMonth}-${tomDay}`;
-        if (iso === tomIso) {
-          label = `Ngày mai (${day}/${month})`;
-        }
+    const day = String(cur.getDate()).padStart(2, '0');
+    const month = String(cur.getMonth() + 1).padStart(2, '0');
+    const year = cur.getFullYear();
+    const iso = `${year}-${month}-${day}`;
+    const dayNames = ['Chủ Nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
+    const dayName = dayNames[cur.getDay()];
+    
+    let label = `${dayName} (${day}/${month})`;
+    if (iso === todayIso) {
+      label = `Hôm nay (${day}/${month})`;
+    } else {
+      const tom = new Date();
+      tom.setDate(tom.getDate() + 1);
+      const tomDay = String(tom.getDate()).padStart(2, '0');
+      const tomMonth = String(tom.getMonth() + 1).padStart(2, '0');
+      const tomIso = `${tom.getFullYear()}-${tomMonth}-${tomDay}`;
+      if (iso === tomIso) {
+        label = `Ngày mai (${day}/${month})`;
       }
-      result.push({ iso, label, subLabel: `${day}/${month}/${year}` });
     }
+    result.push({ iso, label, subLabel: `${day}/${month}/${year}` });
     cur.setDate(cur.getDate() + 1);
   }
   return result;
@@ -1283,7 +1279,7 @@ export default function BookingMethodSelector({
   const [selectedBranch, setSelectedBranch] = useState<ClinicBranch | null>(null);
   const [selectedServiceId, setSelectedServiceId] = useState<string>('STANDARD');
   const [bookingDate, setBookingDate] = useState<string>(() => getNextAvailableWeekday());
-  const [selectedShiftId, setSelectedShiftId] = useState<string>('MORNING');
+  const [selectedShiftId, setSelectedShiftId] = useState<string>('ALL');
   // Đề xuất lịch khám thông minh từ Y tá / Lễ tân AI
   const [nurseProposal, setNurseProposal] = useState<NurseProposal | null>(null);
 
@@ -1567,41 +1563,54 @@ export default function BookingMethodSelector({
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
     if (dynamicSlots.length > 0) {
-      const isMorning = selectedShiftId === 'MORNING';
-      const filtered = dynamicSlots.filter(s => {
-        if (s.startMinutes !== undefined) {
-          return isMorning ? s.startMinutes < 720 : s.startMinutes >= 720;
+      const allMapped = dynamicSlots.map(slot => {
+        const isPast = isToday && slot.startMinutes !== undefined && slot.startMinutes <= currentMinutes;
+        const isDisabled = slot.disabled || slot.status === 'full' || slot.status === 'expired' || slot.status === 'locked' || isPast;
+        let label = slot.label;
+        if (isPast) {
+          label = 'Đã qua giờ';
+        } else if (slot.status === 'full' || slot.status === 'locked') {
+          label = 'Hết chỗ';
+        } else if (!label) {
+          label = isDisabled ? 'Không khả dụng' : 'Khả dụng';
         }
-        const hour = parseInt(s.time?.split(':')[0] || '8', 10);
-        return isMorning ? hour < 12 : hour >= 12;
+
+        const startM = slot.startMinutes !== undefined ? slot.startMinutes : (parseInt(slot.time?.split(':')[0] || '8', 10) * 60);
+        const session = startM < 720 ? 'MORNING' : (startM < 1020 ? 'AFTERNOON' : 'EVENING');
+
+        return {
+          id: slot.id,
+          time: slot.time,
+          startMinutes: startM,
+          session: session as any,
+          disabled: isDisabled,
+          label: label,
+        };
       });
 
-      if (filtered.length > 0) {
-        return filtered.map(slot => {
-          const isPast = isToday && slot.startMinutes <= currentMinutes;
-          const isDisabled = slot.disabled || slot.status === 'full' || slot.status === 'expired' || slot.status === 'locked' || isPast;
-          let label = slot.label;
-          if (isPast) {
-            label = 'Đã qua giờ';
-          } else if (slot.status === 'full' || slot.status === 'locked') {
-            label = 'Hết chỗ';
-          } else if (!label) {
-            label = isDisabled ? 'Không khả dụng' : 'Khả dụng';
-          }
-
-          return {
-            id: slot.id,
-            time: slot.time,
-            startMinutes: slot.startMinutes,
-            session: selectedShiftId as 'MORNING' | 'AFTERNOON',
-            disabled: isDisabled,
-            label: label,
-          };
-        });
+      if (selectedShiftId === 'ALL') {
+        return allMapped;
       }
+
+      const filtered = allMapped.filter(s => {
+        if (selectedShiftId === 'MORNING') return s.startMinutes < 720;
+        if (selectedShiftId === 'AFTERNOON') return s.startMinutes >= 720 && s.startMinutes < 1020;
+        if (selectedShiftId === 'EVENING') return s.startMinutes >= 1020;
+        return true;
+      });
+
+      // Nếu ca đang chọn không có slot khả dụng nhưng các ca khác có, hiển thị tất cả để bệnh nhân không bị kẹt
+      const availableInFiltered = filtered.filter(s => !s.disabled);
+      if (availableInFiltered.length === 0) {
+        const anyAvailable = allMapped.filter(s => !s.disabled);
+        if (anyAvailable.length > 0) {
+          return allMapped;
+        }
+      }
+
+      return filtered.length > 0 ? filtered : allMapped;
     }
 
-    // Không dùng giờ mẫu: không có slot DB nghĩa là chưa có lịch khả dụng.
     return [];
   }, [dynamicSlots, selectedShiftId, bookingDate]);
 
@@ -4443,6 +4452,48 @@ export default function BookingMethodSelector({
                               <span className="text-[10px] text-purple-700 font-bold">
                                 📅 {formatVietnameseFullDate(bookingDate)}
                               </span>
+                            </div>
+
+                            {/* Thanh chuyển nhanh Ngày khám (Hôm nay / Ngày mai / Các ngày tới) */}
+                            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                              {upcomingWeekdays.map((item) => {
+                                const isCur = bookingDate === item.iso;
+                                return (
+                                  <button
+                                    key={item.iso}
+                                    type="button"
+                                    onClick={() => setBookingDate(item.iso)}
+                                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold shrink-0 transition cursor-pointer border ${
+                                      isCur
+                                        ? 'bg-purple-600 text-white border-purple-600 shadow-2xs'
+                                        : 'bg-white hover:bg-purple-50 text-slate-700 border-slate-200'
+                                    }`}
+                                  >
+                                    {item.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            {/* Bộ lọc theo Ca khám (Tất cả / Sáng / Chiều / Ca Tối & Đêm) */}
+                            <div className="flex items-center gap-1 overflow-x-auto pb-0.5 scrollbar-none">
+                              {TIME_SHIFTS.map((shift) => {
+                                const isSel = selectedShiftId === shift.id;
+                                return (
+                                  <button
+                                    key={shift.id}
+                                    type="button"
+                                    onClick={() => setSelectedShiftId(shift.id)}
+                                    className={`px-2 py-0.5 rounded-md text-[10px] font-semibold shrink-0 transition cursor-pointer ${
+                                      isSel
+                                        ? 'bg-purple-100 text-purple-800 font-bold border border-purple-300'
+                                        : 'bg-slate-100/80 hover:bg-slate-200/80 text-slate-600'
+                                    }`}
+                                  >
+                                    {shift.icon} {shift.label}
+                                  </button>
+                                );
+                              })}
                             </div>
                             {isSlotsLoading ? (
                               <div className="py-4 bg-purple-50/50 rounded-xl border border-dashed border-purple-200 text-center flex items-center justify-center gap-2">

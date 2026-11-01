@@ -54,19 +54,12 @@ public class PaymentController {
             try {
                 invoiceJpaRepository.findByAppointmentId(appointmentId).ifPresent(inv -> {
                     if (!"PAID".equalsIgnoreCase(inv.getStatus())) {
-                        BigDecimal required = inv.getTotalAmount() != null ? inv.getTotalAmount() : BigDecimal.ZERO;
-                        // Chỉ đánh dấu PAID nếu số tiền thực tế >= tổng tiền viện phí (khi hóa đơn có tổng tiền > 0)
-                        if (required.compareTo(BigDecimal.ZERO) > 0) {
-                            if (amount == null || amount.compareTo(required) < 0) {
-                                return; // Số tiền (ví dụ cọc 2.000 đ) không đủ để thanh toán toàn bộ hóa đơn viện phí!
-                            }
-                        }
                         inv.setStatus("PAID");
                         inv.setPaymentMethod(method != null ? method : "BANK_TRANSFER");
                         if (amount != null && amount.compareTo(BigDecimal.ZERO) > 0) {
                             inv.setAmountPaid(amount);
-                        } else {
-                            inv.setAmountPaid(required);
+                        } else if (inv.getTotalAmount() != null) {
+                            inv.setAmountPaid(inv.getTotalAmount());
                         }
                         inv.setPaidAt(Instant.now());
                         inv.setUpdatedAt(Instant.now());

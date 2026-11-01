@@ -520,6 +520,9 @@ export default function ReceptionView() {
       discountAmount: appliedBillingPromo?.discountAmount,
       originalTotal: originalTotal,
     });
+    if (billingAppointmentId) paidInvoiceSetRef.current.add(billingAppointmentId);
+    if (billingData.bookingCode) paidInvoiceSetRef.current.add(billingData.bookingCode);
+
     if (billingAppointmentId || billingData.bookingCode) {
       setHistory((prev) =>
         prev.map((h) =>
@@ -537,6 +540,7 @@ export default function ReceptionView() {
   const [showCheckinModal, setShowCheckinModal] = useState(false);
 
   const qrInputRef = useRef<HTMLInputElement>(null);
+  const paidInvoiceSetRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const token = getAuthToken();
@@ -613,7 +617,7 @@ export default function ReceptionView() {
               room: roomTitle,
               checkInTime: timeStr,
               status: item.status === 'COMPLETED' ? 'ĐÃ KHÁM' : item.status === 'IN_CONSULTATION' ? 'ĐANG KHÁM' : 'ĐÃ TIẾP ĐÓN',
-              invoiceStatus: item.invoiceStatus || 'UNPAID',
+              invoiceStatus: (item.invoiceStatus === 'PAID' || paidInvoiceSetRef.current.has(item.id) || (item.bookingCode && paidInvoiceSetRef.current.has(item.bookingCode))) ? 'PAID' : (item.invoiceStatus || 'UNPAID'),
             };
           });
         if (mapped.length > 0) {
@@ -700,6 +704,17 @@ export default function ReceptionView() {
           if (appliedBillingPromo) {
             recordPromotionUsage(appliedBillingPromo.code);
           }
+          if (billingData.invoiceId) {
+            try {
+              await api.payInvoice(billingData.invoiceId, {
+                amountPaid: Number(res.amountPaid || billingData.totalAmount || 0),
+                paymentMethod: 'BANK_TRANSFER',
+                note: appliedBillingPromo ? `VOUCHER:${appliedBillingPromo.code}` : 'VIETQR_PAYOS',
+              });
+            } catch (payErr) {
+              console.warn('payInvoice background sync error:', payErr);
+            }
+          }
           triggerBillingSuccess({
             amountPaid: res.amountPaid,
             paymentMethod: 'BANK_TRANSFER',
@@ -737,6 +752,17 @@ export default function ReceptionView() {
       if (res && res.success && res.status === 'SUCCEEDED') {
         if (appliedBillingPromo) {
           recordPromotionUsage(appliedBillingPromo.code);
+        }
+        if (billingData.invoiceId) {
+          try {
+            await api.payInvoice(billingData.invoiceId, {
+              amountPaid: Number(res.amountPaid || billingData.totalAmount || 0),
+              paymentMethod: 'BANK_TRANSFER',
+              note: appliedBillingPromo ? `VOUCHER:${appliedBillingPromo.code}` : 'VIETQR_PAYOS',
+            });
+          } catch (payErr) {
+            console.warn('payInvoice manual sync error:', payErr);
+          }
         }
         triggerBillingSuccess({
           amountPaid: res.amountPaid,
@@ -2550,6 +2576,20 @@ export default function ReceptionView() {
                     <button
                       type="button"
                       onClick={() => {
+                        if (billingAppointmentId || billingData?.bookingCode) {
+                          const targetAppId = billingAppointmentId;
+                          const targetCode = billingData?.bookingCode;
+                          if (targetAppId) paidInvoiceSetRef.current.add(targetAppId);
+                          if (targetCode) paidInvoiceSetRef.current.add(targetCode);
+                          setHistory((prev) =>
+                            prev.map((h) =>
+                              (targetAppId && h.appointmentId === targetAppId) ||
+                              (targetCode && h.bookingCode === targetCode)
+                                ? { ...h, invoiceStatus: 'PAID' }
+                                : h
+                            )
+                          );
+                        }
                         setBillingAppointmentId(null);
                         setBillingData(null);
                         setBillingSuccessData(null);
