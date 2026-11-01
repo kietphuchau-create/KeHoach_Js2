@@ -1556,59 +1556,62 @@ export default function BookingMethodSelector({
     };
   }, [selectedDoctor?.id, bookingDate, aiStep]);
 
-  // Lọc các khung giờ theo Buổi và Ngày khám (Ưu tiên lịch thực từ Database nếu có)
+  // Đếm số lượng slot khả dụng theo từng ca để hiển thị badge số lượng
+  const shiftSlotCounts = useMemo(() => {
+    const isToday = bookingDate === getTodayISODate();
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const available = dynamicSlots.filter(s => {
+      const isPast = isToday && s.startMinutes !== undefined && s.startMinutes <= currentMinutes;
+      return !(s.disabled || s.status === 'full' || s.status === 'expired' || s.status === 'locked' || isPast);
+    });
+    return {
+      ALL: available.length,
+      MORNING: available.filter(s => (s.startMinutes ?? 0) < 720).length,
+      AFTERNOON: available.filter(s => (s.startMinutes ?? 0) >= 720 && (s.startMinutes ?? 0) < 1020).length,
+      EVENING: available.filter(s => (s.startMinutes ?? 0) >= 1020).length,
+    };
+  }, [dynamicSlots, bookingDate]);
+
+  // CHỈ LẤY CÁC KHUNG GIỜ CÓ THỂ CHỌN (Khả dụng, không bị quá giờ, không hết chỗ)
   const shiftSlots = useMemo(() => {
     const isToday = bookingDate === getTodayISODate();
     const now = new Date();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
     if (dynamicSlots.length > 0) {
-      const allMapped = dynamicSlots.map(slot => {
-        const isPast = isToday && slot.startMinutes !== undefined && slot.startMinutes <= currentMinutes;
-        const isDisabled = slot.disabled || slot.status === 'full' || slot.status === 'expired' || slot.status === 'locked' || isPast;
-        let label = slot.label;
-        if (isPast) {
-          label = 'Đã qua giờ';
-        } else if (slot.status === 'full' || slot.status === 'locked') {
-          label = 'Hết chỗ';
-        } else if (!label) {
-          label = isDisabled ? 'Không khả dụng' : 'Khả dụng';
-        }
-
-        const startM = slot.startMinutes !== undefined ? slot.startMinutes : (parseInt(slot.time?.split(':')[0] || '8', 10) * 60);
-        const session = startM < 720 ? 'MORNING' : (startM < 1020 ? 'AFTERNOON' : 'EVENING');
-
-        return {
-          id: slot.id,
-          time: slot.time,
-          startMinutes: startM,
-          session: session as any,
-          disabled: isDisabled,
-          label: label,
-        };
-      });
+      // 1. Chỉ lọc các slot còn khả dụng để đặt lịch
+      const availableOnly = dynamicSlots
+        .filter(slot => {
+          const isPast = isToday && slot.startMinutes !== undefined && slot.startMinutes <= currentMinutes;
+          const isDisabled = slot.disabled || slot.status === 'full' || slot.status === 'expired' || slot.status === 'locked' || isPast;
+          return !isDisabled;
+        })
+        .map(slot => {
+          const startM = slot.startMinutes !== undefined ? slot.startMinutes : (parseInt(slot.time?.split(':')[0] || '8', 10) * 60);
+          const session = startM < 720 ? 'MORNING' : (startM < 1020 ? 'AFTERNOON' : 'EVENING');
+          return {
+            id: slot.id,
+            time: slot.time,
+            startMinutes: startM,
+            session: session as any,
+            disabled: false,
+            label: slot.label || 'Khả dụng',
+          };
+        });
 
       if (selectedShiftId === 'ALL') {
-        return allMapped;
+        return availableOnly;
       }
 
-      const filtered = allMapped.filter(s => {
+      const filtered = availableOnly.filter(s => {
         if (selectedShiftId === 'MORNING') return s.startMinutes < 720;
         if (selectedShiftId === 'AFTERNOON') return s.startMinutes >= 720 && s.startMinutes < 1020;
         if (selectedShiftId === 'EVENING') return s.startMinutes >= 1020;
         return true;
       });
 
-      // Nếu ca đang chọn không có slot khả dụng nhưng các ca khác có, hiển thị tất cả để bệnh nhân không bị kẹt
-      const availableInFiltered = filtered.filter(s => !s.disabled);
-      if (availableInFiltered.length === 0) {
-        const anyAvailable = allMapped.filter(s => !s.disabled);
-        if (anyAvailable.length > 0) {
-          return allMapped;
-        }
-      }
-
-      return filtered.length > 0 ? filtered : allMapped;
+      return filtered;
     }
 
     return [];
@@ -4479,18 +4482,28 @@ export default function BookingMethodSelector({
                             <div className="flex items-center gap-1 overflow-x-auto pb-0.5 scrollbar-none">
                               {TIME_SHIFTS.map((shift) => {
                                 const isSel = selectedShiftId === shift.id;
+                                const count = (shiftSlotCounts as any)[shift.id] ?? 0;
                                 return (
                                   <button
                                     key={shift.id}
                                     type="button"
                                     onClick={() => setSelectedShiftId(shift.id)}
-                                    className={`px-2 py-0.5 rounded-md text-[10px] font-semibold shrink-0 transition cursor-pointer ${
+                                    className={`px-2 py-0.5 rounded-md text-[10px] font-semibold shrink-0 transition cursor-pointer flex items-center gap-1 ${
                                       isSel
-                                        ? 'bg-purple-100 text-purple-800 font-bold border border-purple-300'
-                                        : 'bg-slate-100/80 hover:bg-slate-200/80 text-slate-600'
+                                        ? 'bg-purple-600 text-white font-bold shadow-2xs'
+                                        : count > 0
+                                        ? 'bg-white hover:bg-purple-50 text-slate-700 border border-slate-200'
+                                        : 'bg-slate-100/60 text-slate-400 border border-slate-100'
                                     }`}
                                   >
-                                    {shift.icon} {shift.label}
+                                    <span>{shift.icon} {shift.label}</span>
+                                    {count > 0 && (
+                                      <span className={`px-1 py-0.2 rounded-full text-[9px] font-bold ${
+                                        isSel ? 'bg-purple-800 text-purple-100' : 'bg-purple-100 text-purple-700'
+                                      }`}>
+                                        {count}
+                                      </span>
+                                    )}
                                   </button>
                                 );
                               })}
@@ -4506,7 +4519,7 @@ export default function BookingMethodSelector({
                               <div className="py-4 px-3 bg-amber-50/70 rounded-xl border border-dashed border-amber-300 text-center space-y-2">
                                 <div className="text-xs font-bold text-amber-950 flex items-center justify-center gap-1.5">
                                   <Clock size={14} className="text-amber-600" />
-                                  <span>Bác sĩ {selectedDoctor?.name || ''} chưa có ca khám trong {selectedShiftId === 'MORNING' ? 'Buổi Sáng' : 'Buổi Chiều'} ({formatVietnameseFullDate(bookingDate)})</span>
+                                  <span>Bác sĩ {selectedDoctor?.name || ''} không còn khung giờ khả dụng trong {selectedShiftId === 'MORNING' ? 'Buổi Sáng' : selectedShiftId === 'AFTERNOON' ? 'Buổi Chiều' : selectedShiftId === 'EVENING' ? 'Ca Tối & Đêm' : 'ngày hôm nay'} ({formatVietnameseFullDate(bookingDate)})</span>
                                 </div>
                                 <p className="text-[11px] text-amber-800 leading-relaxed">
                                   Bác sĩ có thể chưa mở lịch trực hoặc đã hết chỗ trống. Bạn có thể đổi sang {selectedShiftId === 'MORNING' ? 'Buổi Chiều' : 'Buổi Sáng'} hoặc chuyển sang ngày khác:
@@ -4533,26 +4546,24 @@ export default function BookingMethodSelector({
                                 </div>
                               </div>
                             ) : (
-                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                              <div className="grid grid-cols-2 sm:grid-cols-3 sm:grid-cols-4 gap-2">
                                 {shiftSlots.map((slot) => {
                                   const isSelected = selectedSlotId === slot.id && selectedSlotTime === slot.time;
                                   return (
                                     <button
                                       key={slot.id}
                                       type="button"
-                                      disabled={slot.disabled || isBookingSubmitting}
+                                      disabled={isBookingSubmitting}
                                       onClick={() => handleSlotSelection(slot)}
-                                      className={`py-1.5 px-2 text-xs font-bold rounded-xl border transition text-center flex flex-col items-center justify-center ${
-                                        slot.disabled
-                                          ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-60'
-                                          : isSelected
-                                          ? 'bg-purple-600 text-white border-purple-600 shadow-2xs cursor-pointer'
-                                          : 'bg-slate-50 hover:bg-purple-50 text-slate-700 border-slate-200 cursor-pointer'
+                                      className={`py-2 px-2.5 text-xs font-bold rounded-xl border transition text-center flex flex-col items-center justify-center cursor-pointer ${
+                                        isSelected
+                                          ? 'bg-purple-600 text-white border-purple-600 shadow-md ring-2 ring-purple-300'
+                                          : 'bg-white hover:bg-purple-50/80 hover:border-purple-300 text-slate-800 border-slate-200 shadow-2xs hover:shadow-xs'
                                       }`}
                                     >
-                                      <span>{slot.time}</span>
-                                      <span className={`text-[8.5px] ${isSelected ? 'text-purple-200' : slot.disabled ? 'text-slate-400' : 'text-emerald-600'}`}>
-                                        {isSelected && createdAppointment?.id ? 'Đã giữ chỗ 15 phút' : slot.label}
+                                      <span className="font-mono text-xs tracking-tight">{slot.time}</span>
+                                      <span className={`text-[9px] font-semibold mt-0.5 ${isSelected ? 'text-purple-100' : 'text-emerald-600'}`}>
+                                        {isSelected && createdAppointment?.id ? '✓ Đã giữ chỗ' : '⚡ Khả dụng'}
                                       </span>
                                     </button>
                                   );
