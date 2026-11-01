@@ -242,6 +242,7 @@ export default function DoctorScheduleView() {
       totalShifts: weekSchedules.length,
       totalHours: Math.round(totalHours * 10) / 10,
       totalBooked,
+      totalSlots,
       availableSlots: totalSlots - totalBooked,
     };
   }, [weekSchedules]);
@@ -859,105 +860,87 @@ export default function DoctorScheduleView() {
         </div>
       )}
 
-            {/* ── Thanh Hợp Nhất: Điều Hướng Tuần, Thao Tác & Tổng Quan Chỉ Số ── */}
-      <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-3.5">
-        {/* Hàng 1: Điều hướng tuần, thông tin thời gian & Nút Đăng ký ca */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3.5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-teal-50 border border-teal-200 text-teal-800 flex items-center justify-center font-bold shrink-0 shadow-2xs">
-              <CalendarDays size={20} />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-extrabold text-slate-800 block">Ma Trận Ca Trực Bác Sĩ</span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200">
-                  Thứ 2 - Thứ 6
-                </span>
-              </div>
-              <span className="text-xs text-slate-500 block mt-0.5">
-                Từ {weekDays[0]?.displayDay} ({weekDays[0]?.displayDate}) đến {weekDays[weekDays.length - 1]?.displayDay} ({weekDays[weekDays.length - 1]?.displayDate})
-              </span>
-            </div>
+            {/* ── Thanh Hợp Nhất: Tất Cả Nằm Chung 1 Hàng Duy Nhất ── */}
+      <div className="bg-white px-3.5 py-2 rounded-2xl border border-slate-200 shadow-2xs flex flex-wrap xl:flex-nowrap items-center justify-between gap-2.5">
+        {/* Khối 1: Icon + Tên "Ca Trực Bác Sĩ" */}
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="w-8 h-8 rounded-xl bg-teal-50 border border-teal-200 text-teal-800 flex items-center justify-center font-bold shrink-0 shadow-2xs">
+            <CalendarDays size={18} />
           </div>
+          <span className="text-sm font-extrabold text-slate-800 whitespace-nowrap">Ca Trực Bác Sĩ</span>
+        </div>
 
-          {/* Bộ điều hướng tuần & Nút Đăng ký ca */}
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={loadSchedules}
-              disabled={loading}
-              className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition cursor-pointer"
-              title="Làm mới lịch trực"
-            >
-              <RefreshCw size={15} className={loading ? 'animate-spin text-teal-700' : ''} />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setCurrentWeekOffset((prev) => prev - 1)}
-              className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition cursor-pointer"
-              title="Tuần trước"
-            >
-              <ChevronLeft size={16} />
-            </button>
-            
-            <span className="text-xs font-bold text-slate-800 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl">
-              Tuần: {weekDays[0]?.displayDate} - {weekDays[weekDays.length - 1]?.displayDate}
-            </span>
-
-            <button
-              type="button"
-              onClick={() => setCurrentWeekOffset((prev) => prev + 1)}
-              className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition cursor-pointer"
-              title="Tuần kế tiếp"
-            >
-              <ChevronRight size={16} />
-            </button>
-
-            {currentWeekOffset !== 0 && (
-              <button
-                type="button"
-                onClick={() => setCurrentWeekOffset(0)}
-                className="text-xs font-semibold text-teal-700 hover:underline px-1.5 cursor-pointer"
-              >
-                Hôm nay
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={handleOpenCreateModal}
-              className="ml-1 sm:ml-2 px-4 py-2 bg-gradient-to-r from-teal-700 to-emerald-700 hover:from-teal-800 hover:to-emerald-800 text-white font-bold rounded-xl text-xs transition shadow-sm shadow-teal-700/20 flex items-center gap-1.5 cursor-pointer hover:scale-102 active:scale-98"
-              title="Mở cửa sổ tiện ích đăng ký ca trực"
-            >
-              <PlusCircle size={15} />
-              <span>Đăng Ký Ca Mới</span>
-            </button>
+        {/* Khối 2: 5 Khung Thống Kê Nằm Chung Hàng */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <div className="px-2.5 py-1 bg-slate-50/90 rounded-lg border border-slate-200/80 flex items-center gap-1.5">
+            <span className="text-slate-500 text-[11px] font-medium">Tổng ca:</span>
+            <strong className="text-slate-800 text-xs font-black">{weekMetrics.totalShifts} ca</strong>
+          </div>
+          <div className="px-2.5 py-1 bg-slate-50/90 rounded-lg border border-slate-200/80 flex items-center gap-1.5">
+            <span className="text-slate-500 text-[11px] font-medium">Tổng giờ:</span>
+            <strong className="text-slate-800 text-xs font-black">{weekMetrics.totalHours}h</strong>
+          </div>
+          <div className="px-2.5 py-1 bg-slate-50/90 rounded-lg border border-slate-200/80 flex items-center gap-1.5">
+            <span className="text-slate-500 text-[11px] font-medium">Tổng slots:</span>
+            <strong className="text-slate-800 text-xs font-black">{weekMetrics.totalSlots} slots</strong>
+          </div>
+          <div className="px-2.5 py-1 bg-emerald-50/70 rounded-lg border border-emerald-200/80 flex items-center gap-1.5">
+            <span className="text-emerald-700 text-[11px] font-medium">Đã đặt:</span>
+            <strong className="text-emerald-800 text-xs font-black">{weekMetrics.totalBooked} người</strong>
+          </div>
+          <div className="px-2.5 py-1 bg-teal-50/70 rounded-lg border border-teal-200/80 flex items-center gap-1.5">
+            <span className="text-teal-700 text-[11px] font-medium">Còn trống:</span>
+            <strong className="text-teal-800 text-xs font-black">{weekMetrics.availableSlots} slots</strong>
           </div>
         </div>
 
-        {/* Hàng 2: Dải 4 chỉ số tóm tắt tuần */}
-        <div className="pt-3 border-t border-slate-100 grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-          <div className="px-3 py-2 bg-slate-50/80 rounded-xl border border-slate-200/70 flex items-center justify-between">
-            <span className="text-slate-500 text-[11px] font-medium">Tổng ca trực:</span>
-            <strong className="text-slate-800 text-xs sm:text-sm font-black">{weekMetrics.totalShifts} ca</strong>
-          </div>
-          <div className="px-3 py-2 bg-slate-50/80 rounded-xl border border-slate-200/70 flex items-center justify-between">
-            <span className="text-slate-500 text-[11px] font-medium">Tổng giờ làm việc:</span>
-            <strong className="text-slate-800 text-xs sm:text-sm font-black">{weekMetrics.totalHours} giờ</strong>
-          </div>
-          <div className="px-3 py-2 bg-emerald-50/60 rounded-xl border border-emerald-200/70 flex items-center justify-between">
-            <span className="text-emerald-700 text-[11px] font-medium">Bệnh nhân đã đặt:</span>
-            <strong className="text-emerald-800 text-xs sm:text-sm font-black">{weekMetrics.totalBooked} người</strong>
-          </div>
-          <div className="px-3 py-2 bg-teal-50/60 rounded-xl border border-teal-200/70 flex items-center justify-between">
-            <span className="text-teal-700 text-[11px] font-medium">Khung giờ còn trống:</span>
-            <strong className="text-teal-800 text-xs sm:text-sm font-black">{weekMetrics.availableSlots} slots</strong>
-          </div>
+        {/* Khối 3: Bộ Điều Hướng Tuần & Nút Đăng Ký Ca */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => setCurrentWeekOffset((prev) => prev - 1)}
+            className="p-1.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+            title="Tuần trước"
+          >
+            <ChevronLeft size={16} />
+          </button>
+          
+          <span className="text-xs font-bold text-slate-800 px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl whitespace-nowrap">
+            Tuần: {weekDays[0]?.displayDate} - {weekDays[weekDays.length - 1]?.displayDate}
+          </span>
+
+          <button
+            type="button"
+            onClick={() => setCurrentWeekOffset((prev) => prev + 1)}
+            className="p-1.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+            title="Tuần kế tiếp"
+          >
+            <ChevronRight size={16} />
+          </button>
+
+          {currentWeekOffset !== 0 && (
+            <button
+              type="button"
+              onClick={() => setCurrentWeekOffset(0)}
+              className="text-xs font-semibold text-teal-700 hover:underline px-1 cursor-pointer"
+            >
+              Hôm nay
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={handleOpenCreateModal}
+            className="ml-1 px-3.5 py-1.5 bg-gradient-to-r from-teal-700 to-emerald-700 hover:from-teal-800 hover:to-emerald-800 text-white font-bold rounded-xl text-xs transition shadow-sm shadow-teal-700/20 flex items-center gap-1.5 cursor-pointer hover:scale-102 active:scale-98 whitespace-nowrap"
+            title="Mở cửa sổ tiện ích đăng ký ca trực"
+          >
+            <PlusCircle size={15} />
+            <span>Đăng Ký Ca Mới</span>
+          </button>
         </div>
       </div>
 
-{/* ── Khối Nội Dung Chính (Loading / Empty / Ma Trận Tuần) ── */}
+      {/* ── Khối Nội Dung Chính (Loading / Empty / Ma Trận Tuần) ── */}
       <div className="space-y-4">
         {loading ? (
           <div className="text-center py-16 bg-white rounded-2xl border border-slate-200 text-xs text-slate-500">

@@ -363,25 +363,15 @@ public class AppointmentController {
 
         // Nếu Chế Độ Bác Sĩ Tự Đặt Lịch Thủ Công đang BẬT (!isAutoMode):
         // 1. Kiểm tra xem Bác sĩ có ca trực thực sự (ACTIVE) trong ngày này hay không.
-        // 2. Nếu Bác sĩ chưa đăng ký ca trực hoặc chỉ có ca trực mẫu tự sinh 8:00-17:00 chưa có hẹn:
-        //    Dọn dẹp các slot trống tự sinh (SlotStatus.AVAILABLE) và trả về rỗng.
+        // 2. Nếu Bác sĩ chưa đăng ký ca trực: Dọn dẹp các slot trống tự sinh (SlotStatus.AVAILABLE) và trả về rỗng.
+        // 3. Nếu Bác sĩ CÓ ca trực nhưng slots chưa được tạo hoặc bị thiếu: Tự động tái tạo lại các slot theo ca trực của bác sĩ.
         if (!isAutoMode) {
             List<DoctorScheduleEntity> activeSchedules = doctorScheduleJpaRepository.findByDoctorIdAndWorkDate(doctorId, targetDate)
                     .stream()
                     .filter(s -> s.getStatus() == ScheduleStatus.ACTIVE)
                     .toList();
 
-            boolean hasBookedSlots = slots.stream().anyMatch(s -> s.getStatus() == SlotStatus.BOOKED);
-            boolean isAutoPlaceholder = !activeSchedules.isEmpty()
-                    && activeSchedules.size() == 1
-                    && activeSchedules.get(0).getStartTime().equals(LocalTime.of(8, 0))
-                    && activeSchedules.get(0).getEndTime().equals(LocalTime.of(17, 0))
-                    && !hasBookedSlots;
-
-            if (activeSchedules.isEmpty() || isAutoPlaceholder) {
-                if (isAutoPlaceholder) {
-                    doctorScheduleJpaRepository.deleteAll(activeSchedules);
-                }
+            if (activeSchedules.isEmpty()) {
                 if (!slots.isEmpty()) {
                     List<TimeSlotEntity> unbooked = slots.stream()
                             .filter(s -> s.getStatus() == SlotStatus.AVAILABLE)
@@ -391,6 +381,43 @@ public class AppointmentController {
                     }
                 }
                 return ResponseEntity.ok(Collections.emptyList());
+            }
+
+            // Nếu bác sĩ CÓ ca trực hợp lệ nhưng danh sách slots trống: Tự động khôi phục lại các slot theo ca trực
+            if (slots.isEmpty()) {
+                Instant now = Instant.now();
+                List<TimeSlotEntity> regeneratedSlots = new ArrayList<>();
+                for (DoctorScheduleEntity sch : activeSchedules) {
+                    LocalTime cursor = sch.getStartTime();
+                    int duration = sch.getSlotDurationMinutes() != null && sch.getSlotDurationMinutes() > 0
+                            ? sch.getSlotDurationMinutes()
+                            : 30;
+                    while (cursor.isBefore(sch.getEndTime())) {
+                        LocalTime next = cursor.plusMinutes(duration);
+                        if (!next.isAfter(cursor) || next.isAfter(sch.getEndTime())) {
+                            break;
+                        }
+                        boolean isLunch = !cursor.isBefore(LocalTime.of(12, 0)) && cursor.isBefore(LocalTime.of(13, 30));
+                        if (!isLunch) {
+                            Instant slotStart = targetDate.atTime(cursor).atZone(vnZone).toInstant();
+                            Instant slotEnd = targetDate.atTime(next).atZone(vnZone).toInstant();
+                            regeneratedSlots.add(new TimeSlotEntity(
+                                    UUID.randomUUID().toString(),
+                                    sch.getId(),
+                                    doctorId,
+                                    slotStart,
+                                    slotEnd,
+                                    SlotStatus.AVAILABLE,
+                                    now,
+                                    now
+                            ));
+                        }
+                        cursor = next;
+                    }
+                }
+                if (!regeneratedSlots.isEmpty()) {
+                    slots = timeSlotJpaRepository.saveAll(regeneratedSlots);
+                }
             }
         }
 
