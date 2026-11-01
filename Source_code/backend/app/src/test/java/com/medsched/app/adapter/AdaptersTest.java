@@ -13,8 +13,6 @@ import com.medsched.persistence.enums.AppointmentStatus;
 import com.medsched.persistence.enums.QueueType;
 import com.medsched.persistence.enums.SlotStatus;
 import com.medsched.persistence.repository.AppointmentJpaRepository;
-import com.medsched.persistence.repository.DoctorJpaRepository;
-import com.medsched.persistence.repository.DoctorScheduleJpaRepository;
 import com.medsched.persistence.repository.TimeSlotJpaRepository;
 import com.medsched.persistence.repository.UserJpaRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -45,10 +43,6 @@ class AdaptersTest {
     private AppointmentJpaRepository appointmentRepo;
     @Mock
     private TimeSlotJpaRepository timeSlotRepo;
-    @Mock
-    private DoctorJpaRepository doctorRepo;
-    @Mock
-    private DoctorScheduleJpaRepository doctorScheduleRepo;
 
     @Test
     @DisplayName("SecurityPasswordEncoderAdapter: kiểm tra mã hóa và khớp mật khẩu")
@@ -125,10 +119,20 @@ class AdaptersTest {
         given(timeSlotRepo.compareAndSetStatus("slot-1", SlotStatus.AVAILABLE, SlotStatus.BOOKED)).willReturn(1);
         given(timeSlotRepo.compareAndSetStatus("slot-1", SlotStatus.BOOKED, SlotStatus.AVAILABLE)).willReturn(1);
 
-        TimeSlotRepositoryAdapter adapter = new TimeSlotRepositoryAdapter(timeSlotRepo, doctorRepo, doctorScheduleRepo);
+        TimeSlotRepositoryAdapter adapter = new TimeSlotRepositoryAdapter(timeSlotRepo);
         assertThat(adapter.findById("slot-1")).isPresent();
         assertThat(adapter.lockSlot("slot-1")).isTrue();
         assertThat(adapter.releaseSlot("slot-1")).isTrue();
+    }
+
+    @Test
+    @DisplayName("TimeSlotRepositoryAdapter: slot không tồn tại không được tự sinh dữ liệu giả")
+    void missingSlotIsNotAutoCreated() {
+        given(timeSlotRepo.findById("missing-slot")).willReturn(Optional.empty());
+
+        TimeSlotRepositoryAdapter adapter = new TimeSlotRepositoryAdapter(timeSlotRepo);
+
+        assertThat(adapter.findById("missing-slot")).isEmpty();
     }
 
     @Test

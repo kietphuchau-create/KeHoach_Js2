@@ -659,11 +659,15 @@ export const api = {
         body: JSON.stringify({ message, role, context }),
       });
     } catch (e: any) {
+      const errorMessage = e?.message || "Lỗi mạng";
+      const isRateLimited = /429|giống hệt vừa được xử lý|quá nhiều yêu cầu/i.test(errorMessage);
       return {
-        reply: "Không thể kết nối đến Máy chủ Trợ lý AI MedSched: " + (e?.message || "Lỗi mạng"),
+        reply: isRateLimited
+          ? "Bạn vừa gửi yêu cầu quá nhanh. Vui lòng chờ vài giây rồi chọn lại một lần nhé."
+          : "Không thể kết nối đến Máy chủ Trợ lý AI MedSched: " + errorMessage,
         executedTool: null,
         toolResult: null,
-        answerSource: "ERROR",
+        answerSource: isRateLimited ? "RATE_LIMIT" : "ERROR",
         tokenSaved: false,
       };
     }

@@ -72,8 +72,16 @@ public class DoctorPrescriptionDtos {
             String appointmentTime,
             String doctorId,
             String doctorName,
-            String roomNumber
-    ) {}
+            String roomNumber,
+            String invoiceStatus
+    ) {
+        public QueuePatientDto(String id, String queueNumber, String bookingCode, String patientName,
+                               String gender, int birthYear, String phone, String cccd, String symptoms,
+                               String aiSummary, String status, String checkInTime, String appointmentTime,
+                               String doctorId, String doctorName, String roomNumber) {
+            this(id, queueNumber, bookingCode, patientName, gender, birthYear, phone, cccd, symptoms, aiSummary, status, checkInTime, appointmentTime, doctorId, doctorName, roomNumber, "UNPAID");
+        }
+    }
 
     public record ConsultationHistoryItemDto(
             String appointmentId,
