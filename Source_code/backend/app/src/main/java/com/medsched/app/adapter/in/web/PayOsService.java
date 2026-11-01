@@ -20,13 +20,13 @@ public class PayOsService {
     private static final Logger log = LoggerFactory.getLogger(PayOsService.class);
     private static final String PAYOS_BASE_URL = "https://api-merchant.payos.vn";
 
-    @Value("${payos.client-id:1b71d68a-2a61-483e-ba37-37796a1d7c15}")
+    @Value("${payos.client-id:}")
     private String clientId;
 
-    @Value("${payos.api-key:bdab1958-4c37-4e90-be31-12e023420b9e}")
+    @Value("${payos.api-key:}")
     private String apiKey;
 
-    @Value("${payos.checksum-key:7fa7c5162474d08eac1c0d100d5d95ebd3fbc1182be5b8ad5dff80e601170199}")
+    @Value("${payos.checksum-key:}")
     private String checksumKey;
 
     private final RestClient restClient;
@@ -64,6 +64,10 @@ public class PayOsService {
      */
     public Optional<PayOsCreateResult> createPaymentLink(long orderCode, int amount, String description,
                                                          String returnUrl, String cancelUrl) {
+        if (!isConfigured()) {
+            log.warn("PayOS chưa được cấu hình; bỏ qua yêu cầu tạo payment link.");
+            return Optional.empty();
+        }
         try {
             // PayOS yêu cầu description tối đa 25 ký tự, không dấu
             String safeDesc = sanitizeDescription(description);
@@ -124,6 +128,7 @@ public class PayOsService {
      * Kiểm tra trạng thái thanh toán từ PayOS qua orderCode (Polling trực tiếp máy chủ PayOS).
      */
     public Optional<PayOsPaymentInfo> getPaymentInfo(long orderCode) {
+        if (!isConfigured()) return Optional.empty();
         try {
             String responseBody = restClient.get()
                     .uri("/v2/payment-requests/{orderCode}", orderCode)
@@ -153,7 +158,7 @@ public class PayOsService {
      * Xác thực tính toàn vẹn chữ ký Webhook từ PayOS.
      */
     public boolean verifyWebhookSignature(Map<String, Object> data, String signature) {
-        if (data == null || signature == null || signature.isBlank()) {
+        if (!isConfigured() || data == null || signature == null || signature.isBlank()) {
             return false;
         }
         try {
@@ -201,5 +206,11 @@ public class PayOsService {
             clean = clean.substring(0, 25);
         }
         return clean.isBlank() ? "MEDPAY" : clean;
+    }
+
+    private boolean isConfigured() {
+        return clientId != null && !clientId.isBlank()
+                && apiKey != null && !apiKey.isBlank()
+                && checksumKey != null && !checksumKey.isBlank();
     }
 }

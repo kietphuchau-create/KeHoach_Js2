@@ -185,4 +185,41 @@ class TriageControllerIntegrationTest {
                 .andExpect(jsonPath("$.reply").value("Thủ đô của Nhật Bản là Tokyo."))
                 .andExpect(jsonPath("$.answerSource").value("OPENROUTER_API"));
     }
+
+    @Test
+    @WithMockUser(username = "patient@medsched.vn", roles = "PATIENT")
+    @DisplayName("General chat falls back to reviewed RAG when external AI is unavailable")
+    void generalChatFallsBackToInternalRag() throws Exception {
+        String question = "Tôi cần chuẩn bị gì trước khi khám?";
+        given(generalAssistant.answerDetailed(question, "PATIENT", "")).willReturn(Optional.empty());
+        given(knowledgeRag.retrieve(question)).willReturn(Optional.of(
+                new InternalKnowledgeRagService.Answer("Mang theo giấy tờ và hồ sơ khám.", "Chuẩn bị trước khi khám", 5)));
+
+        mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new TriageController.ChatRequest(question, "PATIENT", ""))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.answerSource").value("INTERNAL_RAG"))
+                .andExpect(jsonPath("$.reply").value(org.hamcrest.Matchers.containsString("Mang theo giấy tờ")));
+    }
+
+    @Test
+    @WithMockUser(username = "patient@medsched.vn", roles = "PATIENT")
+    @DisplayName("Valid LLM specialty is not overwritten by the symptom family")
+    void validLlmSpecialtyIsPreserved() throws Exception {
+        String symptoms = "Đau đầu bên trái âm ỉ liên tục 2 ngày, mức độ 5/10, kèm nhìn mờ";
+        given(aiTools.triagePatientSymptoms(any(), eq(""))).willReturn("""
+                {"specialtyCode":"OPHTHALMOLOGY","specialtyName":"Chuyên Khoa Mắt",
+                "recommendedService":"Khám mắt","estimatedFee":"200.000 VNĐ",
+                "clinicalSummary":"Đau đầu kèm nhìn mờ","preparationAdvice":"Mang kính đang dùng",
+                "isEmergency":false,"emergencyWarning":null}
+                """);
+        given(bookingRecommendations.recommend("OPHTHALMOLOGY")).willReturn(Optional.empty());
+
+        mockMvc.perform(post("/api/ai/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new TriageController.ChatRequest(symptoms, "PATIENT", ""))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reply").value(org.hamcrest.Matchers.containsString("Chuyên Khoa Mắt")));
+    }
 }

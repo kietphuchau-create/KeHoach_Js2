@@ -69,7 +69,8 @@ Thêm nội dung sau vào file cấu hình `claude_desktop_config.json` (nằm t
         "d:/HOCTAP/jspring/KeHoach_Js2/Source_code/mcp-server/server.js"
       ],
       "env": {
-        "MEDSCHED_API_URL": "http://localhost:8080/api/v1"
+        "MEDSCHED_API_URL": "http://localhost:8080/api/v1",
+        "MEDSCHED_API_TOKEN": "<JWT của tài khoản được phép gọi nghiệp vụ>"
       }
     }
   }
@@ -80,4 +81,6 @@ Thêm nội dung sau vào file cấu hình `claude_desktop_config.json` (nằm t
 1. Bạn hỏi AI: *"Hãy kiểm tra cho tôi danh sách bác sĩ đang trực tại MedSched?"*
    👉 AI sẽ tự kích hoạt Tool `get_doctors` và trả về danh sách bác sĩ kèm chuyên khoa và phòng khám.
 2. Bạn bảo AI: *"Kiểm tra lịch hẹn MED918869 và thực hiện tiếp đón bệnh nhân vào phòng khám."*
-   👉 AI sẽ tự gọi `get_appointment_by_code` sau đó gọi `reception_checkin`, thông báo số thứ tự `A-APP-1668` đã được đưa vào hàng đợi của Bác sĩ Thu Hà!
+   👉 AI sẽ tự gọi `get_appointment_by_code`, sau đó gọi `reception_checkin` và chỉ thông báo thành công khi backend trả về kết quả check-in thật.
+
+Các tool dùng đúng contract backend: `/doctors`, `/appointments/booking-code/{code}`, `/reception/checkin/qr`, `/statistics/overview` và `/payments/webhook/simulate`. Nếu backend không truy cập được, token không hợp lệ hoặc API trả lỗi, MCP trả lỗi rõ ràng; server không sinh dữ liệu mock để giả lập thành công. Chạy `npm test` trong `Source_code/mcp-server` để kiểm tra contract trước khi demo.

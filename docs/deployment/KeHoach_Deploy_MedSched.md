@@ -163,7 +163,7 @@ JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=65
 - [ ] Test: `https://medsched-api.onrender.com/api/v1/medical-centers` (endpoint không cần đăng nhập).
 
 **⚠️ Rủi ro riêng của backend này:**
-- Render free chỉ **512MB RAM / 0.1 CPU** — Spring Boot 3 + Hibernate + Spring AI dependency (`spring-ai-openai-spring-boot-starter`) khá nặng lúc khởi động. Hiện dự án dùng `RuleBasedAiTriageAdapter` (không gọi OpenAI thật) nên đỡ tốn RAM hơn, nhưng **vẫn phải test kỹ thời gian boot thật** trước khi tin tưởng cho demo.
+- Render free chỉ **512MB RAM / 0.1 CPU** — Spring Boot 3 + Hibernate vẫn cần kiểm tra kỹ thời gian boot trước khi demo. Dự án không cài Spring AI starter; OpenRouter/Gemini được gọi bằng REST client và có fallback rule-based/RAG nội bộ.
 - Build fail do Java version: kiểm tra Render hỗ trợ Java 21.
 - SSL lỗi khi kết nối Aiven: thêm `?useSSL=true&requireSSL=true` vào URL (đã có trong config Giai đoạn 1.1).
 

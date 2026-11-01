@@ -9,6 +9,7 @@
   },
   "scripts": {
     "start": "node server.js",
+    "test": "node --test test-contract.js",
     "test-tool": "node test-mcp.js"
   },
   "dependencies": {
