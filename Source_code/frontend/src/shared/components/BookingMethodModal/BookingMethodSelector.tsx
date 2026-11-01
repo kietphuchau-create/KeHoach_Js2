@@ -823,29 +823,6 @@ const DEMO_DOCTORS: DemoDoctor[] = [
   },
 ];
 
-interface ClinicTimeSlot {
-  id?: string;
-  time: string;
-  startMinutes: number;
-  session: 'MORNING' | 'AFTERNOON';
-}
-
-const BASE_TIME_SLOTS: ClinicTimeSlot[] = [
-  // Buổi Sáng (08:00 - 11:30)
-  { id: 'sl000001-0000-0000-0000-000000000001', time: '08:00 - 08:30', startMinutes: 8 * 60, session: 'MORNING' },
-  { id: 'sl000002-0000-0000-0000-000000000001', time: '08:30 - 09:00', startMinutes: 8 * 60 + 30, session: 'MORNING' },
-  { id: 'sl000003-0000-0000-0000-000000000001', time: '09:00 - 09:30', startMinutes: 9 * 60, session: 'MORNING' },
-  { id: 'sl000004-0000-0000-0000-000000000001', time: '09:30 - 10:00', startMinutes: 9 * 60 + 30, session: 'MORNING' },
-  { id: 'sl000005-0000-0000-0000-000000000001', time: '10:00 - 10:30', startMinutes: 10 * 60, session: 'MORNING' },
-  { id: 'sl000006-0000-0000-0000-000000000001', time: '10:30 - 11:00', startMinutes: 10 * 60 + 30, session: 'MORNING' },
-  // Buổi Chiều (13:30 - 16:00)
-  { id: 'sl000007-0000-0000-0000-000000000001', time: '13:30 - 14:00', startMinutes: 13 * 60 + 30, session: 'AFTERNOON' },
-  { id: 'sl000008-0000-0000-0000-000000000001', time: '14:00 - 14:30', startMinutes: 14 * 60, session: 'AFTERNOON' },
-  { id: 'sl000009-0000-0000-0000-000000000001', time: '14:30 - 15:00', startMinutes: 14 * 60 + 30, session: 'AFTERNOON' },
-  { id: 'sl000010-0000-0000-0000-000000000001', time: '15:00 - 15:30', startMinutes: 15 * 60, session: 'AFTERNOON' },
-  { id: 'sl000011-0000-0000-0000-000000000001', time: '15:30 - 16:00', startMinutes: 15 * 60 + 30, session: 'AFTERNOON' },
-];
-
 // Helper xử lý ngày giờ đồng bộ chuẩn với BookingForm
 const getTodayISODate = (): string => {
   const now = new Date();
@@ -985,6 +962,7 @@ interface ChatMessage {
   isTypingComplete?: boolean;
   clarifyMeta?: ClarifyQuestionMeta;
   actionOptions?: ChatActionOption[];
+  quickReplies?: string[];
 }
 
 // Hàm hỗ trợ format chữ đậm **in đậm** trong tin nhắn
@@ -1003,6 +981,75 @@ function renderFormattedText(raw: string) {
     }
     return part;
   });
+}
+
+// Chuyển các câu hỏi làm rõ từ RAG/backend thành lựa chọn ngắn để bệnh nhân
+// có thể bấm trả lời ngay, thay vì phải gõ lại nội dung được AI gợi ý.
+function buildClinicalQuickReplies(reply: string): string[] {
+  const text = (reply || '').toLowerCase();
+
+  if (text.includes('đau ở trên rốn') && text.includes('cơn đau')) {
+    return [
+      'Đau âm ỉ trên rốn (vùng thượng vị)',
+      'Quặn từng cơn quanh rốn',
+      'Đau tức vùng bụng dưới',
+      'Đau nhói bên trái hoặc bên phải',
+    ];
+  }
+  if (text.includes('đau ở trên rốn') || (text.includes('vị trí') && text.includes('đau bụng'))) {
+    return ['Trên rốn', 'Quanh rốn', 'Dưới rốn', 'Bên trái', 'Bên phải'];
+  }
+  if (text.includes('nửa đầu') || text.includes('thái dương') || text.includes('sau gáy')) {
+    return [
+      'Đau nửa đầu, giật theo nhịp',
+      'Đau vùng trán hoặc thái dương',
+      'Đau âm ỉ sau gáy',
+      'Căng siết cả đầu',
+    ];
+  }
+  if (text.includes('giữa ngực') || text.includes('bóp nghẹt')) {
+    return ['Đè nặng giữa ngực', 'Bóp nghẹt ngực', 'Nóng rát sau xương ức', 'Đau nhói lệch một bên'];
+  }
+  if (text.includes('hàm trên') || text.includes('buốt nóng lạnh')) {
+    return ['Đau hàm trên', 'Đau hàm dưới', 'Buốt khi ăn nóng lạnh', 'Đau khi nhai hoặc sưng nướu'];
+  }
+  if (text.includes('mảng đỏ') || text.includes('mụn nước') || text.includes('tổn thương nằm')) {
+    return ['Mảng đỏ ngứa', 'Mụn nước', 'Sưng hoặc đau rát', 'Bong tróc da', 'Nổi mề đay'];
+  }
+  if (text.includes('ho khan') || text.includes('có đờm')) {
+    return ['Ho khan, không đờm', 'Ho có đờm', 'Đau rát họng', 'Có khó thở', 'Sốt trên 38°C'];
+  }
+  if (text.includes('cảm giác khó chịu') || text.includes('cảm giác đau')) {
+    return ['Đau âm ỉ', 'Đau nhói', 'Quặn từng cơn', 'Nóng rát', 'Siết chặt hoặc đè nặng'];
+  }
+  if (text.includes('bắt đầu từ khi nào') || text.includes('mức độ khó chịu')) {
+    return [
+      'Mới bị hôm nay, liên tục, mức độ 3/10',
+      'Bị 1–2 ngày, từng cơn, mức độ 5/10',
+      'Bị hơn 1 tuần, tăng dần, mức độ 7/10',
+      'Tái phát nhiều lần, mức độ 5/10',
+    ];
+  }
+  if (text.includes('triệu chứng nào đi kèm') || text.includes('có kèm')) {
+    if (text.includes('tiêu chảy') || text.includes('táo bón')) {
+      return ['Buồn nôn hoặc nôn', 'Sốt', 'Tiêu chảy hoặc táo bón', 'Tiểu buốt', 'Không có triệu chứng kèm theo'];
+    }
+    if (text.includes('sợ ánh sáng') || text.includes('va đập đầu')) {
+      return ['Buồn nôn hoặc nôn', 'Chóng mặt hoặc nhìn mờ', 'Sợ ánh sáng', 'Tê yếu tay chân', 'Không có triệu chứng kèm theo'];
+    }
+    if (text.includes('vã mồ hôi') || text.includes('đau lan')) {
+      return ['Khó thở', 'Vã mồ hôi hoặc chóng mặt', 'Đau lan ra tay, lưng hoặc hàm', 'Không có triệu chứng kèm theo'];
+    }
+    return ['Sốt', 'Buồn nôn', 'Chóng mặt', 'Khó thở', 'Không có triệu chứng kèm theo'];
+  }
+  if (text.includes('chưa có đủ thông tin')) {
+    return [
+      'Tôi sẽ mô tả rõ vị trí và cảm giác đau',
+      'Tôi sẽ cho biết thời điểm bắt đầu và mức độ đau',
+      'Tôi muốn nhập mô tả chi tiết khác',
+    ];
+  }
+  return [];
 }
 
 // Helper phân tích ý định ngôn ngữ tự nhiên của bệnh nhân (NLU Receptionist Parser)
@@ -1202,6 +1249,7 @@ export default function BookingMethodSelector({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatScrollContainerRef = useRef<HTMLDivElement>(null);
   const isInitiatingAptRef = useRef<boolean>(false);
+  const aiRequestInFlightRef = useRef(false);
 
   // Dữ liệu người dùng chọn (mặc định chưa chọn để bệnh nhân tự bấm chọn hoặc gõ triệu chứng)
   const [selectedCategoryKey, setSelectedCategoryKey] = useState<string>('');
@@ -1240,9 +1288,10 @@ export default function BookingMethodSelector({
 
   // Đồng bộ danh mục chi nhánh 100% từ CSDL qua API (loại bỏ chi nhánh bị phong tỏa)
   useEffect(() => {
+    if (aiStep !== 'CHOOSE_SYMPTOM' && aiStep !== 'INPUT_LOCATION') return;
     let isMounted = true;
     setIsBranchesLoading(true);
-    api.getMedicalCenters()
+    const loadBranches = () => api.getMedicalCenters()
       .then((data: any[]) => {
         if (!isMounted) return;
         // Chỉ lấy những cơ sở đang hoạt động thực tế (active !== false), loại bỏ chi nhánh phong tỏa
@@ -1293,10 +1342,12 @@ export default function BookingMethodSelector({
         if (isMounted) setIsBranchesLoading(false);
       });
 
+    loadBranches();
+
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [aiStep]);
 
   // Danh sách 5 ngày làm việc sắp tới (Thứ 2 đến Thứ 6)
   const upcomingWeekdays = useMemo(() => getUpcomingWeekdays(5), []);
@@ -1305,7 +1356,8 @@ export default function BookingMethodSelector({
   const [dbDoctors, setDbDoctors] = useState<DemoDoctor[]>([]);
   const [isDoctorsLoading, setIsDoctorsLoading] = useState<boolean>(true);
   const [selectedDoctor, setSelectedDoctor] = useState<DemoDoctor | null>(null);
-  const [selectedSlotTime, setSelectedSlotTime] = useState<string>('08:00 - 08:30');
+  const [selectedSlotId, setSelectedSlotId] = useState<string>('');
+  const [selectedSlotTime, setSelectedSlotTime] = useState<string>('');
   const [doctorFilter, setDoctorFilter] = useState<'ALL' | 'EXPERT' | 'MALE' | 'FEMALE'>('ALL');
 
   // Dynamic slots tải từ CSDL theo bác sĩ và ngày đang chọn
@@ -1383,9 +1435,10 @@ export default function BookingMethodSelector({
 
   // Đồng bộ danh mục bác sĩ từ CSDL qua API
   useEffect(() => {
+    if (aiStep !== 'INPUT_LOCATION' && aiStep !== 'SELECT_DOCTOR_SLOT') return;
     let isMounted = true;
     setIsDoctorsLoading(true);
-    api.getDoctors()
+    const loadDoctors = () => api.getDoctors()
       .then((data: any[]) => {
         if (!isMounted) return;
         if (Array.isArray(data) && data.length > 0) {
@@ -1453,6 +1506,13 @@ export default function BookingMethodSelector({
             };
           });
           setDbDoctors(mapped);
+          setSelectedDoctor(previous => {
+            if (!previous) return previous;
+            return mapped.find(doctor => doctor.id === previous.id) || null;
+          });
+        } else {
+          setDbDoctors([]);
+          setSelectedDoctor(null);
         }
       })
       .catch((err) => {
@@ -1462,20 +1522,22 @@ export default function BookingMethodSelector({
         if (isMounted) setIsDoctorsLoading(false);
       });
 
+    loadDoctors();
+
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [aiStep]);
 
   // Tải danh sách ca khám thực tế từ CSDL khi đổi bác sĩ hoặc ngày khám
   useEffect(() => {
-    if (!selectedDoctor?.id) {
+    if (aiStep !== 'SELECT_DOCTOR_SLOT' || !selectedDoctor?.id) {
       setDynamicSlots([]);
       return;
     }
     let isCancelled = false;
     setIsSlotsLoading(true);
-    api.getDoctorAvailableSlots(selectedDoctor.id, bookingDate)
+    const loadSlots = () => api.getDoctorAvailableSlots(selectedDoctor.id, bookingDate)
       .then((data) => {
         if (!isCancelled && Array.isArray(data) && data.length > 0) {
           setDynamicSlots(data);
@@ -1491,10 +1553,12 @@ export default function BookingMethodSelector({
         if (!isCancelled) setIsSlotsLoading(false);
       });
 
+    loadSlots();
+
     return () => {
       isCancelled = true;
     };
-  }, [selectedDoctor?.id, bookingDate]);
+  }, [selectedDoctor?.id, bookingDate, aiStep]);
 
   // Lọc các khung giờ theo Buổi và Ngày khám (Ưu tiên lịch thực từ Database nếu có)
   const shiftSlots = useMemo(() => {
@@ -1537,37 +1601,25 @@ export default function BookingMethodSelector({
       }
     }
 
-    // Khi đặt theo bác sĩ cụ thể mà bác sĩ chưa có ca trực: Không tự sinh slot ảo
-    if (selectedDoctor?.id) {
-      return [];
-    }
-
-    // Fallback: BASE_TIME_SLOTS
-    return BASE_TIME_SLOTS.filter(s => s.session === selectedShiftId).map(slot => {
-      const isPast = isToday && slot.startMinutes <= currentMinutes;
-      return {
-        id: `base-${slot.time}`,
-        ...slot,
-        disabled: isPast,
-        label: isPast ? 'Đã qua giờ' : 'Khả dụng',
-      };
-    });
-  }, [dynamicSlots, selectedShiftId, bookingDate, selectedDoctor?.id]);
+    // Không dùng giờ mẫu: không có slot DB nghĩa là chưa có lịch khả dụng.
+    return [];
+  }, [dynamicSlots, selectedShiftId, bookingDate]);
 
   // Tự động đồng bộ khung giờ hợp lệ khi danh sách giờ thay đổi
   useEffect(() => {
     if (shiftSlots.length > 0) {
-      const currentValid = shiftSlots.find(s => s.time === selectedSlotTime && !s.disabled);
+      const currentValid = shiftSlots.find(s =>
+        s.id === selectedSlotId && s.time === selectedSlotTime && !s.disabled
+      );
       if (!currentValid) {
-        const firstAvailable = shiftSlots.find(s => !s.disabled);
-        if (firstAvailable) {
-          setSelectedSlotTime(firstAvailable.time);
-        } else {
-          setSelectedSlotTime(shiftSlots[0].time);
-        }
+        setSelectedSlotId('');
+        setSelectedSlotTime('');
       }
+    } else {
+      setSelectedSlotId('');
+      setSelectedSlotTime('');
     }
-  }, [shiftSlots, selectedSlotTime]);
+  }, [shiftSlots, selectedSlotId, selectedSlotTime]);
 
   // Bước 5: Thông tin bệnh nhân & Thanh toán cọc 2k / Mã ưu đãi
   const [patientName, setPatientName] = useState<string>('');
@@ -1601,6 +1653,32 @@ export default function BookingMethodSelector({
   const [createdAppointment, setCreatedAppointment] = useState<any>(null);
   const [isBookingSubmitting, setIsBookingSubmitting] = useState<boolean>(false);
   const [isCancelingBooking, setIsCancelingBooking] = useState<boolean>(false);
+  const [heldSlot, setHeldSlot] = useState<{
+    appointmentId: string;
+    doctorId: string;
+    branchId: string;
+    bookingDate: string;
+    shiftId: string;
+    slotId: string;
+  } | null>(null);
+
+  // Nếu người dùng đổi bác sĩ/cơ sở/ngày/buổi sau khi đã giữ chỗ, trả slot cũ về AVAILABLE ngay.
+  useEffect(() => {
+    if (!heldSlot) return;
+    const selectionChanged = heldSlot.doctorId !== selectedDoctor?.id
+      || heldSlot.branchId !== selectedBranch?.id
+      || heldSlot.bookingDate !== bookingDate
+      || heldSlot.shiftId !== selectedShiftId;
+    if (!selectionChanged) return;
+
+    const appointmentId = heldSlot.appointmentId;
+    setHeldSlot(null);
+    setCreatedAppointment(null);
+    setSelectedSlotId('');
+    setSelectedSlotTime('');
+    api.cancelAppointment(appointmentId, 'Người bệnh thay đổi lựa chọn trước khi xác nhận')
+      .catch(err => console.warn('Không thể giải phóng slot giữ chỗ cũ:', err));
+  }, [heldSlot, selectedDoctor?.id, selectedBranch?.id, bookingDate, selectedShiftId]);
 
   // Chuyên mục triệu chứng hiện tại
   const activeCategory = useMemo(() => {
@@ -1743,7 +1821,7 @@ export default function BookingMethodSelector({
 
   // Danh sách bác sĩ phù hợp với chuyên khoa, cơ sở và bộ lọc (RÀNG BUỘC NGHIÊM NGẶT THEO TRIỆU CHỨNG & CƠ SỞ)
   const availableDoctors = useMemo(() => {
-    const doctorPool = dbDoctors.length > 0 ? dbDoctors : DEMO_DOCTORS;
+    const doctorPool = dbDoctors;
     
     // 1. Ràng buộc nghiêm ngặt: Bác sĩ PHẢI thuộc cơ sở được chọn VÀ đúng chuyên khoa
     const matched = doctorPool.filter(d => {
@@ -1782,7 +1860,7 @@ export default function BookingMethodSelector({
 
   // Danh sách bác sĩ thực tế đang có mặt tại phòng khám (không trùng lặp) để hiển thị minh bạch
   const activeClinicDoctors = useMemo(() => {
-    const pool = dbDoctors.length > 0 ? dbDoctors : DEMO_DOCTORS;
+    const pool = dbDoctors;
     const seen = new Set<string>();
     const list: DemoDoctor[] = [];
     for (const d of pool) {
@@ -1871,7 +1949,7 @@ export default function BookingMethodSelector({
   };
 
   // Bước 1: Khi bấm chọn một triệu chứng ban đầu dạng thẻ
-  const handleSelectSymptomPill = (categoryKey: string) => {
+  const handleSelectSymptomPill = async (categoryKey: string) => {
     setSelectedCategoryKey(categoryKey);
     const cat = SYMPTOM_CATEGORIES[categoryKey];
     setSelectedNature('');
@@ -1889,24 +1967,36 @@ export default function BookingMethodSelector({
       text: `Tôi đang gặp vấn đề: ${cat ? cat.label : categoryKey}`,
     };
 
-    const aiMsg: ChatMessage = {
-      id: 'msg-' + (Date.now() + 1),
-      sender: 'ai',
-      time: getFormattedTime(),
-      text: `Dạ MedSched đã ghi nhận bạn đang gặp triệu chứng **${cat ? cat.label : categoryKey}**.\n\nĐể hỗ trợ bác sĩ nắm rõ mức độ khó chịu và chẩn đoán chính xác nhất, em xin phép hỏi bạn một số câu hỏi nhanh nhé!`,
-      widget: 'CLARIFY_DETAILS',
-      clarifyMeta: {
-        questionNumber: 1,
-        totalQuestions: 3,
-        questionTitle: 'Cảm giác khó chịu hoặc biểu hiện cụ thể ra sao?',
-        options: cat ? cat.natureOptions : ['Khó chịu nhẹ', 'Đau vừa phải', 'Đau nhiều', 'Khó chịu không rõ'],
-        fieldKey: 'nature',
-      },
-      isTypingComplete: false,
-    };
-
-    setAiStep('CLARIFY_DETAILS');
-    setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg, aiMsg]);
+    setIsAiAnalyzing(true);
+    setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg]);
+    try {
+      const conversationContext = messages
+        .slice(-10)
+        .map((message) => `[${message.sender === 'user' ? 'USER' : 'ASSISTANT'}] ${message.text}`)
+        .join('\n');
+      const assistantResponse = await api.aiChat(userMsg.text || '', 'PATIENT', conversationContext);
+      const reply = assistantResponse?.reply || `MedSched đã ghi nhận triệu chứng ${cat ? cat.label : categoryKey}.`;
+      const emergency = /gọi\s*115|cấp cứu|nguy hiểm/i.test(reply);
+      const aiMsg: ChatMessage = {
+        id: 'msg-' + (Date.now() + 1),
+        sender: 'ai',
+        time: getFormattedTime(),
+        text: reply,
+        widget: emergency ? 'EMERGENCY' : 'CLARIFY_DETAILS',
+        clarifyMeta: emergency ? undefined : {
+          questionNumber: 1,
+          totalQuestions: 3,
+          questionTitle: 'Cảm giác khó chịu hoặc biểu hiện cụ thể ra sao?',
+          options: cat ? cat.natureOptions : ['Khó chịu nhẹ', 'Đau vừa phải', 'Đau nhiều', 'Khó chịu không rõ'],
+          fieldKey: 'nature',
+        },
+        isTypingComplete: false,
+      };
+      setAiStep(emergency ? 'EMERGENCY' : 'CLARIFY_DETAILS');
+      setMessages(prev => [...prev, aiMsg]);
+    } finally {
+      setIsAiAnalyzing(false);
+    }
   };
 
   // Khi người dùng bấm vào 1 trong 4 lựa chọn trắc nghiệm
@@ -2068,7 +2158,7 @@ export default function BookingMethodSelector({
       setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg, aiMsg]);
     } else {
       // ĐÃ HOÀN TẤT CÁC CÂU HỎI -> TỔNG HỢP VÀ ĐÁNH GIÁ TÍNH PHÙ HỢP CỦA BÁC SĨ TẠI PHÒNG KHÁM
-      const doctorPool = dbDoctors.length > 0 ? dbDoctors : DEMO_DOCTORS;
+      const doctorPool = dbDoctors;
       const matchingDoctors = doctorPool.filter(d => {
         return (
           d.categoryKeys?.includes(selectedCategoryKey) ||
@@ -2350,7 +2440,7 @@ export default function BookingMethodSelector({
     } else if (opt.actionKey === 'CUSTOM_TEXT') {
       const txt = opt.payload?.text;
       if (txt) {
-        setInputMessage(txt);
+        void handleSendInputMessage(txt);
       }
     }
   };
@@ -2601,7 +2691,7 @@ export default function BookingMethodSelector({
     }
 
     // Nếu người dùng nhắc đến bác sĩ thuộc chuyên khoa khác (ví dụ: đau đầu nhưng lại hỏi bác sĩ khoa Hô hấp)
-    const allDocPool = dbDoctors.length > 0 ? dbDoctors : DEMO_DOCTORS;
+    const allDocPool = dbDoctors;
     const otherSpecialtyDoc = allDocPool.find(d =>
       lower.includes(d.name.toLowerCase()) ||
       lower.includes(d.name.split(' ').slice(-2).join(' ').toLowerCase()) ||
@@ -2727,30 +2817,9 @@ export default function BookingMethodSelector({
   };
 
   // Khi người dùng gửi tin nhắn từ thanh nhập cố định ở đáy
-  const handleSendInputMessage = async () => {
-    const text = inputMessage.trim();
+  const handleSendInputMessage = async (overrideText?: string) => {
+    const text = (overrideText ?? inputMessage).trim();
     if (!text || isAiAnalyzing) return;
-
-    // 0. GLOBAL GUARDRAIL: Chặn phép tính toán học, ký tự spam, gibberish/keyboard smash ở TẤT CẢ các bước
-    const spamCheck = isSpamOrMathOrGibberishInput(text);
-    if (spamCheck.isInvalid) {
-      setInputMessage('');
-      const userMsg: ChatMessage = {
-        id: 'msg-' + Date.now(),
-        sender: 'user',
-        time: getFormattedTime(),
-        text: text,
-      };
-      const warningMsg: ChatMessage = {
-        id: 'msg-' + (Date.now() + 1),
-        sender: 'ai',
-        time: getFormattedTime(),
-        text: spamCheck.message || 'Nội dung bạn vừa nhập không hợp lệ.',
-        isTypingComplete: false,
-      };
-      setMessages(prev => [...prev, userMsg, warningMsg]);
-      return;
-    }
 
     setInputMessage('');
 
@@ -2821,11 +2890,53 @@ export default function BookingMethodSelector({
         setMessages(prev => [...prev, userMsg, warningMsg]);
         return;
       }
-
+      if (aiRequestInFlightRef.current) return;
+      aiRequestInFlightRef.current = true;
       setIsAiAnalyzing(true);
-      setMessages(prev => [...prev, userMsg]);
+      setMessages(prev => [
+        ...prev.map(message => message.quickReplies
+          ? { ...message, isCompleteWidget: true }
+          : message),
+        userMsg,
+      ]);
       try {
-        const triage = await api.triageSymptoms(text);
+        const conversationContext = messages
+          .slice(-10)
+          .map((message) => `[${message.sender === 'user' ? 'USER' : 'ASSISTANT'}] ${message.text}`)
+          .join('\n');
+        const assistantResponse = await api.aiChat(text, 'PATIENT', conversationContext);
+        const bookingSupport = assistantResponse?.toolResult?.type === 'PATIENT_BOOKING_SUPPORT'
+          ? assistantResponse.toolResult
+          : null;
+
+        if (!bookingSupport) {
+          const reply = assistantResponse?.reply || 'AI MedSched chưa thể xử lý yêu cầu này. Bạn vui lòng thử mô tả rõ triệu chứng hơn.';
+          const emergency = /gọi\s*115|cấp cứu|nguy hiểm/i.test(reply);
+          const quickReplies = assistantResponse?.answerSource === 'CLARIFICATION' && !emergency
+            ? buildClinicalQuickReplies(reply)
+            : [];
+          const assistantMsg: ChatMessage = {
+            id: 'msg-' + (Date.now() + 1),
+            sender: 'ai',
+            time: getFormattedTime(),
+            text: reply,
+            widget: emergency ? 'EMERGENCY' : undefined,
+            quickReplies,
+            isTypingComplete: false,
+          };
+          setAiStep(emergency ? 'EMERGENCY' : 'CHOOSE_SYMPTOM');
+          setMessages(prev => [...prev, assistantMsg]);
+          return;
+        }
+
+        const triage = {
+          isEmergency: false,
+          specialtyCode: bookingSupport.specialtyCode,
+          specialty: bookingSupport.specialtyCode,
+          clinicalSummary: assistantResponse.reply,
+          summary: assistantResponse.reply,
+          preparationAdvice: '',
+        };
         if (triage?.isEmergency) {
           const emergencyMsg: ChatMessage = {
             id: 'msg-' + (Date.now() + 1),
@@ -3012,34 +3123,33 @@ export default function BookingMethodSelector({
         }
 
         setSelectedCategoryKey(targetKey);
-        const cat = SYMPTOM_CATEGORIES[targetKey];
         setSelectedNature(text);
         setSelectedDuration('');
         setSelectedAssociated('');
         setSelectedFollowup('');
         setCustomNatureInput(text);
-        setClarifyQuestionIndex(1);
-        setTotalClarifyQuestions(3);
+        setOtherSymptomDetail(bookingSupport.symptoms || text);
 
+        // Backend chỉ trả PATIENT_BOOKING_SUPPORT sau khi đã thu thập đủ thông
+        // tin lâm sàng. Từ đây phải chuyển thẳng sang đặt lịch; nếu quay lại
+        // CLARIFY_DETAILS, state nhóm triệu chứng cũ có thể làm hiện câu hỏi
+        // của một bệnh khác (ví dụ đau đầu sau khi vừa sàng lọc đau bụng).
         const aiMsg: ChatMessage = {
           id: 'msg-' + (Date.now() + 1),
           sender: 'ai',
           time: getFormattedTime(),
-          text: summary 
-            ? `Dạ, Trợ lý AI (Gemini 2.5) đã phân tích triệu chứng của bạn:\n\n💬 ${summary}${advice ? `\n\n💡 Lời khuyên chuẩn bị: ${advice}` : ''}\n\nĐể định hướng chuyên khoa và bác sĩ chính xác nhất, bạn vui lòng cho em biết thêm chi tiết qua các câu hỏi nhanh dưới đây nhé:`
-            : `Dạ em đã ghi nhận mô tả "${text}". Để hỗ trợ bác sĩ chuẩn bị chu đáo, bạn vui lòng cho em biết thêm chi tiết nhé:`,
-          widget: 'CLARIFY_DETAILS',
-          clarifyMeta: {
-            questionNumber: 1,
-            totalQuestions: 3,
-            questionTitle: 'Cảm giác khó chịu hoặc biểu hiện cụ thể ra sao?',
-            options: cat ? cat.natureOptions : ['Khó chịu nhẹ', 'Đau vừa phải', 'Đau nhiều', 'Khó chịu không rõ'],
-            fieldKey: 'nature',
-          },
+          text: `${summary}\n\nMời bạn chọn cơ sở và ngày khám thuận tiện bên dưới để MedSched tiếp tục sắp xếp bác sĩ và khung giờ phù hợp.`,
+          widget: 'INPUT_LOCATION',
+          actionOptions: branches.slice(0, 3).map(branch => ({
+            label: `🏥 Chọn ${branch.shortName}`,
+            actionKey: 'SELECT_BRANCH',
+            variant: 'outline' as const,
+            payload: { branch },
+          })),
           isTypingComplete: false,
         };
 
-        setAiStep('CLARIFY_DETAILS');
+        setAiStep('INPUT_LOCATION');
         setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), aiMsg]);
       } catch (err) {
         console.error(err);
@@ -3061,6 +3171,7 @@ export default function BookingMethodSelector({
         setAiStep('CLARIFY_DETAILS');
         setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), aiMsg]);
       } finally {
+        aiRequestInFlightRef.current = false;
         setIsAiAnalyzing(false);
       }
     } else if (aiStep === 'INPUT_LOCATION') {
@@ -3105,7 +3216,7 @@ export default function BookingMethodSelector({
 
     // Kiểm tra tính sẵn sàng của Bác sĩ tại cơ sở đã chọn
     if (availableDoctors.length === 0) {
-      const pool = dbDoctors.length > 0 ? dbDoctors : DEMO_DOCTORS;
+      const pool = dbDoctors;
       const docOtherBranch = pool.find(d => 
         d.categoryKeys?.includes(selectedCategoryKey) ||
         (d.specialtyCode && d.specialtyCode === activeCategory.specialtyCode) ||
@@ -3156,11 +3267,20 @@ export default function BookingMethodSelector({
   };
 
   // Khởi tạo bản ghi Appointment thực tế trong CSDL Backend
-  const initiateBackendAppointment = async (): Promise<any> => {
-    if (createdAppointment?.id || isInitiatingAptRef.current) return createdAppointment;
+  const initiateBackendAppointment = async (slotOverride?: { id: string; time: string }): Promise<any> => {
+    const targetSlotId = slotOverride?.id || selectedSlotId;
+    const targetSlotTime = slotOverride?.time || selectedSlotTime;
+    if (createdAppointment?.id && createdAppointment.slotId === targetSlotId) return createdAppointment;
+    if (isInitiatingAptRef.current && !createdAppointment?.id) return null;
     isInitiatingAptRef.current = true;
 
     try {
+      if (createdAppointment?.id && createdAppointment.slotId !== targetSlotId) {
+        await api.cancelAppointment(createdAppointment.id, 'Người bệnh đổi khung giờ trước khi xác nhận');
+        setCreatedAppointment(null);
+        setHeldSlot(null);
+      }
+
       // 1. Phân giải Patient Profile ID từ User đang đăng nhập
       let currentPatientProfileId = '';
       try {
@@ -3184,38 +3304,31 @@ export default function BookingMethodSelector({
         centerId = branches[0].id;
       }
 
-      // 3. Phân giải danh sách Slot khả dụng từ CSDL để tránh triệt để lỗi 409 xung đột giữ chỗ
-      let availableSlotList: any[] = [];
-      if (docId) {
-        try {
-          const fresh = await api.getDoctorAvailableSlots(docId, bookingDate);
-          if (Array.isArray(fresh)) {
-            availableSlotList = fresh.filter((s: any) => !s.disabled && s.status !== 'BOOKED' && s.status !== 'full');
-          }
-        } catch (slotErr) {
-          console.warn('Lấy slot bác sĩ từ DB:', slotErr);
-        }
+      if (!docId || !centerId || !targetSlotId || !targetSlotTime) {
+        isInitiatingAptRef.current = false;
+        return null;
       }
 
-      // Thu thập danh sách các slot ứng viên (ưu tiên slot khớp giờ người dùng chọn, sau đó là các slot khả dụng khác)
-      let candidateSlotIds: string[] = [];
-      const startHour = (selectedSlotTime || '08:00').split(':')[0].trim();
-      const bestMatch = availableSlotList.find((s: any) => s.time?.startsWith(startHour));
-      if (bestMatch?.id) candidateSlotIds.push(bestMatch.id);
-
-      availableSlotList.forEach((s: any) => {
-        if (s.id && !candidateSlotIds.includes(s.id)) candidateSlotIds.push(s.id);
-      });
-
-      // Thử bổ sung từ shiftSlots nếu chưa có ứng viên nào
-      shiftSlots.forEach((s: any) => {
-        if (s.id && !s.id.startsWith('base-') && !s.disabled && !candidateSlotIds.includes(s.id)) {
-          candidateSlotIds.push(s.id);
+      // 3. Xác nhận lại đúng slot người dùng vừa chọn bằng dữ liệu mới nhất từ CSDL.
+      let availableSlotList: any[] = [];
+      try {
+        const fresh = await api.getDoctorAvailableSlots(docId, bookingDate);
+        if (Array.isArray(fresh)) {
+          availableSlotList = fresh.filter((s: any) => !s.disabled && s.status !== 'BOOKED' && s.status !== 'full');
         }
-      });
+      } catch (slotErr) {
+        console.warn('Lấy slot bác sĩ từ DB:', slotErr);
+        isInitiatingAptRef.current = false;
+        return null;
+      }
 
-      if (candidateSlotIds.length === 0) {
-        candidateSlotIds.push('sl000001-0000-0000-0000-000000000001');
+      const exactSlot = availableSlotList.find((slot: any) =>
+        slot.id === targetSlotId && slot.time === targetSlotTime
+      );
+      if (!exactSlot) {
+        setDynamicSlots(availableSlotList);
+        isInitiatingAptRef.current = false;
+        return null;
       }
 
       // 4. Định dạng triệu chứng
@@ -3229,48 +3342,28 @@ export default function BookingMethodSelector({
       ].filter(Boolean);
       const formattedSymptoms = symptomsList.join(' • ') || 'Đặt khám tư vấn qua Trợ Lý Y Tế AI MedSched';
 
-      // 5. Thử book với các slot khả dụng (tự động thử slot tiếp theo nếu gặp 409 conflict)
-      let res: any = null;
-      for (const sId of candidateSlotIds) {
-        try {
-          res = await api.bookAppointment({
-            medicalCenterId: centerId,
-            patientProfileId: currentPatientProfileId,
-            doctorId: docId || '',
-            slotId: sId,
-            symptoms: formattedSymptoms,
-            medicalHistory: '',
-          });
-          if (res && res.id) {
-            break;
-          }
-        } catch (bookErr: any) {
-          console.warn(`Slot ${sId} không khả dụng (409 conflict), đang thử slot tiếp theo...`, bookErr);
-        }
-      }
+      // 5. Chỉ đặt đúng slot đã chọn; tuyệt đối không tự chuyển sang giờ khác.
+      const res = await api.bookAppointment({
+        medicalCenterId: centerId,
+        patientProfileId: currentPatientProfileId,
+        doctorId: docId,
+        slotId: exactSlot.id,
+        symptoms: formattedSymptoms,
+        medicalHistory: '',
+      });
 
       if (res && res.id) {
         setCreatedAppointment(res);
+        setHeldSlot({
+          appointmentId: res.id,
+          doctorId: docId,
+          branchId: centerId,
+          bookingDate,
+          shiftId: selectedShiftId,
+          slotId: exactSlot.id,
+        });
         if (res.bookingCode) {
           setTransferBookingCode(res.bookingCode);
-          // Khởi tạo payment cọc trên backend cho đúng mã này
-          api.createRealPayment({
-            appointmentId: res.id,
-            bookingCode: res.bookingCode,
-            amount: 2000,
-            paymentType: 'DEPOSIT',
-            method: 'BANK_TRANSFER',
-          }).then((payRes: any) => {
-            if (payRes) {
-              setPayOsData({
-                accountNumber: payRes.accountNumber || undefined,
-                accountName: payRes.accountName || undefined,
-                bin: payRes.bin || undefined,
-                checkoutUrl: payRes.checkoutUrl || undefined,
-                qrCode: payRes.qrCode || undefined,
-              });
-            }
-          }).catch(console.warn);
         }
         return res;
       }
@@ -3281,8 +3374,75 @@ export default function BookingMethodSelector({
     return null;
   };
 
+  // Chọn giờ là thao tác giữ chỗ nguyên tử: backend đổi AVAILABLE -> BOOKED ngay.
+  const handleSlotSelection = async (slot: { id: string; time: string; disabled: boolean }) => {
+    if (slot.disabled || isBookingSubmitting) return;
+    setIsBookingSubmitting(true);
+    setSelectedSlotId(slot.id);
+    setSelectedSlotTime(slot.time);
+
+    const appointment = await initiateBackendAppointment({ id: slot.id, time: slot.time });
+    if (!appointment?.id) {
+      setSelectedSlotId('');
+      setSelectedSlotTime('');
+      try {
+        const fresh = selectedDoctor?.id
+          ? await api.getDoctorAvailableSlots(selectedDoctor.id, bookingDate)
+          : [];
+        setDynamicSlots(Array.isArray(fresh) ? fresh : []);
+      } catch (refreshError) {
+        console.warn('Không thể tải lại slot sau xung đột giữ chỗ:', refreshError);
+      }
+    }
+    setIsBookingSubmitting(false);
+  };
+
   // Bước 4 -> Bước 5: Chuyển sang Xác nhận & Giữ chỗ (Cọc 2k / Ưu đãi)
-  const handleProceedToPayment = () => {
+  const handleProceedToPayment = async () => {
+    const selectedRealSlot = shiftSlots.find(slot =>
+      slot.id === selectedSlotId && slot.time === selectedSlotTime && !slot.disabled
+    );
+    if (!selectedDoctor || !selectedRealSlot || isBookingSubmitting) {
+      return;
+    }
+
+    setIsBookingSubmitting(true);
+    const appointment = await initiateBackendAppointment();
+    setIsBookingSubmitting(false);
+    if (!appointment?.id) {
+      const aiMsg: ChatMessage = {
+        id: 'msg-' + Date.now(),
+        sender: 'ai',
+        time: getFormattedTime(),
+        text: 'Khung giờ bạn vừa chọn không còn khả dụng hoặc lịch bác sĩ đã thay đổi. Hệ thống đã cập nhật lại lịch mới nhất, bạn vui lòng chọn lại một khung giờ nhé.',
+        widget: 'SELECT_DOCTOR_SLOT',
+        isTypingComplete: false,
+      };
+      setAiStep('SELECT_DOCTOR_SLOT');
+      setMessages(prev => [...prev, aiMsg]);
+      return;
+    }
+
+    if (appointment.bookingCode) {
+      api.createRealPayment({
+        appointmentId: appointment.id,
+        bookingCode: appointment.bookingCode,
+        amount: 2000,
+        paymentType: 'DEPOSIT',
+        method: 'BANK_TRANSFER',
+      }).then((payRes: any) => {
+        if (payRes) {
+          setPayOsData({
+            accountNumber: payRes.accountNumber || undefined,
+            accountName: payRes.accountName || undefined,
+            bin: payRes.bin || undefined,
+            checkoutUrl: payRes.checkoutUrl || undefined,
+            qrCode: payRes.qrCode || undefined,
+          });
+        }
+      }).catch(console.warn);
+    }
+
     const userMsg: ChatMessage = {
       id: 'msg-' + Date.now(),
       sender: 'user',
@@ -3301,9 +3461,6 @@ export default function BookingMethodSelector({
 
     setAiStep('CONFIRM_PAYMENT');
     setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg, aiMsg]);
-
-    // Khởi tạo ngay bản ghi Appointment thực tế trong CSDL Backend
-    initiateBackendAppointment();
   };
 
   // Áp dụng mã ưu đãi
@@ -3485,6 +3642,7 @@ export default function BookingMethodSelector({
       setTransferBookingCode('');
       setPayOsData(null);
       setCreatedAppointment(null);
+      setHeldSlot(null);
       setBookingSuccessCode('');
       alert(`Đã hủy thành công ca khám mã ${targetCode}!`);
     } catch (err: any) {
@@ -3760,6 +3918,39 @@ export default function BookingMethodSelector({
                               <span>{opt.label}</span>
                             </button>
                           ))}
+                        </div>
+                      )}
+
+                      {/* Lựa chọn trả lời nhanh cho câu hỏi làm rõ của AI/RAG */}
+                      {isAi && msg.quickReplies && msg.quickReplies.length > 0 && msg.isTypingComplete !== false && !msg.isCompleteWidget && (
+                        <div className="p-3 sm:p-4 bg-white border-2 border-purple-200 rounded-2xl shadow-sm space-y-2.5 animate-fadeIn">
+                          <div className="flex items-center justify-between gap-2 pb-2 border-b border-purple-100">
+                            <span className="text-xs sm:text-[13px] font-bold text-slate-900">
+                              Chọn câu trả lời phù hợp nhất
+                            </span>
+                            <span className="text-[10px] text-purple-600 font-bold shrink-0">
+                              Trả lời nhanh
+                            </span>
+                          </div>
+                          <p className="text-[10.5px] sm:text-[11px] text-slate-500 italic">
+                            Bấm vào một lựa chọn để gửi ngay. Bạn vẫn có thể tự nhập mô tả chi tiết ở ô chat bên dưới.
+                          </p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 sm:gap-2">
+                            {msg.quickReplies.map((option, idx) => (
+                              <button
+                                key={`${msg.id}-quick-${idx}`}
+                                type="button"
+                                onClick={() => void handleSendInputMessage(option)}
+                                disabled={isAiAnalyzing}
+                                className="p-2.5 sm:p-3 text-xs text-left rounded-xl border bg-slate-50 hover:bg-purple-50/70 border-slate-200 text-slate-700 hover:text-purple-900 hover:border-purple-400 transition-all cursor-pointer flex items-center justify-between gap-2 group active:scale-98 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <span className="leading-snug">{option}</span>
+                                <span className="w-5 h-5 rounded-full border border-slate-300 group-hover:border-purple-400 flex items-center justify-center text-[10px] text-slate-400 group-hover:text-purple-600 font-bold shrink-0">
+                                  {idx + 1}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       )}
 
@@ -4177,7 +4368,11 @@ export default function BookingMethodSelector({
                                 return (
                                   <div
                                     key={doc.id}
-                                    onClick={() => setSelectedDoctor(doc)}
+                                    onClick={() => {
+                                      setSelectedDoctor(doc);
+                                      setSelectedSlotId('');
+                                      setSelectedSlotTime('');
+                                    }}
                                     className={`p-2.5 rounded-xl border-2 transition cursor-pointer flex items-center justify-between ${
                                       isSelected
                                         ? 'bg-purple-50/90 border-purple-600 shadow-2xs ring-1 ring-purple-300'
@@ -4278,14 +4473,14 @@ export default function BookingMethodSelector({
                               </div>
                             ) : (
                               <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                                {shiftSlots.map((slot, idx) => {
-                                  const isSelected = selectedSlotTime === slot.time;
+                                {shiftSlots.map((slot) => {
+                                  const isSelected = selectedSlotId === slot.id && selectedSlotTime === slot.time;
                                   return (
                                     <button
-                                      key={idx}
+                                      key={slot.id}
                                       type="button"
-                                      disabled={slot.disabled}
-                                      onClick={() => !slot.disabled && setSelectedSlotTime(slot.time)}
+                                      disabled={slot.disabled || isBookingSubmitting}
+                                      onClick={() => handleSlotSelection(slot)}
                                       className={`py-1.5 px-2 text-xs font-bold rounded-xl border transition text-center flex flex-col items-center justify-center ${
                                         slot.disabled
                                           ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-60'
@@ -4296,7 +4491,7 @@ export default function BookingMethodSelector({
                                     >
                                       <span>{slot.time}</span>
                                       <span className={`text-[8.5px] ${isSelected ? 'text-purple-200' : slot.disabled ? 'text-slate-400' : 'text-emerald-600'}`}>
-                                        {slot.label}
+                                        {isSelected && createdAppointment?.id ? 'Đã giữ chỗ 15 phút' : slot.label}
                                       </span>
                                     </button>
                                   );
@@ -4308,15 +4503,15 @@ export default function BookingMethodSelector({
                           {/* Nút tiếp tục sang Bước 5 */}
                           <button
                             type="button"
-                            disabled={!selectedDoctor || shiftSlots.length === 0 || !shiftSlots.some(s => s.time === selectedSlotTime && !s.disabled)}
+                            disabled={!selectedDoctor || !selectedSlotId || !selectedSlotTime || isSlotsLoading || isBookingSubmitting}
                             onClick={handleProceedToPayment}
                             className={`w-full py-2.5 px-4 font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 mt-2 ${
-                              !selectedDoctor
+                              !selectedDoctor || !selectedSlotId || !selectedSlotTime || isSlotsLoading || isBookingSubmitting
                                 ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
                                 : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white cursor-pointer'
                             }`}
                           >
-                            <span>Tiếp Tục: Xác Nhận &amp; Giữ Chỗ (Cọc 2k / Ưu Đãi)</span>
+                            <span>{isBookingSubmitting ? 'Đang giữ đúng khung giờ...' : 'Tiếp Tục: Xác Nhận & Giữ Chỗ (Cọc 2k / Ưu Đãi)'}</span>
                             <ArrowRight size={14} />
                           </button>
                         </div>
@@ -5002,7 +5197,7 @@ export default function BookingMethodSelector({
                 />
                 <button
                   type="button"
-                  onClick={handleSendInputMessage}
+                  onClick={() => void handleSendInputMessage()}
                   disabled={!inputMessage.trim() || isAiAnalyzing}
                   className="py-2 px-3 sm:px-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition disabled:opacity-50 flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
                   title="Gửi tin nhắn"

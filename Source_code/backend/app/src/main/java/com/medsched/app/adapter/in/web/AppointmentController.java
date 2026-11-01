@@ -132,35 +132,46 @@ public class AppointmentController {
             centerId = medicalCenters.findAll().get(0).getId();
         }
 
-        List<String> candidateSlotIds = new ArrayList<>();
-        if (request.slotId() != null && !request.slotId().isBlank()) {
-            candidateSlotIds.add(request.slotId().trim());
-        }
-
-        List<String> validDoctorSlots = ensureAvailableSlots(doctorId);
-        for (String sId : validDoctorSlots) {
-            if (!candidateSlotIds.contains(sId)) {
-                candidateSlotIds.add(sId);
-            }
-        }
+        boolean userSpecifiedSlot = request.slotId() != null && !request.slotId().isBlank();
+        String requestedSlotId = userSpecifiedSlot ? request.slotId().trim() : null;
 
         Appointment result = null;
         RuntimeException lastEx = null;
 
-        for (String slotId : candidateSlotIds) {
+        if (userSpecifiedSlot) {
+            // Khi user/AI đã chọn slot cụ thể: CHỈ thử đúng slot đó.
+            // Tuyệt đối KHÔNG fallback sang slot khác để tránh khung giờ bị thay đổi ngầm.
             try {
                 BookAppointmentUseCase.Command command = new BookAppointmentUseCase.Command(
                         centerId,
                         patientProfileId,
                         doctorId,
-                        slotId,
+                        requestedSlotId,
                         request.symptoms(),
                         request.medicalHistory()
                 );
                 result = bookAppointmentUseCase.book(command);
-                break;
             } catch (SlotNotAvailableException | ResourceNotFoundException ex) {
                 lastEx = ex;
+            }
+        } else {
+            // Khi không có slotId cụ thể: thử lần lượt các slot khả dụng của bác sĩ (fallback tự động)
+            List<String> validDoctorSlots = ensureAvailableSlots(doctorId);
+            for (String slotId : validDoctorSlots) {
+                try {
+                    BookAppointmentUseCase.Command command = new BookAppointmentUseCase.Command(
+                            centerId,
+                            patientProfileId,
+                            doctorId,
+                            slotId,
+                            request.symptoms(),
+                            request.medicalHistory()
+                    );
+                    result = bookAppointmentUseCase.book(command);
+                    break;
+                } catch (SlotNotAvailableException | ResourceNotFoundException ex) {
+                    lastEx = ex;
+                }
             }
         }
 
@@ -343,8 +354,9 @@ public class AppointmentController {
     ) {}
 
     /**
-     * Lấy danh sách khung giờ khám (TimeSlots) của bác sĩ theo ngày (phục vụ BookingForm).
-     * Tự động sinh slot chuẩn nếu ngày đó bác sĩ chưa đăng ký ca làm việc tùy biến.
+     * Lấy danh sách khung giờ khám thật của bác sĩ theo ngày (phục vụ BookingForm).
+     * Endpoint đọc tuyệt đối không tự tạo lịch hoặc slot. Lịch chỉ được sinh bởi
+     * nghiệp vụ quản lý ca trực của bác sĩ/quản trị viên.
      */
     @GetMapping("/doctors/{doctorId}/slots")
     public ResponseEntity<List<DoctorSlotDto>> getDoctorSlots(

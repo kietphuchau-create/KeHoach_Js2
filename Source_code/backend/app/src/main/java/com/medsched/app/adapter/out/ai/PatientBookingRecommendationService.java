@@ -1,10 +1,13 @@
 package com.medsched.app.adapter.out.ai;
 
 import com.medsched.persistence.entity.DoctorEntity;
+import com.medsched.persistence.entity.MedicalCenterEntity;
 import com.medsched.persistence.entity.SpecialtyEntity;
 import com.medsched.persistence.entity.TimeSlotEntity;
+import com.medsched.persistence.entity.UserEntity;
 import com.medsched.persistence.enums.SlotStatus;
 import com.medsched.persistence.repository.DoctorJpaRepository;
+import com.medsched.persistence.repository.MedicalCenterJpaRepository;
 import com.medsched.persistence.repository.SpecialtyJpaRepository;
 import com.medsched.persistence.repository.TimeSlotJpaRepository;
 import com.medsched.persistence.repository.UserJpaRepository;
@@ -27,15 +30,18 @@ public class PatientBookingRecommendationService {
     private final DoctorJpaRepository doctors;
     private final UserJpaRepository users;
     private final TimeSlotJpaRepository timeSlots;
+    private final MedicalCenterJpaRepository centers;
 
     public PatientBookingRecommendationService(SpecialtyJpaRepository specialties,
                                                DoctorJpaRepository doctors,
                                                UserJpaRepository users,
-                                               TimeSlotJpaRepository timeSlots) {
+                                               TimeSlotJpaRepository timeSlots,
+                                               MedicalCenterJpaRepository centers) {
         this.specialties = specialties;
         this.doctors = doctors;
         this.users = users;
         this.timeSlots = timeSlots;
+        this.centers = centers;
     }
 
     public Optional<BookingRecommendation> recommend(String specialtyCode) {
@@ -48,10 +54,15 @@ public class PatientBookingRecommendationService {
         List<DoctorOption> options = new ArrayList<>();
         Instant now = Instant.now();
         for (SpecialtyEntity specialty : matchingSpecialties) {
+            boolean centerIsActive = centers.findById(specialty.getMedicalCenterId())
+                    .map(MedicalCenterEntity::isActive)
+                    .orElse(false);
+            if (!centerIsActive) continue;
             for (DoctorEntity doctor : doctors.findBySpecialtyId(specialty.getId())) {
-                String doctorName = users.findById(doctor.getUserId())
-                        .map(user -> user.getFullName())
-                        .orElse("Bác sĩ chuyên khoa");
+                Optional<UserEntity> activeDoctorUser = users.findById(doctor.getUserId())
+                        .filter(UserEntity::isActive);
+                if (activeDoctorUser.isEmpty()) continue;
+                String doctorName = activeDoctorUser.get().getFullName();
                 List<SlotOption> slots = timeSlots
                         .findByDoctorIdAndStatusOrderByStartTimeAsc(doctor.getId(), SlotStatus.AVAILABLE)
                         .stream()

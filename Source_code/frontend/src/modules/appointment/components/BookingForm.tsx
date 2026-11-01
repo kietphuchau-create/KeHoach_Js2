@@ -131,13 +131,23 @@ export default function BookingForm() {
   });
 
   const router = useRouter();
-  const aiPrefillRef = useRef<{ specialtyCode: string; specialtyId: string; doctorId: string; symptoms: string } | null>(null);
+  const aiPrefillRef = useRef<{
+    specialtyCode: string;
+    specialtyId: string;
+    doctorId: string;
+    slotId: string;
+    bookingDate: string;
+    symptoms: string;
+  } | null>(null);
+  const aiSlotAppliedRef = useRef(false);
   if (aiPrefillRef.current === null) {
     const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
     aiPrefillRef.current = {
       specialtyCode: params.get('specialtyCode') || '',
       specialtyId: params.get('specialtyId') || '',
       doctorId: params.get('doctorId') || '',
+      slotId: params.get('slotId') || '',
+      bookingDate: params.get('bookingDate') || '',
       symptoms: params.get('symptoms') || '',
     };
   }
@@ -319,10 +329,14 @@ export default function BookingForm() {
     return cleaned || name;
   };
 
-  const [bookingDate, setBookingDate] = useState<string>(() => getNextAvailableWeekday());
+  const [bookingDate, setBookingDate] = useState<string>(() => {
+    const aiDate = aiPrefillRef.current?.bookingDate || '';
+    return /^\d{4}-\d{2}-\d{2}$/.test(aiDate) ? aiDate : getNextAvailableWeekday();
+  });
 
   const [selectedSlot, setSelectedSlot] = useState<{ id: string; time: string; date: string }>(() => {
-    const initialDate = getNextAvailableWeekday();
+    const aiDate = aiPrefillRef.current?.bookingDate || '';
+    const initialDate = /^\d{4}-\d{2}-\d{2}$/.test(aiDate) ? aiDate : getNextAvailableWeekday();
     return {
       id: '',
       time: 'Chưa chọn',
@@ -359,7 +373,9 @@ export default function BookingForm() {
   const [showSessionModal, setShowSessionModal] = useState<boolean>(false);
   const [showSlotModal, setShowSlotModal] = useState<boolean>(false);
   // Trạng thái đã chọn ngày khám hay chưa (mặc định ẩn ô chọn buổi & giờ, chọn ngày xong mới hiện)
-  const [hasSelectedDate, setHasSelectedDate] = useState<boolean>(false);
+  const [hasSelectedDate, setHasSelectedDate] = useState<boolean>(() => Boolean(
+    aiPrefillRef.current?.slotId && /^\d{4}-\d{2}-\d{2}$/.test(aiPrefillRef.current?.bookingDate || '')
+  ));
 
   // Tự động chuyển ngày khám sang ngày làm việc tiếp theo nếu ngày đang chọn là hôm nay mà đã hết giờ
   useEffect(() => {
@@ -503,6 +519,12 @@ export default function BookingForm() {
     if (isToday && isPastAllTodaySlots()) {
       return;
     }
+    // Nếu user chọn ngày khác với ngày AI đề xuất → xóa AI slotId để tránh conflict
+    const aiDate = aiPrefillRef.current?.bookingDate || '';
+    if (aiDate && isoString !== aiDate && aiPrefillRef.current) {
+      aiPrefillRef.current = { ...aiPrefillRef.current, slotId: '' };
+    }
+    aiSlotAppliedRef.current = false;
     setBookingDate(isoString);
     const formatted = `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
     setSelectedSlot((prev) => ({
@@ -517,6 +539,7 @@ export default function BookingForm() {
     // Tự động mở Popup chọn Buổi khám sau khi vừa chọn ngày xong
     setShowSessionModal(true);
   };
+
 
   // Điều hướng Step 1 kèm kiểm tra và khoanh vùng đỏ tiêu chí chưa chọn
   const handleContinueStep1 = () => {
@@ -1165,11 +1188,13 @@ export default function BookingForm() {
     disabled: boolean;
   }>>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
+  const [loadedSlotsFor, setLoadedSlotsFor] = useState('');
 
   useEffect(() => {
     const docId = selectedDoctor?.id;
     if (!docId) {
       setDynamicSlots([]);
+      setLoadedSlotsFor('');
       setSelectedSlot({
         id: '',
         time: 'Chưa chọn',
@@ -1178,6 +1203,8 @@ export default function BookingForm() {
       return;
     }
     let isCancelled = false;
+    const requestKey = `${docId}|${bookingDate}`;
+    setLoadedSlotsFor('');
     setLoadingSlots(true);
     api.getDoctorAvailableSlots(docId, bookingDate)
       .then((data) => {
@@ -1192,7 +1219,10 @@ export default function BookingForm() {
         if (!isCancelled) setDynamicSlots([]);
       })
       .finally(() => {
-        if (!isCancelled) setLoadingSlots(false);
+        if (!isCancelled) {
+          setLoadedSlotsFor(requestKey);
+          setLoadingSlots(false);
+        }
       });
 
     return () => {
@@ -1231,7 +1261,7 @@ export default function BookingForm() {
     });
   }, [timeSlots]);
 
-  // Tự động chọn khung giờ khả dụng đầu tiên
+  // Giữ đúng slot AI đã đề xuất. Chỉ chọn slot đầu tiên khi luồng không đến từ AI.
   useEffect(() => {
     if (!selectedDoctor?.id) {
       setSelectedSlot({
@@ -1241,21 +1271,57 @@ export default function BookingForm() {
       });
       return;
     }
-    const firstAvailable = timeSlots.find((s) => !s.disabled);
-    if (firstAvailable) {
-      setSelectedSlot({
-        id: firstAvailable.id,
-        time: firstAvailable.time,
-        date: formatISODateToVN(bookingDate),
-      });
-    } else {
-      setSelectedSlot({
-        id: '',
-        time: loadingSlots ? 'Đang tải...' : 'Chưa có ca trực',
-        date: formatISODateToVN(bookingDate),
-      });
+    const currentRequestKey = `${selectedDoctor.id}|${bookingDate}`;
+    if (loadingSlots || loadedSlotsFor !== currentRequestKey) return;
+
+    const requestedAiSlotId = aiPrefillRef.current?.slotId || '';
+    const alreadyApplied = aiSlotAppliedRef.current;
+
+    if (requestedAiSlotId && !alreadyApplied) {
+      // Có AI slotId và chưa apply: tìm đúng slot đó
+      const requestedAiSlot = timeSlots.find((slot) => slot.id === requestedAiSlotId && !slot.disabled);
+      if (requestedAiSlot) {
+        // Slot AI đề xuất vẫn khả dụng → chọn nó
+        aiSlotAppliedRef.current = true;
+        setStep2Errors((previous) => ({ ...previous, slot: undefined }));
+        setSelectedSlot({
+          id: requestedAiSlot.id,
+          time: requestedAiSlot.time,
+          date: formatISODateToVN(bookingDate),
+        });
+      } else {
+        // Slot AI đề xuất không còn khả dụng → yêu cầu user chọn lại
+        setSelectedSlot({
+          id: '',
+          time: 'Chưa chọn',
+          date: formatISODateToVN(bookingDate),
+        });
+        setStep2Errors((previous) => ({
+          ...previous,
+          slot: 'Khung giờ AI đề xuất không còn khả dụng. Vui lòng chọn một khung giờ khác.',
+        }));
+      }
+    } else if (!requestedAiSlotId && !alreadyApplied) {
+      // Không có AI slotId: tự động chọn slot đầu tiên còn trống
+      const firstAvailable = timeSlots.find((slot) => !slot.disabled);
+      if (firstAvailable) {
+        setStep2Errors((previous) => ({ ...previous, slot: undefined }));
+        setSelectedSlot({
+          id: firstAvailable.id,
+          time: firstAvailable.time,
+          date: formatISODateToVN(bookingDate),
+        });
+      } else {
+        setSelectedSlot({
+          id: '',
+          time: 'Hết chỗ',
+          date: formatISODateToVN(bookingDate),
+        });
+      }
     }
-  }, [bookingDate, timeSlots, selectedDoctor?.id, loadingSlots]);
+    // Nếu alreadyApplied = true: không tự động override slot user đã chọn
+  }, [bookingDate, timeSlots, selectedDoctor?.id, loadingSlots, loadedSlotsFor]);
+
 
   const activeCenterObj = useMemo(() => {
     return centers.find((c) => c.id === selectedCenter) || centers[0] || {

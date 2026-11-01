@@ -77,6 +77,27 @@ class BookAppointmentServiceTest {
     }
 
     @Test
+    @DisplayName("Hai khách cùng chọn một giờ: chỉ yêu cầu khóa đầu tiên được đặt")
+    void givenSlotWasJustTaken_whenAtomicLockFails_thenRejectSecondCustomer() {
+        Instant start = nextWednesdayMorning(9, 0);
+        Instant end = nextWednesdayMorning(9, 30);
+        TimeSlot staleAvailableSlot = new TimeSlot("slot-race", "sch-1", start, end, "AVAILABLE", 0);
+
+        given(timeSlotRepository.findById("slot-race")).willReturn(Optional.of(staleAvailableSlot));
+        given(appointmentRepository.findByPatientProfileId("patient-2")).willReturn(List.of());
+        // Khách đầu tiên đã đổi AVAILABLE -> BOOKED ngay trước câu lệnh CAS của khách thứ hai.
+        given(timeSlotRepository.lockSlot("slot-race")).willReturn(false);
+
+        BookAppointmentUseCase.Command secondCustomer = new BookAppointmentUseCase.Command(
+                "center-1", "patient-2", "doc-1", "slot-race", "Đau bụng", ""
+        );
+
+        assertThatThrownBy(() -> bookService.book(secondCustomer))
+                .isInstanceOf(SlotNotAvailableException.class)
+                .hasMessageContaining("xung đột đồng thời");
+    }
+
+    @Test
     @DisplayName("Chặn Double-Booking: Bệnh nhân đã có lịch khám với Bác sĩ khác trùng khung giờ")
     void givenPatientHasOverlappingAppointment_whenBook_thenThrowSlotNotAvailableException() {
         Instant start = nextWednesdayMorning(9, 0);
