@@ -1686,63 +1686,66 @@ export default function ReceptionView() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {/* SĐT */}
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        SỐ ĐIỆN THOẠI NGƯỜI BỆNH <span className="text-rose-500">*</span>
-                      </label>
-                      <div className="relative">
-                        <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                        <input
-                          type="tel"
-                          required
-                          value={walkinPhone}
-                          onChange={handlePhoneChange}
-                          placeholder="Ví dụ: 0912345678 (10 số)"
-                          maxLength={10}
-                          className={`w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border rounded-xl focus:bg-white focus:ring-2 focus:outline-none text-xs font-semibold text-slate-800 transition ${
-                            walkinPhone.length > 0
-                              ? walkinPhoneValidation.isValid
-                                ? 'border-emerald-400 focus:ring-emerald-500'
-                                : 'border-rose-300 focus:ring-rose-400 bg-rose-50/20'
-                              : 'border-slate-200 focus:ring-emerald-500'
-                          }`}
-                        />
+                    {/* SĐT & Họ tên trên cùng 1 hàng */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                      {/* SĐT */}
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          SỐ ĐIỆN THOẠI NGƯỜI BỆNH <span className="text-rose-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                          <input
+                            type="tel"
+                            required
+                            value={walkinPhone}
+                            onChange={handlePhoneChange}
+                            placeholder="Ví dụ: 0912345678 (10 số)"
+                            maxLength={10}
+                            className={`w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border rounded-xl focus:bg-white focus:ring-2 focus:outline-none text-xs font-semibold text-slate-800 transition ${
+                              walkinPhone.length > 0
+                                ? walkinPhoneValidation.isValid
+                                  ? 'border-emerald-400 focus:ring-emerald-500'
+                                  : 'border-rose-300 focus:ring-rose-400 bg-rose-50/20'
+                                : 'border-slate-200 focus:ring-emerald-500'
+                            }`}
+                          />
+                        </div>
+                        {walkinPhone.length > 0 && (
+                          <p className={`text-[11px] mt-1 font-medium ${walkinPhoneValidation.isValid ? 'text-emerald-600' : 'text-rose-600'}`}>
+                            {walkinPhoneValidation.isValid ? '✓ ' : '✕ '}{walkinPhoneValidation.message}
+                          </p>
+                        )}
                       </div>
-                      {walkinPhone.length > 0 && (
-                        <p className={`text-[11px] mt-1 font-medium ${walkinPhoneValidation.isValid ? 'text-emerald-600' : 'text-rose-600'}`}>
-                          {walkinPhoneValidation.isValid ? '✓ ' : '✕ '}{walkinPhoneValidation.message}
-                        </p>
-                      )}
-                    </div>
 
-                    {/* Họ tên */}
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        HỌ VÀ TÊN NGƯỜI BỆNH <span className="text-rose-500">*</span>
-                      </label>
-                      <div className="relative">
-                        <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                        <input
-                          type="text"
-                          required
-                          value={walkinName}
-                          onChange={(e) => setWalkinName(e.target.value)}
-                          placeholder="Ví dụ: NGUYỄN VĂN AN"
-                          className={`w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border rounded-xl focus:bg-white focus:ring-2 focus:outline-none text-xs font-semibold text-slate-800 uppercase transition ${
-                            walkinName.length > 0
-                              ? walkinNameValidation.isValid
-                                ? 'border-emerald-400 focus:ring-emerald-500'
-                                : 'border-rose-300 focus:ring-rose-400 bg-rose-50/20'
-                              : 'border-slate-200 focus:ring-emerald-500'
-                          }`}
-                        />
+                      {/* Họ tên */}
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          HỌ VÀ TÊN NGƯỜI BỆNH <span className="text-rose-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                          <input
+                            type="text"
+                            required
+                            value={walkinName}
+                            onChange={(e) => setWalkinName(e.target.value)}
+                            placeholder="Ví dụ: NGUYỄN VĂN AN"
+                            className={`w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border rounded-xl focus:bg-white focus:ring-2 focus:outline-none text-xs font-semibold text-slate-800 uppercase transition ${
+                              walkinName.length > 0
+                                ? walkinNameValidation.isValid
+                                  ? 'border-emerald-400 focus:ring-emerald-500'
+                                  : 'border-rose-300 focus:ring-rose-400 bg-rose-50/20'
+                                : 'border-slate-200 focus:ring-emerald-500'
+                            }`}
+                          />
+                        </div>
+                        {walkinName.length > 0 && (
+                          <p className={`text-[11px] mt-1 font-medium ${walkinNameValidation.isValid ? 'text-emerald-600' : 'text-rose-600'}`}>
+                            {walkinNameValidation.isValid ? '✓ ' : '✕ '}{walkinNameValidation.message}
+                          </p>
+                        )}
                       </div>
-                      {walkinName.length > 0 && (
-                        <p className={`text-[11px] mt-1 font-medium ${walkinNameValidation.isValid ? 'text-emerald-600' : 'text-rose-600'}`}>
-                          {walkinNameValidation.isValid ? '✓ ' : '✕ '}{walkinNameValidation.message}
-                        </p>
-                      )}
                     </div>
 
                     {/* Chuyên khoa & Bác sĩ */}
