@@ -55,6 +55,7 @@ export default function ReceptionHistoryView() {
   const [dragStart, setDragStart] = useState<string | null>(null);
   const [dragHover, setDragHover] = useState<string | null>(null);
   const [isMouseDown, setIsMouseDown] = useState(false);
+  const [showMonthYearPicker, setShowMonthYearPicker] = useState(false);
 
   // Modal Chi tiết & In Phiếu Tiếp Đón
   const [selectedItem, setSelectedItem] = useState<ReceptionHistoryItem | null>(null);
@@ -272,6 +273,7 @@ export default function ReceptionHistoryView() {
       setCalendarViewDate(new Date());
     }
     setIsMouseDown(false);
+    setShowMonthYearPicker(false);
     setShowDatePickerModal(true);
   };
 
@@ -730,9 +732,18 @@ export default function ReceptionHistoryView() {
                   >
                     <ChevronLeft size={16} />
                   </button>
-                  <h4 className="font-extrabold text-sm text-slate-800 px-1">
-                    Tháng {calendarViewDate.getMonth() + 1}/{calendarViewDate.getFullYear()}
-                  </h4>
+                  
+                  {/* Nút bấm để nhập ngày / tháng / năm cụ thể */}
+                  <button
+                    type="button"
+                    onClick={() => setShowMonthYearPicker(!showMonthYearPicker)}
+                    className="font-extrabold text-sm text-slate-800 hover:text-pine-teal px-2 py-1 rounded-lg hover:bg-slate-100 transition flex items-center gap-1 cursor-pointer border border-transparent hover:border-slate-200"
+                    title="Bấm vào để nhập tháng, năm hoặc ngày cụ thể"
+                  >
+                    <span>Tháng {calendarViewDate.getMonth() + 1}/{calendarViewDate.getFullYear()}</span>
+                    <ChevronDown size={14} className={`text-slate-400 transition-transform ${showMonthYearPicker ? 'rotate-180 text-pine-teal' : ''}`} />
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => {
@@ -750,12 +761,107 @@ export default function ReceptionHistoryView() {
                   onClick={() => {
                     const now = new Date();
                     setCalendarViewDate(new Date(now.getFullYear(), now.getMonth(), 1));
+                    setShowMonthYearPicker(false);
                   }}
                   className="text-[11px] font-bold text-teal-700 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-md hover:bg-teal-100 transition cursor-pointer"
                 >
                   Về hôm nay
                 </button>
               </div>
+
+              {/* Hộp thoại Nhập Tháng, Năm hoặc Ngày Cụ Thể khi bấm vào tiêu đề tháng */}
+              {showMonthYearPicker && (
+                <div className="p-3.5 bg-slate-50/90 border border-teal-200 rounded-2xl shadow-sm space-y-3 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-200/80">
+                    <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                      <Calendar size={13} className="text-pine-teal" />
+                      <span>Nhập Mốc Tháng / Năm / Ngày Cụ Thể:</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowMonthYearPicker(false)}
+                      className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                      title="Đóng bảng nhập"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                        Chọn Tháng (1 - 12):
+                      </label>
+                      <select
+                        value={calendarViewDate.getMonth() + 1}
+                        onChange={(e) => {
+                          const m = parseInt(e.target.value, 10) - 1;
+                          setCalendarViewDate(new Date(calendarViewDate.getFullYear(), m, 1));
+                        }}
+                        className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-pine-teal/30 cursor-pointer"
+                      >
+                        {Array.from({ length: 12 }, (_, i) => (
+                          <option key={i + 1} value={i + 1}>
+                            Tháng {i + 1}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                        Nhập Năm:
+                      </label>
+                      <input
+                        type="number"
+                        min={1970}
+                        max={2100}
+                        value={calendarViewDate.getFullYear()}
+                        onChange={(e) => {
+                          const y = parseInt(e.target.value, 10);
+                          if (!isNaN(y) && y >= 1970 && y <= 2100) {
+                            setCalendarViewDate(new Date(y, calendarViewDate.getMonth(), 1));
+                          }
+                        }}
+                        className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-pine-teal/30"
+                        placeholder="VD: 2026"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-200/80">
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      Hoặc chọn / nhập ngày cụ thể:
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="date"
+                        className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-pine-teal/30 cursor-pointer"
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            const parts = e.target.value.split('-');
+                            if (parts.length === 3) {
+                              const y = parseInt(parts[0], 10);
+                              const m = parseInt(parts[1], 10) - 1;
+                              setCalendarViewDate(new Date(y, m, 1));
+                              setDragStart(e.target.value);
+                              setDragHover(e.target.value);
+                              setShowMonthYearPicker(false);
+                            }
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowMonthYearPicker(false)}
+                        className="px-3 py-1.5 bg-pine-teal text-white rounded-xl text-xs font-bold hover:bg-teal-700 transition cursor-pointer"
+                      >
+                        Áp Dụng
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Day of Week Headers (Thứ 2 -> Chủ Nhật) */}
               <div className="grid grid-cols-7 text-center">
