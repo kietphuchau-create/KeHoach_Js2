@@ -124,6 +124,13 @@ export default function ReceptionView() {
   const [showDoctorModal, setShowDoctorModal] = useState<boolean>(false);
   const [specialtySearchTerm, setSpecialtySearchTerm] = useState<string>('');
   const [doctorSearchTerm, setDoctorSearchTerm] = useState<string>('');
+  const [showSlotModal, setShowSlotModal] = useState<boolean>(false);
+  const [targetDoctorForSlots, setTargetDoctorForSlots] = useState<any>(null);
+  const [doctorSlotsLoading, setDoctorSlotsLoading] = useState<boolean>(false);
+  const [doctorSlotsList, setDoctorSlotsList] = useState<any[]>([]);
+  const [selectedSlotId, setSelectedSlotId] = useState<string>('');
+  const [selectedSlotTime, setSelectedSlotTime] = useState<string>('');
+  const [slotFilterSession, setSlotFilterSession] = useState<'ALL' | 'MORNING' | 'AFTERNOON'>('ALL');
   const [todaySchedulesLoading, setTodaySchedulesLoading] = useState(false);
   const [walkinGender, setWalkinGender] = useState<'MALE' | 'FEMALE' | 'OTHER'>('MALE');
   const [walkinBirthYear, setWalkinBirthYear] = useState('1990');
@@ -182,6 +189,79 @@ export default function ReceptionView() {
       return dSpec === targetSpec || dSpec.includes(targetSpec) || targetSpec.includes(dSpec);
     });
   }, [activeDoctorsToday, walkinSpecialty]);
+
+  const isDevModeActive = useMemo(() => {
+    try {
+      return Boolean(getClinicScheduleConfig().devMode247);
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const loadDoctorSlots = useCallback(async (docId: string) => {
+    if (!docId) {
+      setDoctorSlotsList([]);
+      return;
+    }
+    setDoctorSlotsLoading(true);
+    try {
+      const todayStr = getLocalDateString();
+      const res = await api.getDoctorAvailableSlots(docId, todayStr);
+      if (Array.isArray(res)) {
+        setDoctorSlotsList(res);
+      } else {
+        setDoctorSlotsList([]);
+      }
+    } catch (err) {
+      console.warn('Lỗi tải danh sách khung giờ bác sĩ:', err);
+      setDoctorSlotsList([]);
+    } finally {
+      setDoctorSlotsLoading(false);
+    }
+  }, []);
+
+  const handleSelectDoctorAndOpenSlots = useCallback((doc: any) => {
+    setSelectedDoctorId(doc.id);
+    setTargetDoctorForSlots(doc);
+    if (selectedDoctorId !== doc.id) {
+      setSelectedSlotId('');
+      setSelectedSlotTime('');
+    }
+    setShowDoctorModal(false);
+    setShowSlotModal(true);
+    loadDoctorSlots(doc.id);
+  }, [selectedDoctorId, loadDoctorSlots]);
+
+  const isMorningSlot = (timeStr: string) => {
+    const hour = parseInt(timeStr.split(':')[0], 10) || 0;
+    return hour < 12;
+  };
+
+  const morningSlots = useMemo(() => {
+    return doctorSlotsList.filter((s) => isMorningSlot(s.time));
+  }, [doctorSlotsList]);
+
+  const afternoonSlots = useMemo(() => {
+    return doctorSlotsList.filter((s) => !isMorningSlot(s.time));
+  }, [doctorSlotsList]);
+
+  const displayedDoctorSlots = useMemo(() => {
+    if (slotFilterSession === 'MORNING') return morningSlots;
+    if (slotFilterSession === 'AFTERNOON') return afternoonSlots;
+    return doctorSlotsList;
+  }, [slotFilterSession, morningSlots, afternoonSlots, doctorSlotsList]);
+
+  const morningAvailableCount = useMemo(() => {
+    return morningSlots.filter((s) => !s.disabled && s.status !== 'full' && s.status !== 'BOOKED' && (isDevModeActive || s.status !== 'expired')).length;
+  }, [morningSlots, isDevModeActive]);
+
+  const afternoonAvailableCount = useMemo(() => {
+    return afternoonSlots.filter((s) => !s.disabled && s.status !== 'full' && s.status !== 'BOOKED' && (isDevModeActive || s.status !== 'expired')).length;
+  }, [afternoonSlots, isDevModeActive]);
+
+  const availableSlotsTotalCount = useMemo(() => {
+    return doctorSlotsList.filter((s) => !s.disabled && s.status !== 'full' && s.status !== 'BOOKED' && (isDevModeActive || s.status !== 'expired')).length;
+  }, [doctorSlotsList, isDevModeActive]);
 
   // Tự động chọn Bác sĩ đầu tiên khả dụng khi đổi chuyên khoa
   useEffect(() => {
@@ -903,7 +983,9 @@ export default function ReceptionView() {
         doctorId: docId,
         specialty: spec,
         password: autoPass,
-        symptoms: walkinSymptoms.trim() || undefined,
+        symptoms: selectedSlotTime
+          ? `${walkinSymptoms.trim() ? walkinSymptoms.trim() + ' | ' : ''}Khung giờ tiếp nhận: ${selectedSlotTime}`
+          : walkinSymptoms.trim() || undefined,
         gender: walkinGender,
         birthYear: walkinBirthYear ? Number(walkinBirthYear) : undefined,
       });
@@ -977,6 +1059,9 @@ export default function ReceptionView() {
       setWalkinSymptoms('');
       setWalkinBirthYear('');
       setWalkinGender('OTHER');
+      setSelectedSlotId('');
+      setSelectedSlotTime('');
+      setPreselectedWalkinInfo(null);
       handleGenerateRandomPass();
     } catch (err: any) {
       setError(err.message || 'Tiếp đón tại quầy thất bại. Vui lòng thử lại.');
@@ -1671,8 +1756,8 @@ export default function ReceptionView() {
                       </div>
                     ) : null}
 
-                    {/* Chuyên khoa & Bác sĩ (Dạng Button mở Modal Popup) */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Chuyên khoa, Bác sĩ & Khung giờ khám (Dạng Button mở Modal Popup) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div>
                         <label className="block text-xs font-bold text-slate-700 mb-1">
                           Chuyên khoa khám
@@ -1712,6 +1797,40 @@ export default function ReceptionView() {
                                 : availableDoctorsForSpecialty.length === 0
                                 ? 'Chưa có Bác sĩ trực chuyên khoa này'
                                 : 'Chọn bác sĩ & phòng khám...'}
+                            </span>
+                          </div>
+                          <ChevronRight size={15} className="text-slate-400 shrink-0 ml-1" />
+                        </button>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          Khung giờ khám (Ca trực)
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (currentSelectedDoctor) {
+                              setTargetDoctorForSlots(currentSelectedDoctor);
+                              loadDoctorSlots(currentSelectedDoctor.id);
+                              setShowSlotModal(true);
+                            } else {
+                              setShowDoctorModal(true);
+                            }
+                          }}
+                          disabled={!currentSelectedDoctor}
+                          className="w-full px-3.5 py-2.5 bg-slate-50 hover:bg-slate-100/90 border border-slate-200 rounded-xl flex items-center justify-between text-xs font-semibold text-slate-800 transition cursor-pointer text-left focus:ring-2 focus:ring-emerald-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <div className="flex items-center gap-2 truncate">
+                            <span className="w-6 h-6 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center shrink-0">
+                              <Clock size={13} />
+                            </span>
+                            <span className="truncate">
+                              {selectedSlotTime ? (
+                                <span className="font-bold text-emerald-950">{selectedSlotTime}</span>
+                              ) : (
+                                <span className="text-slate-500">Chọn ca / giờ trống...</span>
+                              )}
                             </span>
                           </div>
                           <ChevronRight size={15} className="text-slate-400 shrink-0 ml-1" />
@@ -2949,10 +3068,7 @@ export default function ReceptionView() {
                       <button
                         key={d.id}
                         type="button"
-                        onClick={() => {
-                          setSelectedDoctorId(d.id);
-                          setShowDoctorModal(false);
-                        }}
+                        onClick={() => handleSelectDoctorAndOpenSlots(d)}
                         className={`w-full p-3.5 rounded-2xl border text-left transition flex items-center justify-between gap-3 cursor-pointer ${
                           isSelected
                             ? 'bg-blue-50/80 border-blue-500 shadow-2xs'
@@ -2995,12 +3111,238 @@ export default function ReceptionView() {
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
                             Đang trực
                           </span>
-                          {isSelected && <Check size={16} className="text-blue-700 shrink-0" />}
+                          <span className="text-[11px] font-bold px-2.5 py-1 rounded-xl bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1 shadow-2xs transition">
+                            <span>Chọn giờ</span>
+                            <ChevronRight size={13} />
+                          </span>
                         </div>
                       </button>
                     );
                   })
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Popup Chọn Khung Giờ Khám Còn Trống ── */}
+      {showSlotModal && targetDoctorForSlots && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[88vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden">
+            {/* Header */}
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-emerald-50/60 to-white">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-100/80 text-emerald-800 flex items-center justify-center shrink-0">
+                  <Clock size={20} />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-extrabold text-sm sm:text-base text-slate-800">
+                      Chọn Khung Giờ Khám Còn Trống
+                    </h3>
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                      Hôm nay
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                    {formatDoctorFullName(targetDoctorForSlots.academicTitle, targetDoctorForSlots.fullName)} • Buồng {targetDoctorForSlots.roomNumber || 'P.208'} • {targetDoctorForSlots.specialtyName || walkinSpecialty}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSlotModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition cursor-pointer shrink-0 ml-2"
+                title="Đóng"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Thanh lọc Buổi (Tất cả / Ca Sáng / Ca Chiều) & Thống kê số lượng slot */}
+            <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/60 flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-1.5 bg-slate-200/60 p-1 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setSlotFilterSession('ALL')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    slotFilterSession === 'ALL'
+                      ? 'bg-white text-emerald-800 shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Tất cả ({displayedDoctorSlots.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSlotFilterSession('MORNING')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    slotFilterSession === 'MORNING'
+                      ? 'bg-white text-emerald-800 shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Ca Sáng ({morningAvailableCount} trống)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSlotFilterSession('AFTERNOON')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    slotFilterSession === 'AFTERNOON'
+                      ? 'bg-white text-emerald-800 shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Ca Chiều ({afternoonAvailableCount} trống)
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+                <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg font-bold text-[11px]">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  {availableSlotsTotalCount} khung giờ trống
+                </span>
+              </div>
+            </div>
+
+            {/* Nội dung danh sách slot */}
+            <div className="p-4 overflow-y-auto flex-1">
+              {doctorSlotsLoading ? (
+                <div className="py-16 text-center space-y-3">
+                  <RefreshCw size={28} className="animate-spin text-emerald-600 mx-auto" />
+                  <p className="text-xs font-semibold text-slate-600">Đang tải danh sách khung giờ trống của Bác sĩ...</p>
+                </div>
+              ) : displayedDoctorSlots.length === 0 ? (
+                <div className="text-center py-12 bg-slate-50/70 rounded-2xl border border-dashed border-slate-200 p-6 space-y-2">
+                  <CalendarDays size={32} className="text-slate-400 mx-auto" />
+                  <p className="text-xs font-bold text-slate-700">Chưa tìm thấy khung giờ nào trong ca trực này</p>
+                  <p className="text-[11px] text-slate-500">
+                    Bác sĩ đang có ca trực hôm nay nhưng chưa phân bổ slot lẻ. Bạn có thể tiếp nhận tự do vào hàng đợi của Bác sĩ.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedDoctorId(targetDoctorForSlots.id);
+                      setSelectedSlotId('');
+                      setSelectedSlotTime('');
+                      setShowSlotModal(false);
+                    }}
+                    className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 shadow-sm cursor-pointer"
+                  >
+                    <Check size={14} />
+                    <span>Tiếp nhận theo thứ tự (Không cố định giờ)</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+                  {displayedDoctorSlots.map((slot: any) => {
+                    const isSlotSelected = selectedSlotId === slot.id || (selectedSlotTime === slot.time && selectedDoctorId === targetDoctorForSlots.id);
+                    const isFull = slot.status === 'full' || slot.status === 'BOOKED';
+                    const isExpired = slot.status === 'expired';
+                    const isLocked = slot.status === 'locked';
+                    const isAvailable = (!isFull && !isLocked && (!isExpired || isDevModeActive));
+
+                    return (
+                      <button
+                        key={slot.id || slot.time}
+                        type="button"
+                        disabled={!isAvailable}
+                        onClick={() => {
+                          setSelectedDoctorId(targetDoctorForSlots.id);
+                          setSelectedSlotId(slot.id);
+                          setSelectedSlotTime(slot.time);
+                          setPreselectedWalkinInfo({
+                            doctorName: formatDoctorFullName(targetDoctorForSlots.academicTitle, targetDoctorForSlots.fullName),
+                            roomNumber: targetDoctorForSlots.roomNumber || 'P.208',
+                            slotTime: slot.time,
+                            date: getLocalDateString(),
+                          });
+                        }}
+                        className={`p-3 rounded-2xl border text-center transition flex flex-col items-center justify-between gap-1.5 relative cursor-pointer ${
+                          isSlotSelected
+                            ? 'bg-emerald-600 border-emerald-600 text-white shadow-md ring-2 ring-emerald-500/50'
+                            : isAvailable
+                            ? 'bg-white border-emerald-200 hover:border-emerald-500 hover:bg-emerald-50/60 text-slate-800 hover:shadow-2xs'
+                            : 'bg-slate-100/70 border-slate-200 text-slate-400 cursor-not-allowed opacity-60'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1">
+                          <Clock size={13} className={isSlotSelected ? 'text-white' : isAvailable ? 'text-emerald-600' : 'text-slate-400'} />
+                          <span className={`text-xs font-black tracking-tight ${isSlotSelected ? 'text-white' : 'text-slate-800'}`}>
+                            {slot.time}
+                          </span>
+                        </div>
+
+                        <div className="w-full flex items-center justify-center">
+                          {isSlotSelected ? (
+                            <span className="text-[10px] font-bold bg-white/20 text-white px-2 py-0.5 rounded-full flex items-center gap-1">
+                              <Check size={11} />
+                              <span>Đang chọn</span>
+                            </span>
+                          ) : isAvailable ? (
+                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.2 rounded-full">
+                              Còn trống
+                            </span>
+                          ) : isFull ? (
+                            <span className="text-[10px] font-bold text-slate-500 bg-slate-200 px-2 py-0.2 rounded-full">
+                              Đã kín chỗ
+                            </span>
+                          ) : isExpired ? (
+                            <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.2 rounded-full">
+                              Đã qua giờ
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold text-slate-400 bg-slate-200 px-2 py-0.2 rounded-full">
+                              Tạm khóa
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSlotModal(false);
+                    setShowDoctorModal(true);
+                  }}
+                  className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-xs font-bold text-slate-700 transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <span>← Đổi Bác Sĩ</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedDoctorId(targetDoctorForSlots.id);
+                    setSelectedSlotId('');
+                    setSelectedSlotTime('');
+                    setShowSlotModal(false);
+                  }}
+                  className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-500 hover:text-slate-800 transition cursor-pointer"
+                >
+                  Tiếp nhận tự do (Không ấn định giờ)
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowSlotModal(false)}
+                  className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <Check size={15} />
+                  <span>
+                    {selectedSlotTime ? `Xác Nhận Giờ Khám (${selectedSlotTime})` : 'Xác Nhận & Đóng'}
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
