@@ -1307,16 +1307,7 @@ export default function ReceptionView() {
 
                           </div>
                           <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-                            {feedDateFilter === 'TODAY' && (
-                              <button
-                                type="button"
-                                onClick={() => setFeedDateFilter('YESTERDAY')}
-                                className="px-3.5 py-2 bg-white hover:bg-teal-50 text-slate-700 hover:text-teal-800 border border-slate-200 hover:border-teal-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                              >
-                                <History size={14} className="text-teal-600" />
-                                <span>Xem ca tiếp đón hôm qua ({yesterdayShort})</span>
-                              </button>
-                            )}
+
                             <button
                               type="button"
                               onClick={() => setShowCheckinModal(true)}
