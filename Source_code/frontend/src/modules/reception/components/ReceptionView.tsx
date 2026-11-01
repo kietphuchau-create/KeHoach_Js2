@@ -36,7 +36,8 @@ import {
   Gift,
   Percent,
   ChevronRight,
-  UserCheck
+  UserCheck,
+  FileText
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -125,6 +126,7 @@ export default function ReceptionView() {
   const [specialtySearchTerm, setSpecialtySearchTerm] = useState<string>('');
   const [doctorSearchTerm, setDoctorSearchTerm] = useState<string>('');
   const [showSlotModal, setShowSlotModal] = useState<boolean>(false);
+  const [showTicketPreviewModal, setShowTicketPreviewModal] = useState<boolean>(false);
   const [targetDoctorForSlots, setTargetDoctorForSlots] = useState<any>(null);
   const [doctorSlotsLoading, setDoctorSlotsLoading] = useState<boolean>(false);
   const [doctorSlotsList, setDoctorSlotsList] = useState<any[]>([]);
@@ -1638,13 +1640,24 @@ export default function ReceptionView() {
                       </div>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setPreselectedWalkinInfo(null)}
-                    className="text-[11px] font-bold text-teal-700 hover:text-teal-900 underline ml-2 cursor-pointer"
-                  >
-                    Đổi bác sĩ khác
-                  </button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setShowTicketPreviewModal(true)}
+                      className="px-3.5 py-1.5 bg-teal-700 hover:bg-teal-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                    >
+                      <FileText size={14} />
+                      <span>Xem trước phiếu khám</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPreselectedWalkinInfo(null)}
+                      className="text-[11px] font-bold text-teal-700 hover:text-teal-900 underline ml-1 cursor-pointer"
+                      title="Bỏ chọn để đổi Bác sĩ khác"
+                    >
+                      Đổi bác sĩ khác
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -2001,7 +2014,159 @@ export default function ReceptionView() {
         </div>
       )}
 
-      {/* ── Modal Bàn Giao Tài Khoản & In Phiếu Tiếp Đón K80 (Walk-in Handover Ticket - High Density Layout) ── */}
+            {/* ── Modal Xem Trước Phiếu Khám (Ticket Preview Modal) ── */}
+      {showTicketPreviewModal && preselectedWalkinInfo && (
+        <div 
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-2 sm:p-3 overflow-y-auto animate-in fade-in duration-150"
+          onClick={() => setShowTicketPreviewModal(false)}
+        >
+          <div 
+            className="bg-white rounded-2xl sm:rounded-3xl max-w-xl w-full shadow-2xl overflow-hidden border border-slate-200 flex flex-col my-auto animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-teal-700 to-emerald-700 text-white px-4 py-2.5 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center font-bold">
+                  <FileText size={16} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm">Xem Trước Phiếu Tiếp Đón &amp; Khám Bệnh</h3>
+                  <p className="text-[10px] text-teal-100">Bản mẫu K80 dự kiến • Chưa chốt tiếp nhận</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTicketPreviewModal(false)}
+                className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition cursor-pointer"
+                title="Đóng cửa sổ"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Printable Ticket Area */}
+            <div className="p-3 sm:p-3.5 bg-[#f8fafc] text-slate-800 shrink-0">
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 relative overflow-hidden">
+                {/* Top Mini Header */}
+                <div className="px-3.5 py-1.5 flex items-center justify-between border-b-[2px] border-dashed border-slate-200 bg-white">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-5 h-5 rounded-full bg-gradient-to-br from-teal-600 to-emerald-600 flex items-center justify-center text-white shrink-0">
+                      <Sparkles size={11} />
+                    </div>
+                    <span className="font-black text-teal-800 text-xs tracking-tight">MEDSCHED</span>
+                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">• BẢN XEM TRƯỚC PHIẾU KHÁM</span>
+                  </div>
+                  <div className="text-[10px] text-slate-400 font-mono">
+                    {preselectedWalkinInfo.date} • {preselectedWalkinInfo.slotTime}
+                  </div>
+                </div>
+
+                {/* Core 2-Column Content */}
+                <div className="p-3 grid grid-cols-1 sm:grid-cols-12 gap-3 items-center bg-gradient-to-b from-white to-teal-50/20">
+                  {/* Cột Trái: Số thứ tự dự kiến & Buồng khám */}
+                  <div className="sm:col-span-5 flex flex-col items-center justify-center text-center sm:border-r border-slate-100 sm:pr-3">
+                    <span className="text-[9px] font-bold text-teal-700 uppercase tracking-widest block">SỐ THỨ TỰ (DỰ KIẾN)</span>
+                    <div className="text-3xl sm:text-4xl font-black text-teal-700 tracking-tight leading-none my-1 drop-shadow-xs">
+                      #--
+                    </div>
+                    <span className="text-[9px] text-amber-700 font-semibold bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full mb-1">
+                      Cấp tự động khi bấm Tiếp Đón
+                    </span>
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-teal-100/70 rounded-full text-teal-900 text-xs font-bold border border-teal-200/60 max-w-full truncate">
+                      <Building2 size={13} className="shrink-0" />
+                      <span className="font-mono">{preselectedWalkinInfo.roomNumber}</span>
+                      <span className="w-1 h-1 rounded-full bg-teal-400 shrink-0" />
+                      <span className="truncate">{walkinSpecialty || 'Chuyên khoa khám'}</span>
+                    </div>
+                    <div className="text-[11px] text-slate-600 font-medium mt-1.5 truncate max-w-full">
+                      BS: <strong className="text-slate-800">{preselectedWalkinInfo.doctorName}</strong>
+                    </div>
+                  </div>
+
+                  {/* Cột Phải: Thông tin ca khám & QR */}
+                  <div className="sm:col-span-7 flex flex-col gap-1.5">
+                    <div className="bg-slate-900 rounded-xl p-2.5 text-white shadow-inner flex items-center justify-between gap-2.5 relative overflow-hidden">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 text-teal-400 font-bold text-[9px] uppercase tracking-wider mb-1.5">
+                          <Clock size={12} className="shrink-0" />
+                          <span>Khung Giờ Đặt Khám</span>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5 text-[10px] text-slate-300">
+                            <span className="text-slate-400 w-16 shrink-0">Giờ khám:</span>
+                            <span className="font-mono font-bold text-white bg-white/10 px-1.5 py-0.5 rounded text-[11px]">
+                              {preselectedWalkinInfo.slotTime}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-[10px] text-slate-300">
+                            <span className="text-slate-400 w-16 shrink-0">Ngày khám:</span>
+                            <span className="font-mono font-bold text-teal-300 bg-teal-950/80 px-1.5 py-0.5 rounded border border-teal-500/30 text-[11px]">
+                              {preselectedWalkinInfo.date}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Mã QR Tra Cứu Dự kiến */}
+                      <div className="flex flex-col items-center justify-center shrink-0 bg-white p-1 rounded-lg shadow-xs">
+                        <QrCodeImage
+                          value={`MEDSCHED-${walkinPhone || 'PREVIEW'}`}
+                          size={54}
+                          className="rounded"
+                        />
+                        <span className="text-[8px] font-mono font-bold text-slate-600 mt-0.5 tracking-tight">
+                          QR XÁC NHẬN
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[9px] text-slate-400 px-1">
+                      <span>Đến trước 10 phút • Xuất trình tại buồng khám</span>
+                      <span className="font-mono font-bold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded">medsched.hospital.vn</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Patient Summary Strip */}
+                <div className="px-3.5 py-2 bg-slate-50 border-t-[2px] border-dashed border-slate-200 grid grid-cols-2 sm:grid-cols-4 gap-2 text-left">
+                  <div>
+                    <span className="block text-[9px] text-slate-400 font-bold uppercase tracking-wider">Bệnh nhân</span>
+                    <strong className="text-slate-800 text-xs truncate block">{walkinName.trim() || 'Chưa nhập họ tên'}</strong>
+                  </div>
+                  <div>
+                    <span className="block text-[9px] text-slate-400 font-bold uppercase tracking-wider">Số điện thoại</span>
+                    <span className="text-slate-700 text-xs font-mono">{walkinPhone.trim() || 'Chưa nhập SĐT'}</span>
+                  </div>
+                  <div>
+                    <span className="block text-[9px] text-slate-400 font-bold uppercase tracking-wider">Phòng khám</span>
+                    <strong className="text-slate-700 text-xs font-mono">{preselectedWalkinInfo.roomNumber}</strong>
+                  </div>
+                  <div>
+                    <span className="block text-[9px] text-slate-400 font-bold uppercase tracking-wider">Hình thức</span>
+                    <span className="inline-block text-[10px] font-bold text-teal-700 bg-teal-100/80 px-2 py-0.5 rounded-full">
+                      Khám tại quầy
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowTicketPreviewModal(false)}
+                className="py-2 px-4 bg-teal-700 hover:bg-teal-800 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-sm"
+              >
+                Đóng Xem Trước
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+{/* ── Modal Bàn Giao Tài Khoản & In Phiếu Tiếp Đón K80 (Walk-in Handover Ticket - High Density Layout) ── */}
       {accountHandoverModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-2 sm:p-3 overflow-y-auto">
           <div className="bg-white rounded-2xl sm:rounded-3xl max-w-xl w-full shadow-2xl overflow-hidden border border-slate-200 flex flex-col my-auto animate-in fade-in zoom-in-95 duration-150">
