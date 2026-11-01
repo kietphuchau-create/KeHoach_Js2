@@ -859,75 +859,105 @@ export default function DoctorScheduleView() {
         </div>
       )}
 
-      {/* ── Thanh Điều Hướng Tuần & Đăng Ký Ca Trực ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 sm:px-4 rounded-2xl border border-slate-200 shadow-2xs">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-teal-50 border border-teal-200 text-teal-800 flex items-center justify-center font-bold">
-            <LayoutGrid size={16} />
+            {/* ── Thanh Hợp Nhất: Điều Hướng Tuần, Thao Tác & Tổng Quan Chỉ Số ── */}
+      <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-3.5">
+        {/* Hàng 1: Điều hướng tuần, thông tin thời gian & Nút Đăng ký ca */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3.5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-teal-50 border border-teal-200 text-teal-800 flex items-center justify-center font-bold shrink-0 shadow-2xs">
+              <CalendarDays size={20} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-extrabold text-slate-800 block">Ma Trận Ca Trực Bác Sĩ</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200">
+                  Thứ 2 - Thứ 6
+                </span>
+              </div>
+              <span className="text-xs text-slate-500 block mt-0.5">
+                Từ {weekDays[0]?.displayDay} ({weekDays[0]?.displayDate}) đến {weekDays[weekDays.length - 1]?.displayDay} ({weekDays[weekDays.length - 1]?.displayDate})
+              </span>
+            </div>
           </div>
-          <div>
-            <span className="text-xs font-extrabold text-slate-800 block">Ma Trận Ca Trực Theo Tuần</span>
-            <span className="text-[11px] text-slate-500">Thứ 2 đến Thứ 6 • Quản lý trực tiếp trên giao diện</span>
+
+          {/* Bộ điều hướng tuần & Nút Đăng ký ca */}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={loadSchedules}
+              disabled={loading}
+              className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+              title="Làm mới lịch trực"
+            >
+              <RefreshCw size={15} className={loading ? 'animate-spin text-teal-700' : ''} />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setCurrentWeekOffset((prev) => prev - 1)}
+              className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+              title="Tuần trước"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            
+            <span className="text-xs font-bold text-slate-800 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl">
+              Tuần: {weekDays[0]?.displayDate} - {weekDays[weekDays.length - 1]?.displayDate}
+            </span>
+
+            <button
+              type="button"
+              onClick={() => setCurrentWeekOffset((prev) => prev + 1)}
+              className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+              title="Tuần kế tiếp"
+            >
+              <ChevronRight size={16} />
+            </button>
+
+            {currentWeekOffset !== 0 && (
+              <button
+                type="button"
+                onClick={() => setCurrentWeekOffset(0)}
+                className="text-xs font-semibold text-teal-700 hover:underline px-1.5 cursor-pointer"
+              >
+                Hôm nay
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={handleOpenCreateModal}
+              className="ml-1 sm:ml-2 px-4 py-2 bg-gradient-to-r from-teal-700 to-emerald-700 hover:from-teal-800 hover:to-emerald-800 text-white font-bold rounded-xl text-xs transition shadow-sm shadow-teal-700/20 flex items-center gap-1.5 cursor-pointer hover:scale-102 active:scale-98"
+              title="Mở cửa sổ tiện ích đăng ký ca trực"
+            >
+              <PlusCircle size={15} />
+              <span>Đăng Ký Ca Mới</span>
+            </button>
           </div>
         </div>
 
-        {/* Bộ điều hướng tuần & Nút Đăng ký ca */}
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={loadSchedules}
-            disabled={loading}
-            className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition cursor-pointer"
-            title="Làm mới lịch trực"
-          >
-            <RefreshCw size={15} className={loading ? 'animate-spin text-teal-700' : ''} />
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setCurrentWeekOffset((prev) => prev - 1)}
-            className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition cursor-pointer"
-            title="Tuần trước"
-          >
-            <ChevronLeft size={16} />
-          </button>
-          
-          <span className="text-xs font-bold text-slate-800 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg">
-            Tuần: {weekDays[0]?.displayDate} - {weekDays[weekDays.length - 1]?.displayDate}
-          </span>
-
-          <button
-            type="button"
-            onClick={() => setCurrentWeekOffset((prev) => prev + 1)}
-            className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition cursor-pointer"
-            title="Tuần kế tiếp"
-          >
-            <ChevronRight size={16} />
-          </button>
-
-          {currentWeekOffset !== 0 && (
-            <button
-              type="button"
-              onClick={() => setCurrentWeekOffset(0)}
-              className="text-[11px] font-semibold text-teal-700 hover:underline px-1.5 cursor-pointer"
-            >
-              Hôm nay
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={handleOpenCreateModal}
-            className="ml-1 sm:ml-2 px-3.5 py-1.5 bg-gradient-to-r from-teal-700 to-emerald-700 hover:from-teal-800 hover:to-emerald-800 text-white font-bold rounded-xl text-xs transition shadow-sm shadow-teal-700/20 flex items-center gap-1.5 cursor-pointer hover:scale-102 active:scale-98"
-            title="Mở cửa sổ tiện ích đăng ký ca trực"
-          >
-            <PlusCircle size={14} />
-            <span>Đăng Ký Ca Mới</span>
-          </button>
+        {/* Hàng 2: Dải 4 chỉ số tóm tắt tuần */}
+        <div className="pt-3 border-t border-slate-100 grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <div className="px-3 py-2 bg-slate-50/80 rounded-xl border border-slate-200/70 flex items-center justify-between">
+            <span className="text-slate-500 text-[11px] font-medium">Tổng ca trực:</span>
+            <strong className="text-slate-800 text-xs sm:text-sm font-black">{weekMetrics.totalShifts} ca</strong>
+          </div>
+          <div className="px-3 py-2 bg-slate-50/80 rounded-xl border border-slate-200/70 flex items-center justify-between">
+            <span className="text-slate-500 text-[11px] font-medium">Tổng giờ làm việc:</span>
+            <strong className="text-slate-800 text-xs sm:text-sm font-black">{weekMetrics.totalHours} giờ</strong>
+          </div>
+          <div className="px-3 py-2 bg-emerald-50/60 rounded-xl border border-emerald-200/70 flex items-center justify-between">
+            <span className="text-emerald-700 text-[11px] font-medium">Bệnh nhân đã đặt:</span>
+            <strong className="text-emerald-800 text-xs sm:text-sm font-black">{weekMetrics.totalBooked} người</strong>
+          </div>
+          <div className="px-3 py-2 bg-teal-50/60 rounded-xl border border-teal-200/70 flex items-center justify-between">
+            <span className="text-teal-700 text-[11px] font-medium">Khung giờ còn trống:</span>
+            <strong className="text-teal-800 text-xs sm:text-sm font-black">{weekMetrics.availableSlots} slots</strong>
+          </div>
         </div>
       </div>
 
-      {/* ── Khối Nội Dung Chính (Loading / Empty / Ma Trận Tuần) ── */}
+{/* ── Khối Nội Dung Chính (Loading / Empty / Ma Trận Tuần) ── */}
       <div className="space-y-4">
         {loading ? (
           <div className="text-center py-16 bg-white rounded-2xl border border-slate-200 text-xs text-slate-500">
@@ -945,42 +975,6 @@ export default function DoctorScheduleView() {
         ) : (
           /* ── Ma Trận Ca Trực Theo Tuần ── */
           <div className="space-y-4">
-            {/* Header tóm tắt chỉ số tuần */}
-            <div className="bg-gradient-to-r from-teal-800 via-teal-900 to-slate-900 text-white rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4 shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center font-bold text-teal-300 shrink-0">
-                  <CalendarDays size={20} />
-                </div>
-                <div>
-                  <span className="text-[11px] text-teal-200 uppercase tracking-wider font-semibold block">
-                    Tổng Quan Ca Trực Tuần Này
-                  </span>
-                  <div className="text-sm sm:text-base font-extrabold text-white">
-                    Từ {weekDays[0]?.displayDay} ({weekDays[0]?.displayDate}) đến {weekDays[weekDays.length - 1]?.displayDay} ({weekDays[weekDays.length - 1]?.displayDate})
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs">
-                <div className="text-center px-3 py-1.5 bg-white/10 rounded-xl border border-white/10">
-                  <span className="text-teal-200 text-[10px] block">Tổng ca trực:</span>
-                  <strong className="text-white text-sm font-black">{weekMetrics.totalShifts} ca</strong>
-                </div>
-                <div className="text-center px-3 py-1.5 bg-white/10 rounded-xl border border-white/10">
-                  <span className="text-teal-200 text-[10px] block">Tổng giờ làm việc:</span>
-                  <strong className="text-white text-sm font-black">{weekMetrics.totalHours} giờ</strong>
-                </div>
-                <div className="text-center px-3 py-1.5 bg-white/10 rounded-xl border border-white/10">
-                  <span className="text-teal-200 text-[10px] block">Bệnh nhân đã đặt:</span>
-                  <strong className="text-emerald-300 text-sm font-black">{weekMetrics.totalBooked} người</strong>
-                </div>
-                <div className="text-center px-3 py-1.5 bg-white/10 rounded-xl border border-white/10">
-                  <span className="text-teal-200 text-[10px] block">Khung giờ còn trống:</span>
-                  <strong className="text-cyan-300 text-sm font-black">{weekMetrics.availableSlots} slots</strong>
-                </div>
-              </div>
-            </div>
-
             {/* ── Thanh Điều Hướng Trượt Khung 4 - 3 (Sliding Frame Controller) ── */}
             <div className="flex flex-wrap items-center justify-between gap-3 px-3.5 py-2.5 bg-gradient-to-r from-slate-50 via-teal-50/30 to-slate-50 rounded-2xl border border-slate-200/90 shadow-2xs">
               <div className="flex items-center gap-2.5">
