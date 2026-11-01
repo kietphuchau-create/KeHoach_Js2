@@ -22,6 +22,7 @@ import org.springframework.security.test.context.support.WithMockUser;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -244,7 +245,7 @@ class TriageControllerIntegrationTest {
     @DisplayName("General chat falls back to reviewed RAG when external AI is unavailable")
     void generalChatFallsBackToInternalRag() throws Exception {
         String question = "Tôi cần chuẩn bị gì trước khi khám?";
-        given(generalAssistant.answerDetailed(question, "PATIENT", "")).willReturn(Optional.empty());
+        given(knowledgeRag.isClinicQuestion(question)).willReturn(true);
         given(knowledgeRag.retrieve(question)).willReturn(Optional.of(
                 new InternalKnowledgeRagService.Answer("Mang theo giấy tờ và hồ sơ khám.", "Chuẩn bị trước khi khám", 5)));
 
