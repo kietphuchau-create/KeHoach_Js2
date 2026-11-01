@@ -773,15 +773,16 @@ const DEMO_DOCTORS: DemoDoctor[] = [
   // -------------------------------------------------------------------------
   // Chi Nhánh 1: Bình Tân
   {
-    id: 'doc-sk-01',
-    name: 'BS.CKII Nguyễn Tấn Phát',
-    title: 'Trưởng Khoa Da Liễu & Miễn Dịch (17 năm kinh nghiệm)',
+    id: '10b2c3d4-0001-4000-8000-000000000001',
+    name: 'BS.CKII Nguyễn Minh Anh',
+    title: 'Chuyên gia đầu ngành Da liễu với hơn 15 năm kinh nghiệm điều trị và phục hồi da.',
     specialtyCode: 'DERMATOLOGY',
+    specialtyName: 'Chuyên khoa Da liễu',
     categoryKeys: ['SKIN'],
     centerId: 'a1b2c3d4-0001-4000-8000-000000000001',
-    room: 'Phòng P.203 - Tầng 2',
-    fee: 250000,
-    gender: 'male',
+    room: 'Phòng P.205',
+    fee: 300000,
+    gender: 'female',
     isExpert: true,
   },
   {
@@ -1353,7 +1354,7 @@ export default function BookingMethodSelector({
   const upcomingWeekdays = useMemo(() => getUpcomingWeekdays(5), []);
 
   // Bước 4: Bác sĩ & Khung giờ & Bộ lọc (Đồng bộ 100% CSDL)
-  const [dbDoctors, setDbDoctors] = useState<DemoDoctor[]>([]);
+  const [dbDoctors, setDbDoctors] = useState<DemoDoctor[]>(DEMO_DOCTORS);
   const [isDoctorsLoading, setIsDoctorsLoading] = useState<boolean>(true);
   const [selectedDoctor, setSelectedDoctor] = useState<DemoDoctor | null>(null);
   const [selectedSlotId, setSelectedSlotId] = useState<string>('');
@@ -2256,12 +2257,14 @@ export default function BookingMethodSelector({
 
       // KIỂM TRA SỐ LƯỢNG CA KHÁM VÀ SLOT KHẢ DỤNG THỜI GIAN THỰC TỪ CSDL
       const matchingWithSlots = matchingDoctors.filter(d => (doctorSchedulesMap[d.id]?.availableCount ?? 0) > 0);
-      const matchingWithoutSlots = matchingDoctors.filter(d => (doctorSchedulesMap[d.id]?.availableCount ?? 0) === 0);
       const otherDoctorsWithSlots = doctorPool.filter(d => !matchingDoctors.some(m => m.id === d.id) && (doctorSchedulesMap[d.id]?.availableCount ?? 0) > 0);
 
-      if (matchingWithSlots.length > 0) {
-        // TRƯỜNG HỢP 1: BÁC SĨ CHUYÊN KHOA ĐANG CÓ CA KHÁM SẴN SÀNG VÀ CÒN CHỖ TRỐNG (ƯU TIÊN ĐẶT LỊCH CAO NHẤT)
-        const primaryDoc = matchingWithSlots[0];
+      const primaryDoc = matchingWithSlots.length > 0 
+        ? matchingWithSlots[0] 
+        : (matchingDoctors.length > 0 ? matchingDoctors[0] : null);
+
+      if (primaryDoc) {
+        // ƯU TIÊN HÀNG ĐẦU: BÁC SĨ CHUYÊN KHOA ĐÃ ĐƯỢC XÁC ĐỊNH -> CHUYỂN SANG BƯỚC CHỌN KHUNG GIỜ
         setSelectedDoctor(primaryDoc);
         if (primaryDoc.centerId) {
           const matchBranch = branches.find(b => b.id === primaryDoc.centerId || b.code === primaryDoc.centerId);
@@ -2275,7 +2278,7 @@ export default function BookingMethodSelector({
           id: 'msg-' + (Date.now() + 1),
           sender: 'ai',
           time: getFormattedTime(),
-          text: `Dạ rất rõ ràng và chi tiết! 🩺 Em đã ghi nhận đầy đủ hồ sơ triệu chứng của bạn:\n\n${summaryNote}\n\nTheo định hướng chuyên môn, tình trạng của bạn hoàn toàn phù hợp thăm khám tại **${activeCategory.specialtyName}** (Độ khớp AI: 100%).\n\n👨‍⚕️ **Bác sĩ chuyên môn phụ trách:** **${primaryDoc.name}** (${primaryDoc.room || 'Phòng khám chuyên khoa'}).\n⚡ **Cập nhật thời gian thực:** Bác sĩ đang có ca trực với **${availCount} khung giờ khám còn trống** trong ngày (khung giờ sớm nhất: **${earliestTime}**).\n\nEm đã chọn sẵn bác sĩ cho bạn. Mời bạn chọn khung giờ khám phù hợp bên dưới để giữ chỗ ngay nhé!`,
+          text: `Dạ rất rõ ràng và chi tiết! 🩺 Em đã ghi nhận đầy đủ hồ sơ triệu chứng của bạn:\n\n${summaryNote}\n\nTheo định hướng chuyên môn, tình trạng của bạn hoàn toàn phù hợp thăm khám tại **${activeCategory.specialtyName}** (Độ khớp AI: 100%).\n\n👨‍⚕️ **Bác sĩ chuyên môn phụ trách:** **${primaryDoc.name}** (${primaryDoc.room || 'Phòng khám chuyên khoa'}).\n⚡ **Cập nhật thời gian thực:** Bác sĩ đang có ca trực với **${availCount > 0 ? availCount : 'các'} khung giờ khám** trong ngày${availCount > 0 ? ` (khung giờ sớm nhất: **${earliestTime}**)` : ''}.\n\nEm đã chọn sẵn bác sĩ cho bạn. Mời bạn chọn khung giờ khám phù hợp bên dưới để giữ chỗ ngay nhé!`,
           widget: 'SELECT_DOCTOR_SLOT',
           isTypingComplete: false,
         };
