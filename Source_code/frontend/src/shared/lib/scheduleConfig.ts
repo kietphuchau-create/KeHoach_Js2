@@ -18,6 +18,7 @@ export interface OperatingDays {
 }
 
 export interface ClinicScheduleConfig {
+  nightShift: ShiftInfo;         // Ca Đêm & Trực Cấp Cứu 24/7 (00:00 - 08:00)
   morningShift: ShiftInfo;
   afternoonShift: ShiftInfo;
   eveningShift: ShiftInfo;
@@ -36,11 +37,20 @@ export interface ClinicScheduleConfig {
   autoScheduleEnabled: boolean;         // true = Tự động sinh lịch 7 ngày; false = Bác sĩ tự đặt lịch thủ công
   minWorkHoursPerDay: number;           // Số giờ tối thiểu bác sĩ phải xếp trong 1 ngày trước khi mở ngày tiếp theo (mặc định 6)
 
+  // Chế độ Develop 24/7: Hệ thống hoạt động liên tục 24/7 không kể giờ hành chính (mở ca đêm 00:00-08:00, ca tối 17:00-23:30, bác sĩ đặt lịch mọi lúc)
+  devMode247: boolean;
+
   updatedAt: string;
   updatedBy?: string;
 }
 
 export const DEFAULT_CLINIC_SCHEDULE_CONFIG: ClinicScheduleConfig = {
+  nightShift: {
+    enabled: false,
+    name: 'Ca Đêm (Trực 24/7)',
+    startTime: '00:00',
+    endTime: '08:00',
+  },
   morningShift: {
     enabled: true,
     name: 'Ca Sáng',
@@ -50,14 +60,14 @@ export const DEFAULT_CLINIC_SCHEDULE_CONFIG: ClinicScheduleConfig = {
   afternoonShift: {
     enabled: true,
     name: 'Ca Chiều',
-    startTime: '13:30',
+    startTime: '13:00',
     endTime: '17:00',
   },
   eveningShift: {
     enabled: false,
     name: 'Ca Tối (Ngoài giờ)',
-    startTime: '17:30',
-    endTime: '20:30',
+    startTime: '17:00',
+    endTime: '23:30',
   },
   slotDurationMinutes: 30,
   bufferMinutes: 0,
@@ -77,12 +87,34 @@ export const DEFAULT_CLINIC_SCHEDULE_CONFIG: ClinicScheduleConfig = {
   walkinMaxPerShift: 6,
   autoScheduleEnabled: false, // Mặc định mở chế độ Thủ công theo kịch bản demo
   minWorkHoursPerDay: 6,
+  devMode247: false, // Mặc định tắt chế độ Develop 24/7
   updatedAt: '2026-01-01T00:00:00Z',
   updatedBy: 'Hệ Thống MedSched',
 };
 
 const SCHEDULE_CONFIG_STORAGE_KEY = 'medsched_clinic_schedule_config';
 export const SCHEDULE_CONFIG_UPDATED_EVENT = 'medsched:schedule_config_updated';
+
+// Tiện ích: Tạo danh sách 7 ngày mở đầy đủ cho chế độ 24/7
+export const ALL_OPERATING_DAYS_247: OperatingDays = {
+  monday: true,
+  tuesday: true,
+  wednesday: true,
+  thursday: true,
+  friday: true,
+  saturday: true,
+  sunday: true,
+};
+
+export const STANDARD_OPERATING_DAYS: OperatingDays = {
+  monday: true,
+  tuesday: true,
+  wednesday: true,
+  thursday: true,
+  friday: true,
+  saturday: false,
+  sunday: false,
+};
 
 // Lấy cấu hình ca khám hiện tại
 export function getClinicScheduleConfig(): ClinicScheduleConfig {
@@ -94,7 +126,32 @@ export function getClinicScheduleConfig(): ClinicScheduleConfig {
       return DEFAULT_CLINIC_SCHEDULE_CONFIG;
     }
     const parsed = JSON.parse(raw);
-    return { ...DEFAULT_CLINIC_SCHEDULE_CONFIG, ...parsed };
+    const merged: ClinicScheduleConfig = {
+      ...DEFAULT_CLINIC_SCHEDULE_CONFIG,
+      ...parsed,
+      nightShift: parsed.nightShift || DEFAULT_CLINIC_SCHEDULE_CONFIG.nightShift,
+    };
+
+    // Khi chế độ Develop 24/7 đang mở, toàn bộ các khung thời gian (Đêm 00:00 - 08:00, Sáng, Chiều, Tối 17:00 - 23:30) và 7 ngày đều được tự động chọn
+    if (merged.devMode247) {
+      merged.operatingDays = { ...ALL_OPERATING_DAYS_247 };
+      merged.nightShift = {
+        ...merged.nightShift,
+        enabled: true,
+        startTime: merged.nightShift?.startTime || '00:00',
+        endTime: merged.nightShift?.endTime || '08:00',
+      };
+      merged.morningShift = { ...merged.morningShift, enabled: true };
+      merged.afternoonShift = { ...merged.afternoonShift, enabled: true };
+      merged.eveningShift = {
+        ...merged.eveningShift,
+        enabled: true,
+        startTime: merged.eveningShift.startTime || '17:00',
+        endTime: (!merged.eveningShift.endTime || merged.eveningShift.endTime === '20:30') ? '23:30' : merged.eveningShift.endTime,
+      };
+    }
+
+    return merged;
   } catch (e) {
     console.error('Lỗi đọc cấu hình ca khám:', e);
     return DEFAULT_CLINIC_SCHEDULE_CONFIG;
@@ -114,10 +171,34 @@ export function saveClinicScheduleConfig(
     updatedBy: actorName,
   };
 
+  // Nếu devMode247 được bật, tự động chọn tất cả 7 ngày và kích hoạt toàn bộ các ca (Đêm 00:00 - 08:00, Sáng, Chiều, Tối 17:00 - 23:30)
+  if (next.devMode247) {
+    next.operatingDays = { ...ALL_OPERATING_DAYS_247 };
+    next.nightShift = {
+      ...next.nightShift,
+      enabled: true,
+      startTime: next.nightShift?.startTime || '00:00',
+      endTime: next.nightShift?.endTime || '08:00',
+    };
+    next.morningShift = { ...next.morningShift, enabled: true };
+    next.afternoonShift = { ...next.afternoonShift, enabled: true };
+    next.eveningShift = {
+      ...next.eveningShift,
+      enabled: true,
+      startTime: next.eveningShift.startTime || '17:00',
+      endTime: (!next.eveningShift.endTime || next.eveningShift.endTime === '20:30') ? '23:30' : next.eveningShift.endTime,
+    };
+  }
+
   if (typeof window !== 'undefined') {
     try {
       localStorage.setItem(SCHEDULE_CONFIG_STORAGE_KEY, JSON.stringify(next));
       window.dispatchEvent(new CustomEvent(SCHEDULE_CONFIG_UPDATED_EVENT, { detail: next }));
+      try {
+        const bc = new BroadcastChannel('medsched_schedule_config_sync');
+        bc.postMessage({ type: 'SCHEDULE_CONFIG_UPDATED', config: next });
+        bc.close();
+      } catch {}
     } catch (e) {
       console.error('Lỗi ghi cấu hình ca khám vào localStorage:', e);
     }

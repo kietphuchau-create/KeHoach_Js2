@@ -1,6 +1,7 @@
 package com.medsched.auth;
 
 import com.medsched.common.AppExceptions;
+import com.medsched.common.InputValidator;
 import com.medsched.persistence.entity.PatientProfileEntity;
 import com.medsched.persistence.entity.UserEntity;
 import com.medsched.persistence.enums.RelationshipType;
@@ -93,8 +94,12 @@ public class RegistrationOtpService {
             throw new AppExceptions.ConflictException("Email này đã được đăng ký tài khoản");
         }
 
+        String phone = InputValidator.validatePhone(request.phone());
+        if (users.existsByPhone(phone)) {
+            throw new AppExceptions.ConflictException("Số điện thoại này đã được đăng ký cho một tài khoản khác");
+        }
+
         String fullName = request.fullName().trim();
-        String phone = request.phone().trim();
 
         // Kiểm tra an toàn mật khẩu (không chứa thông tin cá nhân)
         validatePasswordSecurity(request.password(), fullName, phone, email);
@@ -184,9 +189,12 @@ public class RegistrationOtpService {
         // OTP chính xác -> Xóa phiên tạm chống Replay Attack
         sessionCache.remove(request.sessionToken());
 
-        // Kiểm tra lại tính duy nhất của email trước khi ghi DB (phòng trường hợp race condition)
+        // Kiểm tra lại tính duy nhất của email và phone trước khi ghi DB (phòng trường hợp race condition)
         if (users.existsByEmail(session.email())) {
             throw new AppExceptions.ConflictException("Email này đã được đăng ký tài khoản");
+        }
+        if (users.existsByPhone(session.phone())) {
+            throw new AppExceptions.ConflictException("Số điện thoại này đã được đăng ký cho một tài khoản khác");
         }
 
         // Tạo UserEntity chính thức

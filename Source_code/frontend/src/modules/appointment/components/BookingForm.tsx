@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   Calendar, 
@@ -113,6 +113,17 @@ const getDoctorFullDetails = (doc: any, specialtyName?: string, centerName?: str
   };
 };
 
+// Kiểm tra bác sĩ có ca trực đang hoạt động hay không (so khớp chuẩn theo doctorId / userId / tên bác sĩ)
+const isDoctorActiveOnSchedule = (doc: any, sch: any): boolean => {
+  if (!doc || !sch) return false;
+  const isMatchDoctor =
+    sch.doctorId === doc.id ||
+    (doc.userId && sch.doctorId === doc.userId) ||
+    (sch.doctorName && doc.rawName && sch.doctorName.toLowerCase().includes(doc.rawName.toLowerCase()));
+  const isActive = String(sch.status).toUpperCase() === 'ACTIVE';
+  return Boolean(isMatchDoctor && isActive);
+};
+
 export default function BookingForm() {
   const { isBlocked, handleTakeOver } = useSingleTabLock({
     channelKey: 'patient_booking',
@@ -188,6 +199,18 @@ export default function BookingForm() {
   const [selectedSpecialty, setSelectedSpecialty] = useState<string>('');
   const [doctors, setDoctors] = useState<any[]>([]);
   const [selectedDoctor, setSelectedDoctor] = useState<any>(null);
+  const [schedules, setSchedules] = useState<any[]>([]);
+
+  const refreshSchedules = useCallback(async () => {
+    try {
+      const schedList = await api.getDoctorSchedules('ALL').catch(() => []);
+      if (Array.isArray(schedList)) {
+        setSchedules(schedList.filter((sch: any) => sch.status === 'ACTIVE'));
+      }
+    } catch {
+      // Ignore
+    }
+  }, []);
 
   // Patient Profile Mode (Self vs Relative - Chuẩn YouMed)
   const [bookingFor, setBookingFor] = useState<'self' | 'relative'>('self');
@@ -215,29 +238,64 @@ export default function BookingForm() {
     return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : iso;
   };
 
-  // Nếu hiện tại đã quá 15:30 chiều (khung giờ khám cuối cùng 15:30 - 16:00 đã qua/bắt đầu),
-  // hoặc đã hết giờ hành chính, ngày hôm nay không còn nhận lịch hẹn nữa
-  const isPastAllTodaySlots = () => {
+  // Kiểm tra ngày hôm nay có còn ca trực hoặc khung giờ nào khả dụng không (Hỗ trợ ca ngoài giờ / 24/7)
+  const isPastAllTodaySlots = useCallback(() => {
     const now = new Date();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
-    return currentMinutes >= 15 * 60 + 30;
-  };
+    const todayIso = getTodayISODate();
 
-  // Tìm ngày làm việc hợp lệ tiếp theo (Thứ 2 đến Thứ 6), tuyệt đối không rơi vào Thứ 7 hoặc Chủ Nhật
-  const getNextAvailableWeekday = (baseDate?: Date): string => {
+    // Nếu đã chọn bác sĩ và có lịch trực
+    if (selectedDoctor && schedules.length > 0) {
+      const todaySchedules = schedules.filter(
+        (sch) => isDoctorActiveOnSchedule(selectedDoctor, sch) && sch.workDate === todayIso
+      );
+      if (todaySchedules.length > 0) {
+        // Tìm xem có ca trực nào kết thúc sau giờ hiện tại không
+        const hasUpcomingShift = todaySchedules.some((sch) => {
+          if (!sch.endTime) return false;
+          const [h, m] = sch.endTime.split(':').map(Number);
+          return (h * 60 + (m || 0)) > currentMinutes;
+        });
+        return !hasUpcomingShift;
+      }
+    }
+
+    // Mặc định ca hành chính kết thúc nhận đặt khám lúc 16:30
+    return currentMinutes >= 16 * 60 + 30;
+  }, [selectedDoctor, schedules]);
+
+  // Tìm ngày làm việc hợp lệ tiếp theo (ưu tiên ngày có ca trực của bác sĩ, không chặn cuối tuần nếu bác sĩ có ca trực)
+  const getNextAvailableWeekday = useCallback((baseDate?: Date): string => {
     const d = baseDate ? new Date(baseDate) : new Date();
-    if (!baseDate && isPastAllTodaySlots()) {
+    const today = new Date();
+    const isToday = !baseDate || (d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate());
+
+    if (isToday && !isPastAllTodaySlots()) {
+      return getTodayISODate();
+    }
+
+    if (isToday && isPastAllTodaySlots()) {
       d.setDate(d.getDate() + 1);
     }
-    // Bỏ qua Thứ 7 (6) và Chủ Nhật (0)
-    while (d.getDay() === 0 || d.getDay() === 6) {
+
+    for (let i = 0; i < 60; i++) {
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      const iso = `${year}-${month}-${day}`;
+      const dayOfWeek = d.getDay();
+      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+      const hasShift = selectedDoctor && schedules.some(
+        (sch) => isDoctorActiveOnSchedule(selectedDoctor, sch) && sch.workDate === iso
+      );
+      if (!isWeekend || hasShift) {
+        return iso;
+      }
       d.setDate(d.getDate() + 1);
     }
-    const day = String(d.getDate()).padStart(2, '0');
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const year = d.getFullYear();
-    return `${year}-${month}-${day}`;
-  };
+
+    return getTodayISODate();
+  }, [isPastAllTodaySlots, selectedDoctor, schedules]);
 
   const formatVietnameseFullDate = (iso: string) => {
     if (!iso) return '';
@@ -316,7 +374,42 @@ export default function BookingForm() {
         }));
       }
     }
-  }, [bookingDate, hasSelectedDate]);
+  }, [bookingDate, hasSelectedDate, isPastAllTodaySlots, getNextAvailableWeekday]);
+
+  // Khi chọn bác sĩ hoặc nạp lịch trực: tự động ưu tiên ngày có ca trực khả dụng của bác sĩ
+  useEffect(() => {
+    if (selectedDoctor && schedules.length > 0) {
+      const todayIso = getTodayISODate();
+      const docSchedules = schedules.filter(
+        (sch) => isDoctorActiveOnSchedule(selectedDoctor, sch)
+      );
+      if (docSchedules.length > 0) {
+        // Kiểm tra xem hôm nay bác sĩ có ca và chưa hết giờ không
+        const todaySched = docSchedules.find((sch) => sch.workDate === todayIso);
+        if (todaySched && !isPastAllTodaySlots()) {
+          setBookingDate(todayIso);
+          setSelectedSlot((prev) => ({
+            ...prev,
+            date: formatISODateToVN(todayIso),
+          }));
+          return;
+        }
+
+        // Nếu hôm nay không có ca hoặc đã hết giờ, tìm ngày tương lai gần nhất mà bác sĩ có ca trực
+        const futureSched = docSchedules
+          .filter((sch) => sch.workDate >= todayIso)
+          .sort((a, b) => a.workDate.localeCompare(b.workDate))[0];
+
+        if (futureSched) {
+          setBookingDate(futureSched.workDate);
+          setSelectedSlot((prev) => ({
+            ...prev,
+            date: formatISODateToVN(futureSched.workDate),
+          }));
+        }
+      }
+    }
+  }, [selectedDoctor?.id, schedules, isPastAllTodaySlots]);
 
   // Tự động đồng bộ Buổi theo Khung giờ đã chọn
   useEffect(() => {
@@ -389,18 +482,24 @@ export default function BookingForm() {
     const [y, m, d] = isoString.split('-').map(Number);
     const dateObj = new Date(y, m - 1, d);
     const dayOfWeek = dateObj.getDay();
-    // Chặn triệt để Thứ 7 (6) và Chủ Nhật (0)
-    if (dayOfWeek === 0 || dayOfWeek === 6) {
-      return;
-    }
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     // Chặn ngày quá khứ
     if (dateObj < today) {
       return;
     }
-    // Chặn ngày hôm nay nếu đã hết giờ hành chính / hết khung giờ nhận khám
+
     const isToday = dateObj.getTime() === today.getTime();
+    const hasDoctorShiftOnDate = selectedDoctor && schedules.some(
+      (sch) => isDoctorActiveOnSchedule(selectedDoctor, sch) && sch.workDate === isoString
+    );
+
+    // Thứ 7 (6) hoặc Chủ Nhật (0) chỉ chặn khi bác sĩ KHÔNG có ca trực vào ngày này
+    if ((dayOfWeek === 0 || dayOfWeek === 6) && !hasDoctorShiftOnDate) {
+      return;
+    }
+
+    // Chặn ngày hôm nay nếu đã hết giờ hành chính / hết toàn bộ ca khám của bác sĩ
     if (isToday && isPastAllTodaySlots()) {
       return;
     }
@@ -430,11 +529,18 @@ export default function BookingForm() {
     if (!selectedSpecialty) {
       errors.specialty = 'Vui lòng chọn Chuyên khoa thăm khám';
     } else {
-      const selectedSpecDocCount = doctors.filter(
+      const selectedSpecDocs = doctors.filter(
         (d) => (!selectedCenter || !d.centerId || d.centerId === selectedCenter) && d.specialtyId === selectedSpecialty
-      ).length;
-      if (selectedSpecDocCount === 0) {
+      );
+      if (selectedSpecDocs.length === 0) {
         errors.specialty = 'Chuyên khoa này hiện chưa có bác sĩ trực tại chi nhánh. Vui lòng chọn chuyên khoa khác.';
+      } else {
+        const hasOpenSchedule = selectedSpecDocs.some((d) =>
+          schedules.some((sch) => isDoctorActiveOnSchedule(d, sch))
+        );
+        if (!hasOpenSchedule) {
+          errors.specialty = 'Chuyên khoa này hiện các bác sĩ chưa mở ca trực. Vui lòng chọn chuyên khoa có ca trực đang mở hoặc đổi cơ sở khám bệnh.';
+        }
       }
     }
 
@@ -458,15 +564,17 @@ export default function BookingForm() {
 
     // 2. Khi đã có bác sĩ, kiểm tra ngày và khung giờ
     if (!hasSelectedDate) {
-      errors.date = 'Vui lòng chọn ngày khám bệnh (Thứ 2 đến Thứ 6)';
+      errors.date = 'Vui lòng chọn ngày khám bệnh có ca trực của bác sĩ';
     } else if (
       !selectedSlot.id ||
       selectedSlot.id === 'default' ||
       !selectedSlot.time ||
       selectedSlot.time === 'Chưa chọn' ||
-      selectedSlot.time === 'Đang tải...'
+      selectedSlot.time === 'Đang tải...' ||
+      selectedSlot.time === 'Chưa có ca trực' ||
+      selectedSlot.time === 'Hết chỗ'
     ) {
-      errors.slot = 'Vui lòng chọn khung giờ khám bệnh (Time-slot)';
+      errors.slot = 'Bác sĩ chưa có ca trực khả dụng trong ngày này. Vui lòng bấm "Đổi ngày" trên lịch hoặc đổi bác sĩ có ca trực.';
     }
 
     setStep2Errors(errors);
@@ -507,10 +615,11 @@ export default function BookingForm() {
   useEffect(() => {
     async function loadCategories() {
       try {
-        const [c, s, docList] = await Promise.all([
+        const [c, s, docList, schedList] = await Promise.all([
           api.getMedicalCenters().catch(() => []),
           api.getSpecialties().catch(() => []),
           api.getDoctors().catch(() => []),
+          api.getDoctorSchedules('ALL').catch(() => []),
         ]);
         if (c && c.length > 0) {
           const activeCenters = c.filter((item: any) => item.active !== false);
@@ -520,10 +629,14 @@ export default function BookingForm() {
         if (s && s.length > 0) {
           setSpecialties(s);
         }
+        if (schedList && Array.isArray(schedList)) {
+          setSchedules(schedList.filter((sch: any) => sch.status === 'ACTIVE'));
+        }
         let mappedDoctors: any[] = [];
         if (docList && docList.length > 0) {
           mappedDoctors = docList.map((d: any) => ({
             id: d.id,
+            userId: d.userId,
             name: formatDoctorFullName(d.academicTitle, d.fullName),
             rawName: d.fullName,
             academicTitle: d.academicTitle || 'Bác sĩ chuyên khoa',
@@ -558,6 +671,11 @@ export default function BookingForm() {
     loadCategories();
   }, []);
 
+  // Tự động làm mới danh sách ca trực khi đổi chi nhánh
+  useEffect(() => {
+    refreshSchedules();
+  }, [selectedCenter, refreshSchedules]);
+
   // Lọc chuyên khoa theo chi nhánh đã chọn
   const filteredSpecialties = useMemo(() => {
     if (!selectedCenter) return specialties;
@@ -586,15 +704,23 @@ export default function BookingForm() {
     });
   }, [doctors, selectedCenter, selectedSpecialty]);
 
-  // Khi danh sách bác sĩ thay đổi: nếu bác sĩ đã chọn không còn khả dụng thì reset về null
+  // Khi danh sách bác sĩ thay đổi: nếu bác sĩ đã chọn không còn khả dụng thì ưu tiên chọn bác sĩ có ca trực
   useEffect(() => {
     if (selectedDoctor) {
       const exists = filteredDoctors.some((d) => d.id === selectedDoctor.id);
       if (!exists) {
-        setSelectedDoctor(null);
+        const docWithShift = filteredDoctors.find((d) =>
+          schedules.some((sch) => isDoctorActiveOnSchedule(d, sch))
+        );
+        setSelectedDoctor(docWithShift || filteredDoctors[0] || null);
       }
+    } else if (filteredDoctors.length > 0) {
+      const docWithShift = filteredDoctors.find((d) =>
+        schedules.some((sch) => isDoctorActiveOnSchedule(d, sch))
+      );
+      setSelectedDoctor(docWithShift || filteredDoctors[0]);
     }
-  }, [filteredDoctors, selectedDoctor]);
+  }, [filteredDoctors, selectedDoctor, schedules]);
 
   // Khi thay đổi bác sĩ, ngày hoặc khung giờ: reset phiếu chờ thanh toán
   useEffect(() => {
@@ -656,8 +782,15 @@ export default function BookingForm() {
       return;
     }
 
-    if (!selectedSlot.id || timeSlots.find((s) => s.id === selectedSlot.id)?.disabled) {
-      setError('Khung giờ bạn chọn đã qua hoặc không còn khả dụng. Vui lòng chọn khung giờ khác hoặc ngày khác.');
+    if (
+      !selectedSlot.id ||
+      selectedSlot.id === 'default' ||
+      selectedSlot.time === 'Chưa có ca trực' ||
+      selectedSlot.time === 'Hết chỗ' ||
+      selectedSlot.time === 'Chưa chọn' ||
+      timeSlots.find((s) => s.id === selectedSlot.id)?.disabled
+    ) {
+      setError('Khung giờ bạn chọn đã qua, không còn khả dụng hoặc bác sĩ chưa mở ca trực. Vui lòng chọn khung giờ khác hoặc ngày khác.');
       return;
     }
     if (bookingFor === 'relative' && !relativeInfo.fullName.trim()) {
@@ -758,10 +891,7 @@ export default function BookingForm() {
         ? (appliedPromo && isFreePromo ? 'ĐÃ XÁC NHẬN GIỮ CHỖ (0 Đ)' : 'ĐÃ CHUYỂN CỌC 2.000 Đ')
         : 'CHỜ CHUYỂN CỌC 2.000 Đ';
 
-      const checkinUrl = typeof window !== 'undefined'
-        ? `${window.location.origin}/checkin?code=${encodeURIComponent(result.bookingCode)}`
-        : `/checkin?code=${encodeURIComponent(result.bookingCode)}`;
-      const qrDataUrl = await QRCode.toDataURL(checkinUrl, {
+      const qrDataUrl = await QRCode.toDataURL(result.bookingCode, {
         width: 280,
         margin: 1,
         color: { dark: '#0f172a', light: '#ffffff' },
@@ -1082,30 +1212,9 @@ export default function BookingForm() {
       }));
     }
 
-    const isToday = bookingDate === getTodayISODate();
-    const now = new Date();
-    const currentMinutes = now.getHours() * 60 + now.getMinutes();
-
-    return BASE_TIME_SLOTS.map((slot) => {
-      const isPast = isToday && slot.startMinutes <= currentMinutes;
-      if (isPast) {
-        return {
-          id: slot.id,
-          time: slot.time,
-          status: 'expired' as const,
-          label: 'Đã qua giờ',
-          disabled: true,
-        };
-      }
-      return {
-        id: slot.id,
-        time: slot.time,
-        status: 'available' as const,
-        label: 'Khả dụng',
-        disabled: false,
-      };
-    });
-  }, [bookingDate, dynamicSlots, selectedDoctor?.id]);
+    // Khi bác sĩ chưa đăng ký ca trực hoặc dynamicSlots rỗng: Trả về rỗng, tuyệt đối không tự sinh slot ảo!
+    return [];
+  }, [dynamicSlots, selectedDoctor?.id]);
 
   // Phân chia khung giờ Sáng & Chiều (Chuẩn YouMed - Ảnh 1 & Ảnh 3)
   const morningSlots = useMemo(() => {
@@ -1142,11 +1251,11 @@ export default function BookingForm() {
     } else {
       setSelectedSlot({
         id: '',
-        time: 'Hết chỗ',
+        time: loadingSlots ? 'Đang tải...' : 'Chưa có ca trực',
         date: formatISODateToVN(bookingDate),
       });
     }
-  }, [bookingDate, timeSlots, selectedDoctor?.id]);
+  }, [bookingDate, timeSlots, selectedDoctor?.id, loadingSlots]);
 
   const activeCenterObj = useMemo(() => {
     return centers.find((c) => c.id === selectedCenter) || centers[0] || {
@@ -1334,8 +1443,12 @@ export default function BookingForm() {
                   <div
                     key={center.id}
                     onClick={() => {
-                      setSelectedCenter(center.id);
-                      setStep1Errors((prev) => ({ ...prev, center: undefined }));
+                      if (selectedCenter !== center.id) {
+                        setSelectedCenter(center.id);
+                        setSelectedSpecialty('');
+                        setSelectedDoctor(null);
+                        setStep1Errors({});
+                      }
                     }}
                     className={`p-3 sm:p-3.5 rounded-xl sm:rounded-2xl border-2 transition cursor-pointer flex items-center justify-between gap-3 ${
                       selectedCenter === center.id
@@ -1393,39 +1506,58 @@ export default function BookingForm() {
                     </div>
                   ) : (
                     filteredSpecialties.map((spec) => {
-                      const docCount = doctors.filter(
+                      const specDoctors = doctors.filter(
                         (d) => (!selectedCenter || !d.centerId || d.centerId === selectedCenter) && d.specialtyId === spec.id
-                      ).length;
+                      );
+                      const docCount = specDoctors.length;
                       const hasDoctors = docCount > 0;
-                      const isSelected = selectedSpecialty === spec.id && hasDoctors;
+                      const doctorsWithActiveSchedule = specDoctors.filter((d) =>
+                        schedules.some((sch) => isDoctorActiveOnSchedule(d, sch))
+                      );
+                      const hasActiveSchedules = doctorsWithActiveSchedule.length > 0;
+                      const isSelectable = hasDoctors && hasActiveSchedules;
+                      const isSelected = selectedSpecialty === spec.id && isSelectable;
 
                       return (
                         <div
                           key={spec.id}
                           onClick={() => {
-                            if (hasDoctors) {
+                            if (isSelectable) {
                               setSelectedSpecialty(spec.id);
-                              setStep1Errors((prev) => ({ ...prev, specialty: undefined }));
+                              setStep1Errors({});
+                            } else if (hasDoctors && !hasActiveSchedules) {
+                              setStep1Errors((prev) => ({
+                                ...prev,
+                                specialty: `Chuyên khoa ${formatSpecialtyShortName(spec.name)} tại cơ sở này hiện chưa có bác sĩ mở ca trực. Vui lòng chuyển sang cơ sở khác hoặc chọn chuyên khoa có ca trực.`,
+                              }));
                             }
                           }}
                           title={
-                            hasDoctors 
-                              ? `Chọn ${spec.name}` 
-                              : `Chuyên khoa ${spec.name} hiện chưa có bác sĩ phụ trách tại chi nhánh này`
+                            !hasDoctors
+                              ? `Chuyên khoa ${spec.name} hiện chưa có bác sĩ phụ trách tại chi nhánh này`
+                              : !hasActiveSchedules
+                              ? `Chuyên khoa ${spec.name} hiện chưa có bác sĩ mở lịch trực tại chi nhánh này`
+                              : `Chọn ${spec.name} (${doctorsWithActiveSchedule.length} bác sĩ có ca trực)`
                           }
                           className={`p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border-2 transition flex items-center justify-between gap-2 select-none min-h-[66px] sm:min-h-[72px] ${
                             !hasDoctors
-                              ? 'opacity-50 cursor-not-allowed bg-slate-50 border-slate-200 text-slate-400'
+                              ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-200 text-slate-400'
+                              : !hasActiveSchedules
+                              ? 'opacity-75 cursor-not-allowed bg-amber-50/30 border-amber-200/70 text-slate-600 hover:border-amber-300'
                               : isSelected
                               ? 'border-blue-600 bg-blue-50/60 text-blue-900 font-bold shadow-xs cursor-pointer'
                               : step1Errors.specialty
                               ? 'border-red-400 bg-red-50/20 hover:border-red-500 text-slate-800 cursor-pointer'
-                              : 'border-slate-200 hover:border-slate-300 text-slate-700 bg-white cursor-pointer hover:shadow-xs'
+                              : 'border-slate-200 hover:border-blue-400 text-slate-700 bg-white cursor-pointer hover:shadow-xs'
                           }`}
                         >
                           <div className="flex items-center gap-2 sm:gap-2.5 text-xs sm:text-sm min-w-0 flex-1">
                             <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl flex items-center justify-center shrink-0 ${
-                              !hasDoctors ? 'bg-slate-100 text-slate-400' : 'bg-blue-100/70 text-blue-700'
+                              !hasDoctors
+                                ? 'bg-slate-100 text-slate-400'
+                                : !hasActiveSchedules
+                                ? 'bg-amber-100/70 text-amber-700'
+                                : 'bg-blue-100/70 text-blue-700'
                             }`}>
                               <Stethoscope size={14} />
                             </div>
@@ -1451,19 +1583,24 @@ export default function BookingForm() {
                                 </button>
                               </div>
                               <div className="flex items-center gap-1.5 mt-0.5">
-                                {hasDoctors ? (
-                                  <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-1.5 py-0.2 rounded truncate">
-                                    {docCount} bác sĩ
-                                  </span>
-                                ) : (
+                                {!hasDoctors ? (
                                   <span className="text-[10px] text-slate-400 font-medium bg-slate-100 px-1.5 py-0.2 rounded truncate">
                                     Chưa có bác sĩ
+                                  </span>
+                                ) : !hasActiveSchedules ? (
+                                  <span className="text-[10px] text-amber-700 font-medium bg-amber-50 border border-amber-200/60 px-1.5 py-0.2 rounded truncate">
+                                    Chưa mở ca trực
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 border border-emerald-200/60 px-1.5 py-0.2 rounded truncate flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                    {doctorsWithActiveSchedule.length} BS có ca trực
                                   </span>
                                 )}
                               </div>
                             </div>
                           </div>
-                          {hasDoctors && (
+                          {isSelectable ? (
                             <div
                               className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 transition-colors ${
                                 isSelected
@@ -1473,12 +1610,65 @@ export default function BookingForm() {
                             >
                               {isSelected && <Check size={10} strokeWidth={3} />}
                             </div>
-                          )}
+                          ) : hasDoctors && !hasActiveSchedules ? (
+                            <span className="text-[10px] text-amber-600 font-semibold shrink-0">Chưa mở</span>
+                          ) : null}
                         </div>
                       );
                     })
                   )}
                 </div>
+
+                {/* Gợi ý chuyển cơ sở nếu toàn bộ chuyên khoa ở cơ sở hiện tại chưa có ca trực */}
+                {selectedCenter &&
+                  filteredSpecialties.length > 0 &&
+                  filteredSpecialties.every((spec) => {
+                    const specDocs = doctors.filter(
+                      (d) => (!selectedCenter || !d.centerId || d.centerId === selectedCenter) && d.specialtyId === spec.id
+                    );
+                    return !specDocs.some((d) => schedules.some((sch) => isDoctorActiveOnSchedule(d, sch)));
+                  }) && (
+                    <div className="mt-3 p-3.5 bg-gradient-to-r from-amber-50/90 to-orange-50/70 border border-amber-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fadeIn">
+                      <div className="flex items-start gap-2.5">
+                        <AlertCircle size={17} className="text-amber-600 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-xs font-bold text-amber-900">
+                            Cơ sở này hiện chưa có bác sĩ đăng ký ca trực hôm nay
+                          </p>
+                          <p className="text-[11px] text-amber-700 mt-0.5">
+                            Bạn có thể chuyển sang cơ sở khác đang có bác sĩ trực sẵn sàng để đặt lịch khám ngay:
+                          </p>
+                        </div>
+                      </div>
+                      {(() => {
+                        const activeCenterWithSched = centers.find((c) =>
+                          c.id !== selectedCenter &&
+                          doctors.some((d) =>
+                            d.centerId === c.id &&
+                            schedules.some((sch) => isDoctorActiveOnSchedule(d, sch))
+                          )
+                        );
+                        if (activeCenterWithSched) {
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedCenter(activeCenterWithSched.id);
+                                setSelectedSpecialty('');
+                                setSelectedDoctor(null);
+                                setStep1Errors({});
+                              }}
+                              className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-xs flex items-center gap-1.5 cursor-pointer shrink-0"
+                            >
+                              <span>Chuyển sang {activeCenterWithSched.name.split('-')[1]?.trim() || activeCenterWithSched.name}</span>
+                              <ArrowRight size={13} />
+                            </button>
+                          );
+                        }
+                        return null;
+                      })()}
+                    </div>
+                  )}
 
                 {/* Thông báo lỗi khi chưa chọn chuyên khoa */}
                 {step1Errors.specialty && (
@@ -1615,6 +1805,10 @@ export default function BookingForm() {
                         {filteredDoctors.map((doc) => {
                           const isSelected = selectedDoctor?.id === doc.id;
                           const details = getDoctorFullDetails(doc, activeSpecialtyObj?.name, activeCenterObj?.name);
+                          const docSchedules = schedules.filter((sch) => isDoctorActiveOnSchedule(doc, sch));
+                          const hasScheduleOnBookingDate = docSchedules.some((sch) => sch.workDate === bookingDate);
+                          const hasAnySchedule = docSchedules.length > 0;
+
                           return (
                             <div
                               key={doc.id}
@@ -1635,17 +1829,37 @@ export default function BookingForm() {
                                   {getDoctorInitials(doc.name)}
                                 </div>
                                 <div className="min-w-0 flex-1">
-                                  <div className="flex items-center gap-1.5">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
                                     <h4 className="font-bold text-slate-800 text-xs sm:text-sm line-clamp-1 break-words">
                                       {doc.name}
                                     </h4>
                                     <span className="text-[10px] bg-blue-100 text-blue-700 font-bold px-1.5 py-0.2 rounded-md shrink-0">
                                       {details?.experience || '10+ Năm'}
                                     </span>
+                                    {hasScheduleOnBookingDate ? (
+                                      <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded-md flex items-center gap-1 shrink-0">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                        Có ca trực ngày này
+                                      </span>
+                                    ) : hasAnySchedule ? (
+                                      <span className="text-[10px] bg-sky-50 text-sky-700 border border-sky-200/80 font-medium px-1.5 py-0.2 rounded-md shrink-0">
+                                        Có ca ngày khác
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] bg-slate-100 text-slate-500 font-medium px-1.5 py-0.2 rounded-md shrink-0">
+                                        Chưa mở ca trực
+                                      </span>
+                                    )}
                                   </div>
                                   <p className="text-[11px] text-slate-500 truncate">
                                     {doc.title || doc.specialty || 'Bác sĩ chuyên khoa'} • {doc.room}
                                   </p>
+                                  {isSelected && !hasScheduleOnBookingDate && (
+                                    <p className="text-[10px] text-amber-700 mt-1 flex items-center gap-1 font-medium animate-fadeIn">
+                                      <AlertCircle size={11} className="shrink-0 text-amber-600" />
+                                      <span>Bác sĩ chưa có ca trực ngày này. Vui lòng bấm &quot;Đổi ngày&quot; ở bên dưới.</span>
+                                    </p>
+                                  )}
                                 </div>
                               </div>
                               <div className="text-right shrink-0 ml-2 whitespace-nowrap flex flex-col items-end">
@@ -1756,7 +1970,7 @@ export default function BookingForm() {
                               <div className="text-left min-w-0">
                                 <span className="text-[10px] text-slate-400 block font-normal leading-tight">Ngày khám bệnh:</span>
                                 <span className={`font-bold block leading-tight truncate ${step2Errors.date ? 'text-red-700' : 'text-slate-900'}`}>
-                                  {hasSelectedDate ? formatVietnameseFullDate(bookingDate) : 'Bấm vào để chọn ngày khám (Thứ 2 - Thứ 6)'}
+                                  {hasSelectedDate ? formatVietnameseFullDate(bookingDate) : 'Bấm vào để chọn ngày khám'}
                                 </span>
                               </div>
                             </div>
@@ -1793,7 +2007,7 @@ export default function BookingForm() {
                                         Chọn Ngày Khám Bệnh
                                       </h3>
                                       <span className="text-[11px] text-slate-500 block">
-                                        Tiếp nhận Thứ 2 - Thứ 6 (Thứ 7 & CN nghỉ)
+                                        Lịch khám theo ca trực thực tế của Bác sĩ
                                       </span>
                                     </div>
                                   </div>
@@ -1846,10 +2060,10 @@ export default function BookingForm() {
                                       {wd}
                                     </div>
                                   ))}
-                                  <div className="text-[11px] font-bold text-rose-500 py-1 bg-rose-50/70 rounded" title="Thứ 7 nghỉ">
+                                  <div className="text-[11px] font-bold text-rose-500 py-1 bg-rose-50/70 rounded" title="Thứ 7">
                                     T7
                                   </div>
-                                  <div className="text-[11px] font-bold text-rose-500 py-1 bg-rose-50/70 rounded" title="Chủ Nhật nghỉ">
+                                  <div className="text-[11px] font-bold text-rose-500 py-1 bg-rose-50/70 rounded" title="Chủ Nhật">
                                     CN
                                   </div>
                                 </div>
@@ -1879,14 +2093,19 @@ export default function BookingForm() {
                                     const isCurrentDay = currentDate.getTime() === todayDateOnly.getTime();
                                     const isTodayExpired = isCurrentDay && isPastAllTodaySlots();
 
-                                    // Thứ 7 & CN: Tuyệt đối bị khóa
-                                    if (isWeekend) {
+                                    // Bác sĩ có ca trực ngày này hay không
+                                    const hasDoctorShift = selectedDoctor && schedules.some(
+                                      (sch) => isDoctorActiveOnSchedule(selectedDoctor, sch) && sch.workDate === isoString
+                                    );
+
+                                    // Thứ 7 & CN: Chỉ khóa nếu bác sĩ KHÔNG có ca trực vào ngày này
+                                    if (isWeekend && !hasDoctorShift) {
                                       return (
                                         <button
                                           key={day}
                                           type="button"
                                           disabled
-                                          title="Phòng khám không nhận lịch hẹn vào Thứ 7 & Chủ Nhật"
+                                          title="Bác sĩ không có ca trực vào ngày cuối tuần này"
                                           className="h-8.5 rounded-xl text-xs font-medium text-slate-300 bg-slate-50/80 line-through cursor-not-allowed select-none opacity-50 flex items-center justify-center pointer-events-none"
                                         >
                                           {day}
@@ -1894,14 +2113,14 @@ export default function BookingForm() {
                                       );
                                     }
 
-                                    // Ngày quá khứ hoặc ngày hôm nay đã hết giờ hành chính / hết ca khám: Bị khóa
+                                    // Ngày quá khứ hoặc ngày hôm nay đã hết giờ: Bị khóa
                                     if (isPast || isTodayExpired) {
                                       return (
                                         <button
                                           key={day}
                                           type="button"
                                           disabled
-                                          title={isTodayExpired ? 'Đã hết giờ tiếp nhận đặt khám trong ngày hôm nay (sau 15:30)' : 'Ngày đã qua'}
+                                          title={isTodayExpired ? 'Đã hết ca trực tiếp nhận đặt khám trong ngày hôm nay' : 'Ngày đã qua'}
                                           className="h-8.5 rounded-xl text-xs font-medium text-slate-300 bg-slate-50/60 line-through cursor-not-allowed select-none opacity-40 flex items-center justify-center pointer-events-none"
                                         >
                                           {day}
@@ -1909,13 +2128,12 @@ export default function BookingForm() {
                                       );
                                     }
 
-                                    // Ngày trong tuần hợp lệ (T2 -> T6)
                                     return (
                                       <button
                                         key={day}
                                         type="button"
                                         onClick={() => handleSelectDate(isoString)}
-                                        className={`h-8.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-center cursor-pointer ${
+                                        className={`h-8.5 rounded-xl text-xs font-semibold transition-all relative flex flex-col items-center justify-center cursor-pointer ${
                                           isSelected
                                             ? 'bg-blue-600 text-white font-bold shadow-md shadow-blue-200 hover:bg-blue-700'
                                             : isCurrentDay
@@ -1923,23 +2141,29 @@ export default function BookingForm() {
                                             : 'text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:font-bold'
                                         }`}
                                       >
-                                        {day}
+                                        <span>{day}</span>
+                                        {hasDoctorShift && (
+                                          <span
+                                            className={`w-1 h-1 rounded-full ${isSelected ? 'bg-emerald-300' : 'bg-emerald-500'}`}
+                                            title="Bác sĩ có ca trực ngày này"
+                                          />
+                                        )}
                                       </button>
                                     );
                                   })}
                                 </div>
 
-                                {/* Ghi chú rõ ràng phòng khám nghỉ Thứ 7 & CN và hết giờ tiếp nhận */}
-                                <div className="pt-2 border-t border-slate-100 flex flex-col gap-1 text-[11px] text-amber-800 bg-amber-50/90 px-3 py-2 rounded-xl border border-amber-200/60">
+                                {/* Ghi chú rõ ràng phòng khám nhận lịch theo ca trực bác sĩ */}
+                                <div className="pt-2 border-t border-slate-100 flex flex-col gap-1 text-[11px] text-slate-700 bg-blue-50/70 px-3 py-2 rounded-xl border border-blue-200/60">
                                   <div className="flex items-center gap-1.5">
-                                    <Info size={14} className="shrink-0 text-amber-600" />
+                                    <Info size={14} className="shrink-0 text-blue-600" />
                                     <span>
-                                      Phòng khám chỉ nhận lịch <strong>Thứ 2 đến Thứ 6</strong>. Thứ 7 &amp; Chủ Nhật không tiếp nhận đặt trước.
+                                      Tiếp nhận đặt khám theo ca trực thực tế của Bác sĩ (Bao gồm ca trực 24/7 &amp; Cuối tuần nếu bác sĩ mở ca trực).
                                     </span>
                                   </div>
                                   {isPastAllTodaySlots() && (
                                     <span className="text-[10px] text-rose-600 font-bold pl-5">
-                                      • Hôm nay đã hết giờ tiếp nhận khám (sau 15:30), vui lòng chọn từ ngày mai.
+                                      • Hôm nay đã hết ca trực tiếp nhận khám, vui lòng chọn ngày tiếp theo có ca trực.
                                     </span>
                                   )}
                                 </div>
@@ -1967,7 +2191,7 @@ export default function BookingForm() {
                               <span className={`text-[11px] block mt-0.5 ${step2Errors.date ? 'text-red-600 font-medium' : 'text-slate-500'}`}>
                                 {step2Errors.date 
                                   ? 'Vui lòng nhấn nút "Chọn ngày" ở trên để chọn ngày khám hợp lệ trước khi tiếp tục.'
-                                  : 'Vui lòng bấm nút phía trên để chọn ngày khám từ Thứ 2 đến Thứ 6. Hệ thống sẽ tự động hiển thị ca trực và khung giờ còn trống.'}
+                                  : 'Vui lòng bấm nút phía trên để chọn ngày khám. Hệ thống sẽ tự động hiển thị ca trực và khung giờ còn trống.'}
                               </span>
                             </div>
                           </div>
@@ -1988,73 +2212,109 @@ export default function BookingForm() {
                             )}
                           </div>
 
-                        {/* 2 Nút Trigger: 1 Chọn Buổi, 2 Chọn Khung Giờ (Dàn đều 2 cột cân đối) */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          {/* Nút 1: Chọn Buổi Khám */}
-                          <button
-                            type="button"
-                            onClick={() => setShowSessionModal(true)}
-                            aria-haspopup="dialog"
-                            aria-expanded={showSessionModal}
-                            className="w-full flex items-center justify-between p-3 bg-white border border-slate-200 hover:border-blue-500 rounded-xl text-xs font-semibold text-slate-800 shadow-2xs hover:shadow-xs hover:bg-blue-50/20 transition-all cursor-pointer group focus:outline-none focus:ring-2 focus:ring-blue-100"
-                          >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <div
-                                className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${
-                                  selectedSession === 'morning'
-                                    ? 'bg-amber-100 text-amber-700'
-                                    : 'bg-indigo-100 text-indigo-700'
-                                }`}
-                              >
-                                {selectedSession === 'morning' ? <Sun size={15} /> : <Sunset size={15} />}
-                              </div>
-                              <div className="text-left min-w-0">
-                                <span className="text-[10px] text-slate-400 block font-normal leading-tight">Buổi khám:</span>
-                                <span className="font-bold text-slate-900 block leading-tight truncate">
-                                  {selectedSession === 'morning' ? 'Buổi Sáng (07:30 - 12:00)' : 'Buổi Chiều (13:30 - 17:30)'}
-                                </span>
-                              </div>
+                        {/* Kiểm tra ca trực: Bác sĩ chưa đăng ký ca trực trong ngày này */}
+                        {!loadingSlots && timeSlots.length === 0 ? (
+                          <div className="p-4 bg-amber-50/90 border border-amber-200 rounded-2xl flex items-start gap-3 animate-fadeIn">
+                            <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 mt-0.5">
+                              <AlertCircle size={18} />
                             </div>
-                            <ChevronDown size={14} className="text-slate-400 ml-1 group-hover:text-blue-600 transition-colors shrink-0" />
-                          </button>
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-xs font-bold text-amber-900">
+                                Bác sĩ {selectedDoctor?.name || 'được chọn'} chưa có ca trực trong ngày {formatVietnameseFullDate(bookingDate)}
+                              </h4>
+                              <p className="text-[11px] text-amber-700 mt-1 leading-relaxed">
+                                Bác sĩ hiện chưa mở lịch tiếp nhận khám cho ngày này. Vui lòng bấm nút <strong>&quot;Đổi ngày&quot;</strong> ở trên để chọn ngày khác, hoặc chuyển sang Bác sĩ có ca trực sẵn sàng.
+                              </p>
+                              {(() => {
+                                const otherDoctorWithShift = filteredDoctors.find((d) =>
+                                  d.id !== selectedDoctor?.id &&
+                                  schedules.some((sch) => isDoctorActiveOnSchedule(d, sch) && sch.workDate === bookingDate)
+                                );
+                                if (otherDoctorWithShift) {
+                                  return (
+                                    <button
+                                      type="button"
+                                      onClick={() => setSelectedDoctor(otherDoctorWithShift)}
+                                      className="mt-2.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-xs flex items-center gap-1.5 cursor-pointer"
+                                    >
+                                      <span>Chọn bác sĩ {otherDoctorWithShift.name} (Có ca trực hôm nay)</span>
+                                      <ArrowRight size={13} />
+                                    </button>
+                                  );
+                                }
+                                return null;
+                              })()}
+                            </div>
+                          </div>
+                        ) : (
+                          /* 2 Nút Trigger: 1 Chọn Buổi, 2 Chọn Khung Giờ (Dàn đều 2 cột cân đối) */
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {/* Nút 1: Chọn Buổi Khám */}
+                            <button
+                              type="button"
+                              onClick={() => setShowSessionModal(true)}
+                              aria-haspopup="dialog"
+                              aria-expanded={showSessionModal}
+                              className="w-full flex items-center justify-between p-3 bg-white border border-slate-200 hover:border-blue-500 rounded-xl text-xs font-semibold text-slate-800 shadow-2xs hover:shadow-xs hover:bg-blue-50/20 transition-all cursor-pointer group focus:outline-none focus:ring-2 focus:ring-blue-100"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div
+                                  className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${
+                                    selectedSession === 'morning'
+                                      ? 'bg-amber-100 text-amber-700'
+                                      : 'bg-indigo-100 text-indigo-700'
+                                  }`}
+                                >
+                                  {selectedSession === 'morning' ? <Sun size={15} /> : <Sunset size={15} />}
+                                </div>
+                                <div className="text-left min-w-0">
+                                  <span className="text-[10px] text-slate-400 block font-normal leading-tight">Buổi khám:</span>
+                                  <span className="font-bold text-slate-900 block leading-tight truncate">
+                                    {selectedSession === 'morning' ? 'Buổi Sáng (07:30 - 12:00)' : 'Buổi Chiều (13:30 - 17:30)'}
+                                  </span>
+                                </div>
+                              </div>
+                              <ChevronDown size={14} className="text-slate-400 ml-1 group-hover:text-blue-600 transition-colors shrink-0" />
+                            </button>
 
-                          {/* Nút 2: Chọn Khung Giờ Khám */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setShowSlotModal(true);
-                              setStep2Errors((prev) => ({ ...prev, slot: undefined }));
-                            }}
-                            aria-haspopup="dialog"
-                            aria-expanded={showSlotModal}
-                            className={`w-full flex items-center justify-between p-3 bg-white border rounded-xl text-xs font-semibold shadow-2xs hover:shadow-xs transition-all cursor-pointer group focus:outline-none focus:ring-2 ${
-                              step2Errors.slot
-                                ? 'border-red-500 ring-2 ring-red-300 bg-red-50/40 text-red-900'
-                                : 'border-slate-200 hover:border-blue-500 hover:bg-blue-50/20 text-slate-800 focus:ring-blue-100'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <div
-                                className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform ${
-                                  step2Errors.slot ? 'bg-red-100 text-red-600' : 'bg-blue-50 text-blue-600'
-                                }`}
-                              >
-                                <Clock size={15} />
+                            {/* Nút 2: Chọn Khung Giờ Khám */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowSlotModal(true);
+                                setStep2Errors((prev) => ({ ...prev, slot: undefined }));
+                              }}
+                              aria-haspopup="dialog"
+                              aria-expanded={showSlotModal}
+                              className={`w-full flex items-center justify-between p-3 bg-white border rounded-xl text-xs font-semibold shadow-2xs hover:shadow-xs transition-all cursor-pointer group focus:outline-none focus:ring-2 ${
+                                step2Errors.slot
+                                  ? 'border-red-500 ring-2 ring-red-300 bg-red-50/40 text-red-900'
+                                  : 'border-slate-200 hover:border-blue-500 hover:bg-blue-50/20 text-slate-800 focus:ring-blue-100'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div
+                                  className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform ${
+                                    step2Errors.slot ? 'bg-red-100 text-red-600' : 'bg-blue-50 text-blue-600'
+                                  }`}
+                                >
+                                  <Clock size={15} />
+                                </div>
+                                <div className="text-left min-w-0">
+                                  <span className="text-[10px] text-slate-400 block font-normal leading-tight">Khung giờ:</span>
+                                  <span className={`font-bold block leading-tight truncate ${
+                                    step2Errors.slot ? 'text-red-700' : 'text-blue-700'
+                                  }`}>
+                                    {selectedSlot.time && selectedSlot.time !== 'Chưa chọn' && selectedSlot.time !== 'Hết chỗ' && selectedSlot.time !== 'Chưa có ca trực'
+                                      ? selectedSlot.time
+                                      : 'Bấm chọn khung giờ'}
+                                  </span>
+                                </div>
                               </div>
-                              <div className="text-left min-w-0">
-                                <span className="text-[10px] text-slate-400 block font-normal leading-tight">Khung giờ:</span>
-                                <span className={`font-bold block leading-tight truncate ${
-                                  step2Errors.slot ? 'text-red-700' : 'text-blue-700'
-                                }`}>
-                                  {selectedSlot.time && selectedSlot.time !== 'Chưa chọn' && selectedSlot.time !== 'Hết chỗ'
-                                    ? selectedSlot.time
-                                    : 'Bấm chọn khung giờ'}
-                                </span>
-                              </div>
-                            </div>
-                            <ChevronDown size={14} className={`${step2Errors.slot ? 'text-red-500' : 'text-slate-400 group-hover:text-blue-600'} ml-1 transition-colors shrink-0`} />
-                          </button>
-                        </div>
+                              <ChevronDown size={14} className={`${step2Errors.slot ? 'text-red-500' : 'text-slate-400 group-hover:text-blue-600'} ml-1 transition-colors shrink-0`} />
+                            </button>
+                          </div>
+                        )}
 
                         {/* Thông báo lỗi khi chưa chọn khung giờ */}
                         {step2Errors.slot && (
@@ -2797,7 +3057,7 @@ export default function BookingForm() {
                   <div className="flex flex-col items-center shrink-0 bg-slate-50 p-2 rounded-2xl border border-slate-200">
                     <div className="w-18 h-18 bg-white rounded-xl p-1 flex items-center justify-center border border-slate-200 shadow-2xs">
                       <QrCodeImage
-                        value={typeof window !== 'undefined' ? `${window.location.origin}/checkin?code=${encodeURIComponent(result.bookingCode)}` : `/checkin?code=${encodeURIComponent(result.bookingCode)}`}
+                        value={result.bookingCode}
                         size={64}
                         className="rounded-lg"
                       />

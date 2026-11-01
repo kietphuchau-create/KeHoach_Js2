@@ -186,6 +186,8 @@ AI_MAX_REQUESTS_PER_WINDOW=20
 AI_WINDOW_SECONDS=60
 AI_DUPLICATE_SECONDS=5
 AI_MAX_MESSAGE_CHARS=2000
+AI_MAX_IDENTITIES=10000
+AI_CLEANUP_MILLIS=60000
 ```
 
 ## 9. Endpoint chính
@@ -222,6 +224,8 @@ AI_MAX_MESSAGE_CHARS=2000
 - Backend compile thành công.
 - Nhóm test `TriageControllerIntegrationTest` thành công.
 - Test `AiRequestGuardTest` thành công.
+- Test trực tiếp ba tầng fallback `SmartClinicAiTriageAdapter`, `GeminiGeneralAssistantService` và `InternalKnowledgeRagService` thành công.
+- MCP contract test xác nhận endpoint thật và ngăn tái xuất hiện dữ liệu mock thành công.
 - Frontend TypeScript kiểm tra thành công.
 - Frontend production build thành công, bao gồm route `/booking`.
 - Kiểm thử API OpenRouter thật: trả lời thành công và xác nhận nguồn `OPENROUTER_API`.
@@ -236,7 +240,16 @@ AI_MAX_MESSAGE_CHARS=2000
 3. Cần bổ sung dashboard theo dõi số lần gọi AI, tỷ lệ fallback và lỗi theo nhà cung cấp.
 4. Có thể bổ sung lưu phiên hội thoại có kiểm soát sau khi hoàn thiện chính sách dữ liệu y tế và quyền riêng tư.
 5. Nên bổ sung kiểm thử end-to-end tự động cho toàn bộ luồng chat → gợi ý → đặt lịch.
+6. Bucket4j hiện giới hạn theo từng tiến trình. Bản sửa đã dọn entry hết hạn và giới hạn số identity để tránh tăng bộ nhớ vô hạn; khi triển khai nhiều instance cần chuyển trạng thái rate limit sang Redis hoặc API Gateway dùng chung.
 
-## 13. Kết luận
+## 13. Kết quả rà soát kỹ thuật bổ sung
+
+- MCP đã bỏ toàn bộ fallback giả lập; tra lịch, check-in, thống kê và thanh toán chỉ báo thành công khi API MedSched thật thành công.
+- Dependency/config Spring AI không sử dụng đã được loại bỏ; OpenRouter và Gemini tiếp tục được gọi qua các client REST hiện có.
+- Kết quả chuyên khoa hợp lệ do AI trả về được bảo toàn; ánh xạ theo nhóm triệu chứng chỉ còn là fallback cho mã thiếu hoặc không được MedSched hỗ trợ.
+- Mail, Brevo và PayOS chỉ nhận credential từ biến môi trường. Các khóa từng xuất hiện trong lịch sử Git phải được thu hồi và tạo lại trước khi triển khai.
+- So khớp triệu chứng hỗ trợ cả tiếng Việt có dấu/không dấu; rule y tế xác định vẫn được giữ làm guardrail an toàn.
+
+## 14. Kết luận
 
 AI Chatbox MedSched đã hoàn thành các mục tiêu chính của CLAB-132: đa vai trò, hội thoại tự nhiên, hỏi bổ sung theo ngữ cảnh, kết nối AI thật, fallback nội bộ, bảo vệ chống spam và chuyển kết quả sàng lọc thành hành động đặt lịch cụ thể. Hệ thống hiện có thể chạy trên môi trường phát triển với frontend cổng `3000`, backend cổng `8080` và MySQL/XAMPP.

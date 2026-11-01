@@ -16,7 +16,13 @@ import {
 } from 'lucide-react';
 import { api } from '@/shared/lib/api';
 import AlertMessage from '@/shared/components/Feedback/AlertMessage';
-import { getClinicRooms, ROOMS_UPDATED_EVENT, ClinicRoom } from '@/shared/lib/clinicRooms';
+import { 
+  getClinicRooms, 
+  ROOMS_UPDATED_EVENT, 
+  ClinicRoom, 
+  addClinicRoom, 
+  assignDoctorToRoom 
+} from '@/shared/lib/clinicRooms';
 import { 
   validateFullName, 
   validatePhone, 
@@ -46,12 +52,13 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const initialCenterId = medicalCenters[0]?.id || '';
-  const initialSpecs = specialties.filter((s: any) => s.medicalCenterId === initialCenterId);
+  // Quản lý chọn Chuyên khoa trước, Chi nhánh sau
+  const [selectedSpecialtyName, setSelectedSpecialtyName] = useState<string>('');
+  const [branchError, setBranchError] = useState<string>('');
 
   // Danh mục phòng khám lấy từ cấu hình
   const [availableRooms, setAvailableRooms] = useState<ClinicRoom[]>([]);
-  const [selectedRoom, setSelectedRoom] = useState<string>('P.208');
+  const [selectedRoom, setSelectedRoom] = useState<string>('');
   const [isCustomRoom, setIsCustomRoom] = useState<boolean>(false);
   const [customRoomValue, setCustomRoomValue] = useState<string>('');
 
@@ -63,9 +70,6 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
     const refreshRooms = () => {
       const rooms = getClinicRooms();
       setAvailableRooms(rooms);
-      if (rooms.length > 0 && !selectedRoom) {
-        setSelectedRoom(rooms[0].code);
-      }
     };
     refreshRooms();
 
@@ -78,12 +82,59 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
     email: '',
     phone: '',
     temporaryPassword: '',
-    medicalCenterId: initialCenterId,
-    specialtyId: initialSpecs[0]?.id || '',
+    medicalCenterId: '',
+    specialtyId: '',
     academicTitle: 'ThS.BS',
     consultationFee: 300000,
     bio: '',
   });
+
+  const selectedCenter = medicalCenters.find(c => c.id === doctorForm.medicalCenterId);
+  const selectedCenterName = selectedCenter?.name || '';
+
+  // Lọc danh sách buồng khám theo đúng Chi Nhánh công tác của Bác Sĩ (chỉ tải khi đã chọn chi nhánh)
+  const branchRooms = useMemo(() => {
+    if (!selectedCenterName) return [];
+    const isTrinhDinhThao = selectedCenterName.toLowerCase().includes('trịnh đình thảo') || selectedCenterName.toLowerCase().includes('itc');
+    const isTranDaiNghia = selectedCenterName.toLowerCase().includes('trần đại nghĩa');
+
+    return availableRooms.filter(r => {
+      if (isTrinhDinhThao) {
+        return r.medicalCenterName.toLowerCase().includes('trịnh đình thảo') || r.medicalCenterName.toLowerCase().includes('itc');
+      }
+      if (isTranDaiNghia) {
+        return r.medicalCenterName.toLowerCase().includes('trần đại nghĩa');
+      }
+      return r.medicalCenterName === selectedCenterName;
+    });
+  }, [availableRooms, selectedCenterName]);
+
+  const backupRooms = useMemo(() => {
+    return branchRooms.filter(r => r.isBackupRoom || !r.assignedDoctorName);
+  }, [branchRooms]);
+
+  const occupiedRooms = useMemo(() => {
+    return branchRooms.filter(r => !r.isBackupRoom && r.assignedDoctorName);
+  }, [branchRooms]);
+
+  // Khi đổi Chi Nhánh, nếu phòng đang chọn không thuộc chi nhánh hoặc đã có bác sĩ, tự động chọn phòng dự phòng đầu tiên
+  useEffect(() => {
+    if (!doctorForm.medicalCenterId) {
+      setSelectedRoom('');
+      return;
+    }
+    if (isCustomRoom) return;
+    const currentRoomObj = branchRooms.find(r => r.code === selectedRoom);
+    if (!currentRoomObj || (!currentRoomObj.isBackupRoom && currentRoomObj.assignedDoctorName)) {
+      if (backupRooms.length > 0) {
+        setSelectedRoom(backupRooms[0].code);
+      } else {
+        // Chi nhánh không còn buồng dự phòng -> Tự chuyển sang chế độ tạo số phòng mới
+        setIsCustomRoom(true);
+        setCustomRoomValue('');
+      }
+    }
+  }, [branchRooms, backupRooms, selectedRoom, isCustomRoom, doctorForm.medicalCenterId]);
 
   // Ràng buộc từng ký tự thời gian thực (Real-time Validation)
   const fullNameValidation = useMemo(() => validateFullName(doctorForm.fullName), [doctorForm.fullName]);
@@ -91,8 +142,46 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
   const phoneValidation = useMemo(() => validatePhone(doctorForm.phone), [doctorForm.phone]);
   const passwordValidation = useMemo(() => validateTemporaryPassword(doctorForm.temporaryPassword), [doctorForm.temporaryPassword]);
 
+  // Kiểm tra buồng tự nhập có bị trùng với buồng khám đã có Bác sĩ hay không
+  const customRoomValidation = useMemo(() => {
+    if (!isCustomRoom || !customRoomValue.trim()) return { isValid: true, message: '', isExistingBackup: false };
+    const cleanDigits = customRoomValue.replace(/^P\./i, '').replace(/\D/g, '').trim();
+    const cleanCode = cleanDigits ? `P.${cleanDigits}`.toUpperCase() : '';
+    if (!cleanCode) return { isValid: false, message: 'Vui lòng nhập số phòng khám hợp lệ.', isExistingBackup: false };
+
+    // Kiểm tra trong danh mục buồng khám xem có bị chiếm dụng bởi bác sĩ khác không
+    const occupied = availableRooms.find(
+      r => r.code.toUpperCase() === cleanCode && !r.isBackupRoom && Boolean(r.assignedDoctorName)
+    );
+    if (occupied) {
+      return {
+        isValid: false,
+        message: `⛔ Buồng khám [${occupied.code}] đã có Bác sĩ [${occupied.assignedDoctorName}] phụ trách. Không thể gán trùng!`,
+        isExistingBackup: false,
+      };
+    }
+
+    const backup = availableRooms.find(
+      r => r.code.toUpperCase() === cleanCode && (r.isBackupRoom || !r.assignedDoctorName)
+    );
+    if (backup) {
+      return {
+        isValid: true,
+        message: `Buồng khám [${backup.code}] đã có sẵn trong danh mục Buồng Dự Phòng của chi nhánh.`,
+        isExistingBackup: true,
+      };
+    }
+
+    return { isValid: true, message: '', isExistingBackup: false };
+  }, [isCustomRoom, customRoomValue, availableRooms]);
+
   const isFormValid = useMemo(() => {
-    const roomValid = isCustomRoom ? Boolean(customRoomValue.trim()) : Boolean(selectedRoom);
+    const isDropdownRoomOccupied = !isCustomRoom && occupiedRooms.some(r => r.code.toUpperCase() === selectedRoom.toUpperCase());
+    const roomValid = Boolean(doctorForm.medicalCenterId) && (
+      isCustomRoom 
+        ? Boolean(customRoomValue.trim()) && customRoomValidation.isValid
+        : Boolean(selectedRoom && !isDropdownRoomOccupied)
+    );
     const titleValid = !isCustomTitle || (Boolean(customTitleValue.trim()) && customTitleValue.trim().length >= 2);
     return fullNameValidation.isValid &&
       emailValidation.isValid &&
@@ -102,7 +191,7 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
       Boolean(doctorForm.specialtyId) &&
       roomValid &&
       titleValid;
-  }, [fullNameValidation, emailValidation, phoneValidation, passwordValidation, doctorForm.medicalCenterId, doctorForm.specialtyId, isCustomRoom, customRoomValue, selectedRoom, isCustomTitle, customTitleValue]);
+  }, [fullNameValidation, emailValidation, phoneValidation, passwordValidation, doctorForm.medicalCenterId, doctorForm.specialtyId, isCustomRoom, customRoomValue, customRoomValidation, selectedRoom, occupiedRooms, isCustomTitle, customTitleValue]);
 
   const handleCreateDoctor = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -120,6 +209,19 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
 
     if (!finalRoomNumber) {
       setMessage({ type: 'error', text: 'Vui lòng chọn hoặc nhập phòng khám làm việc cho Bác sĩ.' });
+      setLoading(false);
+      return;
+    }
+
+    // Chốt chặn kiểm tra trùng lặp buồng khám (Áp dụng cho CẢ chọn từ danh sách lẫn tự nhập tay)
+    const conflictRoom = availableRooms.find(
+      r => r.code.toUpperCase() === finalRoomNumber.toUpperCase() && !r.isBackupRoom && Boolean(r.assignedDoctorName)
+    );
+    if (conflictRoom) {
+      setMessage({ 
+        type: 'error', 
+        text: `Buồng khám [${conflictRoom.code}] đã có Bác sĩ [${conflictRoom.assignedDoctorName}] phụ trách. Mỗi bác sĩ bắt buộc phải có một phòng riêng biệt, không thể phân công trùng buồng khám!` 
+      });
       setLoading(false);
       return;
     }
@@ -148,23 +250,48 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
         bio: doctorForm.bio.trim(),
       });
 
+      // Cập nhật cấu hình buồng khám: Gán phòng riêng cho bác sĩ mới tạo
+      const selectedSpec = specialties.find((s: any) => s.id === doctorForm.specialtyId);
+      const centerObj = medicalCenters.find(c => c.id === doctorForm.medicalCenterId);
+      const existing = availableRooms.find(r => r.code.toUpperCase() === finalRoomNumber.toUpperCase());
+      if (!existing) {
+        addClinicRoom({
+          code: finalRoomNumber,
+          name: `Phòng Khám ${selectedSpec?.name || 'Chuyên Khoa'}`,
+          floor: 'Tầng 1',
+          medicalCenterName: centerObj?.name || 'Phòng Khám Đa Khoa MedSched',
+          status: 'active',
+          note: `Buồng khám riêng của BS. ${doctorForm.fullName.trim()}`,
+          assignedDoctorName: doctorForm.fullName.trim(),
+          specialtyName: selectedSpec?.name || 'Đa Khoa',
+          isBackupRoom: false,
+        });
+      } else {
+        assignDoctorToRoom(finalRoomNumber, {
+          fullName: doctorForm.fullName.trim(),
+          specialtyName: selectedSpec?.name,
+        });
+      }
+
       setMessage({
         type: 'success',
-        text: `Tạo tài khoản Bác sĩ thành công cho: ${doctorForm.email} tại phòng [${finalRoomNumber}] (${finalAcademicTitle})! Mật khẩu mặc định: ${doctorForm.temporaryPassword || 'Medsched@123'}`,
+        text: `Tạo tài khoản Bác sĩ thành công cho: ${doctorForm.email} tại buồng [${finalRoomNumber}] (${finalAcademicTitle})! Phòng đã được gán quyền riêng cho Bác sĩ. Mật khẩu: ${doctorForm.temporaryPassword || 'Medsched@123'}`,
       });
 
-      const newInitialSpecs = specialties.filter((s: any) => s.medicalCenterId === initialCenterId);
       setDoctorForm({
         fullName: '',
         email: '',
         phone: '',
         temporaryPassword: '',
-        medicalCenterId: initialCenterId,
-        specialtyId: newInitialSpecs[0]?.id || '',
+        medicalCenterId: '',
+        specialtyId: '',
         academicTitle: 'ThS.BS',
         consultationFee: 300000,
         bio: '',
       });
+      setSelectedSpecialtyName('');
+      setSelectedRoom('');
+      setBranchError('');
       setIsCustomRoom(false);
       setCustomRoomValue('');
       setIsCustomTitle(false);
@@ -177,12 +304,39 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
     }
   };
 
-  const filteredSpecialties = specialties.filter((s: any) => s.medicalCenterId === doctorForm.medicalCenterId);
+  // 1. Danh sách Chuyên khoa duy nhất (không trùng tên) hiển thị ở dropdown Chuyên Khoa
+  const uniqueSpecialties = useMemo(() => {
+    const seen = new Set<string>();
+    const list: { key: string; name: string }[] = [];
+    for (const s of specialties) {
+      const name = s.name?.trim();
+      if (name && !seen.has(name)) {
+        seen.add(name);
+        list.push({ key: s.id || name, name });
+      }
+    }
+    return list;
+  }, [specialties]);
+
+  // 2. Danh sách Chi nhánh tương ứng với Chuyên khoa đã chọn
+  const availableCentersForSpecialty = useMemo(() => {
+    if (!selectedSpecialtyName) return [];
+    // Tìm các bản ghi chuyên khoa có tên trùng với tên chuyên khoa đã chọn
+    const matchingSpecs = specialties.filter(
+      (s: any) => s.name?.trim().toLowerCase() === selectedSpecialtyName.trim().toLowerCase()
+    );
+    const centerIds = new Set(matchingSpecs.map((s: any) => s.medicalCenterId).filter(Boolean));
+    if (centerIds.size > 0) {
+      const filtered = medicalCenters.filter(c => centerIds.has(c.id));
+      if (filtered.length > 0) return filtered;
+    }
+    return medicalCenters;
+  }, [specialties, medicalCenters, selectedSpecialtyName]);
 
   return (
     <form onSubmit={handleCreateDoctor} className="space-y-4">
       {message && (
-        <AlertMessage type={message.type} message={message.text} onClose={() => setMessage(null)} />
+        <AlertMessage pinned type={message.type} message={message.text} onClose={() => setMessage(null)} />
       )}
 
       {/* Họ và Tên Bác Sĩ */}
@@ -299,56 +453,113 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {/* Chuyên Khoa Khám */}
+        {/* Chuyên Khoa Khám (Chọn trước) */}
         <div>
           <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
             Chuyên Khoa Khám <span className="text-red-500">*</span>
           </label>
           <select
-            value={doctorForm.specialtyId}
-            onChange={(e) => setDoctorForm({ ...doctorForm, specialtyId: e.target.value })}
-            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
+            value={selectedSpecialtyName}
+            onChange={(e) => {
+              const newSpecName = e.target.value;
+              setSelectedSpecialtyName(newSpecName);
+              setBranchError('');
+              // Reset Chi nhánh và Buồng khám khi đổi Chuyên khoa
+              setDoctorForm(prev => ({
+                ...prev,
+                medicalCenterId: '',
+                specialtyId: '',
+              }));
+              setSelectedRoom('');
+              setIsCustomRoom(false);
+              setCustomRoomValue('');
+            }}
+            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm transition"
           >
-            {filteredSpecialties.length === 0 ? (
-              <option value="">Không có chuyên khoa nào</option>
-            ) : (
-              filteredSpecialties.map(spec => (
-                <option key={spec.id} value={spec.id}>
-                  {spec.name}
-                </option>
-              ))
-            )}
+            <option value="">-- Chọn chuyên khoa khám --</option>
+            {uniqueSpecialties.map(spec => (
+              <option key={spec.key} value={spec.name}>
+                {spec.name}
+              </option>
+            ))}
           </select>
         </div>
 
-        {/* Chi Nhánh Phòng Khám Công Tác */}
+        {/* Chi Nhánh Phòng Khám Công Tác (Chọn sau, phụ thuộc chuyên khoa) */}
         <div>
           <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
             Chi Nhánh Phòng Khám Công Tác <span className="text-red-500">*</span>
           </label>
           <select
             value={doctorForm.medicalCenterId}
-            onChange={(e) => {
-              const newCenterId = e.target.value;
-              const newSpecs = specialties.filter((s: any) => s.medicalCenterId === newCenterId);
-              setDoctorForm({ 
-                ...doctorForm, 
-                medicalCenterId: newCenterId,
-                specialtyId: newSpecs.length > 0 ? newSpecs[0].id : ''
-              });
+            onFocus={() => {
+              if (!selectedSpecialtyName) {
+                setBranchError('Bạn cần chọn chuyên khoa khám trước');
+              }
             }}
-            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
+            onClick={() => {
+              if (!selectedSpecialtyName) {
+                setBranchError('Bạn cần chọn chuyên khoa khám trước');
+              }
+            }}
+            onChange={(e) => {
+              if (!selectedSpecialtyName) {
+                setBranchError('Bạn cần chọn chuyên khoa khám trước');
+                return;
+              }
+              const newCenterId = e.target.value;
+              setBranchError('');
+
+              if (!newCenterId) {
+                setDoctorForm(prev => ({ ...prev, medicalCenterId: '', specialtyId: '' }));
+                setSelectedRoom('');
+                return;
+              }
+
+              // Tìm bản ghi specialty khớp với cả chuyên khoa đã chọn và chi nhánh mới
+              const matchingSpec = specialties.find(
+                (s: any) =>
+                  s.name?.trim().toLowerCase() === selectedSpecialtyName.trim().toLowerCase() &&
+                  (!s.medicalCenterId || s.medicalCenterId === newCenterId)
+              ) || specialties.find(
+                (s: any) => s.name?.trim().toLowerCase() === selectedSpecialtyName.trim().toLowerCase()
+              );
+
+              setDoctorForm(prev => ({
+                ...prev,
+                medicalCenterId: newCenterId,
+                specialtyId: matchingSpec?.id || '',
+              }));
+            }}
+            className={`w-full px-4 py-2.5 bg-slate-50 border rounded-xl focus:bg-white focus:outline-none text-sm transition ${
+              branchError 
+                ? 'border-rose-400 focus:ring-2 focus:ring-rose-500 bg-rose-50/30' 
+                : 'border-slate-200 focus:ring-2 focus:ring-blue-500'
+            }`}
           >
-            {medicalCenters.length === 0 ? (
-              <option value="">Không có chi nhánh phòng khám nào</option>
+            {!selectedSpecialtyName ? (
+              <option value="">-- Vui lòng chọn chuyên khoa trước --</option>
             ) : (
-              medicalCenters.map(center => (
-                <option key={center.id} value={center.id}>
-                  {center.name}
-                </option>
-              ))
+              <>
+                <option value="">-- Chọn chi nhánh công tác --</option>
+                {availableCentersForSpecialty.length === 0 ? (
+                  <option value="" disabled>Không có chi nhánh phù hợp</option>
+                ) : (
+                  availableCentersForSpecialty.map(center => (
+                    <option key={center.id} value={center.id}>
+                      {center.name}
+                    </option>
+                  ))
+                )}
+              </>
             )}
           </select>
+          {branchError && (
+            <p className="text-xs text-rose-600 flex items-center gap-1 mt-1.5 font-medium animate-in fade-in duration-200">
+              <AlertCircle size={13} className="shrink-0" />
+              <span>{branchError}</span>
+            </p>
+          )}
         </div>
       </div>
 
@@ -366,6 +577,7 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
           <div>
             <select
               value={isCustomRoom ? 'CUSTOM' : selectedRoom}
+              disabled={!doctorForm.medicalCenterId}
               onChange={(e) => {
                 if (e.target.value === 'CUSTOM') {
                   setIsCustomRoom(true);
@@ -374,36 +586,115 @@ export default function CreateDoctorForm({ medicalCenters, specialties, onSucces
                   setSelectedRoom(e.target.value);
                 }
               }}
-              className="w-full px-3 py-2.5 bg-white border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm font-semibold text-slate-800"
+              className={`w-full px-3 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm font-semibold transition ${
+                !doctorForm.medicalCenterId 
+                  ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed font-normal' 
+                  : 'bg-white border-blue-200 text-slate-800'
+              }`}
             >
-              <optgroup label="Danh mục phòng khám tiêu chuẩn">
-                {availableRooms.map((room) => (
-                  <option key={room.id} value={room.code}>
-                    {room.code} - {room.name} ({room.floor})
+              {!doctorForm.medicalCenterId ? (
+                <option value="">-- Vui lòng chọn chi nhánh để tải buồng khám --</option>
+              ) : (
+                <>
+                  {backupRooms.length > 0 && (
+                    <optgroup label={`📦 Buồng khám Dự Phòng tại chi nhánh (${backupRooms.length} buồng trống khả dụng)`}>
+                      {backupRooms.map((room) => (
+                        <option key={room.id} value={room.code}>
+                          🟢 {room.code} - {room.name} ({room.floor})
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {occupiedRooms.length > 0 && (
+                    <optgroup label="⛔ Buồng khám ĐANG BẬN (Đã có Bác sĩ phụ trách - BỊ KHÓA)">
+                      {occupiedRooms.map((room) => (
+                        <option 
+                          key={room.id} 
+                          value={room.code} 
+                          disabled 
+                          className="text-slate-400 bg-slate-100 cursor-not-allowed font-normal"
+                        >
+                          ⛔ {room.code} - {room.name} (Đang dùng: {room.assignedDoctorName})
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  <option value="CUSTOM" className="text-blue-600 font-bold">
+                    ➕ Mở buồng khám mới (Nhập số phòng...)
                   </option>
-                ))}
-              </optgroup>
-              <option value="CUSTOM" className="text-blue-600 font-bold">
-                ➕ Mở phòng mới / Nhập mã phòng khác...
-              </option>
+                </>
+              )}
             </select>
           </div>
 
           {isCustomRoom ? (
             <div>
-              <input
-                type="text"
-                required
-                value={customRoomValue}
-                onChange={(e) => setCustomRoomValue(e.target.value)}
-                placeholder="Nhập mã phòng (Ví dụ: P.209, P.301, P.210...)"
-                className="w-full px-3 py-2.5 bg-white border-2 border-blue-400 rounded-xl focus:ring-2 focus:ring-blue-500 text-sm font-bold text-blue-700 placeholder:text-slate-400 placeholder:font-normal"
-                autoFocus
-              />
+              <div className={`flex rounded-xl overflow-hidden border-2 transition ${
+                !customRoomValidation.isValid 
+                  ? 'border-rose-500 ring-2 ring-rose-200' 
+                  : 'border-blue-400 focus-within:ring-2 focus-within:ring-blue-500'
+              }`}>
+                <span className={`inline-flex items-center px-3 text-xs font-black select-none border-r ${
+                  !customRoomValidation.isValid 
+                    ? 'bg-rose-100 text-rose-800 border-rose-300' 
+                    : 'bg-blue-100/70 text-blue-800 border-blue-300'
+                }`}>
+                  P.
+                </span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  required
+                  maxLength={5}
+                  value={customRoomValue.replace(/^P\./i, '').replace(/\D/g, '')}
+                  onChange={(e) => {
+                    const digits = e.target.value.replace(/\D/g, '');
+                    setCustomRoomValue(digits ? `P.${digits}` : '');
+                  }}
+                  placeholder="Nhập số phòng (103, 301...)"
+                  className="w-full px-3 py-2 bg-white text-sm font-bold text-slate-800 outline-none"
+                  autoFocus
+                />
+              </div>
+              {!customRoomValidation.isValid ? (
+                <span className="text-[11px] text-rose-600 font-bold mt-1 flex items-center gap-1 animate-in fade-in duration-200">
+                  <AlertCircle size={13} className="shrink-0" />
+                  <span>{customRoomValidation.message}</span>
+                </span>
+              ) : (
+                <span className="text-[10px] text-blue-600 mt-0.5 block">
+                  Chỉ nhập số (Mã lưu: <strong>{customRoomValue || 'P._'}</strong>)
+                  {customRoomValidation.isExistingBackup && (
+                    <span className="text-emerald-700 ml-1.5 font-semibold">({customRoomValidation.message})</span>
+                  )}
+                </span>
+              )}
             </div>
           ) : (
             <div className="flex items-center text-xs text-slate-600 bg-white/70 px-3 py-2 rounded-xl border border-blue-100">
-              <span>Đang phân công: <strong>{selectedRoom}</strong> ({availableRooms.find(r => r.code === selectedRoom)?.name || 'Phòng khám chuyên khoa'})</span>
+              {(() => {
+                const cur = branchRooms.find(r => r.code === selectedRoom);
+                if (!cur) return <span>Đang phân công: <strong>{selectedRoom}</strong></span>;
+                const isOccupied = !cur.isBackupRoom && Boolean(cur.assignedDoctorName);
+                return (
+                  <div className="space-y-0.5">
+                    <div className="font-bold text-slate-800">
+                      Buồng: <span className="text-blue-700">{cur.code}</span> - {cur.name} ({cur.floor})
+                    </div>
+                    <div className="text-[11px]">
+                      {isOccupied ? (
+                        <span className="text-red-600 font-bold flex items-center gap-1">
+                          ⛔ Buồng đang bận: BS. {cur.assignedDoctorName} (Không thể gán trùng)
+                        </span>
+                      ) : (
+                        <span className="text-emerald-700 font-bold flex items-center gap-1">
+                          🟢 Buồng Dự Phòng tại chi nhánh (Sẵn sàng tiếp nhận Bác sĩ mới)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
         </div>

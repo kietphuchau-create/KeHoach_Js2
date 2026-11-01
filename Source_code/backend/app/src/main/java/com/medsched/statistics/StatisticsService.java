@@ -4,16 +4,18 @@ import com.medsched.persistence.entity.AppointmentEntity;
 import com.medsched.persistence.entity.DoctorEntity;
 import com.medsched.persistence.entity.InvoiceEntity;
 import com.medsched.persistence.entity.PaymentEntity;
+import com.medsched.persistence.entity.MedicalRecordEntity;
 import com.medsched.persistence.entity.SpecialtyEntity;
 import com.medsched.persistence.entity.UserEntity;
+import com.medsched.persistence.entity.UserMedicalCenterRoleEntity;
 import com.medsched.persistence.enums.AppointmentStatus;
 import com.medsched.persistence.enums.PaymentStatus;
 import com.medsched.persistence.enums.QueueType;
-import com.medsched.persistence.entity.UserMedicalCenterRoleEntity;
 import com.medsched.persistence.enums.UserRole;
 import com.medsched.persistence.repository.AppointmentJpaRepository;
 import com.medsched.persistence.repository.DoctorJpaRepository;
 import com.medsched.persistence.repository.InvoiceJpaRepository;
+import com.medsched.persistence.repository.MedicalRecordJpaRepository;
 import com.medsched.persistence.repository.PatientProfileJpaRepository;
 import com.medsched.persistence.repository.PaymentJpaRepository;
 import com.medsched.persistence.repository.PrescriptionJpaRepository;
@@ -25,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.text.DecimalFormat;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -46,6 +49,7 @@ public class StatisticsService {
     private final SpecialtyJpaRepository specialtyRepo;
     private final PatientProfileJpaRepository patientProfileRepo;
     private final UserMedicalCenterRoleJpaRepository roleRepo;
+    private final MedicalRecordJpaRepository medicalRecordRepo;
 
     private static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final DateTimeFormatter DAY_FORMATTER = DateTimeFormatter.ofPattern("dd/MM").withZone(VN_ZONE);
@@ -59,7 +63,8 @@ public class StatisticsService {
                              UserJpaRepository userRepo,
                              SpecialtyJpaRepository specialtyRepo,
                              PatientProfileJpaRepository patientProfileRepo,
-                             UserMedicalCenterRoleJpaRepository roleRepo) {
+                             UserMedicalCenterRoleJpaRepository roleRepo,
+                             MedicalRecordJpaRepository medicalRecordRepo) {
         this.appointmentRepo = appointmentRepo;
         this.invoiceRepo = invoiceRepo;
         this.paymentRepo = paymentRepo;
@@ -69,6 +74,7 @@ public class StatisticsService {
         this.specialtyRepo = specialtyRepo;
         this.patientProfileRepo = patientProfileRepo;
         this.roleRepo = roleRepo;
+        this.medicalRecordRepo = medicalRecordRepo;
     }
 
     public StatisticsDtos.StatisticsOverviewResponse getOverview(
@@ -129,9 +135,20 @@ public class StatisticsService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         BigDecimal totalRevenue = paymentRevenue.compareTo(BigDecimal.ZERO) > 0 ? paymentRevenue : invoiceRevenue;
-        if (totalRevenue.compareTo(BigDecimal.ZERO) == 0 && completedAppointments > 0) {
-            totalRevenue = BigDecimal.valueOf(completedAppointments * 300000L);
+
+        double totalAdminDuration = 0;
+        int adminDurationCount = 0;
+        for (AppointmentEntity a : apptList) {
+            if (a.getStatus() == AppointmentStatus.COMPLETED && a.getCheckInTime() != null && a.getUpdatedAt() != null && a.getUpdatedAt().isAfter(a.getCheckInTime())) {
+                long durationSec = Duration.between(a.getCheckInTime(), a.getUpdatedAt()).getSeconds();
+                if (durationSec > 0 && durationSec < 86400) {
+                    totalAdminDuration += durationSec / 60.0;
+                    adminDurationCount++;
+                }
+            }
         }
+        double avgAdminDuration = adminDurationCount > 0 ? Math.round((totalAdminDuration / adminDurationCount) * 10.0) / 10.0 : 0.0;
+        String avgAdminDurationStr = adminDurationCount > 0 ? String.valueOf(avgAdminDuration) : "0.0";
 
         double onlineRate = totalAppointments > 0
                 ? Math.round(((double) onlineBookedCount / totalAppointments * 1000.0)) / 10.0
@@ -168,17 +185,17 @@ public class StatisticsService {
                         "đ",
                         0.0,
                         true,
-                        sparklineVisits.stream().map(v -> v * 300000.0).collect(Collectors.toList()),
+                        totalRevenue.compareTo(BigDecimal.ZERO) > 0 ? List.of(0.0, totalRevenue.doubleValue()) : List.of(0.0, 0.0),
                         "Tổng số tiền thực tế thu từ viện phí và thuốc theo các ca khám"
                 ),
                 new StatisticsDtos.MetricCardData(
                         "avg_duration",
                         "Thời Gian Khám Trung Bình",
-                        completedAppointments > 0 ? "14.0" : "0.0",
+                        avgAdminDurationStr,
                         "phút/ca",
                         0.0,
                         true,
-                        List.of(15.0, 14.5, 14.0),
+                        List.of(avgAdminDuration, avgAdminDuration),
                         "Thời gian khám trung bình thực tế tại các buồng khám"
                 ),
                 new StatisticsDtos.MetricCardData(
@@ -312,6 +329,20 @@ public class StatisticsService {
         List<Double> sparkline = timeSeries.stream().map(p -> (double) p.value()).collect(Collectors.toList());
         if (sparkline.size() < 2) sparkline = List.of(0.0, (double) docCompleted);
 
+        double totalDocDuration = 0;
+        int docDurCount = 0;
+        for (AppointmentEntity a : docAppts) {
+            if (a.getStatus() == AppointmentStatus.COMPLETED && a.getCheckInTime() != null && a.getUpdatedAt() != null && a.getUpdatedAt().isAfter(a.getCheckInTime())) {
+                long durationSec = Duration.between(a.getCheckInTime(), a.getUpdatedAt()).getSeconds();
+                if (durationSec > 0 && durationSec < 86400) {
+                    totalDocDuration += durationSec / 60.0;
+                    docDurCount++;
+                }
+            }
+        }
+        double avgDocDuration = docDurCount > 0 ? Math.round((totalDocDuration / docDurCount) * 10.0) / 10.0 : 0.0;
+        String avgDocDurationStr = docDurCount > 0 ? String.valueOf(avgDocDuration) : "0.0";
+
         List<StatisticsDtos.MetricCardData> kpiCards = List.of(
                 new StatisticsDtos.MetricCardData(
                         "doctor_visits",
@@ -326,11 +357,11 @@ public class StatisticsService {
                 new StatisticsDtos.MetricCardData(
                         "avg_consult_time",
                         "Thời Gian Khám Trung Bình",
-                        docCompleted > 0 ? "14.2" : "0.0",
+                        avgDocDurationStr,
                         "phút/ca",
                         0.0,
                         true,
-                        List.of(15.0, 14.2),
+                        List.of(avgDocDuration, avgDocDuration),
                         "Thời gian khám trung bình thực tế mỗi ca của bác sĩ"
                 ),
                 new StatisticsDtos.MetricCardData(
@@ -363,12 +394,55 @@ public class StatisticsService {
         // Bảng danh sách ca chẩn đoán thực tế của bác sĩ
         List<StatisticsDtos.BreakdownItem> breakdownItems = new ArrayList<>();
         if (docCompleted > 0) {
-            breakdownItems.add(new StatisticsDtos.BreakdownItem("icd-1", 1, "Viêm Da Tiếp Xúc Dị Ứng (L23.5)", "Ca khám hoàn tất thực tế #STT-01", "1 ca", "50.0%", "Thực tế", "bg-emerald-100 text-emerald-800 border-emerald-300"));
-            if (docCompleted > 1) {
-                breakdownItems.add(new StatisticsDtos.BreakdownItem("icd-2", 2, "Mề Đay Cấp Dị Ứng Thực Phẩm (L50.0)", "Ca khám hoàn tất thực tế #STT-02", "1 ca", "50.0%", "Thực tế", "bg-blue-100 text-blue-800 border-blue-300"));
+            Map<String, Long> diagCounts = new LinkedHashMap<>();
+            for (AppointmentEntity a : docAppts) {
+                if (a.getStatus() == AppointmentStatus.COMPLETED) {
+                    String diag = null;
+                    if (medicalRecordRepo != null) {
+                        diag = medicalRecordRepo.findByAppointmentId(a.getId())
+                                .map(MedicalRecordEntity::getDiagnosis)
+                                .filter(d -> !d.isBlank())
+                                .orElse(null);
+                    }
+                    if (diag == null && a.getPatientSymptoms() != null && !a.getPatientSymptoms().isBlank()) {
+                        diag = a.getPatientSymptoms();
+                    }
+                    if (diag == null) {
+                        diag = "Khám bệnh chuyên khoa";
+                    }
+                    diagCounts.merge(diag, 1L, Long::sum);
+                }
             }
-        } else {
-            breakdownItems.add(new StatisticsDtos.BreakdownItem("icd-0", 1, "Chưa có ca khám hoàn tất", "Bác sĩ chưa tiếp nhận ca nào trong giai đoạn này", "0 ca", "0%", "Trống", "bg-slate-100 text-slate-600 border-slate-200"));
+
+            int rank = 1;
+            for (Map.Entry<String, Long> entry : diagCounts.entrySet()) {
+                String diag = entry.getKey();
+                long count = entry.getValue();
+                double pct = Math.round((double) count / docCompleted * 1000.0) / 10.0;
+                breakdownItems.add(new StatisticsDtos.BreakdownItem(
+                        "diag-" + rank,
+                        rank,
+                        diag,
+                        "Ca khám hoàn tất thực tế",
+                        count + " ca",
+                        pct + "%",
+                        "Thực tế",
+                        rank % 2 == 1 ? "bg-emerald-100 text-emerald-800 border-emerald-300" : "bg-blue-100 text-blue-800 border-blue-300"
+                ));
+                rank++;
+            }
+        }
+        if (breakdownItems.isEmpty()) {
+            breakdownItems.add(new StatisticsDtos.BreakdownItem(
+                    "icd-0",
+                    1,
+                    "Chưa có ca khám hoàn tất",
+                    "Bác sĩ chưa có ca khám hoàn tất nào trong giai đoạn này",
+                    "0 ca",
+                    "0%",
+                    "Trống",
+                    "bg-slate-100 text-slate-600 border-slate-200"
+            ));
         }
 
         List<StatisticsDtos.AvailableMetric> availableMetrics = List.of(
@@ -431,6 +505,21 @@ public class StatisticsService {
         List<Double> sparkline = timeSeries.stream().map(p -> (double) p.value()).collect(Collectors.toList());
         if (sparkline.size() < 2) sparkline = List.of(0.0, (double) totalCheckins);
 
+        // Thời gian chờ sảnh trung bình thực tế (phút) giữa checkInTime và updatedAt
+        double totalWaitMinutes = 0;
+        int waitCount = 0;
+        for (AppointmentEntity a : checkedInAppts) {
+            if (a.getCheckInTime() != null && a.getUpdatedAt() != null && a.getUpdatedAt().isAfter(a.getCheckInTime())) {
+                long durationSec = Duration.between(a.getCheckInTime(), a.getUpdatedAt()).getSeconds();
+                if (durationSec > 0 && durationSec < 86400) {
+                    totalWaitMinutes += durationSec / 60.0;
+                    waitCount++;
+                }
+            }
+        }
+        double avgWait = waitCount > 0 ? Math.round((totalWaitMinutes / waitCount) * 10.0) / 10.0 : 0.0;
+        String avgWaitStr = waitCount > 0 ? String.valueOf(avgWait) : "0.0";
+
         List<StatisticsDtos.MetricCardData> kpiCards = List.of(
                 new StatisticsDtos.MetricCardData(
                         "checkins",
@@ -465,29 +554,69 @@ public class StatisticsService {
                 new StatisticsDtos.MetricCardData(
                         "staff_lobby_wait",
                         "Thời Gian Chờ Sảnh TB",
-                        "5.0",
+                        avgWaitStr,
                         "phút",
                         0.0,
                         true,
-                        List.of(6.0, 5.0),
+                        List.of(avgWait, avgWait),
                         "Thời gian chờ thực tế từ lúc check-in đến lúc vào phòng khám"
                 )
         );
 
         BigDecimal totalMethod = cashTotal.add(vnpayTotal);
-        double vnpayPct = totalMethod.compareTo(BigDecimal.ZERO) > 0 ? Math.round(vnpayTotal.doubleValue() / totalMethod.doubleValue() * 1000.0) / 10.0 : 60.0;
-        double cashPct = Math.round((100.0 - vnpayPct) * 10.0) / 10.0;
+        double vnpayPct = totalMethod.compareTo(BigDecimal.ZERO) > 0 ? Math.round(vnpayTotal.doubleValue() / totalMethod.doubleValue() * 1000.0) / 10.0 : 0.0;
+        double cashPct = totalMethod.compareTo(BigDecimal.ZERO) > 0 ? Math.round((100.0 - vnpayPct) * 10.0) / 10.0 : 0.0;
 
         List<StatisticsDtos.DonutSegment> donutSegments = List.of(
                 new StatisticsDtos.DonutSegment("Chuyển Khoản Online / QR", vnpayTotal.longValue(), vnpayPct, "#2563eb"),
                 new StatisticsDtos.DonutSegment("Tiền Mặt Tại Quầy", cashTotal.longValue(), cashPct, "#10b981")
         );
 
-        List<StatisticsDtos.BreakdownItem> breakdownItems = List.of(
-                new StatisticsDtos.BreakdownItem("slot-1", 1, "08:00 - 09:00", "Khung giờ có ca khám thực tế hoàn tất", "2 lượt", "Đúng giờ", "Giờ Cao Điểm", "bg-emerald-100 text-emerald-800 border-emerald-300"),
-                new StatisticsDtos.BreakdownItem("slot-2", 2, "09:00 - 10:00", "Khung giờ tiếp nhận check-in", "2 lượt", "Đang xử lý", "Ổn định", "bg-blue-100 text-blue-800 border-blue-300"),
-                new StatisticsDtos.BreakdownItem("slot-3", 3, "10:00 - 11:00", "Khung giờ có ca khám xác nhận", "1 lượt", "Chờ tới lượt", null, null)
-        );
+        Map<Integer, Long> hourCounts = new TreeMap<>();
+        for (AppointmentEntity a : checkedInAppts) {
+            Instant t = a.getCheckInTime() != null ? a.getCheckInTime() : a.getUpdatedAt();
+            if (t != null) {
+                int hour = t.atZone(VN_ZONE).getHour();
+                hourCounts.merge(hour, 1L, Long::sum);
+            }
+        }
+        List<StatisticsDtos.BreakdownItem> breakdownItems = new ArrayList<>();
+        if (hourCounts.isEmpty()) {
+            breakdownItems.add(new StatisticsDtos.BreakdownItem(
+                    "slot-empty",
+                    1,
+                    "Chưa có lượt tiếp đón",
+                    "Chưa có ca check-in nào trong giai đoạn này",
+                    "0 lượt",
+                    "0%",
+                    "Trống",
+                    "bg-slate-100 text-slate-600 border-slate-200"
+            ));
+        } else {
+            List<Map.Entry<Integer, Long>> sortedHours = hourCounts.entrySet().stream()
+                    .sorted((e1, e2) -> Long.compare(e2.getValue(), e1.getValue()))
+                    .toList();
+            long maxCount = sortedHours.get(0).getValue();
+            int idx = 1;
+            for (Map.Entry<Integer, Long> entry : sortedHours) {
+                int h = entry.getKey();
+                long count = entry.getValue();
+                String label = String.format("%02d:00 - %02d:00", h, (h + 1) % 24);
+                boolean isPeak = (count == maxCount && count > 1);
+                String badge = isPeak ? "Giờ Cao Điểm" : "Bình thường";
+                String badgeStyle = isPeak ? "bg-amber-100 text-amber-800 border-amber-300" : "bg-blue-100 text-blue-800 border-blue-300";
+                breakdownItems.add(new StatisticsDtos.BreakdownItem(
+                        "slot-" + h,
+                        idx++,
+                        label,
+                        "Khung giờ tiếp nhận bệnh nhân thực tế",
+                        count + " lượt",
+                        totalCheckins > 0 ? Math.round((double) count / totalCheckins * 1000.0) / 10.0 + "%" : "0%",
+                        badge,
+                        badgeStyle
+                ));
+            }
+        }
 
         List<StatisticsDtos.AvailableMetric> availableMetrics = List.of(
                 new StatisticsDtos.AvailableMetric("checkins", "Số Ca Tiếp Đón Sảnh Chờ", "lượt"),
@@ -580,7 +709,6 @@ public class StatisticsService {
 
             String formatted = String.valueOf(val);
             if ("revenue".equalsIgnoreCase(metricId)) {
-                val = val * 300000L;
                 formatted = val > 0 ? (val / 1000) + "k" : "0đ";
             }
             pts.add(new StatisticsDtos.TimeSeriesPoint(label, label, val, formatted));
@@ -623,6 +751,24 @@ public class StatisticsService {
             String specName = specialtyRepo.findById(doc.getSpecialtyId()).map(SpecialtyEntity::getName).orElse("Khoa Khám Bệnh");
             String room = (doc.getRoomNumber() != null && !doc.getRoomNumber().isBlank()) ? ("Phòng " + doc.getRoomNumber()) : "Phòng Khám";
 
+            String avgTimeStr = "Chưa khám";
+            if (count > 0) {
+                List<AppointmentEntity> doctorAppts = appointmentRepo.findByDoctorId(doc.getId());
+                double docDuration = 0;
+                int docDurCount = 0;
+                for (AppointmentEntity da : doctorAppts) {
+                    if (da.getStatus() == AppointmentStatus.COMPLETED && da.getCheckInTime() != null && da.getUpdatedAt() != null && da.getUpdatedAt().isAfter(da.getCheckInTime())) {
+                        long sec = Duration.between(da.getCheckInTime(), da.getUpdatedAt()).getSeconds();
+                        if (sec > 0 && sec < 86400) {
+                            docDuration += sec / 60.0;
+                            docDurCount++;
+                        }
+                    }
+                }
+                double docAvg = docDurCount > 0 ? Math.round((docDuration / docDurCount) * 10.0) / 10.0 : 0.0;
+                avgTimeStr = docDurCount > 0 ? (docAvg + " phút/ca") : "0.0 phút/ca";
+            }
+
             String badge = (rank == 1 && count > 0) ? "Top 1 Năng Suất" : (rank == 2 && count > 0 ? "Đúng Giờ 98%" : null);
             String badgeColor = (rank == 1 && count > 0) ? "bg-amber-100 text-amber-800 border-amber-300" : "bg-emerald-100 text-emerald-800 border-emerald-300";
 
@@ -632,7 +778,7 @@ public class StatisticsService {
                     doctorDisplayName,
                     specName + " (" + room + ")",
                     count + " ca",
-                    count > 0 ? "14.0 phút/ca" : "Chưa khám",
+                    avgTimeStr,
                     badge,
                     badgeColor
             ));

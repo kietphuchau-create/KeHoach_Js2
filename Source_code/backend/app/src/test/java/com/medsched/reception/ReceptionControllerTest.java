@@ -288,4 +288,24 @@ class ReceptionControllerTest {
         assertThat(res.getStatusCode().is2xxSuccessful()).isTrue();
         assertThat(appCaptor.getValue().getMedicalCenterId()).isEqualTo("branch-dist-5");
     }
+
+    @Test
+    @DisplayName("Tiếp nhận vãng lai từ chối khi SĐT đã tồn tại trên hệ thống")
+    void registerWalkin_duplicatePhone_throwsException() {
+        ZonedDateTime morningTime = ZonedDateTime.of(2026, 10, 14, 9, 15, 0, 0, VN_ZONE);
+        receptionController.setClock(Clock.fixed(morningTime.toInstant(), VN_ZONE));
+
+        when(userJpaRepository.findByPhone("0912345678")).thenReturn(Optional.of(new UserEntity(
+                "user-exist", "exist@medsched.vn", "hash", "Đã Tồn Tại", "0912345678", true,
+                morningTime.toInstant(), morningTime.toInstant()
+        )));
+
+        ReceptionController.WalkinRequest req = new ReceptionController.WalkinRequest(
+                "Nguyễn Văn A", "0912345678", "079201008899", "doc-1", "Khoa Nội", "Pass123"
+        );
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                receptionController.registerWalkinPatient(req));
+        assertThat(ex.getMessage()).contains("Số điện thoại đã tồn tại trên hệ thống");
+    }
 }

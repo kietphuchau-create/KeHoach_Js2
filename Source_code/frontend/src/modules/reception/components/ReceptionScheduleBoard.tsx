@@ -18,6 +18,7 @@ import {
   Building2, 
   Sun, 
   Sunset, 
+  Moon,
   Info,
   CalendarDays,
   UserCheck,
@@ -35,7 +36,8 @@ import {
 } from 'lucide-react';
 import { api } from '@/shared/lib/api';
 import { formatDoctorFullName } from '@/shared/lib/formatters';
-import { getClinicScheduleConfig } from '@/shared/lib/scheduleConfig';
+import { getClinicScheduleConfig, SCHEDULE_CONFIG_UPDATED_EVENT } from '@/shared/lib/scheduleConfig';
+import AlertMessage from '@/shared/components/Feedback/AlertMessage';
 
 interface ReceptionScheduleBoardProps {
   onSelectSlotForWalkin?: (doctor: any, slot: any, date: string) => void;
@@ -48,6 +50,14 @@ export default function ReceptionScheduleBoard({
   specialties = [],
   doctors = []
 }: ReceptionScheduleBoardProps) {
+  const [clinicConfig, setClinicConfig] = useState(() => getClinicScheduleConfig());
+
+  useEffect(() => {
+    const handleConfigUpdate = () => setClinicConfig(getClinicScheduleConfig());
+    window.addEventListener(SCHEDULE_CONFIG_UPDATED_EVENT, handleConfigUpdate);
+    return () => window.removeEventListener(SCHEDULE_CONFIG_UPDATED_EVENT, handleConfigUpdate);
+  }, []);
+
   const getTodayISODate = () => {
     const now = new Date();
     const day = String(now.getDate()).padStart(2, '0');
@@ -65,11 +75,13 @@ export default function ReceptionScheduleBoard({
     return `${year}-${month}-${day}`;
   };
 
-  // Logic hệ thống thông minh: Sau 17:00, tất cả ca khám hôm nay đã kết thúc!
-  // Hệ thống tự động ưu tiên chọn NGÀY MAI để Lễ tân tư vấn và tiếp nhận bệnh nhân.
+  // Logic hệ thống thông minh: Sau 17:00, tất cả ca khám hành chính hôm nay đã kết thúc!
+  // Khi ở chế độ thông thường: Hệ thống tự động ưu tiên chọn NGÀY MAI để Lễ tân tư vấn và tiếp nhận bệnh nhân.
+  // Khi BẬT Chế Độ Develop 24/7: Hệ thống vẫn giữ NGÀY HÔM NAY để tiếp đón và kiểm thử ca tối (17:00 - 23:00).
   const getSmartInitialDate = () => {
+    const cfg = getClinicScheduleConfig();
     const now = new Date();
-    if (now.getHours() >= 17) {
+    if (!cfg.devMode247 && now.getHours() >= 17) {
       return getTomorrowISODate();
     }
     return getTodayISODate();
@@ -87,7 +99,7 @@ export default function ReceptionScheduleBoard({
 
   const isToday = selectedDate === getTodayISODate();
   const isTomorrow = selectedDate === getTomorrowISODate();
-  const isAfter17h = new Date().getHours() >= 17;
+  const isAfter17h = !clinicConfig.devMode247 && new Date().getHours() >= 17;
 
   const formatDisplayDateVN = (dateStr: string) => {
     if (!dateStr) return '';
@@ -490,9 +502,8 @@ export default function ReceptionScheduleBoard({
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
-      {/* ── Header Điều Khiển & Bộ Lọc Tra Cứu ── */}
-      <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-xs space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* ── Header Điều Khiển & Bộ Lọc Tra Cứu (Tối Giản, Không Khung Trắng Bọc Ngoài) ── */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-1">
           <div className="space-y-1">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-teal-50 text-teal-800 border border-teal-200">
               <CalendarDays size={14} className="text-teal-600" />
@@ -589,35 +600,39 @@ export default function ReceptionScheduleBoard({
               </button>
             </div>
           </div>
+      </div>
+
+      {/* ── Thanh KPI Thống Kê Toàn Viện (4 Card Độc Lập Chuẩn Layout) ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+        <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-xs hover:border-slate-300 transition">
+          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Bác sĩ trực</span>
+          <div className="text-xl font-black text-slate-800 mt-1 font-mono">{clinicMetrics.doctorCount} bác sĩ</div>
+          <span className="text-[10px] text-slate-400 mt-0.5 block">Đang sẵn sàng phân bổ ca</span>
         </div>
 
-        {/* Thanh KPI Thống Kê Toàn Viện */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-100">
-          <div className="p-3 bg-slate-50/80 rounded-2xl border border-slate-200/80">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Bác sĩ trực</span>
-            <div className="text-lg font-black text-slate-800 mt-0.5">{clinicMetrics.doctorCount} bác sĩ</div>
-          </div>
-
-          <div className="p-3 bg-slate-50/80 rounded-2xl border border-slate-200/80">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Buồng khám mở</span>
-            <div className="text-lg font-black text-slate-800 mt-0.5">{clinicMetrics.roomCount} buồng khám</div>
-          </div>
-
-          <div className="p-3 bg-emerald-50/80 rounded-2xl border border-emerald-200">
-            <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block flex items-center gap-1">
-              <Zap size={11} className="text-emerald-600" />
-              <span>Slot trống đón khách</span>
-            </span>
-            <div className="text-lg font-black text-emerald-700 mt-0.5">
-              {clinicMetrics.totalEligibleAvailable} khung giờ
-            </div>
-          </div>
-
-          <div className="p-3 bg-blue-50/80 rounded-2xl border border-blue-200">
-            <span className="text-[10px] font-bold text-blue-800 uppercase tracking-wider block">Bệnh nhân đã đặt</span>
-            <div className="text-lg font-black text-blue-700 mt-0.5">{clinicMetrics.totalBooked} lượt khám</div>
-          </div>
+        <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-xs hover:border-slate-300 transition">
+          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Buồng khám mở</span>
+          <div className="text-xl font-black text-slate-800 mt-1 font-mono">{clinicMetrics.roomCount} buồng khám</div>
+          <span className="text-[10px] text-slate-400 mt-0.5 block">Phòng chức năng hoạt động</span>
         </div>
+
+        <div className="p-4 bg-white rounded-2xl border border-emerald-200 shadow-xs hover:border-emerald-300 transition">
+          <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block flex items-center gap-1">
+            <Zap size={12} className="text-emerald-600" />
+            <span>Slot trống đón khách</span>
+          </span>
+          <div className="text-xl font-black text-emerald-700 mt-1 font-mono">
+            {clinicMetrics.totalEligibleAvailable} khung giờ
+          </div>
+          <span className="text-[10px] text-emerald-600/70 mt-0.5 block">Khả dụng đặt hẹn ngay</span>
+        </div>
+
+        <div className="p-4 bg-white rounded-2xl border border-blue-200 shadow-xs hover:border-blue-300 transition">
+          <span className="text-[10px] font-bold text-blue-800 uppercase tracking-wider block">Bệnh nhân đã đặt</span>
+          <div className="text-xl font-black text-blue-700 mt-1 font-mono">{clinicMetrics.totalBooked} lượt khám</div>
+          <span className="text-[10px] text-blue-600/70 mt-0.5 block">Đã có người đăng ký</span>
+        </div>
+      </div>
 
         {/* Banner Thông Báo Trạng Thái Thông Minh (Sau 17:00 / Xem Ngày Mai) */}
         {isToday && isAfter17h && (
@@ -678,10 +693,12 @@ export default function ReceptionScheduleBoard({
         )}
 
         {syncSuccessMsg && (
-          <div className="p-3 bg-emerald-50 border border-emerald-300 text-emerald-900 rounded-2xl text-xs font-semibold flex items-center gap-2 animate-in fade-in">
-            <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
-            <span>{syncSuccessMsg}</span>
-          </div>
+          <AlertMessage
+            pinned
+            type="success"
+            message={syncSuccessMsg}
+            onClose={() => setSyncSuccessMsg(null)}
+          />
         )}
 
         {/* Banner Quy tắc đón khách vãng lai (Đồng bộ theo cấu hình Admin) */}
@@ -697,8 +714,8 @@ export default function ReceptionScheduleBoard({
           </div>
         </div>
 
-        {/* Bộ Lọc Tìm Kiếm & Chuyên Khoa */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-1">
+      {/* Bộ Lọc Tìm Kiếm & Chuyên Khoa */}
+      <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           {/* Ô tìm kiếm */}
           <div className="relative flex-1">
             <input
@@ -750,7 +767,6 @@ export default function ReceptionScheduleBoard({
             <span>Chỉ Bác Sĩ Còn Giờ Trống</span>
           </button>
         </div>
-      </div>
 
       {/* ── Danh Sách Lưới Thẻ Bác Sĩ (Doctor Cards Grid) ── */}
       {loading ? (
@@ -775,15 +791,26 @@ export default function ReceptionScheduleBoard({
             const roomNumber = doc.roomNumber || 'Phòng P.208';
             const fee = Number(doc.consultationFee) || 200000;
 
-            // Phân loại slot Sáng & Chiều
+            // Phân loại slot Sáng, Chiều & Tối (Ngoài Giờ / 24/7)
+            // Phân loại slot Đêm (00:00 - 08:00), Sáng (08:00 - 12:00), Chiều (12:00 - 17:00), Tối (17:00 - 24:00)
+            const nightSlots = rawSlots.filter((s) => {
+              const hour = parseInt(s.time.split(':')[0], 10) || 0;
+              return hour < 8;
+            });
+
             const morningSlots = rawSlots.filter((s) => {
               const hour = parseInt(s.time.split(':')[0], 10) || 0;
-              return hour < 12;
+              return hour >= 8 && hour < 12;
             });
 
             const afternoonSlots = rawSlots.filter((s) => {
               const hour = parseInt(s.time.split(':')[0], 10) || 0;
-              return hour >= 12;
+              return hour >= 12 && hour < 17;
+            });
+
+            const eveningSlots = rawSlots.filter((s) => {
+              const hour = parseInt(s.time.split(':')[0], 10) || 0;
+              return hour >= 17;
             });
 
             const totalSlots = rawSlots.length;
@@ -836,15 +863,23 @@ export default function ReceptionScheduleBoard({
                   {/* Badge số slot trống */}
                   <div className="text-right shrink-0">
                     <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-black shadow-2xs ${
-                      availableCount > 0
+                      totalSlots === 0
+                        ? 'bg-slate-100 text-slate-500 border border-slate-200'
+                        : availableCount > 0
                         ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
-                        : 'bg-slate-100 text-slate-500 border border-slate-200'
+                        : 'bg-amber-100 text-amber-800 border border-amber-300'
                     }`}>
-                      <Zap size={12} className={availableCount > 0 ? 'text-emerald-600' : 'text-slate-400'} />
-                      <span>{availableCount} slot trống</span>
+                      {totalSlots === 0 ? (
+                        <span>Chưa có ca trực hôm nay</span>
+                      ) : (
+                        <>
+                          <Zap size={12} className={availableCount > 0 ? 'text-emerald-600' : 'text-amber-600'} />
+                          <span>{availableCount} slot trống</span>
+                        </>
+                      )}
                     </span>
                     <span className="block text-[10px] text-slate-400 mt-1">
-                      Tổng {totalSlots} slots trong ngày
+                      {totalSlots === 0 ? 'Bác sĩ chưa mở lịch' : `Tổng ${totalSlots} slots trong ngày`}
                     </span>
                   </div>
                 </div>
@@ -852,24 +887,119 @@ export default function ReceptionScheduleBoard({
                 {/* Danh Sách Các Khung Giờ (Sáng & Chiều) */}
                 <div className="p-4 sm:p-5 flex-1 space-y-4">
                   {rawSlots.length === 0 ? (
-                    <div className="p-6 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-400 text-xs">
-                      Bác sĩ chưa có ca trực trong ngày {formatDisplayDateVN(selectedDate)}.
+                    <div className="p-6 text-center bg-slate-50/80 rounded-2xl border border-dashed border-slate-200 space-y-1.5">
+                      <Stethoscope size={24} className="text-slate-300 mx-auto" />
+                      <div className="font-bold text-slate-700 text-xs">
+                        Bác sĩ chưa có ca trực trong ngày {formatDisplayDateVN(selectedDate)}
+                      </div>
+                      <p className="text-[11px] text-slate-400">
+                        Chế độ xếp lịch thủ công đang bật. Bác sĩ chưa đăng ký ca khám cho ngày này.
+                      </p>
                     </div>
                   ) : (
                     <>
-                      {/* Buổi Sáng */}
-                      {morningSlots.length > 0 && (
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between text-xs font-bold text-amber-800">
+                      {/* Buổi Đêm (00:00 - 08:00) */}
+                      {(nightSlots.length > 0 || clinicConfig.devMode247) && (
+                        <div className="space-y-2 pb-2 border-b border-slate-100">
+                          <div className="flex items-center justify-between text-xs font-bold text-indigo-950">
                             <span className="flex items-center gap-1.5">
-                              <Sun size={14} className="text-amber-500" />
-                              <span>Ca Sáng (08:00 - 12:00)</span>
+                              <Moon size={14} className="text-indigo-600" />
+                              <span>Ca Đêm (00:00 - 08:00)</span>
+                              {clinicConfig.devMode247 && (
+                                <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800">
+                                  24/7 DEV
+                                </span>
+                              )}
                             </span>
                             <span className="text-[10px] text-slate-400 font-normal">
-                              {morningSlots.filter((s) => !s.disabled && s.status === 'available').length} slots còn lại
+                              {nightSlots.length > 0 ? `${nightSlots.filter((s) => !s.disabled && s.status === 'available').length} slots còn lại` : 'Không có ca trực'}
                             </span>
                           </div>
 
+                          {nightSlots.length > 0 ? (
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                              {nightSlots.map((slot) => {
+                                const timing = getSlotTimingInfo(slot.time);
+                                const isBooked = slot.status === 'full' || slot.status === 'booked';
+                                const isLocked = slot.status === 'locked';
+                                const isPast = timing.isPast || slot.status === 'expired';
+                                const isUrgent = timing.isUrgentTooClose;
+                                const isClickable = !isBooked && !isLocked && !isPast && !isUrgent && !slot.disabled;
+
+                                return (
+                                  <button
+                                    key={slot.id}
+                                    type="button"
+                                    disabled={!isClickable}
+                                    onClick={() => {
+                                      if (isClickable) {
+                                        handleSlotClick(doc, slot);
+                                      }
+                                    }}
+                                    className={`p-2 rounded-xl border text-center transition flex flex-col items-center justify-center min-w-0 ${
+                                      isBooked
+                                        ? 'bg-blue-50/80 border-blue-200 text-blue-800 cursor-not-allowed opacity-80'
+                                        : isPast
+                                        ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-60'
+                                        : isUrgent
+                                        ? 'bg-amber-50 border-amber-300 text-amber-800 cursor-not-allowed'
+                                        : isLocked
+                                        ? 'bg-amber-50/60 border-amber-200 text-amber-700 cursor-not-allowed'
+                                        : 'bg-indigo-50/80 hover:bg-indigo-600 border-indigo-300 text-indigo-900 hover:text-white shadow-2xs hover:shadow-sm cursor-pointer group'
+                                    }`}
+                                    title={
+                                      isBooked
+                                        ? 'Đã có người đặt lịch'
+                                        : isPast
+                                        ? 'Khung giờ đã qua'
+                                        : isUrgent
+                                        ? 'Quá sát giờ (< 15p), không nhận khách vãng lai'
+                                        : isLocked
+                                        ? 'Bác sĩ tạm khóa'
+                                        : 'Click để đặt lịch qua điện thoại hoặc tiếp đón tại quầy'
+                                    }
+                                  >
+                                    <span className="text-xs font-black tracking-tight">{slot.time}</span>
+                                    <span className={`text-[9px] font-bold mt-0.5 ${
+                                      isClickable ? 'text-indigo-700 group-hover:text-indigo-100 flex items-center gap-0.5' : 'opacity-80'
+                                    }`}>
+                                      {isBooked ? (
+                                        'ĐÃ ĐẶT'
+                                      ) : isPast ? (
+                                        'ĐÃ QUA'
+                                      ) : isUrgent ? (
+                                        'SÁT GIỜ (<15P)'
+                                      ) : isLocked ? (
+                                        'TẠM KHÓA'
+                                      ) : (
+                                        'CÒN TRỐNG'
+                                      )}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-400 text-xs text-center font-medium">
+                              Không có ca trực
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Buổi Sáng */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-xs font-bold text-amber-800">
+                          <span className="flex items-center gap-1.5">
+                            <Sun size={14} className="text-amber-500" />
+                            <span>Ca Sáng (08:00 - 12:00)</span>
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-normal">
+                            {morningSlots.length > 0 ? `${morningSlots.filter((s) => !s.disabled && s.status === 'available').length} slots còn lại` : 'Không có ca trực'}
+                          </span>
+                        </div>
+
+                        {morningSlots.length > 0 ? (
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                             {morningSlots.map((slot) => {
                               const timing = getSlotTimingInfo(slot.time);
@@ -934,22 +1064,26 @@ export default function ReceptionScheduleBoard({
                               );
                             })}
                           </div>
-                        </div>
-                      )}
+                        ) : (
+                          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-400 text-xs text-center font-medium">
+                            Không có ca trực
+                          </div>
+                        )}
+                      </div>
 
                       {/* Buổi Chiều */}
-                      {afternoonSlots.length > 0 && (
-                        <div className="space-y-2 pt-1 border-t border-slate-100">
-                          <div className="flex items-center justify-between text-xs font-bold text-indigo-800">
-                            <span className="flex items-center gap-1.5">
-                              <Sunset size={14} className="text-indigo-500" />
-                              <span>Ca Chiều (13:30 - 17:00)</span>
-                            </span>
-                            <span className="text-[10px] text-slate-400 font-normal">
-                              {afternoonSlots.filter((s) => !s.disabled && s.status === 'available').length} slots còn lại
-                            </span>
-                          </div>
+                      <div className="space-y-2 pt-2 border-t border-slate-100">
+                        <div className="flex items-center justify-between text-xs font-bold text-indigo-800">
+                          <span className="flex items-center gap-1.5">
+                            <Sunset size={14} className="text-indigo-500" />
+                            <span>Ca Chiều (13:30 - 17:00)</span>
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-normal">
+                            {afternoonSlots.length > 0 ? `${afternoonSlots.filter((s) => !s.disabled && s.status === 'available').length} slots còn lại` : 'Không có ca trực'}
+                          </span>
+                        </div>
 
+                        {afternoonSlots.length > 0 ? (
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                             {afternoonSlots.map((slot) => {
                               const timing = getSlotTimingInfo(slot.time);
@@ -1014,6 +1148,101 @@ export default function ReceptionScheduleBoard({
                               );
                             })}
                           </div>
+                        ) : (
+                          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-400 text-xs text-center font-medium">
+                            Không có ca trực
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Buổi Tối & Ca Đêm (Ca Ngoài Giờ / Develop 24/7) */}
+                      {(eveningSlots.length > 0 || clinicConfig.devMode247) && (
+                        <div className="space-y-2 pt-2 border-t border-slate-100">
+                          <div className="flex items-center justify-between text-xs font-bold text-purple-900">
+                            <span className="flex items-center gap-1.5">
+                              <Moon size={14} className="text-purple-600" />
+                              <span>Ca Tối &amp; Đêm (17:00 - 23:00)</span>
+                              {clinicConfig.devMode247 && (
+                                <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-purple-100 text-purple-800">
+                                  24/7 DEV
+                                </span>
+                              )}
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-normal">
+                              {eveningSlots.length > 0 ? `${eveningSlots.filter((s) => !s.disabled && s.status === 'available').length} slots còn lại` : 'Không có ca trực'}
+                            </span>
+                          </div>
+
+                          {eveningSlots.length > 0 ? (
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                              {eveningSlots.map((slot) => {
+                                const timing = getSlotTimingInfo(slot.time);
+                                const isBooked = slot.status === 'full' || slot.status === 'booked';
+                                const isLocked = slot.status === 'locked';
+                                const isPast = timing.isPast || slot.status === 'expired';
+                                const isUrgent = timing.isUrgentTooClose;
+                                const isClickable = !isBooked && !isLocked && !isPast && !isUrgent && !slot.disabled;
+
+                                return (
+                                  <button
+                                    key={slot.id}
+                                    type="button"
+                                    disabled={!isClickable}
+                                    onClick={() => {
+                                      if (isClickable) {
+                                        handleSlotClick(doc, slot);
+                                      }
+                                    }}
+                                    className={`p-2 rounded-xl border text-center transition flex flex-col items-center justify-center min-w-0 ${
+                                      isBooked
+                                        ? 'bg-blue-50/80 border-blue-200 text-blue-800 cursor-not-allowed opacity-80'
+                                        : isPast
+                                        ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-60'
+                                        : isUrgent
+                                        ? 'bg-amber-50 border-amber-300 text-amber-800 cursor-not-allowed'
+                                        : isLocked
+                                        ? 'bg-amber-50/60 border-amber-200 text-amber-700 cursor-not-allowed'
+                                        : 'bg-purple-50/90 hover:bg-purple-700 border-purple-300 text-purple-950 hover:text-white shadow-2xs hover:shadow-sm cursor-pointer group'
+                                    }`}
+                                    title={
+                                      isBooked
+                                        ? 'Đã có người đặt lịch'
+                                        : isPast
+                                        ? 'Khung giờ đã qua'
+                                        : isUrgent
+                                        ? 'Quá sát giờ (< 15p), không nhận khách vãng lai'
+                                        : isLocked
+                                        ? 'Bác sĩ tạm khóa'
+                                        : 'Click để đặt lịch qua điện thoại hoặc tiếp đón tại quầy'
+                                    }
+                                  >
+                                    <span className="text-xs font-black tracking-tight">{slot.time}</span>
+                                    <span className={`text-[9px] font-bold mt-0.5 ${
+                                      isClickable ? 'text-purple-700 group-hover:text-purple-100 flex items-center gap-0.5' : 'opacity-80'
+                                    }`}>
+                                      {isBooked ? (
+                                        'ĐÃ ĐẶT'
+                                      ) : isPast ? (
+                                        'ĐÃ QUA'
+                                      ) : isUrgent ? (
+                                        'SÁT GIỜ (<15P)'
+                                      ) : isLocked ? (
+                                        'TẠM KHÓA'
+                                      ) : (
+                                        <>
+                                          <Zap size={9} /> ĐÓN KHÁCH
+                                        </>
+                                      )}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-400 text-xs text-center font-medium">
+                              Không có ca trực
+                            </div>
+                          )}
                         </div>
                       )}
                     </>

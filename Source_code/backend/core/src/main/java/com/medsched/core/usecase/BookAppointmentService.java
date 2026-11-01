@@ -92,9 +92,11 @@ public class BookAppointmentService implements BookAppointmentUseCase {
     }
 
     /**
-     * Kiểm tra khung giờ khám có nằm trong giờ hành chính (8:00 – 17:00, Thứ Hai – Thứ Sáu)
-     * theo múi giờ Việt Nam hay không. Từ chối đặt lịch nếu slot đã qua hoặc rơi vào
-     * cuối tuần / ngoài giờ làm việc.
+     * Kiểm tra khung giờ khám có hợp lệ hay không.
+     * - Từ chối nếu slot đã ở quá khứ.
+     * - Nếu slot thuộc ca trực chính thức của bác sĩ (doctorScheduleId != null):
+     *   Cho phép đặt theo đúng ca trực được hệ thống phê duyệt (hỗ trợ ca ngoài giờ 24/7 & ca trực cuối tuần).
+     * - Nếu slot không gắn với ca trực: áp dụng giờ hành chính tiêu chuẩn (08:00 – 17:00, Thứ Hai – Thứ Sáu).
      */
     private void validateBusinessHours(TimeSlot slot) {
         ZonedDateTime slotStart = slot.startTime().atZone(VN_ZONE);
@@ -105,7 +107,12 @@ public class BookAppointmentService implements BookAppointmentUseCase {
                     "Không thể đặt lịch khám cho khung giờ đã qua. Vui lòng chọn khung giờ trong tương lai.");
         }
 
-        // 2. Không cho đặt vào Thứ Bảy / Chủ Nhật
+        // 2. Cho phép đặt ca trực hợp lệ của bác sĩ (bao gồm ca 24/7 & cuối tuần do Admin/Bác sĩ đăng ký)
+        if (slot.doctorScheduleId() != null && !slot.doctorScheduleId().isBlank()) {
+            return;
+        }
+
+        // 3. Fallback cho slot vãng lai không gắn ca trực cụ thể: áp dụng giờ hành chính tiêu chuẩn
         DayOfWeek day = slotStart.getDayOfWeek();
         if (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY) {
             throw new SlotNotAvailableException(
@@ -113,7 +120,6 @@ public class BookAppointmentService implements BookAppointmentUseCase {
                     + "Vui lòng chọn ngày khám từ Thứ Hai đến Thứ Sáu.");
         }
 
-        // 3. Khung giờ phải nằm trong 8:00 – 17:00
         LocalTime slotTime = slotStart.toLocalTime();
         if (slotTime.isBefore(BUSINESS_START) || slotTime.isAfter(BUSINESS_END.minusMinutes(1))) {
             throw new SlotNotAvailableException(

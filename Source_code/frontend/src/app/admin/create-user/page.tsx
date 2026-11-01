@@ -50,29 +50,29 @@ export default function CreateUserPage() {
         </div>
 
         {/* Tab selection */}
-        <div className="flex bg-slate-100 p-1 rounded-xl mb-6">
+        <div className="flex items-center gap-2 mb-6">
           <button
             type="button"
             onClick={() => setActiveTab('staff')}
-            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition cursor-pointer ${
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer border shadow-2xs ${
               activeTab === 'staff'
-                ? 'bg-white text-emerald-700 shadow-sm'
-                : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'
             }`}
           >
-            <UserCheck size={18} />
+            <UserCheck size={16} />
             <span>Thêm Nhân Viên Lễ Tân</span>
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('doctor')}
-            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition cursor-pointer ${
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer border shadow-2xs ${
               activeTab === 'doctor'
-                ? 'bg-white text-blue-700 shadow-sm'
-                : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-teal-primary text-white border-teal-primary shadow-xs'
+                : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'
             }`}
           >
-            <Stethoscope size={18} />
+            <Stethoscope size={16} />
             <span>Thêm Bác Sĩ Chuyên Khoa</span>
           </button>
         </div>

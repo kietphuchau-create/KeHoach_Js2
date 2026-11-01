@@ -1,6 +1,7 @@
 package com.medsched.account;
 
 import com.medsched.common.AppExceptions;
+import com.medsched.common.InputValidator;
 import com.medsched.persistence.entity.DoctorEntity;
 import com.medsched.persistence.entity.PatientProfileEntity;
 import com.medsched.persistence.entity.SpecialtyEntity;
@@ -65,10 +66,18 @@ public class AccountService {
 
     @Transactional
     public AccountDtos.MeResponse updateProfile(AppUserDetails principal, AccountDtos.UpdateProfileRequest request) {
+        String phone = blankToNull(request.phone());
+        String cleanPhone = null;
+        if (phone != null) {
+            cleanPhone = InputValidator.validatePhone(phone);
+            if (users.existsByPhoneAndIdNot(cleanPhone, principal.getUserId())) {
+                throw new AppExceptions.ConflictException("Số điện thoại này đã được sử dụng bởi tài khoản khác");
+            }
+        }
         updateProfileUseCase.updateProfile(new UpdateProfileUseCase.Command(
                 principal.getUserId(),
                 request.fullName(),
-                request.phone()
+                cleanPhone
         ));
         return me(principal);
     }

@@ -59,6 +59,39 @@ public class DoctorScheduleService {
      */
     private static volatile boolean autoScheduleEnabled = false; // Mặc định mở chế độ Thủ Công cho luồng demo
     private static volatile int minWorkHoursPerDay = 6;
+    private static volatile boolean devMode247 = false; // Chế độ Develop 24/7 (hoạt động ngoài giờ hành chính)
+    private static final Set<String> devModeScheduleIds = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private static volatile Instant devModeStartedAt = null;
+    private static volatile String currentDevSessionId = null;
+
+    public static boolean isDevMode247Active() {
+        return devMode247;
+    }
+
+    public static String getCurrentDevSessionId() {
+        return currentDevSessionId;
+    }
+
+    public static Instant getDevModeStartedAt() {
+        return devModeStartedAt;
+    }
+
+    public static void setDevMode247Active(boolean active) {
+        if (active && !devMode247) {
+            devModeStartedAt = Instant.now();
+            if (currentDevSessionId == null) {
+                currentDevSessionId = UUID.randomUUID().toString();
+            }
+        } else if (!active) {
+            devModeStartedAt = null;
+            currentDevSessionId = null;
+        }
+        devMode247 = active;
+    }
+
+    public boolean isDevMode247Enabled() {
+        return devMode247;
+    }
 
     public static boolean isAutoScheduleActive() {
         return autoScheduleEnabled;
@@ -86,15 +119,216 @@ public class DoctorScheduleService {
                 ? "Chế độ Tự Động Toàn Viện: Hệ thống tự động quét và sinh ca trực chuẩn 7 ngày cho toàn bộ Bác sĩ."
                 : "Chế độ Bác Sĩ Tự Đặt Lịch Thủ Công (Demo Luồng Chính): Bác sĩ tự do mở lịch không giới hạn số ngày, "
                   + "bắt buộc mỗi ngày làm việc phải đạt tối thiểu " + minWorkHoursPerDay + " tiếng mới được mở đăng ký ngày tiếp theo.";
-        return new DoctorScheduleDtos.ScheduleModeDto(autoScheduleEnabled, minWorkHoursPerDay, mode, desc);
+        return new DoctorScheduleDtos.ScheduleModeDto(autoScheduleEnabled, minWorkHoursPerDay, mode, desc, devMode247);
     }
 
+    public record CleanupResult(int cleanedSchedules, int cleanedAppointments) {}
+
+    @Transactional
+    public com.medsched.persistence.entity.DevModeSessionEntity activateDevModeSession(String activatedBy, String notes) {
+        devMode247 = true;
+        Instant now = Instant.now();
+        devModeStartedAt = now;
+        String sessionId = UUID.randomUUID().toString();
+        currentDevSessionId = sessionId;
+
+        if (devModeSessionRepository != null) {
+            List<com.medsched.persistence.entity.DevModeSessionEntity> activeSessions = devModeSessionRepository.findByIsActiveTrue();
+            for (com.medsched.persistence.entity.DevModeSessionEntity s : activeSessions) {
+                s.setActive(false);
+                s.setEndedAt(now);
+                devModeSessionRepository.save(s);
+            }
+
+            com.medsched.persistence.entity.DevModeSessionEntity session = new com.medsched.persistence.entity.DevModeSessionEntity(
+                    sessionId,
+                    true,
+                    now,
+                    null,
+                    activatedBy != null ? activatedBy : "ADMIN",
+                    notes != null ? notes : "Bật chế độ Develop 24/7 từ giao diện Quản trị",
+                    now,
+                    now
+            );
+            return devModeSessionRepository.save(session);
+        }
+        return null;
+    }
+
+    @Transactional
+    public CleanupResult deactivateDevModeSession(boolean cleanupTestData) {
+        CleanupResult result = new CleanupResult(0, 0);
+        if (cleanupTestData) {
+            result = cleanupDevModeTestData();
+        }
+
+        Instant now = Instant.now();
+        if (devModeSessionRepository != null) {
+            List<com.medsched.persistence.entity.DevModeSessionEntity> activeSessions = devModeSessionRepository.findByIsActiveTrue();
+            for (com.medsched.persistence.entity.DevModeSessionEntity s : activeSessions) {
+                s.setActive(false);
+                s.setEndedAt(now);
+                s.setCleanedSchedulesCount(result.cleanedSchedules());
+                s.setCleanedAppointmentsCount(result.cleanedAppointments());
+                devModeSessionRepository.save(s);
+            }
+        }
+
+        devMode247 = false;
+        currentDevSessionId = null;
+        devModeStartedAt = null;
+        devModeScheduleIds.clear();
+
+        return result;
+    }
+
+    @Transactional
+    public CleanupResult cleanupDevModeTestData() {
+        Set<String> targetScheduleIds = new HashSet<>(devModeScheduleIds);
+
+        // 1. Tìm tất cả ca trực được tạo gắn dev_session_id hoặc is_test_data = true
+        if (currentDevSessionId != null && doctorScheduleRepository != null) {
+            doctorScheduleRepository.findByDevSessionId(currentDevSessionId).forEach(s -> targetScheduleIds.add(s.getId()));
+        }
+        if (doctorScheduleRepository != null) {
+            doctorScheduleRepository.findByIsTestDataTrue().forEach(s -> targetScheduleIds.add(s.getId()));
+        }
+
+        if (devModeStartedAt != null) {
+            List<DoctorScheduleEntity> all = doctorScheduleRepository.findAll();
+            for (DoctorScheduleEntity s : all) {
+                if (s.getCreatedAt() != null && !s.getCreatedAt().isBefore(devModeStartedAt)) {
+                    targetScheduleIds.add(s.getId());
+                }
+            }
+        }
+
+        int cleanedAppointments = 0;
+        int cleanedSchedules = 0;
+
+        if (!targetScheduleIds.isEmpty()) {
+            List<TimeSlotEntity> slotsToDelete = new ArrayList<>();
+            for (String schedId : targetScheduleIds) {
+                slotsToDelete.addAll(timeSlotRepository.findByScheduleIdOrderByStartTimeAsc(schedId));
+            }
+
+            if (!slotsToDelete.isEmpty()) {
+                List<String> slotIds = slotsToDelete.stream().map(TimeSlotEntity::getId).toList();
+                List<AppointmentEntity> appointments = appointmentJpaRepository.findBySlotIdIn(slotIds);
+
+                if (!appointments.isEmpty()) {
+                    cleanedAppointments = appointments.size();
+                    if (paymentJpaRepository != null) {
+                        for (AppointmentEntity appt : appointments) {
+                            try {
+                                List<com.medsched.persistence.entity.PaymentEntity> payments = paymentJpaRepository.findByAppointmentId(appt.getId());
+                                if (payments != null && !payments.isEmpty()) {
+                                    paymentJpaRepository.deleteAll(payments);
+                                }
+                            } catch (Exception ignored) {}
+                        }
+                    }
+                    appointmentJpaRepository.deleteAll(appointments);
+                    appointmentJpaRepository.flush();
+                }
+
+                timeSlotRepository.deleteAll(slotsToDelete);
+                timeSlotRepository.flush();
+            }
+
+            doctorScheduleRepository.deleteAllById(targetScheduleIds);
+            doctorScheduleRepository.flush();
+            cleanedSchedules = targetScheduleIds.size();
+        }
+
+        // 2. Dọn dẹp các ca khám gắn dev_session_id, is_test_data = true, hoặc vãng lai tạo trong phiên 24/7
+        List<AppointmentEntity> testAppointments = new ArrayList<>();
+        if (currentDevSessionId != null) {
+            testAppointments.addAll(appointmentJpaRepository.findByDevSessionId(currentDevSessionId));
+        }
+        for (AppointmentEntity testApp : appointmentJpaRepository.findByIsTestDataTrue()) {
+            if (!testAppointments.contains(testApp)) {
+                testAppointments.add(testApp);
+            }
+        }
+        if (devModeStartedAt != null) {
+            appointmentJpaRepository.findAll().stream()
+                    .filter(a -> a.getCreatedAt() != null && !a.getCreatedAt().isBefore(devModeStartedAt))
+                    .forEach(a -> {
+                        if (!testAppointments.contains(a)) testAppointments.add(a);
+                    });
+        }
+
+        if (!testAppointments.isEmpty()) {
+            cleanedAppointments += testAppointments.size();
+            for (AppointmentEntity w : testAppointments) {
+                try {
+                    if (paymentJpaRepository != null) {
+                        var payments = paymentJpaRepository.findByAppointmentId(w.getId());
+                        if (payments != null && !payments.isEmpty()) paymentJpaRepository.deleteAll(payments);
+                    }
+                } catch (Exception ignored) {}
+            }
+            appointmentJpaRepository.deleteAll(testAppointments);
+            appointmentJpaRepository.flush();
+        }
+
+        devModeScheduleIds.clear();
+        return new CleanupResult(cleanedSchedules, cleanedAppointments);
+    }
+
+    /**
+     * Dọn dẹp sạch toàn bộ ca trực chưa có người đặt lịch (đưa hệ thống về trạng thái 0 ca).
+     */
+    @Transactional
+    public int cleanupAllUnbookedSchedules() {
+        List<DoctorScheduleEntity> all = doctorScheduleRepository.findAll();
+        int count = 0;
+        for (DoctorScheduleEntity s : all) {
+            List<TimeSlotEntity> slots = timeSlotRepository.findByScheduleIdOrderByStartTimeAsc(s.getId());
+            boolean hasBooked = slots.stream().anyMatch(slot -> slot.getStatus() == SlotStatus.BOOKED);
+            if (!hasBooked) {
+                if (!slots.isEmpty()) {
+                    timeSlotRepository.deleteAll(slots);
+                    timeSlotRepository.flush();
+                }
+                doctorScheduleRepository.delete(s);
+                doctorScheduleRepository.flush();
+                count++;
+            }
+        }
+        return count;
+    }
+
+    @Transactional
     public DoctorScheduleDtos.ScheduleModeDto updateScheduleMode(DoctorScheduleDtos.UpdateScheduleModeRequest req) {
         autoScheduleEnabled = req.autoScheduleEnabled();
         if (req.minWorkHoursPerDay() != null && req.minWorkHoursPerDay() > 0) {
             minWorkHoursPerDay = req.minWorkHoursPerDay();
         }
-        return getScheduleMode();
+        int cleanedScheds = 0;
+        int cleanedAppts = 0;
+        if (req.devMode247() != null) {
+            boolean nextDev = req.devMode247();
+            if (nextDev && !devMode247) {
+                activateDevModeSession("ADMIN", "Kích hoạt từ updateScheduleMode");
+            } else if (!nextDev && devMode247) {
+                CleanupResult result = deactivateDevModeSession(Boolean.TRUE.equals(req.cleanupTestData()));
+                cleanedScheds = result.cleanedSchedules();
+                cleanedAppts = result.cleanedAppointments();
+            }
+        } else if (Boolean.TRUE.equals(req.cleanupTestData())) {
+            CleanupResult result = cleanupDevModeTestData();
+            cleanedScheds = result.cleanedSchedules();
+            cleanedAppts = result.cleanedAppointments();
+        }
+
+        String mode = autoScheduleEnabled ? "AUTO" : "MANUAL";
+        String desc = autoScheduleEnabled
+                ? "Chế độ Tự Động Toàn Viện: Hệ thống tự động quét và sinh ca trực chuẩn 7 ngày cho toàn bộ Bác sĩ."
+                : "Chế độ Bác Sĩ Tự Đặt Lịch Thủ Công (Demo Luồng Chính): Bác sĩ tự do mở lịch không giới hạn số ngày, "
+                  + "bắt buộc mỗi ngày làm việc phải đạt tối thiểu " + minWorkHoursPerDay + " tiếng mới được mở đăng ký ngày tiếp theo.";
+        return new DoctorScheduleDtos.ScheduleModeDto(autoScheduleEnabled, minWorkHoursPerDay, mode, desc, devMode247, cleanedScheds, cleanedAppts);
     }
 
     public DoctorScheduleDtos.DoctorDailyHoursSummaryDto getDoctorDailyHoursSummary(String userId, String doctorId) {
@@ -168,6 +402,31 @@ public class DoctorScheduleService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private com.medsched.persistence.repository.UserMedicalCenterRoleJpaRepository userMedicalCenterRoleJpaRepository;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.medsched.persistence.repository.PaymentJpaRepository paymentJpaRepository;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.medsched.persistence.repository.DevModeSessionJpaRepository devModeSessionRepository;
+
+    @jakarta.annotation.PostConstruct
+    public void initDevModeFromDatabase() {
+        if (devModeSessionRepository != null) {
+            devModeSessionRepository.findFirstByIsActiveTrueOrderByStartedAtDesc().ifPresentOrElse(session -> {
+                devMode247 = true;
+                currentDevSessionId = session.getId();
+                devModeStartedAt = session.getStartedAt();
+            }, () -> {
+                devMode247 = false;
+                currentDevSessionId = null;
+                devModeStartedAt = null;
+            });
+        }
+    }
+
+    public void setDevModeSessionJpaRepository(com.medsched.persistence.repository.DevModeSessionJpaRepository devModeSessionRepository) {
+        this.devModeSessionRepository = devModeSessionRepository;
+    }
+
     @org.springframework.beans.factory.annotation.Autowired
     public DoctorScheduleService(DoctorScheduleJpaRepository doctorScheduleRepository,
                                  TimeSlotJpaRepository timeSlotRepository,
@@ -232,11 +491,8 @@ public class DoctorScheduleService {
 
     @Transactional
     public List<DoctorScheduleDtos.DoctorScheduleDto> getDoctorSchedules(String userId, String queryDoctorId, LocalDate from, LocalDate to) {
-        LocalDate today = LocalDate.now(VN_ZONE);
-
         // 1. Trường hợp truy vấn đích danh 1 Bác sĩ cụ thể
         if (queryDoctorId != null && !queryDoctorId.isBlank() && !queryDoctorId.equalsIgnoreCase("ALL")) {
-            ensureDefaultTodaySchedule(queryDoctorId, today);
             List<DoctorScheduleEntity> schedules;
             if (from != null && to != null) {
                 schedules = doctorScheduleRepository.findByDoctorIdAndWorkDateBetweenOrderByWorkDateAscStartTimeAsc(queryDoctorId, from, to);
@@ -247,11 +503,11 @@ public class DoctorScheduleService {
         }
 
         // 2. Không truyền queryDoctorId, nhưng người gọi là Bác sĩ đang xem ca trực của chính mình
-        if (userId != null && !userId.isBlank()) {
+        boolean isExplicitAll = "ALL".equalsIgnoreCase(queryDoctorId);
+        if (!isExplicitAll && userId != null && !userId.isBlank()) {
             List<DoctorEntity> userDocs = doctorRepository.findByUserId(userId);
             if (!userDocs.isEmpty()) {
                 String myDoctorId = userDocs.get(0).getId();
-                ensureDefaultTodaySchedule(myDoctorId, today);
                 List<DoctorScheduleEntity> schedules;
                 if (from != null && to != null) {
                     schedules = doctorScheduleRepository.findByDoctorIdAndWorkDateBetweenOrderByWorkDateAscStartTimeAsc(myDoctorId, from, to);
@@ -336,11 +592,20 @@ public class DoctorScheduleService {
                     now
             );
             schedule = doctorScheduleRepository.save(schedule);
+            if (devMode247) {
+                schedule.setDevSessionId(currentDevSessionId);
+                schedule.setTestData(true);
+                schedule = doctorScheduleRepository.save(schedule);
+                devModeScheduleIds.add(schedule.getId());
+            }
 
             LocalTime cursor = start;
             List<TimeSlotEntity> createdSlots = new ArrayList<>();
-            while (cursor.plusMinutes(duration).isBefore(end) || cursor.plusMinutes(duration).equals(end)) {
+            while (cursor.isBefore(end)) {
                 LocalTime next = cursor.plusMinutes(duration);
+                if (!next.isAfter(cursor) || next.isAfter(end)) {
+                    break;
+                }
                 Instant slotStart = targetDate.atTime(cursor).atZone(VN_ZONE).toInstant();
                 Instant slotEnd = targetDate.atTime(next).atZone(VN_ZONE).toInstant();
 
@@ -380,24 +645,40 @@ public class DoctorScheduleService {
             throw new IllegalArgumentException("Không thể đăng ký ca trực cho ngày trong quá khứ: " + request.workDate());
         }
 
+        // Bổ sung kiểm soát thời gian thực khi đăng ký ca trực trong ngày hôm nay:
+        if (request.workDate().equals(today) && !isAdmin) {
+            LocalTime nowTime = LocalTime.now(VN_ZONE);
+            if (!request.endTime().isAfter(nowTime)) {
+                throw new IllegalArgumentException(String.format(
+                        "Ca trực (%s - %s) đã kết thúc trong quá khứ của ngày hôm nay (hiện tại là %s). Vui lòng chọn ca trực tiếp theo hoặc ngày mai!",
+                        TIME_FORMATTER.format(request.startTime()),
+                        TIME_FORMATTER.format(request.endTime()),
+                        TIME_FORMATTER.format(nowTime)
+                ));
+            }
+        }
+
         // Quy tắc đăng ký trước:
         // - Bác sĩ tự đăng ký ca trực định kỳ trước tối thiểu 1 ngày (từ ngày mai trở đi).
         // - Quản Trị Viên (Admin) có toàn quyền phân công ca trực trong ngày hôm nay để xử lý ca khẩn cấp hoặc điều phối nhân sự.
-        if (request.workDate().equals(today) && !isAdmin) {
+        // - Khi devMode247 == true: Bác sĩ được phép đăng ký ca trực ngay hôm nay để kiểm thử và demo 24/7.
+        if (request.workDate().equals(today) && !isAdmin && !devMode247) {
             throw new IllegalArgumentException("Theo quy định phòng khám, Bác sĩ chỉ được đăng ký ca trực trước tối thiểu 1 ngày (từ ngày mai trở đi). Ca trực hôm nay do Quản Trị Viên (Admin) trực tiếp phân công và điều phối.");
         }
 
-        // Chặn đăng ký ca trực vào cuối tuần (Thứ Bảy & Chủ Nhật) nếu không phải do Admin phân công
+        // Chặn đăng ký ca trực vào cuối tuần (Thứ Bảy & Chủ Nhật) nếu không phải do Admin phân công (hoặc bật devMode247)
         DayOfWeek dow = request.workDate().getDayOfWeek();
-        if ((dow == DayOfWeek.SATURDAY || dow == DayOfWeek.SUNDAY) && !isAdmin) {
+        if ((dow == DayOfWeek.SATURDAY || dow == DayOfWeek.SUNDAY) && !isAdmin && !devMode247) {
             throw new IllegalArgumentException("Phòng khám không mở đăng ký ca trực cuối tuần tự do cho Bác sĩ. Ca trực cuối tuần chỉ áp dụng khi Quản Trị Viên (Admin) phê duyệt phân công.");
         }
 
-        // Khung giờ làm việc phòng khám hỗ trợ từ sáng sớm đến ca tối (07:00 - 21:30)
-        if (request.startTime().isBefore(LocalTime.of(7, 0)) || request.endTime().isAfter(LocalTime.of(21, 30))) {
-            throw new IllegalArgumentException("Ca trực phải nằm trong khung giờ làm việc của hệ thống phòng khám (07:00 - 21:30).");
+        // Khung giờ làm việc phòng khám hỗ trợ từ sáng sớm đến ca tối (07:00 - 21:30, hoặc 00:00 - 23:59 nếu devMode247)
+        LocalTime minStartTime = devMode247 ? LocalTime.of(0, 0) : LocalTime.of(7, 0);
+        LocalTime maxEndTime = devMode247 ? LocalTime.of(23, 59) : LocalTime.of(21, 30);
+        if (request.startTime().isBefore(minStartTime) || request.endTime().isAfter(maxEndTime)) {
+            throw new IllegalArgumentException("Ca trực phải nằm trong khung giờ làm việc của hệ thống phòng khám (" + minStartTime + " - " + maxEndTime + ").");
         }
-        if (request.startTime().isAfter(LocalTime.of(12, 0)) && request.endTime().isBefore(LocalTime.of(13, 30))) {
+        if (!devMode247 && request.startTime().isAfter(LocalTime.of(12, 0)) && request.endTime().isBefore(LocalTime.of(13, 30))) {
             throw new IllegalArgumentException("Không thể đăng ký ca trực hoàn toàn nằm trong khung giờ nghỉ trưa của phòng khám (12:00 - 13:30).");
         }
 
@@ -433,8 +714,8 @@ public class DoctorScheduleService {
         }
 
         // 2. Quy tắc kiểm soát công suất phòng khám (Tối thiểu 6 tiếng/ngày mới cho qua ngày tiếp theo):
-        // Áp dụng cho Bác sĩ khi tự đăng ký lịch thủ công (Demo luồng chính).
-        if (!isAdmin) {
+        // Áp dụng cho Bác sĩ khi tự đăng ký lịch thủ công (Demo luồng chính). Khi bật devMode247 sẽ bỏ qua ràng buộc này.
+        if (!isAdmin && !devMode247) {
             LocalDate fromDate = today;
             LocalDate toDate = today.plusYears(1);
             List<DoctorScheduleEntity> allFutureSchedules = doctorScheduleRepository.findByDoctorIdAndWorkDateBetweenOrderByWorkDateAscStartTimeAsc(
@@ -540,19 +821,28 @@ public class DoctorScheduleService {
                 now
         );
         schedule = doctorScheduleRepository.save(schedule);
+        if (devMode247) {
+            schedule.setDevSessionId(currentDevSessionId);
+            schedule.setTestData(true);
+            schedule = doctorScheduleRepository.save(schedule);
+            devModeScheduleIds.add(schedule.getId());
+        }
 
         // Sinh các slot 30 phút tự động (bỏ qua khung giờ nghỉ trưa 12:00 - 13:30 nếu ca trực bao trọn buổi trưa)
         LocalTime cursor = request.startTime();
         List<TimeSlotEntity> createdSlots = new ArrayList<>();
-        while (cursor.plusMinutes(duration).isBefore(request.endTime()) || cursor.plusMinutes(duration).equals(request.endTime())) {
+        while (cursor.isBefore(request.endTime())) {
             LocalTime next = cursor.plusMinutes(duration);
+            if (!next.isAfter(cursor) || next.isAfter(request.endTime())) {
+                break;
+            }
             boolean isLunch = !cursor.isBefore(LocalTime.of(12, 0)) && cursor.isBefore(LocalTime.of(13, 30));
 
             if (!isLunch) {
                 Instant slotStart = request.workDate().atTime(cursor).atZone(VN_ZONE).toInstant();
                 Instant slotEnd = request.workDate().atTime(next).atZone(VN_ZONE).toInstant();
 
-                if (slotEnd.isAfter(now)) {
+                if (slotEnd.isAfter(now) || isAdmin || devMode247) {
                     TimeSlotEntity slot = new TimeSlotEntity(
                             UUID.randomUUID().toString(),
                             schedule.getId(),
@@ -567,6 +857,11 @@ public class DoctorScheduleService {
                 }
             }
             cursor = next;
+        }
+
+        if (createdSlots.isEmpty()) {
+            doctorScheduleRepository.delete(schedule);
+            throw new IllegalArgumentException("Không thể tạo ca trực vì tất cả các khung giờ khám (slots) đều đã trôi qua trong quá khứ.");
         }
 
         timeSlotRepository.saveAll(createdSlots);
@@ -1154,8 +1449,11 @@ public class DoctorScheduleService {
             // Ca sáng
             LocalTime cursor = start;
             LocalTime morningEnd = LocalTime.of(12, 0);
-            while (cursor.plusMinutes(duration).isBefore(morningEnd) || cursor.plusMinutes(duration).equals(morningEnd)) {
+            while (cursor.isBefore(morningEnd)) {
                 LocalTime next = cursor.plusMinutes(duration);
+                if (!next.isAfter(cursor) || next.isAfter(morningEnd)) {
+                    break;
+                }
                 Instant slotStart = workDate.atTime(cursor).atZone(VN_ZONE).toInstant();
                 Instant slotEnd = workDate.atTime(next).atZone(VN_ZONE).toInstant();
                 createdSlots.add(new TimeSlotEntity(
@@ -1173,8 +1471,11 @@ public class DoctorScheduleService {
 
             // Ca chiều
             cursor = LocalTime.of(13, 30);
-            while (cursor.plusMinutes(duration).isBefore(end) || cursor.plusMinutes(duration).equals(end)) {
+            while (cursor.isBefore(end)) {
                 LocalTime next = cursor.plusMinutes(duration);
+                if (!next.isAfter(cursor) || next.isAfter(end)) {
+                    break;
+                }
                 Instant slotStart = workDate.atTime(cursor).atZone(VN_ZONE).toInstant();
                 Instant slotEnd = workDate.atTime(next).atZone(VN_ZONE).toInstant();
                 createdSlots.add(new TimeSlotEntity(
@@ -1192,8 +1493,11 @@ public class DoctorScheduleService {
         } else {
             // Ca bình thường
             LocalTime cursor = start;
-            while (cursor.plusMinutes(duration).isBefore(end) || cursor.plusMinutes(duration).equals(end)) {
+            while (cursor.isBefore(end)) {
                 LocalTime next = cursor.plusMinutes(duration);
+                if (!next.isAfter(cursor) || next.isAfter(end)) {
+                    break;
+                }
                 Instant slotStart = workDate.atTime(cursor).atZone(VN_ZONE).toInstant();
                 Instant slotEnd = workDate.atTime(next).atZone(VN_ZONE).toInstant();
                 createdSlots.add(new TimeSlotEntity(

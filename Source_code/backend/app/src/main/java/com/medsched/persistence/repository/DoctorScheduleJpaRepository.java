@@ -27,4 +27,7 @@ public interface DoctorScheduleJpaRepository extends JpaRepository<DoctorSchedul
      */
     List<DoctorScheduleEntity> findByDoctorIdInAndWorkDateBetween(List<String> doctorIds, LocalDate from, LocalDate to);
 
+    List<DoctorScheduleEntity> findByDevSessionId(String devSessionId);
+
+    List<DoctorScheduleEntity> findByIsTestDataTrue();
 }

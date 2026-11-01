@@ -7,9 +7,5 @@ export const metadata = {
 };
 
 export default function CatalogPage() {
-  return (
-    <div className="max-w-6xl mx-auto space-y-6">
-      <CatalogManager />
-    </div>
-  );
+  return <CatalogManager />;
 }

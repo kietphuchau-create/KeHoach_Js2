@@ -1,4 +1,5 @@
-// Quản lý Danh mục Mã Khuyến Mãi & Voucher Ưu Đãi MedSched
+import { api } from '@/shared/lib/api';
+import { getLocalDateString } from '@/shared/lib/formatters';
 
 export type DiscountType = 'FREE_DEPOSIT' | 'FIX_TO_2K' | 'PERCENT' | 'FIXED';
 
@@ -27,7 +28,7 @@ export const DEFAULT_PROMOTIONS: Promotion[] = [
     discountType: 'FIX_TO_2K',
     discountValue: 2000,
     maxUses: 9999,
-    usedCount: 7,
+    usedCount: 0,
     startDate: '2026-01-01',
     endDate: '2026-12-31',
     status: 'active',
@@ -42,7 +43,7 @@ export const DEFAULT_PROMOTIONS: Promotion[] = [
     discountType: 'FREE_DEPOSIT',
     discountValue: 100,
     maxUses: 9999,
-    usedCount: 14,
+    usedCount: 0,
     startDate: '2026-01-01',
     endDate: '2026-12-31',
     status: 'active',
@@ -57,7 +58,7 @@ export const DEFAULT_PROMOTIONS: Promotion[] = [
     discountType: 'FREE_DEPOSIT',
     discountValue: 100,
     maxUses: 9999,
-    usedCount: 28,
+    usedCount: 0,
     startDate: '2026-01-01',
     endDate: '2026-12-31',
     status: 'active',
@@ -72,7 +73,7 @@ export const DEFAULT_PROMOTIONS: Promotion[] = [
     discountType: 'PERCENT',
     discountValue: 50,
     maxUses: 200,
-    usedCount: 42,
+    usedCount: 0,
     startDate: '2026-03-01',
     endDate: '2026-11-30',
     status: 'active',
@@ -87,7 +88,7 @@ export const DEFAULT_PROMOTIONS: Promotion[] = [
     discountType: 'FIXED',
     discountValue: 30000,
     maxUses: 500,
-    usedCount: 86,
+    usedCount: 0,
     startDate: '2026-05-01',
     endDate: '2026-12-31',
     status: 'active',
@@ -206,6 +207,97 @@ export function deletePromotion(id: string): boolean {
   return false;
 }
 
+// ========================================================
+// CÁC HÀM GỌI TRỰC TIẾP TỪ CSDL MYSQL (BACKEND SPRING BOOT)
+// ========================================================
+
+export async function getPromotionsFromDb(): Promise<Promotion[]> {
+  try {
+    const list = await api.getAdminPromotions();
+    if (Array.isArray(list) && list.length > 0) {
+      savePromotions(list);
+      return list;
+    }
+  } catch (e) {
+    console.warn('Không thể tải khuyến mãi từ MySQL, sử dụng cache cục bộ:', e);
+  }
+  return getPromotions();
+}
+
+export async function addPromotionToDb(
+  promo: Omit<Promotion, 'id' | 'usedCount' | 'createdAt'>
+): Promise<Promotion> {
+  const normalizedCode = promo.code.trim().toUpperCase();
+  try {
+    const created = await api.createAdminPromotion({
+      code: normalizedCode,
+      name: promo.name.trim(),
+      description: promo.description,
+      discountType: promo.discountType,
+      discountValue: Number(promo.discountValue),
+      maxUses: promo.maxUses,
+      startDate: promo.startDate,
+      endDate: promo.endDate,
+      targetAudience: promo.targetAudience,
+      status: promo.status,
+    });
+    if (created && created.id) {
+      const current = getPromotions().filter((p) => p.id !== created.id && p.code !== created.code);
+      savePromotions([created, ...current]);
+      return created;
+    }
+  } catch (e) {
+    console.error('Lỗi lưu khuyến mãi vào MySQL:', e);
+    throw e;
+  }
+  return addPromotion(promo);
+}
+
+export async function updatePromotionInDb(
+  id: string,
+  updates: Partial<Promotion>
+): Promise<Promotion | null> {
+  try {
+    const updated = await api.updateAdminPromotion(id, updates);
+    if (updated && updated.id) {
+      const current = getPromotions().map((p) => (p.id === id ? updated : p));
+      savePromotions(current);
+      return updated;
+    }
+  } catch (e) {
+    console.error('Lỗi cập nhật khuyến mãi trong MySQL:', e);
+    throw e;
+  }
+  return updatePromotion(id, updates);
+}
+
+export async function togglePromotionStatusInDb(id: string): Promise<Promotion | null> {
+  try {
+    const toggled = await api.toggleAdminPromotionStatus(id);
+    if (toggled && toggled.id) {
+      const current = getPromotions().map((p) => (p.id === id ? toggled : p));
+      savePromotions(current);
+      return toggled;
+    }
+  } catch (e) {
+    console.error('Lỗi toggle trạng thái khuyến mãi trong MySQL:', e);
+    throw e;
+  }
+  return togglePromotionStatus(id);
+}
+
+export async function deletePromotionFromDb(id: string): Promise<boolean> {
+  try {
+    await api.deleteAdminPromotion(id);
+    const current = getPromotions().filter((p) => p.id !== id);
+    savePromotions(current);
+    return true;
+  } catch (e) {
+    console.error('Lỗi xóa khuyến mãi khỏi MySQL:', e);
+    throw e;
+  }
+}
+
 // Kiểm tra và áp dụng mã khuyến mãi khi đặt lịch khám
 export function validatePromotion(
   code: string,
@@ -252,7 +344,7 @@ export function validatePromotion(
     };
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getLocalDateString();
   if (found.endDate && found.endDate < today) {
     return {
       valid: false,

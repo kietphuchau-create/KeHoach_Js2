@@ -104,13 +104,34 @@ public class DoctorScheduleDtos {
             boolean autoScheduleEnabled,
             int minWorkHoursPerDay,
             String currentMode,
-            String description
-    ) {}
+            String description,
+            boolean devMode247,
+            int cleanedSchedulesCount,
+            int cleanedAppointmentsCount
+    ) {
+        public ScheduleModeDto(boolean autoScheduleEnabled, int minWorkHoursPerDay, String currentMode, String description, boolean devMode247) {
+            this(autoScheduleEnabled, minWorkHoursPerDay, currentMode, description, devMode247, 0, 0);
+        }
+
+        public ScheduleModeDto(boolean autoScheduleEnabled, int minWorkHoursPerDay, String currentMode, String description) {
+            this(autoScheduleEnabled, minWorkHoursPerDay, currentMode, description, false, 0, 0);
+        }
+    }
 
     public record UpdateScheduleModeRequest(
             boolean autoScheduleEnabled,
-            Integer minWorkHoursPerDay
-    ) {}
+            Integer minWorkHoursPerDay,
+            Boolean devMode247,
+            Boolean cleanupTestData
+    ) {
+        public UpdateScheduleModeRequest(boolean autoScheduleEnabled, Integer minWorkHoursPerDay) {
+            this(autoScheduleEnabled, minWorkHoursPerDay, null, null);
+        }
+
+        public UpdateScheduleModeRequest(boolean autoScheduleEnabled, Integer minWorkHoursPerDay, Boolean devMode247) {
+            this(autoScheduleEnabled, minWorkHoursPerDay, devMode247, null);
+        }
+    }
 
     public record DoctorDailyHoursSummaryDto(
             java.util.Map<String, Double> dailyHours,
@@ -118,5 +139,32 @@ public class DoctorScheduleDtos {
             int minWorkHoursPerDay,
             boolean autoScheduleEnabled
     ) {}
+
+    public record DevModeDto(
+            boolean enabled,
+            String mode,
+            String message,
+            int cleanedSchedulesCount,
+            int cleanedAppointmentsCount,
+            String sessionId,
+            java.time.Instant startedAt
+    ) {
+        public DevModeDto(boolean enabled, String mode, String message, int cleanedSchedulesCount, int cleanedAppointmentsCount) {
+            this(enabled, mode, message, cleanedSchedulesCount, cleanedAppointmentsCount, null, null);
+        }
+
+        public DevModeDto(boolean enabled, String mode, String message) {
+            this(enabled, mode, message, 0, 0, null, null);
+        }
+    }
+
+    public record UpdateDevModeRequest(
+            Boolean enabled,
+            Boolean cleanupTestData
+    ) {
+        public UpdateDevModeRequest(Boolean enabled) {
+            this(enabled, null);
+        }
+    }
 }
 

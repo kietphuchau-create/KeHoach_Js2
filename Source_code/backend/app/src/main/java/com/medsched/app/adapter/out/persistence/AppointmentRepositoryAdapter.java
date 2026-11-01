@@ -62,12 +62,17 @@ public class AppointmentRepositoryAdapter implements AppointmentRepositoryPort {
     }
 
     private static AppointmentEntity newEntity(Appointment a) {
-        return new AppointmentEntity(
+        AppointmentEntity entity = new AppointmentEntity(
                 a.id(), a.bookingCode(), a.medicalCenterId(), a.patientProfileId(), a.doctorId(), a.slotId(),
                 a.queueNumber(), parseEnum(QueueType.class, a.queueType(), QueueType.ONLINE_BOOKED),
                 a.patientSymptoms(),
                 parseEnum(AppointmentStatus.class, a.status(), AppointmentStatus.CONFIRMED),
                 a.createdAt(), a.updatedAt());
+        if (com.medsched.doctor.DoctorScheduleService.isDevMode247Active()) {
+            entity.setDevSessionId(com.medsched.doctor.DoctorScheduleService.getCurrentDevSessionId());
+            entity.setTestData(true);
+        }
+        return entity;
     }
 
     /** Chỉ chép các trường tầng nghiệp vụ được phép đổi; audit do DB/JPA giữ. */

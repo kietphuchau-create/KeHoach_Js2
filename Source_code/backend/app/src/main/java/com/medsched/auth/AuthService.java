@@ -1,6 +1,7 @@
 package com.medsched.auth;
 
 import com.medsched.common.AppExceptions;
+import com.medsched.common.InputValidator;
 import com.medsched.persistence.entity.PatientProfileEntity;
 import com.medsched.persistence.entity.UserEntity;
 import com.medsched.persistence.enums.RelationshipType;
@@ -61,7 +62,14 @@ public class AuthService {
 
         Instant now = Instant.now();
         String fullName = request.fullName().trim();
-        String phone = blankToNull(request.phone());
+        String rawPhone = blankToNull(request.phone());
+        String phone = null;
+        if (rawPhone != null) {
+            phone = InputValidator.validatePhone(rawPhone);
+            if (users.existsByPhone(phone)) {
+                throw new AppExceptions.ConflictException("Số điện thoại này đã được đăng ký cho một tài khoản khác");
+            }
+        }
         validatePasswordSecurity(request.password(), fullName, phone, email);
 
         UserEntity user = new UserEntity(UUID.randomUUID().toString(), email,
@@ -83,8 +91,21 @@ public class AuthService {
         // Wrong email/password -> BadCredentialsException; locked account ->
         // DisabledException. GlobalExceptionHandler turns both into the proper
         // user-facing message.
+        String rawIdentifier = request.email() != null ? request.email().trim() : "";
+        String normalizedIdentifier = rawIdentifier;
+        if (!rawIdentifier.contains("@")) {
+            normalizedIdentifier = rawIdentifier.replaceAll("[\\s.-]", "");
+            if (normalizedIdentifier.startsWith("+84")) {
+                normalizedIdentifier = "0" + normalizedIdentifier.substring(3);
+            } else if (normalizedIdentifier.startsWith("84") && normalizedIdentifier.length() == 11) {
+                normalizedIdentifier = "0" + normalizedIdentifier.substring(2);
+            }
+        } else {
+            normalizedIdentifier = normalizeEmail(rawIdentifier);
+        }
+
         var authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(normalizeEmail(request.email()), request.password()));
+                new UsernamePasswordAuthenticationToken(normalizedIdentifier, request.password()));
         AppUserDetails principal = (AppUserDetails) authentication.getPrincipal();
         UserEntity user = users.findById(principal.getUserId())
                 .orElseThrow(() -> new AppExceptions.NotFoundException("Không tìm thấy tài khoản"));

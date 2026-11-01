@@ -93,7 +93,7 @@ export default function CreateStaffForm({ medicalCenters, onSuccess }: CreateSta
   return (
     <form onSubmit={handleCreateStaff} className="space-y-4">
       {message && (
-        <AlertMessage type={message.type} message={message.text} onClose={() => setMessage(null)} />
+        <AlertMessage pinned type={message.type} message={message.text} onClose={() => setMessage(null)} />
       )}
 
       {/* Họ và Tên Nhân Viên */}

@@ -163,10 +163,21 @@ public class ReceptionHistoryService {
                         if (doctor.getUserId() != null) {
                             var userOpt = userJpaRepository.findById(doctor.getUserId());
                             if (userOpt.isPresent()) {
-                                String prefix = (doctor.getAcademicTitle() != null && !doctor.getAcademicTitle().isBlank())
-                                        ? doctor.getAcademicTitle() + " "
-                                        : "BS. ";
-                                doctorName = prefix + userOpt.get().getFullName();
+                                String rawName = userOpt.get().getFullName();
+                                String acadTitle = doctor.getAcademicTitle() != null ? doctor.getAcademicTitle().trim() : "";
+                                if (!acadTitle.isBlank()) {
+                                    if (rawName != null && rawName.startsWith(acadTitle)) {
+                                        doctorName = rawName;
+                                    } else {
+                                        doctorName = acadTitle + " " + (rawName != null ? rawName : "");
+                                    }
+                                } else {
+                                    if (rawName != null && (rawName.startsWith("BS.") || rawName.startsWith("BS "))) {
+                                        doctorName = rawName;
+                                    } else {
+                                        doctorName = "BS. " + (rawName != null ? rawName : "");
+                                    }
+                                }
                             }
                         }
                     }

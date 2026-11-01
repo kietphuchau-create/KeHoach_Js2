@@ -52,5 +52,9 @@ public interface AppointmentJpaRepository extends JpaRepository<AppointmentEntit
     List<AppointmentEntity> findBySlotIdIn(Collection<String> slotIds);
 
     List<AppointmentEntity> findBySlotId(String slotId);
+
+    List<AppointmentEntity> findByDevSessionId(String devSessionId);
+
+    List<AppointmentEntity> findByIsTestDataTrue();
 }
 

@@ -188,11 +188,18 @@ public class BillingService {
             throw new IllegalArgumentException("Ca khám đã bị hủy, không thể thực hiện thanh toán hóa đơn.");
         }
 
+        boolean hasVoucher = request.note() != null && (
+                request.note().toUpperCase().contains("VOUCHER:") ||
+                request.note().toUpperCase().contains("PROMO:") ||
+                request.note().toUpperCase().contains("DISCOUNT:") ||
+                request.note().toUpperCase().contains("MIEN_PHI")
+        );
+
         // 2. Ràng buộc số tiền thanh toán (amountPaid)
-        if (request.amountPaid() == null || request.amountPaid().compareTo(BigDecimal.ZERO) <= 0) {
+        if (!hasVoucher && (request.amountPaid() == null || request.amountPaid().compareTo(BigDecimal.ZERO) <= 0)) {
             throw new IllegalArgumentException("Số tiền thanh toán phải lớn hơn 0.");
         }
-        if (request.amountPaid().compareTo(invoice.getTotalAmount()) < 0) {
+        if (!hasVoucher && request.amountPaid().compareTo(invoice.getTotalAmount()) < 0) {
             throw new IllegalArgumentException(String.format(
                     "Số tiền thanh toán (%s VNĐ) không đủ để thanh toán tổng tiền viện phí (%s VNĐ).",
                     request.amountPaid(), invoice.getTotalAmount()));

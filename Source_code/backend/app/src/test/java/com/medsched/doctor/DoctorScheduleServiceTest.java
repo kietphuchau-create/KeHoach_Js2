@@ -53,7 +53,7 @@ class DoctorScheduleServiceTest {
     }
 
     @Test
-    @DisplayName("Lấy danh sách ca trực của bác sĩ và tự động tạo lịch hôm nay nếu chưa có")
+    @DisplayName("Lấy danh sách ca trực của bác sĩ")
     void givenDoctor_whenGetDoctorSchedules_thenReturnList() {
         Instant now = Instant.now();
         DoctorEntity doc = new DoctorEntity(
@@ -69,7 +69,6 @@ class DoctorScheduleServiceTest {
 
         given(doctorRepository.findByUserId("u-doc-1")).willReturn(List.of(doc));
         given(doctorRepository.findById("doc-1")).willReturn(Optional.of(doc));
-        given(doctorScheduleRepository.findByDoctorIdInAndWorkDateBetween(List.of("doc-1"), today, today)).willReturn(List.of(sch));
         given(doctorScheduleRepository.findByDoctorIdOrderByWorkDateAscStartTimeAsc("doc-1")).willReturn(List.of(sch));
         given(timeSlotRepository.findByScheduleIdOrderByStartTimeAsc("sch-1")).willReturn(List.of());
 
