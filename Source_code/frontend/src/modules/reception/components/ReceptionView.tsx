@@ -1147,9 +1147,7 @@ export default function ReceptionView() {
                     </button>
                   </div>
                 </div>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Tự động chuyển tiếp vào hàng đợi phòng khám của Bác sĩ sau khi check-in.
-                </p>
+
               </div>
               <div className="flex items-center gap-2 flex-wrap">
                 <button
