@@ -2559,7 +2559,7 @@ export default function DoctorClinicView() {
                   </button>
 
                   {/* Secondary Exceptional Action Buttons */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {/* 1. Gia hạn ca khám */}
                     <button
                       type="button"
@@ -2571,18 +2571,7 @@ export default function DoctorClinicView() {
                       <span>Gia Hạn +15 Phút</span>
                     </button>
 
-                    {/* 2. Chỉ định xét nghiệm / Chờ kết quả */}
-                    <button
-                      type="button"
-                      onClick={handleSendForTests}
-                      className="px-3 py-2.5 bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200 rounded-xl font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
-                      title="Bệnh nhân đi làm cận lâm sàng, buồng khám tiếp tục khám người khác"
-                    >
-                      <FlaskConical size={14} />
-                      <span>Chờ KQ Xét Nghiệm</span>
-                    </button>
-
-                    {/* 3. Bỏ qua lượt / Bệnh nhân vắng mặt */}
+                    {/* 2. Bỏ qua lượt / Bệnh nhân vắng mặt */}
                     <button
                       type="button"
                       onClick={handleSkipAbsent}
