@@ -78,7 +78,7 @@ public class AiRequestGuard {
         synchronized (duplicate) {
             if (fingerprint.equals(duplicate.lastMessage) && duplicate.lastAt != null
                     && duplicate.lastAt.plus(duplicateWindow).isAfter(now)) {
-                return Decision.reject("Yêu cầu giống hệt vừa được xử lý. Vui lòng chờ vài giây.", 5);
+                return Decision.reject("Yêu cầu lặp lại hoặc giống hệt vừa được xử lý. Vui lòng chờ vài giây.", 5);
             }
             duplicate.lastMessage = fingerprint;
             duplicate.lastAt = now;
@@ -125,6 +125,10 @@ public class AiRequestGuard {
     }
 
     public record Decision(boolean allowed, String message, long retryAfterSeconds) {
+        public String reason() {
+            return message;
+        }
+
         static Decision allow() { return new Decision(true, null, 0); }
         static Decision reject(String message, long retryAfter) { return new Decision(false, message, retryAfter); }
     }
