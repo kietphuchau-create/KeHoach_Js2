@@ -1111,19 +1111,41 @@ export default function ReceptionView() {
           <div>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
               <div>
-                <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-3 flex-wrap">
                   <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
                     <Clock size={18} className="text-blue-600" />
                     <span>Danh Sách Đã Tiếp Đón</span>
                   </h3>
-                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold flex items-center gap-1 border shadow-2xs ${
-                    feedDateFilter === 'TODAY'
-                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                      : 'bg-teal-50 text-teal-800 border-teal-200'
-                  }`}>
-                    <CalendarDays size={13} />
-                    <span>{feedDateFilter === 'TODAY' ? `Hôm nay: ${todayDisplay}` : `Hôm qua: ${yesterdayDisplay}`}</span>
-                  </span>
+
+                  {/* Bộ chuyển ngày xem Live Feed: Hôm nay vs Hôm qua */}
+                  <div className="flex items-center bg-slate-100 p-0.5 rounded-xl gap-0.5 shrink-0 border border-slate-200/60 shadow-2xs">
+                    <button
+                      type="button"
+                      onClick={() => setFeedDateFilter('TODAY')}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                        feedDateFilter === 'TODAY'
+                          ? 'bg-white text-emerald-800 shadow-2xs font-black'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                      title="Xem hàng đợi hôm nay"
+                    >
+                      <Clock size={13} />
+                      <span>Hôm nay ({todayShort})</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFeedDateFilter('YESTERDAY')}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                        feedDateFilter === 'YESTERDAY'
+                          ? 'bg-white text-teal-800 shadow-2xs font-black'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                      title="Xem các ca tiếp đón ngày hôm qua"
+                    >
+                      <History size={13} />
+                      <span>Hôm qua ({yesterdayShort})</span>
+                    </button>
+                  </div>
                 </div>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Tự động chuyển tiếp vào hàng đợi phòng khám của Bác sĩ sau khi check-in.
@@ -1160,41 +1182,9 @@ export default function ReceptionView() {
 
             {/* Filter & Search Toolbar */}
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 mb-3.5 pb-3 border-b border-slate-100">
-              {/* Date Switcher + Pill Tabs with flex-wrap and shrink-0 to prevent clipping */}
+              {/* Status Filter Tabs */}
               <div className="flex items-center gap-2 flex-wrap">
-                {/* 1. Bộ chuyển ngày xem Live Feed: Hôm nay vs Hôm qua (Chống hiểu lầm lúc giao thời nửa đêm) */}
-                <div className="flex items-center bg-slate-100 p-0.5 rounded-xl gap-0.5 shrink-0 border border-slate-200/60">
-                  <button
-                    type="button"
-                    onClick={() => setFeedDateFilter('TODAY')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
-                      feedDateFilter === 'TODAY'
-                        ? 'bg-white text-emerald-800 shadow-2xs font-black'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                    title="Xem hàng đợi hôm nay"
-                  >
-                    <Clock size={13} />
-                    <span>Hôm nay ({todayShort})</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFeedDateFilter('YESTERDAY')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
-                      feedDateFilter === 'YESTERDAY'
-                        ? 'bg-white text-teal-800 shadow-2xs font-black'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                    title="Xem các ca tiếp đón ngày hôm qua"
-                  >
-                    <History size={13} />
-                    <span>Hôm qua ({yesterdayShort})</span>
-                  </button>
-                </div>
-
-                <div className="h-5 w-px bg-slate-200 hidden sm:block mx-0.5" />
-
-                {/* 2. Trạng thái ca khám */}
+                {/* Trạng thái ca khám */}
                 <button
                   type="button"
                   onClick={() => setFilterStatus('ALL')}
