@@ -245,6 +245,7 @@ class TriageControllerIntegrationTest {
     @DisplayName("General chat falls back to reviewed RAG when external AI is unavailable")
     void generalChatFallsBackToInternalRag() throws Exception {
         String question = "Tôi cần chuẩn bị gì trước khi khám?";
+        given(knowledgeRag.isClinicQuestion(question)).willReturn(true);
         given(knowledgeRag.retrieve(question)).willReturn(Optional.of(
                 new InternalKnowledgeRagService.Answer("Mang theo giấy tờ và hồ sơ khám.", "Chuẩn bị trước khi khám", 5)));
 
