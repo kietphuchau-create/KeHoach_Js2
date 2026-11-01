@@ -1325,12 +1325,7 @@ export default function ReceptionView() {
                               <UserPlus size={14} />
                               <span>+ Tiếp Đón Bệnh Nhân Mới</span>
                             </button>
-                            <Link
-                              href="/reception/history"
-                              className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-semibold transition flex items-center gap-1"
-                            >
-                              <span>Mở Sổ Lưu Trữ Toàn Viện →</span>
-                            </Link>
+
                           </div>
                         </div>
                       </td>
@@ -1491,12 +1486,7 @@ export default function ReceptionView() {
             <span>
               Đang xem: <strong className="text-slate-800 font-semibold">{feedDateFilter === 'TODAY' ? todayDisplay : yesterdayDisplay}</strong> • Hiển thị: <strong className="text-slate-700">{filteredHistory.length}</strong> / <strong className="text-slate-700">{history.length}</strong> ca tiếp nhận
             </span>
-            <Link
-              href="/reception/history"
-              className="text-emerald-700 hover:text-emerald-800 font-bold hover:underline inline-flex items-center gap-1 text-xs"
-            >
-              <span>Xem toàn bộ lịch sử tiếp đón &amp; Tra cứu nâng cao →</span>
-            </Link>
+
           </div>
         </div>
       ) : (
