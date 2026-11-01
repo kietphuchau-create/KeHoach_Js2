@@ -11,7 +11,8 @@ import {
   CheckCircle2, 
   AlertCircle, 
   ChevronLeft, 
-  ChevronRight, 
+  ChevronRight,
+  ChevronDown, 
   Filter, 
   Zap, 
   RefreshCw, 
@@ -96,6 +97,8 @@ export default function ReceptionScheduleBoard({
   const [syncingTomorrow, setSyncingTomorrow] = useState<boolean>(false);
   const [syncSuccessMsg, setSyncSuccessMsg] = useState<string | null>(null);
   const [doctorSlotsMap, setDoctorSlotsMap] = useState<Record<string, any[]>>({});
+  const [isGlobalDayShiftCollapsed, setIsGlobalDayShiftCollapsed] = useState<boolean>(false);
+  const [collapsedDayShifts, setCollapsedDayShifts] = useState<Record<string, boolean>>({});
 
   const isToday = selectedDate === getTodayISODate();
   const isTomorrow = selectedDate === getTomorrowISODate();
@@ -703,6 +706,30 @@ export default function ReceptionScheduleBoard({
             <Zap size={14} />
             <span>Chỉ Bác Sĩ Còn Giờ Trống</span>
           </button>
+
+          {/* Toggle thu gọn ca ngày cho tất cả bác sĩ */}
+          <button
+            type="button"
+            onClick={() => {
+              const nextState = !isGlobalDayShiftCollapsed;
+              setIsGlobalDayShiftCollapsed(nextState);
+              const newMap: Record<string, boolean> = {};
+              doctors.forEach((d) => {
+                newMap[d.id] = nextState;
+              });
+              setCollapsedDayShifts(newMap);
+            }}
+            className={`px-4 py-2.5 rounded-2xl border text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap shadow-2xs ${
+              isGlobalDayShiftCollapsed
+                ? 'bg-amber-100 text-amber-900 border-amber-300'
+                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+            }`}
+            title="Thu gọn hoặc mở rộng ca ngày (Sáng & Chiều) của tất cả Bác sĩ"
+          >
+            <Sun size={14} className="text-amber-500" />
+            <span>{isGlobalDayShiftCollapsed ? 'Mở Rộng Ca Ngày' : 'Thu Gọn Ca Ngày'}</span>
+            <ChevronDown size={14} className={`transition-transform duration-200 ${isGlobalDayShiftCollapsed ? 'rotate-180' : ''}`} />
+          </button>
         </div>
 
       {/* ── Danh Sách Lưới Thẻ Bác Sĩ (Doctor Cards Grid) ── */}
@@ -749,6 +776,17 @@ export default function ReceptionScheduleBoard({
               const hour = parseInt(s.time.split(':')[0], 10) || 0;
               return hour >= 17;
             });
+
+            const daySlots = [...morningSlots, ...afternoonSlots];
+            const dayAvailableCount = daySlots.filter((s) => {
+              if (s.disabled || s.status === 'full' || s.status === 'expired') return false;
+              const timing = getSlotTimingInfo(s.time);
+              return !timing.isPast && !timing.isUrgentTooClose;
+            }).length;
+
+            const isDayCollapsed = collapsedDayShifts[doc.id] !== undefined
+              ? collapsedDayShifts[doc.id]
+              : isGlobalDayShiftCollapsed;
 
             const totalSlots = rawSlots.length;
             const availableCount = rawSlots.filter((s) => {
@@ -924,7 +962,48 @@ export default function ReceptionScheduleBoard({
                         </div>
                       )}
 
-                      {/* Buổi Sáng */}
+                      {/* Nút Thu Gọn / Mở Rộng Ca Ngày (Sáng & Chiều) */}
+                      {daySlots.length > 0 && (
+                        <div className="pt-0.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCollapsedDayShifts((prev) => ({
+                                ...prev,
+                                [doc.id]: !isDayCollapsed
+                              }));
+                            }}
+                            className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-bold transition border cursor-pointer ${
+                              isDayCollapsed
+                                ? 'bg-amber-50/90 border-amber-200 text-amber-900 hover:bg-amber-100 shadow-2xs'
+                                : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 shadow-2xs'
+                            }`}
+                            title={isDayCollapsed ? 'Bấm để mở rộng ca sáng & chiều' : 'Bấm để thu gọn ca sáng & chiều'}
+                          >
+                            <div className="flex items-center gap-2">
+                              <Sun size={15} className="text-amber-500 shrink-0" />
+                              <span className="font-extrabold text-slate-800">
+                                {isDayCollapsed
+                                  ? 'Ca Ngày (08:00 - 17:00)'
+                                  : 'Ca Ngày (Sáng 08:00 - 12:00 & Chiều 13:30 - 17:00)'}
+                              </span>
+                              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                                dayAvailableCount > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'
+                              }`}>
+                                {dayAvailableCount > 0 ? `${dayAvailableCount} slot còn trống` : '0 slot trống • Đã qua'}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-xs text-slate-500 font-semibold shrink-0">
+                              <span>{isDayCollapsed ? 'Bấm để mở rộng' : 'Thu gọn ca ngày'}</span>
+                              <ChevronDown size={14} className={`transition-transform duration-200 ${isDayCollapsed ? '' : 'rotate-180'}`} />
+                            </div>
+                          </button>
+                        </div>
+                      )}
+
+                      {!isDayCollapsed && (
+                        <>
+                          {/* Buổi Sáng */}
                       <div className="space-y-2">
                         <div className="flex items-center justify-between text-xs font-bold text-amber-800">
                           <span className="flex items-center gap-1.5">
@@ -1091,7 +1170,9 @@ export default function ReceptionScheduleBoard({
                           </div>
                         )}
                       </div>
-
+                        </>
+                      )}
+                      
                       {/* Buổi Tối & Ca Đêm (Ca Ngoài Giờ / Develop 24/7) */}
                       {(eveningSlots.length > 0 || clinicConfig.devMode247) && (
                         <div className="space-y-2 pt-2 border-t border-slate-100">
