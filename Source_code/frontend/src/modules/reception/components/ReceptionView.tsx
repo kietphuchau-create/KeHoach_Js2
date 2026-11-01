@@ -34,7 +34,9 @@ import {
   Banknote,
   Tag,
   Gift,
-  Percent
+  Percent,
+  ChevronRight,
+  UserCheck
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -118,6 +120,10 @@ export default function ReceptionView() {
 
   // Ca trực thực tế hôm nay để ràng buộc tiếp đón (Tránh trường hợp Bác sĩ chưa đăng ký lịch mà vẫn cho tiếp đón)
   const [todaySchedules, setTodaySchedules] = useState<any[]>([]);
+  const [showSpecialtyModal, setShowSpecialtyModal] = useState<boolean>(false);
+  const [showDoctorModal, setShowDoctorModal] = useState<boolean>(false);
+  const [specialtySearchTerm, setSpecialtySearchTerm] = useState<string>('');
+  const [doctorSearchTerm, setDoctorSearchTerm] = useState<string>('');
   const [todaySchedulesLoading, setTodaySchedulesLoading] = useState(false);
   const [walkinGender, setWalkinGender] = useState<'MALE' | 'FEMALE' | 'OTHER'>('MALE');
   const [walkinBirthYear, setWalkinBirthYear] = useState('1990');
@@ -164,6 +170,10 @@ export default function ReceptionView() {
   }, [todaySchedules, doctors]);
 
   // Lọc Bác sĩ có ca trực hôm nay THEO ĐÚNG CHUYÊN KHOA ĐANG CHỌN
+  const currentSelectedDoctor = useMemo(() => {
+    return doctors.find((d) => d.id === selectedDoctorId) || activeDoctorsToday.find((d) => d.id === selectedDoctorId);
+  }, [doctors, activeDoctorsToday, selectedDoctorId]);
+
   const availableDoctorsForSpecialty = useMemo(() => {
     if (!walkinSpecialty) return activeDoctorsToday;
     return activeDoctorsToday.filter((d) => {
@@ -1661,45 +1671,51 @@ export default function ReceptionView() {
                       </div>
                     ) : null}
 
-                    {/* Chuyên khoa & Bác sĩ */}
+                    {/* Chuyên khoa & Bác sĩ (Dạng Button mở Modal Popup) */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs font-bold text-slate-700 mb-1">
                           Chuyên khoa khám
                         </label>
-                        <select
-                          value={walkinSpecialty}
-                          onChange={(e) => setWalkinSpecialty(e.target.value)}
-                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none text-xs font-semibold text-slate-800"
+                        <button
+                          type="button"
+                          onClick={() => { setSpecialtySearchTerm(''); setShowSpecialtyModal(true); }}
+                          className="w-full px-3.5 py-2.5 bg-slate-50 hover:bg-slate-100/90 border border-slate-200 rounded-xl flex items-center justify-between text-xs font-semibold text-slate-800 transition cursor-pointer text-left focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                         >
-                          {specialties.map((s) => (
-                            <option key={s.id || s.name} value={s.name}>
-                              {s.name}
-                            </option>
-                          ))}
-                        </select>
+                          <div className="flex items-center gap-2 truncate">
+                            <span className="w-6 h-6 rounded-lg bg-teal-50 border border-teal-200 text-teal-700 flex items-center justify-center shrink-0">
+                              <Stethoscope size={13} />
+                            </span>
+                            <span className="truncate">{walkinSpecialty || 'Chọn chuyên khoa khám...'}</span>
+                          </div>
+                          <ChevronRight size={15} className="text-slate-400 shrink-0 ml-1" />
+                        </button>
                       </div>
 
                       <div>
                         <label className="block text-xs font-bold text-slate-700 mb-1">
                           Bác sĩ &amp; Phòng khám
                         </label>
-                        <select
-                          value={selectedDoctorId}
-                          onChange={(e) => setSelectedDoctorId(e.target.value)}
+                        <button
+                          type="button"
+                          onClick={() => { setDoctorSearchTerm(''); setShowDoctorModal(true); }}
                           disabled={availableDoctorsForSpecialty.length === 0}
-                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none text-xs font-semibold text-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="w-full px-3.5 py-2.5 bg-slate-50 hover:bg-slate-100/90 border border-slate-200 rounded-xl flex items-center justify-between text-xs font-semibold text-slate-800 transition cursor-pointer text-left focus:ring-2 focus:ring-emerald-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          {availableDoctorsForSpecialty.length === 0 ? (
-                            <option value="">-- Chưa có Bác sĩ trực chuyên khoa này --</option>
-                          ) : (
-                            availableDoctorsForSpecialty.map((d) => (
-                              <option key={d.id} value={d.id}>
-                                {formatDoctorFullName(d.academicTitle, d.fullName)} - Buồng {d.roomNumber}
-                              </option>
-                            ))
-                          )}
-                        </select>
+                          <div className="flex items-center gap-2 truncate">
+                            <span className="w-6 h-6 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 flex items-center justify-center shrink-0">
+                              <UserCheck size={13} />
+                            </span>
+                            <span className="truncate">
+                              {currentSelectedDoctor
+                                ? `${formatDoctorFullName(currentSelectedDoctor.academicTitle, currentSelectedDoctor.fullName)} - Buồng ${currentSelectedDoctor.roomNumber || 'P.208'}`
+                                : availableDoctorsForSpecialty.length === 0
+                                ? 'Chưa có Bác sĩ trực chuyên khoa này'
+                                : 'Chọn bác sĩ & phòng khám...'}
+                            </span>
+                          </div>
+                          <ChevronRight size={15} className="text-slate-400 shrink-0 ml-1" />
+                        </button>
                       </div>
                     </div>
 
@@ -2771,6 +2787,220 @@ export default function ReceptionView() {
                   })()}
                 </div>
               ) : null}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Popup Chọn Chuyên Khoa Khám ── */}
+      {showSpecialtyModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-lg w-full max-h-[85vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-teal-50/50 to-white">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-teal-100/80 text-teal-800 flex items-center justify-center">
+                  <Stethoscope size={18} />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm sm:text-base text-slate-800">Chọn Chuyên Khoa Khám Bệnh</h3>
+                  <p className="text-[11px] text-slate-500">Danh mục chuyên khoa tiếp nhận hôm nay</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSpecialtyModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="p-3 border-b border-slate-100 bg-slate-50/50">
+              <div className="relative">
+                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Tìm kiếm chuyên khoa..."
+                  value={specialtySearchTerm}
+                  onChange={(e) => setSpecialtySearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </div>
+            </div>
+
+            <div className="p-4 overflow-y-auto space-y-2 flex-1">
+              {specialties
+                .filter((s) => (s.name || '').toLowerCase().includes(specialtySearchTerm.toLowerCase().trim()))
+                .map((s) => {
+                  const docCount = activeDoctorsToday.filter((d) => {
+                    const dSpec = (d.specialtyName || '').toLowerCase().trim();
+                    const targetSpec = (s.name || '').toLowerCase().trim();
+                    return dSpec === targetSpec || dSpec.includes(targetSpec) || targetSpec.includes(dSpec);
+                  }).length;
+                  const isSelected = walkinSpecialty === s.name;
+
+                  return (
+                    <button
+                      key={s.id || s.name}
+                      type="button"
+                      onClick={() => {
+                        setWalkinSpecialty(s.name);
+                        setShowSpecialtyModal(false);
+                      }}
+                      className={`w-full p-3 rounded-2xl border text-left transition flex items-center justify-between gap-3 cursor-pointer ${
+                        isSelected
+                          ? 'bg-teal-50/80 border-teal-500 shadow-2xs'
+                          : 'bg-white border-slate-200 hover:bg-slate-50 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 ${
+                          isSelected ? 'bg-teal-700 text-white' : 'bg-slate-100 text-slate-700'
+                        }`}>
+                          {s.name.charAt(0)}
+                        </div>
+                        <div className="min-w-0">
+                          <span className={`text-xs font-bold block truncate ${isSelected ? 'text-teal-900' : 'text-slate-800'}`}>
+                            {s.name}
+                          </span>
+                          <span className="text-[10px] text-slate-500 block truncate">
+                            {s.description || 'Khám, chẩn đoán và điều trị theo tiêu chuẩn'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="shrink-0 flex items-center gap-2">
+                        {docCount > 0 ? (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            {docCount} Bác sĩ trực
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-slate-400 px-2 py-0.5 rounded-full bg-slate-100">
+                            Chưa có BS trực
+                          </span>
+                        )}
+                        {isSelected && <Check size={16} className="text-teal-700 shrink-0" />}
+                      </div>
+                    </button>
+                  );
+                })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Popup Chọn Bác Sĩ & Buồng Khám ── */}
+      {showDoctorModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-xl w-full max-h-[85vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-blue-50/50 to-white">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-blue-100/80 text-blue-800 flex items-center justify-center">
+                  <UserCheck size={18} />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm sm:text-base text-slate-800">Chọn Bác Sĩ &amp; Phòng Khám</h3>
+                  <p className="text-[11px] text-slate-500">Chuyên khoa: {walkinSpecialty || 'Đang chọn'} • Ca trực hôm nay</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDoctorModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="p-3 border-b border-slate-100 bg-slate-50/50">
+              <div className="relative">
+                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Tìm theo tên bác sĩ hoặc buồng khám (P.205)..."
+                  value={doctorSearchTerm}
+                  onChange={(e) => setDoctorSearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            <div className="p-4 overflow-y-auto space-y-2.5 flex-1">
+              {availableDoctorsForSpecialty.length === 0 ? (
+                <div className="text-center py-12 bg-slate-50/60 rounded-2xl border border-dashed border-slate-200 p-6 space-y-2">
+                  <AlertTriangle size={28} className="text-amber-500 mx-auto" />
+                  <p className="text-xs font-bold text-slate-700">Hôm nay chưa có Bác sĩ trực chuyên khoa này</p>
+                  <p className="text-[11px] text-slate-500">Vui lòng chọn chuyên khoa khác hoặc Bác sĩ mở ca trực trước.</p>
+                </div>
+              ) : (
+                availableDoctorsForSpecialty
+                  .filter((d) => {
+                    const term = doctorSearchTerm.toLowerCase().trim();
+                    if (!term) return true;
+                    const name = (d.fullName || '').toLowerCase();
+                    const room = (d.roomNumber || '').toLowerCase();
+                    return name.includes(term) || room.includes(term);
+                  })
+                  .map((d) => {
+                    const isSelected = selectedDoctorId === d.id;
+                    const docName = formatDoctorFullName(d.academicTitle, d.fullName);
+
+                    return (
+                      <button
+                        key={d.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedDoctorId(d.id);
+                          setShowDoctorModal(false);
+                        }}
+                        className={`w-full p-3.5 rounded-2xl border text-left transition flex items-center justify-between gap-3 cursor-pointer ${
+                          isSelected
+                            ? 'bg-blue-50/80 border-blue-500 shadow-2xs'
+                            : 'bg-white border-slate-200 hover:bg-slate-50 hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 shadow-2xs ${
+                            isSelected
+                              ? 'bg-gradient-to-br from-blue-600 to-indigo-700 text-white'
+                              : 'bg-gradient-to-br from-teal-700 to-emerald-800 text-white'
+                          }`}>
+                            {d.fullName ? d.fullName.charAt(d.fullName.length - 1) : 'BS'}
+                          </div>
+
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className={`text-xs font-bold truncate ${isSelected ? 'text-blue-950' : 'text-slate-800'}`}>
+                                {docName}
+                              </span>
+                              <span className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.2 rounded flex items-center gap-1">
+                                <DoorOpen size={10} />
+                                <span>Buồng {d.roomNumber || 'P.208'}</span>
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5">
+                              <span>{d.specialtyName || walkinSpecialty}</span>
+                              {d.startTime && d.endTime && (
+                                <>
+                                  <span>•</span>
+                                  <span className="font-semibold text-slate-600">Ca: {d.startTime} - {d.endTime}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="shrink-0 flex items-center gap-2">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            Đang trực
+                          </span>
+                          {isSelected && <Check size={16} className="text-blue-700 shrink-0" />}
+                        </div>
+                      </button>
+                    );
+                  })
+              )}
             </div>
           </div>
         </div>
