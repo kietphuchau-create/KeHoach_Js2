@@ -439,6 +439,11 @@ export default function ReceptionScheduleBoard({
   // Lọc danh sách bác sĩ theo chuyên khoa, tên, phòng khám
   const filteredDoctors = useMemo(() => {
     return doctors.filter((doc) => {
+      // Chỉ hiển thị Bác sĩ có ca trực / slot trong ngày được chọn
+      const slots = doctorSlotsMap[doc.id] || [];
+      if (!loading && slots.length === 0) {
+        return false;
+      }
       // Lọc chuyên khoa
       if (selectedSpecialtyId !== 'ALL' && doc.specialtyId !== selectedSpecialtyId && doc.specialtyName !== selectedSpecialtyId) {
         return false;
@@ -468,7 +473,7 @@ export default function ReceptionScheduleBoard({
 
       return true;
     });
-  }, [doctors, selectedSpecialtyId, searchTerm, filterAvailability, doctorSlotsMap, getSlotTimingInfo]);
+  }, [doctors, selectedSpecialtyId, searchTerm, filterAvailability, doctorSlotsMap, getSlotTimingInfo, loading]);
 
   // Thống kê toàn viện trong ngày
   return (

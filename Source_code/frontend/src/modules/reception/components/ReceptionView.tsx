@@ -130,7 +130,8 @@ export default function ReceptionView() {
   const [doctorSlotsList, setDoctorSlotsList] = useState<any[]>([]);
   const [selectedSlotId, setSelectedSlotId] = useState<string>('');
   const [selectedSlotTime, setSelectedSlotTime] = useState<string>('');
-  const [slotFilterSession, setSlotFilterSession] = useState<'ALL' | 'MORNING' | 'AFTERNOON'>('ALL');
+  const [slotFilterSession, setSlotFilterSession] = useState<'ALL' | 'MORNING' | 'AFTERNOON' | 'EVENING'>('ALL');
+  const [onlyAvailableSlots, setOnlyAvailableSlots] = useState<boolean>(true);
   const [todaySchedulesLoading, setTodaySchedulesLoading] = useState(false);
   const [walkinGender, setWalkinGender] = useState<'MALE' | 'FEMALE' | 'OTHER'>('MALE');
   const [walkinBirthYear, setWalkinBirthYear] = useState('1990');
@@ -263,36 +264,77 @@ export default function ReceptionView() {
     return targetDoctorForSlots || currentSelectedDoctor || null;
   }, [targetDoctorForSlots, currentSelectedDoctor]);
 
+  const getSlotTiming = useCallback((timeStr: string) => {
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const startPart = (timeStr || '').split('-')[0]?.trim() || '';
+    const [startH, startM] = startPart.split(':').map(Number);
+    const slotStartMinutes = (startH || 0) * 60 + (startM || 0);
+    const minutesDiff = slotStartMinutes - currentMinutes;
+    const isPast = minutesDiff <= 0;
+    const isUrgent = minutesDiff > 0 && minutesDiff < 15;
+    return { isPast, isUrgent, minutesDiff };
+  }, []);
+
   const isMorningSlot = (timeStr: string) => {
-    const hour = parseInt(timeStr.split(':')[0], 10) || 0;
-    return hour < 12;
+    const hour = parseInt((timeStr || '').split(':')[0], 10) || 0;
+    return hour >= 8 && hour < 12;
   };
+  const isAfternoonSlot = (timeStr: string) => {
+    const hour = parseInt((timeStr || '').split(':')[0], 10) || 0;
+    return hour >= 12 && hour < 17;
+  };
+  const isEveningSlot = (timeStr: string) => {
+    const hour = parseInt((timeStr || '').split(':')[0], 10) || 0;
+    return hour >= 17;
+  };
+
+  const isSlotAvailable = useCallback((slot: any) => {
+    if (!slot || slot.disabled || slot.status === 'full' || slot.status === 'BOOKED' || slot.status === 'locked') return false;
+    if (slot.status === 'expired') return false;
+    const timing = getSlotTiming(slot.time);
+    return !timing.isPast && !timing.isUrgent;
+  }, [getSlotTiming]);
 
   const morningSlots = useMemo(() => {
     return doctorSlotsList.filter((s) => isMorningSlot(s.time));
   }, [doctorSlotsList]);
 
   const afternoonSlots = useMemo(() => {
-    return doctorSlotsList.filter((s) => !isMorningSlot(s.time));
+    return doctorSlotsList.filter((s) => isAfternoonSlot(s.time));
+  }, [doctorSlotsList]);
+
+  const eveningSlots = useMemo(() => {
+    return doctorSlotsList.filter((s) => isEveningSlot(s.time));
   }, [doctorSlotsList]);
 
   const displayedDoctorSlots = useMemo(() => {
-    if (slotFilterSession === 'MORNING') return morningSlots;
-    if (slotFilterSession === 'AFTERNOON') return afternoonSlots;
-    return doctorSlotsList;
-  }, [slotFilterSession, morningSlots, afternoonSlots, doctorSlotsList]);
+    let list = doctorSlotsList;
+    if (slotFilterSession === 'MORNING') list = morningSlots;
+    else if (slotFilterSession === 'AFTERNOON') list = afternoonSlots;
+    else if (slotFilterSession === 'EVENING') list = eveningSlots;
+
+    if (onlyAvailableSlots) {
+      return list.filter(isSlotAvailable);
+    }
+    return list;
+  }, [slotFilterSession, morningSlots, afternoonSlots, eveningSlots, doctorSlotsList, onlyAvailableSlots, isSlotAvailable]);
 
   const morningAvailableCount = useMemo(() => {
-    return morningSlots.filter((s) => !s.disabled && s.status !== 'full' && s.status !== 'BOOKED' && (isDevModeActive || s.status !== 'expired')).length;
-  }, [morningSlots, isDevModeActive]);
+    return morningSlots.filter(isSlotAvailable).length;
+  }, [morningSlots, isSlotAvailable]);
 
   const afternoonAvailableCount = useMemo(() => {
-    return afternoonSlots.filter((s) => !s.disabled && s.status !== 'full' && s.status !== 'BOOKED' && (isDevModeActive || s.status !== 'expired')).length;
-  }, [afternoonSlots, isDevModeActive]);
+    return afternoonSlots.filter(isSlotAvailable).length;
+  }, [afternoonSlots, isSlotAvailable]);
+
+  const eveningAvailableCount = useMemo(() => {
+    return eveningSlots.filter(isSlotAvailable).length;
+  }, [eveningSlots, isSlotAvailable]);
 
   const availableSlotsTotalCount = useMemo(() => {
-    return doctorSlotsList.filter((s) => !s.disabled && s.status !== 'full' && s.status !== 'BOOKED' && (isDevModeActive || s.status !== 'expired')).length;
-  }, [doctorSlotsList, isDevModeActive]);
+    return doctorSlotsList.filter(isSlotAvailable).length;
+  }, [doctorSlotsList, isSlotAvailable]);
 
   // Tự động chọn Bác sĩ đầu tiên khả dụng khi đổi chuyên khoa
   useEffect(() => {
@@ -3168,9 +3210,9 @@ export default function ReceptionView() {
               </button>
             </div>
 
-            {/* Thanh lọc Buổi (Tất cả / Ca Sáng / Ca Chiều) & Thống kê số lượng slot */}
-            <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/60 flex items-center justify-between flex-wrap gap-2">
-              <div className="flex items-center gap-1.5 bg-slate-200/60 p-1 rounded-xl">
+            {/* Thanh lọc Buổi (Tất cả / Ca Sáng / Ca Chiều / Ca Tối) & Toggle chỉ hiện slot trống */}
+            <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/60 flex items-center justify-between flex-wrap gap-2.5">
+              <div className="flex items-center gap-1.5 bg-slate-200/60 p-1 rounded-xl flex-wrap">
                 <button
                   type="button"
                   onClick={() => setSlotFilterSession('ALL')}
@@ -3204,9 +3246,33 @@ export default function ReceptionView() {
                 >
                   Ca Chiều ({afternoonAvailableCount} trống)
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setSlotFilterSession('EVENING')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    slotFilterSession === 'EVENING'
+                      ? 'bg-white text-emerald-800 shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Ca Tối &amp; Đêm ({eveningAvailableCount} trống)
+                </button>
               </div>
 
-              <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+              <div className="flex items-center gap-2.5 text-xs font-semibold text-slate-600">
+                <button
+                  type="button"
+                  onClick={() => setOnlyAvailableSlots(!onlyAvailableSlots)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition flex items-center gap-1.5 cursor-pointer ${
+                    onlyAvailableSlots
+                      ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                  }`}
+                  title="Chỉ hiển thị các khung giờ chưa có người đặt và chưa qua giờ"
+                >
+                  <Zap size={12} className={onlyAvailableSlots ? 'text-emerald-700' : 'text-slate-400'} />
+                  <span>Chỉ hiện giờ còn trống</span>
+                </button>
                 <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg font-bold text-[11px]">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                   {availableSlotsTotalCount} khung giờ trống
@@ -3247,9 +3313,11 @@ export default function ReceptionView() {
                   {displayedDoctorSlots.map((slot: any) => {
                     const isSlotSelected = selectedSlotId === slot.id || (selectedSlotTime === slot.time && selectedDoctorId === activeSlotDoctor.id);
                     const isFull = slot.status === 'full' || slot.status === 'BOOKED';
-                    const isExpired = slot.status === 'expired';
                     const isLocked = slot.status === 'locked';
-                    const isAvailable = (!isFull && !isLocked && (!isExpired || isDevModeActive));
+                    const timing = getSlotTiming(slot.time);
+                    const isPast = timing.isPast || slot.status === 'expired';
+                    const isUrgent = timing.isUrgent;
+                    const isAvailable = (!isFull && !isLocked && !isPast && !isUrgent && !slot.disabled);
 
                     return (
                       <button
@@ -3257,6 +3325,7 @@ export default function ReceptionView() {
                         type="button"
                         disabled={!isAvailable}
                         onClick={() => {
+                          if (!isAvailable) return;
                           setSelectedDoctorId(activeSlotDoctor.id);
                           setSelectedSlotId(slot.id);
                           setSelectedSlotTime(slot.time);
@@ -3267,11 +3336,11 @@ export default function ReceptionView() {
                             date: getLocalDateString(),
                           });
                         }}
-                        className={`p-3 rounded-2xl border text-center transition flex flex-col items-center justify-between gap-1.5 relative cursor-pointer ${
+                        className={`p-3 rounded-2xl border text-center transition flex flex-col items-center justify-between gap-1.5 relative ${
                           isSlotSelected
-                            ? 'bg-emerald-600 border-emerald-600 text-white shadow-md ring-2 ring-emerald-500/50'
+                            ? 'bg-emerald-600 border-emerald-600 text-white shadow-md ring-2 ring-emerald-500/50 cursor-pointer'
                             : isAvailable
-                            ? 'bg-white border-emerald-200 hover:border-emerald-500 hover:bg-emerald-50/60 text-slate-800 hover:shadow-2xs'
+                            ? 'bg-white border-emerald-200 hover:border-emerald-500 hover:bg-emerald-50/60 text-slate-800 hover:shadow-2xs cursor-pointer'
                             : 'bg-slate-100/70 border-slate-200 text-slate-400 cursor-not-allowed opacity-60'
                         }`}
                       >
@@ -3296,8 +3365,12 @@ export default function ReceptionView() {
                             <span className="text-[10px] font-bold text-slate-500 bg-slate-200 px-2 py-0.2 rounded-full">
                               Đã kín chỗ
                             </span>
-                          ) : isExpired ? (
-                            <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.2 rounded-full">
+                          ) : isUrgent ? (
+                            <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.2 rounded-full">
+                              Sát giờ (&lt;15p)
+                            </span>
+                          ) : isPast ? (
+                            <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.2 rounded-full">
                               Đã qua giờ
                             </span>
                           ) : (
