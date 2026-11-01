@@ -690,7 +690,7 @@ export default function ReceptionScheduleBoard({
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+        <div className={filteredDoctors.length === 1 ? "max-w-3xl mx-auto space-y-5" : "grid grid-cols-1 xl:grid-cols-2 gap-5"}>
           {filteredDoctors.map((doc) => {
             const rawSlots = doctorSlotsMap[doc.id] || [];
             const docName = formatDoctorFullName(doc.academicTitle, doc.fullName);

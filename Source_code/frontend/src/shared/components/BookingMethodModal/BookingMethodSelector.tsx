@@ -1433,9 +1433,8 @@ export default function BookingMethodSelector({
     };
   }, [bookingDate]);
 
-  // Đồng bộ danh mục bác sĩ từ CSDL qua API
+  // Đồng bộ danh mục bác sĩ từ CSDL qua API ngay khi mở trang
   useEffect(() => {
-    if (aiStep !== 'INPUT_LOCATION' && aiStep !== 'SELECT_DOCTOR_SLOT') return;
     let isMounted = true;
     setIsDoctorsLoading(true);
     const loadDoctors = () => api.getDoctors()
@@ -1527,7 +1526,7 @@ export default function BookingMethodSelector({
     return () => {
       isMounted = false;
     };
-  }, [aiStep]);
+  }, []);
 
   // Tải danh sách ca khám thực tế từ CSDL khi đổi bác sĩ hoặc ngày khám
   useEffect(() => {
@@ -2158,14 +2157,74 @@ export default function BookingMethodSelector({
       setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg, aiMsg]);
     } else {
       // ĐÃ HOÀN TẤT CÁC CÂU HỎI -> TỔNG HỢP VÀ ĐÁNH GIÁ TÍNH PHÙ HỢP CỦA BÁC SĨ TẠI PHÒNG KHÁM
-      const doctorPool = dbDoctors;
+      let doctorPool = dbDoctors;
+      if (!doctorPool || doctorPool.length === 0) {
+        try {
+          const rawDocs: any[] = await api.getDoctors();
+          if (Array.isArray(rawDocs) && rawDocs.length > 0) {
+            doctorPool = rawDocs.map((d: any) => {
+              const rawName = d.fullName || '';
+              const academicTitle = d.academicTitle || '';
+              const formattedName = formatDoctorFullName(academicTitle, rawName);
+              const catKeys: string[] = [];
+              const specName = (d.specialtyName || '').toLowerCase();
+              if (specName.includes('thần kinh') || specName.includes('não')) catKeys.push('HEADACHE');
+              if (specName.includes('tiêu hóa') || specName.includes('gan mật') || specName.includes('dạ dày')) catKeys.push('ABDOMINAL');
+              if (specName.includes('hô hấp') || specName.includes('truyền nhiễm') || specName.includes('phổi')) catKeys.push('RESPIRATORY');
+              if (specName.includes('xương') || specName.includes('khớp') || specName.includes('cơ xương khớp')) catKeys.push('BONE_JOINT');
+              if (specName.includes('da') || specName.includes('da liễu') || specName.includes('thẩm mỹ')) catKeys.push('SKIN');
+              if (specName.includes('răng') || specName.includes('hàm') || specName.includes('mặt')) catKeys.push('DENTAL');
+              if (specName.includes('mắt') || specName.includes('nhãn khoa')) catKeys.push('EYE');
+              if (specName.includes('nội tổng quát') || specName.includes('tổng quát') || specName.includes('khám sức khỏe')) catKeys.push('FATIGUE');
+
+              const lowerName = rawName.toLowerCase();
+              const isFemale = lowerName.includes('thị') || lowerName.includes('hương') || 
+                lowerName.includes('linh') || lowerName.includes('thảo') || lowerName.includes('thu') ||
+                lowerName.includes('mai') || lowerName.includes('lan') || lowerName.includes('trang') ||
+                lowerName.includes('ngọc') || lowerName.includes('hoa') || lowerName.includes('phương');
+
+              const isExpert = (academicTitle && (academicTitle.includes('CKII') || academicTitle.includes('TS') || academicTitle.includes('PGS') || academicTitle.includes('GS') || academicTitle.includes('Trưởng'))) ||
+                (d.bio && (d.bio.includes('Trưởng') || d.bio.includes('Chuyên gia')));
+
+              const roomText = d.roomNumber 
+                ? (d.roomNumber.toLowerCase().startsWith('phòng') ? d.roomNumber : `Phòng ${d.roomNumber}`)
+                : 'Phòng P.208 - Tầng 2';
+
+              return {
+                id: d.id,
+                name: formattedName || rawName || 'Bác sĩ chuyên khoa',
+                rawName,
+                academicTitle,
+                title: d.bio || `${academicTitle || 'Bác sĩ'} - ${d.specialtyName || 'Chuyên khoa'}`,
+                specialtyCode: d.specialtyCode || (specName.includes('da') ? 'DERMATOLOGY' : specName.includes('răng') ? 'ODONTO_STOMATOLOGY' : specName.includes('mắt') ? 'OPHTHALMOLOGY' : 'INTERNAL_MEDICINE'),
+                specialtyName: d.specialtyName || '',
+                specialtyId: d.specialtyId || '',
+                categoryKeys: catKeys,
+                centerId: d.medicalCenterId,
+                room: roomText,
+                fee: Number(d.consultationFee) || 200000,
+                gender: isFemale ? 'female' : 'male',
+                isExpert: !!isExpert,
+              };
+            });
+            setDbDoctors(doctorPool);
+          }
+        } catch (e) {}
+      }
+
       const matchingDoctors = doctorPool.filter(d => {
+        const dSpec = (d.specialtyName || '').toLowerCase();
+        const actSpec = (activeCategory.specialtyName || '').toLowerCase();
         return (
           d.categoryKeys?.includes(selectedCategoryKey) ||
           (d.specialtyCode && d.specialtyCode === activeCategory.specialtyCode) ||
-          (d.specialtyName && activeCategory.specialtyName && (
-            d.specialtyName.toLowerCase().includes(activeCategory.specialtyName.toLowerCase()) ||
-            activeCategory.specialtyName.toLowerCase().includes(d.specialtyName.toLowerCase())
+          (dSpec && actSpec && (
+            dSpec.includes(actSpec) ||
+            actSpec.includes(dSpec) ||
+            (actSpec.includes('da') && dSpec.includes('da')) ||
+            (actSpec.includes('nội') && dSpec.includes('nội')) ||
+            (actSpec.includes('răng') && dSpec.includes('răng')) ||
+            (actSpec.includes('mắt') && dSpec.includes('mắt'))
           ))
         );
       });
