@@ -41,14 +41,12 @@ import AlertMessage from '@/shared/components/Feedback/AlertMessage';
 
 interface ReceptionScheduleBoardProps {
   onSelectSlotForWalkin?: (doctor: any, slot: any, date: string) => void;
-  onBackToLiveFeed?: () => void;
   specialties?: any[];
   doctors?: any[];
 }
 
 export default function ReceptionScheduleBoard({
   onSelectSlotForWalkin,
-  onBackToLiveFeed,
   specialties = [],
   doctors = []
 }: ReceptionScheduleBoardProps) {
@@ -504,102 +502,78 @@ export default function ReceptionScheduleBoard({
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
-      {/* ── Header Điều Khiển & Bộ Lọc Tra Cứu (Tối Giản, Không Khung Trắng Bọc Ngoài) ── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-1">
-          {onBackToLiveFeed ? (
+      {/* ── Header Điều Khiển Chọn Ngày (Tối Giản) ── */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-1">
+        {/* Quick Switcher Hôm nay & Ngày mai */}
+        <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-2xl border border-slate-200">
           <button
             type="button"
-            onClick={onBackToLiveFeed}
-            className="inline-flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer w-fit"
+            onClick={() => setSelectedDate(getTodayISODate())}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+              isToday
+                ? 'bg-white text-slate-900 shadow-xs border border-slate-200'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
           >
-            <Clock size={14} className="text-teal-700" />
-            <span>← Quay lại Danh Sách Tiếp Đón</span>
+            <Calendar size={13} className={isToday ? 'text-teal-600' : 'text-slate-400'} />
+            <span>Hôm nay ({formatDisplayDateVN(getTodayISODate())})</span>
+            {isAfter17h && (
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${
+                isToday ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-600'
+              }`}>
+                Đã hết ca
+              </span>
+            )}
           </button>
-        ) : <div />}
 
-          {/* Điều Khiển Chọn Ngày Khám & Chuyển Nhanh */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2.5 shrink-0">
-            {/* Quick Switcher Hôm nay & Ngày mai */}
-            <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-2xl border border-slate-200">
-              <button
-                type="button"
-                onClick={() => setSelectedDate(getTodayISODate())}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                  isToday
-                    ? 'bg-white text-slate-900 shadow-xs border border-slate-200'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Calendar size={13} className={isToday ? 'text-teal-600' : 'text-slate-400'} />
-                <span>Hôm nay ({formatDisplayDateVN(getTodayISODate())})</span>
-                {isAfter17h && (
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${
-                    isToday ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-600'
-                  }`}>
-                    Đã hết ca
-                  </span>
-                )}
-              </button>
+          <button
+            type="button"
+            onClick={() => setSelectedDate(getTomorrowISODate())}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+              isTomorrow
+                ? 'bg-teal-600 text-white shadow-xs'
+                : 'text-teal-800 hover:bg-white/60'
+            }`}
+          >
+            <Sparkles size={13} className={isTomorrow ? 'text-amber-200' : 'text-teal-600'} />
+            <span>Ngày mai ({formatDisplayDateVN(getTomorrowISODate())})</span>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${
+              isTomorrow ? 'bg-teal-700 text-white' : 'bg-teal-100 text-teal-800'
+            }`}>
+              Mở nhận lịch
+            </span>
+          </button>
+        </div>
 
-              <button
-                type="button"
-                onClick={() => setSelectedDate(getTomorrowISODate())}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                  isTomorrow
-                    ? 'bg-teal-600 text-white shadow-xs'
-                    : 'text-teal-800 hover:bg-white/60'
-                }`}
-              >
-                <Sparkles size={13} className={isTomorrow ? 'text-amber-200' : 'text-teal-600'} />
-                <span>Ngày mai ({formatDisplayDateVN(getTomorrowISODate())})</span>
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${
-                  isTomorrow ? 'bg-teal-700 text-white' : 'bg-teal-100 text-teal-800'
-                }`}>
-                  Mở nhận lịch
-                </span>
-              </button>
-            </div>
+        {/* Chọn ngày tùy chỉnh */}
+        <div className="flex items-center gap-1 bg-slate-50 p-1.5 rounded-2xl border border-slate-200">
+          <button
+            type="button"
+            onClick={() => handleShiftDate(-1)}
+            className="p-1.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 transition cursor-pointer shadow-2xs"
+            title="Lùi 1 ngày"
+          >
+            <ChevronLeft size={15} />
+          </button>
 
-            {/* Chọn ngày tùy chỉnh */}
-            <div className="flex items-center gap-1 bg-slate-50 p-1.5 rounded-2xl border border-slate-200">
-              <button
-                type="button"
-                onClick={() => handleShiftDate(-1)}
-                className="p-1.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 transition cursor-pointer shadow-2xs"
-                title="Lùi 1 ngày"
-              >
-                <ChevronLeft size={15} />
-              </button>
-
-              <div className="flex items-center gap-1.5 px-2">
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="bg-transparent text-xs font-black text-slate-800 focus:outline-none cursor-pointer"
-                />
-              </div>
-
-              <button
-                type="button"
-                onClick={() => handleShiftDate(1)}
-                className="p-1.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 transition cursor-pointer shadow-2xs"
-                title="Tiến 1 ngày"
-              >
-                <ChevronRight size={15} />
-              </button>
-
-              <button
-                type="button"
-                onClick={loadSlotsForAllDoctors}
-                disabled={loading}
-                className="p-1.5 rounded-xl bg-teal-50 border border-teal-200 hover:bg-teal-100 text-teal-800 transition cursor-pointer ml-1"
-                title="Tải lại dữ liệu slots"
-              >
-                <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-              </button>
-            </div>
+          <div className="flex items-center gap-1.5 px-2">
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="bg-transparent text-xs font-black text-slate-800 focus:outline-none cursor-pointer"
+            />
           </div>
+
+          <button
+            type="button"
+            onClick={() => handleShiftDate(1)}
+            className="p-1.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 transition cursor-pointer shadow-2xs"
+            title="Tiến 1 ngày"
+          >
+            <ChevronRight size={15} />
+          </button>
+        </div>
       </div>
 
       {/* ── Thanh KPI Thống Kê Toàn Viện (4 Card Độc Lập Chuẩn Layout) ── */}

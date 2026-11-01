@@ -1484,7 +1484,6 @@ export default function ReceptionView() {
         <div className="space-y-4">
           <ReceptionScheduleBoard
             onSelectSlotForWalkin={handleSelectSlotForWalkin}
-            onBackToLiveFeed={() => setMainTab('CHECK_IN')}
             specialties={specialties}
             doctors={doctors}
           />
