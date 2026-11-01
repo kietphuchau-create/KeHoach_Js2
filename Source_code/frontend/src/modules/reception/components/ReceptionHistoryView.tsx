@@ -17,6 +17,7 @@ import {
   Phone, 
   ArrowRight,
   ChevronRight,
+  ChevronDown,
   Filter,
   CheckCircle2,
   AlertCircle,
@@ -45,7 +46,10 @@ export default function ReceptionHistoryView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [methodFilter, setMethodFilter] = useState<'ALL' | 'QR_CODE' | 'CCCD_QR' | 'MANUAL'>('ALL');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'CHECKED_IN' | 'IN_PROGRESS' | 'COMPLETED' | 'MISSED_NO_SHOW'>('ALL');
-  const [datePreset, setDatePreset] = useState<'TODAY' | 'LAST_7_DAYS' | 'LAST_30_DAYS' | 'ALL'>('ALL');
+  const [datePreset, setDatePreset] = useState<'TODAY' | 'LAST_7_DAYS' | 'LAST_30_DAYS' | 'ALL' | 'CUSTOM'>('ALL');
+  const [showDatePickerModal, setShowDatePickerModal] = useState(false);
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
 
   // Modal Chi tiết & In Phiếu Tiếp Đón
   const [selectedItem, setSelectedItem] = useState<ReceptionHistoryItem | null>(null);
@@ -101,6 +105,9 @@ export default function ReceptionHistoryView() {
         d.setDate(d.getDate() - 30);
         from = getLocalDateString(d);
         to = getLocalDateString(today);
+      } else if (datePreset === 'CUSTOM') {
+        from = customStartDate || undefined;
+        to = customEndDate || undefined;
       }
 
       const res = await api.getReceptionHistory({
@@ -123,7 +130,7 @@ export default function ReceptionHistoryView() {
     } finally {
       setLoading(false);
     }
-  }, [searchQuery, methodFilter, statusFilter, datePreset]);
+  }, [searchQuery, methodFilter, statusFilter, datePreset, customStartDate, customEndDate]);
 
   useEffect(() => {
     loadData();
@@ -162,6 +169,28 @@ export default function ReceptionHistoryView() {
         <Users size={12} /> Tiếp Nhận Tại Quầy
       </span>
     );
+  };
+
+  const getDatePresetLabel = () => {
+    switch (datePreset) {
+      case 'TODAY':
+        return 'Hôm Nay';
+      case 'LAST_7_DAYS':
+        return '7 Ngày Gần Nhất';
+      case 'LAST_30_DAYS':
+        return '30 Ngày Gần Nhất';
+      case 'CUSTOM':
+        if (customStartDate && customEndDate) {
+          if (customStartDate === customEndDate) return customStartDate;
+          return `${customStartDate} → ${customEndDate}`;
+        }
+        if (customStartDate) return `Từ ${customStartDate}`;
+        if (customEndDate) return `Đến ${customEndDate}`;
+        return 'Khoảng ngày cụ thể';
+      case 'ALL':
+      default:
+        return 'Tất Cả Thời Gian';
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -306,57 +335,23 @@ export default function ReceptionHistoryView() {
           </div>
         </div>
 
-        {/* Mốc Thời Gian Presets */}
-        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 text-xs">
-          <span className="text-slate-400 font-semibold flex items-center gap-1 mr-1">
-            <Calendar size={13} /> Thời gian:
-          </span>
+        {/* Nút Chọn Mốc Thời Gian (Gộp 1 nút & 1 icon duy nhất) */}
+        <div className="flex items-center justify-between gap-3 pt-2.5 border-t border-slate-100 text-xs flex-wrap">
           <button
             type="button"
-            onClick={() => setDatePreset('TODAY')}
-            className={`px-3 py-1.5 rounded-lg font-semibold transition cursor-pointer ${
-              datePreset === 'TODAY'
-                ? 'bg-pine-teal text-white shadow-2xs'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
+            onClick={() => setShowDatePickerModal(true)}
+            className="px-3.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 text-xs font-semibold transition flex items-center gap-2 cursor-pointer shadow-2xs hover:border-pine-teal"
+            title="Bấm để chọn mốc thời gian hoặc khoảng ngày cụ thể"
           >
-            Hôm Nay
-          </button>
-          <button
-            type="button"
-            onClick={() => setDatePreset('LAST_7_DAYS')}
-            className={`px-3 py-1.5 rounded-lg font-semibold transition cursor-pointer ${
-              datePreset === 'LAST_7_DAYS'
-                ? 'bg-pine-teal text-white shadow-2xs'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            7 Ngày Gần Nhất
-          </button>
-          <button
-            type="button"
-            onClick={() => setDatePreset('LAST_30_DAYS')}
-            className={`px-3 py-1.5 rounded-lg font-semibold transition cursor-pointer ${
-              datePreset === 'LAST_30_DAYS'
-                ? 'bg-pine-teal text-white shadow-2xs'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            30 Ngày Gần Nhất
-          </button>
-          <button
-            type="button"
-            onClick={() => setDatePreset('ALL')}
-            className={`px-3 py-1.5 rounded-lg font-semibold transition cursor-pointer ${
-              datePreset === 'ALL'
-                ? 'bg-pine-teal text-white shadow-2xs'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            Tất Cả Thời Gian
+            <Calendar size={14} className="text-pine-teal shrink-0" />
+            <span className="font-bold text-slate-600">Thời gian:</span>
+            <span className="font-bold text-pine-teal bg-teal-50 border border-teal-200/80 px-2.5 py-0.5 rounded-lg text-xs">
+              {getDatePresetLabel()}
+            </span>
+            <ChevronDown size={14} className="text-slate-400 shrink-0 ml-0.5" />
           </button>
 
-          <span className="ml-auto text-[11px] text-slate-400">
+          <span className="text-[11px] text-slate-400 font-medium">
             Hiển thị <strong>{historyItems.length}</strong> kết quả tiếp đón
           </span>
         </div>
@@ -504,6 +499,190 @@ export default function ReceptionHistoryView() {
           </div>
         )}
       </div>
+
+      {/* ── Modal Popup Chọn Mốc Thời Gian Cụ Thể ── */}
+      {showDatePickerModal && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setShowDatePickerModal(false)}
+        >
+          <div 
+            className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-teal-50/60 to-white">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-teal-100 text-teal-800 flex items-center justify-center shrink-0">
+                  <Calendar size={18} />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm sm:text-base text-slate-800">
+                    Chọn Mốc Thời Gian Tra Cứu
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Lọc danh sách tiếp đón theo khoảng thời gian cụ thể
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDatePickerModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition cursor-pointer"
+                title="Đóng"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-5 space-y-4">
+              {/* Presets */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-2">
+                  Mốc thời gian nhanh
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDatePreset('TODAY');
+                      setShowDatePickerModal(false);
+                    }}
+                    className={`p-2.5 rounded-xl border text-xs font-bold transition flex items-center justify-between cursor-pointer ${
+                      datePreset === 'TODAY'
+                        ? 'bg-pine-teal text-white border-pine-teal shadow-xs'
+                        : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700'
+                    }`}
+                  >
+                    <span>Hôm Nay</span>
+                    {datePreset === 'TODAY' && <Check size={14} />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDatePreset('LAST_7_DAYS');
+                      setShowDatePickerModal(false);
+                    }}
+                    className={`p-2.5 rounded-xl border text-xs font-bold transition flex items-center justify-between cursor-pointer ${
+                      datePreset === 'LAST_7_DAYS'
+                        ? 'bg-pine-teal text-white border-pine-teal shadow-xs'
+                        : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700'
+                    }`}
+                  >
+                    <span>7 Ngày Gần Nhất</span>
+                    {datePreset === 'LAST_7_DAYS' && <Check size={14} />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDatePreset('LAST_30_DAYS');
+                      setShowDatePickerModal(false);
+                    }}
+                    className={`p-2.5 rounded-xl border text-xs font-bold transition flex items-center justify-between cursor-pointer ${
+                      datePreset === 'LAST_30_DAYS'
+                        ? 'bg-pine-teal text-white border-pine-teal shadow-xs'
+                        : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700'
+                    }`}
+                  >
+                    <span>30 Ngày Gần Nhất</span>
+                    {datePreset === 'LAST_30_DAYS' && <Check size={14} />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDatePreset('ALL');
+                      setShowDatePickerModal(false);
+                    }}
+                    className={`p-2.5 rounded-xl border text-xs font-bold transition flex items-center justify-between cursor-pointer ${
+                      datePreset === 'ALL'
+                        ? 'bg-pine-teal text-white border-pine-teal shadow-xs'
+                        : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700'
+                    }`}
+                  >
+                    <span>Tất Cả Thời Gian</span>
+                    {datePreset === 'ALL' && <Check size={14} />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Phân cách */}
+              <div className="relative py-1">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-slate-200" />
+                </div>
+                <div className="relative flex justify-center text-[10px] uppercase font-bold text-slate-400">
+                  <span className="bg-white px-2">Hoặc chọn khoảng ngày cụ thể</span>
+                </div>
+              </div>
+
+              {/* Khoảng ngày tùy chọn */}
+              <div className="space-y-2.5">
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      Từ ngày:
+                    </label>
+                    <input
+                      type="date"
+                      value={customStartDate}
+                      onChange={(e) => setCustomStartDate(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-pine-teal/30"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      Đến ngày:
+                    </label>
+                    <input
+                      type="date"
+                      value={customEndDate}
+                      onChange={(e) => setCustomEndDate(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-pine-teal/30"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={!customStartDate && !customEndDate}
+                  onClick={() => {
+                    setDatePreset('CUSTOM');
+                    setShowDatePickerModal(false);
+                  }}
+                  className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-bold text-xs shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Check size={14} />
+                  <span>Áp Dụng Khoảng Ngày Cụ Thể</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-3.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  setDatePreset('ALL');
+                  setCustomStartDate('');
+                  setCustomEndDate('');
+                  setShowDatePickerModal(false);
+                }}
+                className="text-slate-500 hover:text-slate-800 font-semibold cursor-pointer"
+              >
+                Đặt lại tất cả
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowDatePickerModal(false)}
+                className="px-4 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 font-bold hover:bg-slate-100 transition cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Modal Xem & In Phiếu Tiếp Đón ── */}
       {selectedItem && (
