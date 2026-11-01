@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import Link from 'next/link';
 import { 
   Users, 
   QrCode, 
@@ -208,45 +207,6 @@ export default function ReceptionHistoryView() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-150">
-      {/* ── Breadcrumb & Action Toolbar (Tối giản, không còn khung trắng bọc ngoài) ── */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pt-1">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 mb-1">
-            <span className="text-teal-primary font-bold">medsched.hospital.vn</span>
-            <span>&rsaquo;</span>
-            <span className="text-slate-700">Phân Hệ Tiếp Đón</span>
-            <span>&rsaquo;</span>
-            <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-pine-teal font-bold uppercase text-[10px]">
-              RECEPTION ARCHIVE
-            </span>
-          </div>
-          <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2.5">
-            <UserCheck className="text-pine-teal" size={26} />
-            Lịch Sử Tiếp Đón &amp; Check-in Bệnh Nhân
-          </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Tra cứu toàn bộ danh sách lượt bệnh nhân đã quét QR vé hẹn, thẻ CCCD gắn chip và cấp số khám vãng lai tại quầy.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2.5 w-full md:w-auto">
-          <Link
-            href="/reception"
-            className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-pine-teal hover:bg-pine-teal-hover text-white transition shadow-xs"
-          >
-            <QrCode size={15} />
-            <span>Đến Quầy Tiếp Đón</span>
-          </Link>
-          <button
-            onClick={() => loadData()}
-            disabled={loading}
-            className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-pine-teal transition cursor-pointer shadow-2xs bg-white"
-            title="Làm mới danh sách"
-          >
-            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-          </button>
-        </div>
-      </div>
 
       {/* ── Thẻ Thống Kê Nhanh (Summary KPI Scorecards) ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
