@@ -20,8 +20,7 @@ import {
   Info,
   X,
   DoorOpen,
-  LayoutGrid,
-  ShieldCheck
+  LayoutGrid
 } from 'lucide-react';
 import { api, getAuthUser } from '@/shared/lib/api';
 import { getClinicRooms, ClinicRoom } from '@/shared/lib/clinicRooms';
@@ -859,52 +858,6 @@ export default function DoctorScheduleView() {
           </button>
         </div>
       )}
-
-      {/* ── Banner Chế Độ Đăng Ký Lịch & Quy Định Công Suất 6 Giờ/Ngày ── */}
-      <div className={`p-4 rounded-2xl border transition-all ${
-        dailyHoursSummary && !dailyHoursSummary.autoScheduleEnabled
-          ? 'bg-gradient-to-r from-emerald-50 via-teal-50 to-white border-emerald-200 text-emerald-950 shadow-2xs'
-          : 'bg-gradient-to-r from-cyan-50 via-teal-50 to-white border-cyan-200 text-cyan-950 shadow-2xs'
-      }`}>
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black ${
-              dailyHoursSummary && !dailyHoursSummary.autoScheduleEnabled
-                ? 'bg-emerald-600 text-white shadow-xs'
-                : 'bg-cyan-600 text-white shadow-xs'
-            }`}>
-              <ShieldCheck size={20} />
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs font-black uppercase tracking-wider">
-                  {dailyHoursSummary && !dailyHoursSummary.autoScheduleEnabled
-                    ? 'Chế Độ Bác Sĩ Tự Đặt Lịch Thủ Công (Demo Luồng Chính)'
-                    : 'Chế Độ Tự Động Xếp Lịch Toàn Viện'}
-                </span>
-                <span className="text-[10px] bg-white px-2 py-0.5 rounded-full font-bold border border-slate-200 text-slate-700 shadow-2xs">
-                  Chỉ tiêu: {dailyHoursSummary?.minWorkHoursPerDay || 6}.0 giờ/ngày
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-600 mt-0.5">
-                {dailyHoursSummary && !dailyHoursSummary.autoScheduleEnabled
-                  ? 'Bác sĩ tự do mở ca trực cho bất kỳ ngày nào trong tương lai (không giới hạn số ngày). Điều kiện kiểm soát công suất: Buộc hoàn tất đủ tối thiểu 6.0 giờ cho ngày đang xếp trước khi được mở lịch cho ngày tiếp theo.'
-                  : 'Hệ thống tự động đồng bộ lịch 7 ngày cho toàn viện qua Cron Job. Bệnh nhân có thể đặt các khung giờ mặc định.'}
-              </p>
-            </div>
-          </div>
-
-          {/* Badges trạng thái các ngày chưa đủ 6 tiếng */}
-          {dailyHoursSummary && dailyHoursSummary.incompleteDates && dailyHoursSummary.incompleteDates.length > 0 && (
-            <div className="flex items-center gap-2 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-300 text-amber-900 text-xs shrink-0 font-medium">
-              <AlertCircle size={15} className="text-amber-600 shrink-0" />
-              <span>
-                Cần bổ sung ca: <strong>{dailyHoursSummary.incompleteDates.join(', ')}</strong> (&lt; 6h)
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
 
       {/* ── Thanh Điều Hướng Tuần & Đăng Ký Ca Trực ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 sm:px-4 rounded-2xl border border-slate-200 shadow-2xs">
