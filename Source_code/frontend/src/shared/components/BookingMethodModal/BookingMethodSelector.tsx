@@ -1195,14 +1195,18 @@ function parsePatientBookingIntent(
   if (isMorningMentioned && !isAfternoonMentioned) matchedShift = 'MORNING';
   if (isAfternoonMentioned && !isMorningMentioned) matchedShift = 'AFTERNOON';
 
-  // 3. Nhận diện xung đột giờ nghỉ trưa (Ca chiều bắt đầu lúc 13:30, bệnh nhân xin khám 1h - 2h hoặc 13h - 14h hoặc 1h chiều)
-  const is1h30 = text.includes('13:30') || text.includes('13h30') || text.includes('1h30');
+  // 3. Nhận diện xung đột giờ nghỉ trưa (11:00 - 13:30): Ca chiều đón tiếp từ 13:30
+  // Tránh text.includes('1h30') bị dính với '11h30' bằng regex word boundary
+  const is1h30 = /(?<!\d)(?:13:30|13h30|1h30)\b/i.test(text);
   const isLunchBreakOrEarlyAfternoon = !is1h30 && (
+    (explicitRangeStartMinutes !== null && explicitRangeStartMinutes >= 11 * 60 && explicitRangeStartMinutes < 13 * 60 + 30) ||
+    /(?:11h30|12h|12:00|12h30|12:30|13h|13:00|1h\s*chiều|1h\s*trưa)\b/i.test(text) ||
+    /11h(?:30)?\s*(?:đến|-|tới)/i.test(text) ||
     /1h\s*(?:đến|-|tới)?\s*2h/i.test(text) ||
     /13h\s*(?:đến|-|tới)?\s*14h/i.test(text) ||
-    /từ\s*(?:1h|13h)/i.test(text) ||
+    /từ\s*(?:1h|13h|12h|11h30)/i.test(text) ||
     /(?:1h|13h)\s*(?:chiều|trưa)/i.test(text) ||
-    /\b(?:1h|13h|13:00)\b/i.test(text) ||
+    /\b(?:13h|13:00)\b/i.test(text) ||
     text.includes('1h đến 2h') ||
     text.includes('1h den 2h') ||
     text.includes('1h-2h') ||
@@ -2606,7 +2610,7 @@ export default function BookingMethodSelector({
         id: 'msg-' + (Date.now() + 1),
         sender: 'ai',
         time: getFormattedTime(),
-        text: `Dạ em đã ghi nhận bạn chọn **${targetBranch?.shortName || 'phòng khám'}** ạ! 🏥\n\nVề giờ khám: Ca chiều của phòng khám bắt đầu đón tiếp từ **13:30** (từ 11:30 đến 13:30 là giờ nghỉ trưa của các bác sĩ).\n👉 Khung giờ sớm nhất và phù hợp nhất với mong muốn của bạn là **13:30 - 14:00**.\n\nBạn có muốn em chuyển sang đặt từ **13:30 đến 14:00** để chuyển sang bước chọn Bác sĩ luôn không ạ?`,
+        text: `Dạ em đã ghi nhận bạn chọn **${targetBranch?.shortName || 'phòng khám'}** ạ! 🏥\n\nVề giờ khám: Ca chiều của phòng khám bắt đầu đón tiếp từ **13:30** (từ 11:00 đến 13:30 là giờ nghỉ trưa của các bác sĩ).\n👉 Khung giờ sớm nhất và phù hợp nhất với mong muốn của bạn là **13:30 - 14:00**.\n\nBạn có muốn em chuyển sang đặt từ **13:30 đến 14:00** để chuyển sang bước chọn Bác sĩ luôn không ạ?`,
         actionOptions: [
           {
             label: '✅ Đồng ý (13:30 - 14:00), chọn bác sĩ ngay ➔',
