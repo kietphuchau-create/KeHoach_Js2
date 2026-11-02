@@ -643,7 +643,7 @@ CREATE INDEX idx_dev_mode_sessions_active ON dev_mode_sessions (is_active);
 
 -- ====================================================================
 -- DỮ LIỆU BAN ĐẦU TINH GỌN (CLEAN SEED DATA CHO RENDER / PRODUCTION)
--- Chuẩn hóa: 2 Chi Nhánh, 4 Chuyên Khoa, 4 Bác Sĩ, 1 Lễ Tân, 1 Admin, 0 Bệnh Nhân, 5 Mã Ưu Đãi
+-- Chuẩn hóa: 2 Chi Nhánh, 4 Chuyên Khoa, 4 Bác Sĩ, 1 Lễ Tân, 1 Admin, 1 Bệnh Nhân, 5 Mã Ưu Đãi
 -- Mật khẩu chung của tất cả tài khoản hệ thống: Medsched@123
 -- Hash BCrypt: $2a$10$ahoI91g3N9UKv5TBC8/KnugbB5LeGWqti0P/cwgrxYh..X9Jxxwti
 -- ====================================================================
@@ -737,7 +737,7 @@ VALUES
     ('80b2c3d4-0004-4000-8000-000000000002', 'a1b2c3d4-0002-4000-8000-000000000002', 'MED_VITC_2', 'Vitamin C 500mg', 'Acid ascorbic', 'VIÊN');
 
 -- 6. TÀI KHOẢN NGƯỜI DÙNG NHÂN SỰ (USERS)
--- Gồm: 1 Quản trị viên, 4 Bác sĩ, 1 Lễ tân (0 BỆNH NHÂN - HOÀN TOÀN KHÔNG CÓ BỆNH NHÂN)
+-- Gồm: 1 Quản trị viên, 4 Bác sĩ, 1 Lễ tân và 1 Bệnh nhân demo
 -- Mật khẩu chung của tất cả tài khoản: Medsched@123
 INSERT INTO users (id, email, password_hash, full_name, phone)
 VALUES 
@@ -782,7 +782,44 @@ VALUES
         '$2a$10$ahoI91g3N9UKv5TBC8/KnugbB5LeGWqti0P/cwgrxYh..X9Jxxwti',
         'Lễ Tân Tiếp Đón',
         '0988776655'
+    ),
+    (
+        'e1b2c3d4-0007-4000-8000-000000000007',
+        'benhnhan.demo@medsched.vn',
+        '$2a$10$ahoI91g3N9UKv5TBC8/KnugbB5LeGWqti0P/cwgrxYh..X9Jxxwti',
+        'Nguyễn Văn An',
+        '0912345678'
     );
+
+-- 6b. HỒ SƠ BỆNH NHÂN DEMO
+-- Tài khoản bệnh nhân không cần dòng ROLE_PATIENT trong bảng phân quyền;
+-- hệ thống mặc định mọi tài khoản không có quyền nhân sự là bệnh nhân.
+INSERT INTO patient_profiles (
+    id,
+    user_id,
+    relationship,
+    full_name,
+    cccd_number,
+    health_insurance_no,
+    date_of_birth,
+    gender,
+    phone,
+    address,
+    medical_history
+)
+VALUES (
+    '20b2c3d4-0001-4000-8000-000000000001',
+    'e1b2c3d4-0007-4000-8000-000000000007',
+    'SELF',
+    'Nguyễn Văn An',
+    '079123456789',
+    'DN4012345678901',
+    '1995-05-20',
+    'MALE',
+    '0912345678',
+    '123 Nguyễn Trãi, Phường Bến Thành, TP. Hồ Chí Minh',
+    'Không có tiền sử bệnh lý đáng chú ý.'
+);
 
 -- 7. PHÂN QUYỀN NHÂN SỰ THEO CHI NHÁNH (USER_MEDICAL_CENTER_ROLES)
 INSERT INTO user_medical_center_roles (id, user_id, medical_center_id, role)
@@ -914,9 +951,8 @@ VALUES
     );
 
 -- GHI CHÚ CHUẨN HÓA SẠCH SẼ (CLEAN SLATE):
--- 0 BỆNH NHÂN.
+-- 1 BỆNH NHÂN DEMO.
 -- CÁC BẢNG SAU HOÀN TOÀN TRỐNG (0 BẢN GHI):
---   - patient_profiles: 0
 --   - doctor_schedules: 0
 --   - time_slots: 0
 --   - appointments: 0
