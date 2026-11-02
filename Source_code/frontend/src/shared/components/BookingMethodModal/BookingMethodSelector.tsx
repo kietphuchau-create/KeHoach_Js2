@@ -1238,7 +1238,9 @@ function parsePatientBookingIntent(
   if (isLunchBreakOrEarlyAfternoon) {
     isEarlyAfternoonConflict = true;
     matchedShift = 'AFTERNOON';
-    proposedSlot = '13:30 - 14:00';
+    proposedSlot = explicitRangeStartMinutes !== null
+      ? formatSlotFromStartMinutes(explicitRangeStartMinutes)
+      : '13:30 - 14:00';
   } else if (is1h30) {
     matchedShift = 'AFTERNOON';
     proposedSlot = '13:30 - 14:00';
@@ -2830,16 +2832,25 @@ export default function BookingMethodSelector({
   const handleDoctorSlotStepNaturalLanguage = (text: string, userMsg: ChatMessage) => {
     const lower = text.toLowerCase();
     const intent = parsePatientBookingIntent(text, selectedBranch, bookingDate, branches);
+    const targetDate = intent.matchedDate || bookingDate;
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const isToday = targetDate === getTodayISODate();
 
     // 1. Kiểm tra nếu người dùng chọn giờ rơi vào giờ nghỉ trưa của phòng khám (11:00 - 13:30)
-    if (intent.isEarlyAfternoonConflict) {
+    // CHỈ áp dụng nếu là ngày khác HOẶC hôm nay nhưng hiện tại chưa qua giờ trưa (currentMinutes < 13:30).
+    // Nếu hôm nay đã qua 13:30 (chiều/tối) thì đây là giờ quá khứ đã kết thúc.
+    const isLunchBreakActive = intent.isEarlyAfternoonConflict && (!isToday || currentMinutes < 13 * 60 + 30);
+    if (isLunchBreakActive) {
       const slotPool = availableAllSlots.length > 0 ? availableAllSlots : shiftSlots;
       const nextRealSlot = slotPool
         .filter(slot => !slot.disabled && slot.startMinutes >= 13 * 60 + 30)
         .sort((a, b) => a.startMinutes - b.startMinutes)[0];
       const targetSlotTime = nextRealSlot?.time || '13:30 - 14:00';
+      const targetSlotStart = nextRealSlot?.startMinutes ?? (13 * 60 + 30);
+      const targetShift = targetSlotStart < 720 ? 'MORNING' : (targetSlotStart < 1020 ? 'AFTERNOON' : 'EVENING');
 
-      setSelectedShiftId('AFTERNOON');
+      setSelectedShiftId(targetShift);
       setSelectedSlotTime(targetSlotTime);
       if (nextRealSlot) setSelectedSlotId(nextRealSlot.id);
       if (intent.matchedDate) setBookingDate(intent.matchedDate);
@@ -2863,13 +2874,10 @@ export default function BookingMethodSelector({
 
     // 2. Kiểm tra đổi giờ thông thường
     if (intent.proposedSlot) {
-      const targetDate = intent.matchedDate || bookingDate;
       const requestedStartParts = intent.proposedSlot.split(' - ')[0]?.split(':').map(Number) || [];
       const requestedStartMinutes = (requestedStartParts[0] * 60) + requestedStartParts[1];
       const requestedEndMinutes = requestedStartMinutes + 30;
-      const now = new Date();
-      const currentMinutes = now.getHours() * 60 + now.getMinutes();
-      const isPastTimeToday = targetDate === getTodayISODate() && requestedStartMinutes <= currentMinutes;
+      const isPastTimeToday = isToday && requestedStartMinutes <= currentMinutes;
 
       if (isPastTimeToday) {
         const slotPool = availableAllSlots.length > 0 ? availableAllSlots : shiftSlots;
