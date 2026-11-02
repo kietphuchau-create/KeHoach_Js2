@@ -1153,10 +1153,28 @@ function parsePatientBookingIntent(
   if (explicitRangeMatch) {
     let hour = Number(explicitRangeMatch[1]);
     const minute = Number(explicitRangeMatch[2] || 0);
-    const isAfternoonRange = text.includes('chiều') || text.includes('chieu') || text.includes('tối');
-    if (isAfternoonRange && hour >= 1 && hour <= 5) hour += 12;
+    const isMorningExplicit = text.includes('sáng') || text.includes('sang') || text.includes('am');
+    // Phòng khám chỉ đón bệnh ban ngày/tối (08:00 - 20:30). Các mốc từ 1 đến 6 luôn là giờ chiều/tối (13:00 - 18:00) trừ khi nói rõ 'sáng'
+    if (!isMorningExplicit && hour >= 1 && hour <= 6) {
+      hour += 12;
+    }
     if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
       explicitRangeStartMinutes = hour * 60 + minute;
+    }
+  } else {
+    // Hỗ trợ dạng giờ đơn lẻ: "1h", "5h", "17h", "18h30", "19h", "13:30", "5h chiều"
+    const singleTimeMatch = text.match(/(?:^|\s)(?:lúc|khoảng|tầm)?\s*(\d{1,2})(?:h|:)(\d{2})?(?:\s*(chiều|tối|sáng))?/i);
+    if (singleTimeMatch) {
+      let hour = Number(singleTimeMatch[1]);
+      const minute = Number(singleTimeMatch[2] || 0);
+      const period = singleTimeMatch[3]?.toLowerCase() || '';
+      const isMorning = period === 'sáng' || text.includes('sáng') || text.includes('sang') || text.includes('am');
+      if (!isMorning && hour >= 1 && hour <= 6) {
+        hour += 12;
+      }
+      if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+        explicitRangeStartMinutes = hour * 60 + minute;
+      }
     }
   }
 
@@ -1188,7 +1206,7 @@ function parsePatientBookingIntent(
   }
 
   // 2. Nhận diện ca / buổi
-  let matchedShift: 'MORNING' | 'AFTERNOON' | null = null;
+  let matchedShift: 'MORNING' | 'AFTERNOON' | 'EVENING' | null = null;
   const isMorningMentioned = text.includes('sáng') || text.includes('sang') || text.includes('morning');
   const isAfternoonMentioned = text.includes('chiều') || text.includes('chieu') || text.includes('afternoon') || text.includes('tối');
 
@@ -1225,7 +1243,7 @@ function parsePatientBookingIntent(
     matchedShift = 'AFTERNOON';
     proposedSlot = '13:30 - 14:00';
   } else if (explicitRangeStartMinutes !== null) {
-    matchedShift = explicitRangeStartMinutes < 12 * 60 ? 'MORNING' : 'AFTERNOON';
+    matchedShift = explicitRangeStartMinutes < 720 ? 'MORNING' : (explicitRangeStartMinutes < 1020 ? 'AFTERNOON' : 'EVENING');
     proposedSlot = formatSlotFromStartMinutes(explicitRangeStartMinutes);
   } else if (text.includes('14:00') || text.includes('14h') || text.includes('2h chiều') || text.includes('2h')) {
     matchedShift = 'AFTERNOON';
@@ -2806,11 +2824,17 @@ export default function BookingMethodSelector({
       if (nextRealSlot) setSelectedSlotId(nextRealSlot.id);
       if (intent.matchedDate) setBookingDate(intent.matchedDate);
 
+      if (selectedDoctor && nextRealSlot) {
+        const explanation = `Dạ, khung giờ bạn vừa yêu cầu rơi vào **giờ nghỉ trưa của phòng khám (từ 11:00 đến 13:30)** nên phòng khám tạm ngưng đón bệnh để bác sĩ nghỉ ngơi.\n\n• **Ca sáng:** Làm việc từ **08:00 đến 11:00**.\n• **Ca chiều:** Bắt đầu đón tiếp trở lại từ **13:30**.\n\nVì vậy, em đã chuyển lịch khám sang khung giờ sớm nhất của ca chiều là **${targetSlotTime}** cùng Bác sĩ **${selectedDoctor.name}** (${selectedDoctor.room || 'Phòng khám'}) giúp bạn rồi nhé! 🩺`;
+        handleProceedToPayment(selectedDoctor, text, nextRealSlot, explanation);
+        return;
+      }
+
       const aiMsg: ChatMessage = {
         id: 'msg-' + (Date.now() + 1),
         sender: 'ai',
         time: getFormattedTime(),
-        text: `Dạ, khung giờ bạn vừa yêu cầu rơi vào **giờ nghỉ trưa của phòng khám (từ 11:00 đến 13:30)** nên phòng khám tạm ngưng đón bệnh để bác sĩ nghỉ ngơi.\n\n• **Ca sáng:** Làm việc từ **08:00 đến 11:00** (khung giờ cuối cùng là 10:30 - 11:00).\n• **Ca chiều:** Bắt đầu đón tiếp trở lại từ **13:30**.\n\nVì vậy, em đã chuyển lịch khám của bạn sang khung giờ sớm nhất của ca chiều là **${targetSlotTime}**${nextRealSlot ? ' (khớp theo lịch trực thực tế của bác sĩ)' : ''}. Bạn hãy kiểm tra và tiếp tục các bước bên dưới nhé!`,
+        text: `Dạ, khung giờ bạn vừa yêu cầu rơi vào **giờ nghỉ trưa của phòng khám (từ 11:00 đến 13:30)** nên phòng khám tạm ngưng đón bệnh để bác sĩ nghỉ ngơi.\n\n• **Ca sáng:** Làm việc từ **08:00 đến 11:00** (khung giờ cuối cùng là 10:30 - 11:00).\n• **Ca chiều:** Bắt đầu đón tiếp trở lại từ **13:30**.\n\nVì vậy, em đã chuyển lịch khám của bạn sang khung giờ sớm nhất của ca chiều là **${targetSlotTime}**${nextRealSlot ? ' (khớp theo lịch trực thực tế của bác sĩ)' : ''}.${selectedDoctor ? ` Em đã giữ lịch cùng Bác sĩ **${selectedDoctor.name}** giúp bạn rồi nhé!` : ' Bạn hãy kiểm tra và tiếp tục các bước bên dưới nhé!'}`,
         isTypingComplete: false,
       };
       setMessages(prev => [...prev, userMsg, aiMsg]);
@@ -2854,11 +2878,17 @@ export default function BookingMethodSelector({
           setSelectedSlotTime(nextSlotTime);
           setSelectedSlotId(nextRealSlot?.id || '');
 
+          if (selectedDoctor && nextRealSlot) {
+            const explanation = `Dạ, bạn đã chọn khung **${intent.proposedSlot}** cho hôm nay. Tuy nhiên, khung giờ này ${pastReason}; thời điểm hiện tại là **${currentTimeText}**, nên hệ thống không thể tiếp nhận đặt lịch cho giờ đã qua.\n\nVì vậy, em đã tự động chuyển sang khung gần nhất còn trống lúc **${nextSlotTime}** cùng Bác sĩ **${selectedDoctor.name}** (${selectedDoctor.room || 'Phòng khám'}) giúp bạn rồi ạ! 🩺`;
+            handleProceedToPayment(selectedDoctor, text, nextRealSlot, explanation);
+            return;
+          }
+
           const aiMsg: ChatMessage = {
             id: 'msg-' + (Date.now() + 1),
             sender: 'ai',
             time: getFormattedTime(),
-            text: `Dạ, bạn đã chọn khung **${intent.proposedSlot}** cho hôm nay. Tuy nhiên, khung giờ này ${pastReason}; thời điểm hiện tại là **${currentTimeText}**, nên hệ thống không thể tiếp nhận đặt lịch cho giờ đã qua.\n\nVì vậy, em đã chuyển sang khung gần nhất phù hợp là **${nextSlotTime}**. Bạn hãy bấm chọn Bác sĩ bên dưới để tiếp tục nhé!`,
+            text: `Dạ, bạn đã chọn khung **${intent.proposedSlot}** cho hôm nay. Tuy nhiên, khung giờ này ${pastReason}; thời điểm hiện tại là **${currentTimeText}**, nên hệ thống không thể tiếp nhận đặt lịch cho giờ đã qua.\n\nVì vậy, em đã chuyển sang khung gần nhất phù hợp là **${nextSlotTime}**.${selectedDoctor ? ` Em đã giữ lịch cùng Bác sĩ **${selectedDoctor.name}** cho bạn rồi nhé!` : ' Bạn hãy bấm chọn Bác sĩ bên dưới để tiếp tục nhé!'}`,
             isTypingComplete: false,
           };
           setMessages(prev => [...prev, userMsg, aiMsg]);
@@ -2880,11 +2910,27 @@ export default function BookingMethodSelector({
 
       setSelectedSlotTime(intent.proposedSlot);
       if (intent.matchedShift) setSelectedShiftId(intent.matchedShift);
+
+      const slotPool = availableAllSlots.length > 0 ? availableAllSlots : shiftSlots;
+      const targetSlot = slotPool.find(s =>
+        !s.disabled && (intent.proposedSlot ? (s.time === intent.proposedSlot || s.time.startsWith(intent.proposedSlot.split(' - ')[0])) : false)
+      );
+      if (targetSlot) {
+        setSelectedSlotId(targetSlot.id);
+        setSelectedSlotTime(targetSlot.time);
+      }
+
+      if (selectedDoctor && targetSlot) {
+        const explanation = `Dạ em đã cập nhật khung giờ khám của bạn sang **${targetSlot.time}** cùng Bác sĩ **${selectedDoctor.name}** (${selectedDoctor.room || 'Phòng khám'}) rồi nhé! 🩺`;
+        handleProceedToPayment(selectedDoctor, text, targetSlot, explanation);
+        return;
+      }
+
       const aiMsg: ChatMessage = {
         id: 'msg-' + (Date.now() + 1),
         sender: 'ai',
         time: getFormattedTime(),
-        text: `Dạ em đã chuyển khung giờ khám của bạn sang **${intent.proposedSlot}** rồi nhé! Bạn hãy bấm chọn Bác sĩ bên dưới để tiếp tục nhé!`,
+        text: `Dạ em đã chuyển khung giờ khám của bạn sang **${intent.proposedSlot}** rồi nhé! ${selectedDoctor ? `(Bác sĩ phụ trách: **${selectedDoctor.name}**)` : 'Bạn hãy bấm chọn Bác sĩ bên dưới để tiếp tục nhé!'}`,
         isTypingComplete: false,
       };
       setMessages(prev => [...prev, userMsg, aiMsg]);
@@ -3745,7 +3791,8 @@ export default function BookingMethodSelector({
   const handleProceedToPayment = async (
     overrideDoctor?: DemoDoctor,
     customUserText?: string,
-    overrideSlot?: { id: string; time: string }
+    overrideSlot?: { id: string; time: string },
+    customAiExplanation?: string
   ) => {
     const docToUse = overrideDoctor || selectedDoctor;
     const targetSlotId = overrideSlot?.id || selectedSlotId;
@@ -3840,7 +3887,9 @@ export default function BookingMethodSelector({
       id: 'msg-' + (Date.now() + 1),
       sender: 'ai',
       time: getFormattedTime(),
-      text: `Hồ sơ đặt khám của bạn đã sẵn sàng! 📋 Để tránh tình trạng đặt ảo và giữ chỗ đúng giờ hẹn, phòng khám cần bạn xác nhận thông tin và đặt cọc 2.000 VNĐ (sẽ tự động hoàn trả khi check-in, hoặc miễn phí với mã ưu đãi):`,
+      text: customAiExplanation
+        ? `${customAiExplanation}\n\nHồ sơ đặt khám của bạn đã sẵn sàng! 📋 Để tránh tình trạng đặt ảo và giữ chỗ đúng giờ hẹn, phòng khám cần bạn xác nhận thông tin và đặt cọc 2.000 VNĐ (sẽ tự động hoàn trả khi check-in, hoặc miễn phí với mã ưu đãi):`
+        : `Hồ sơ đặt khám của bạn đã sẵn sàng! 📋 Để tránh tình trạng đặt ảo và giữ chỗ đúng giờ hẹn, phòng khám cần bạn xác nhận thông tin và đặt cọc 2.000 VNĐ (sẽ tự động hoàn trả khi check-in, hoặc miễn phí với mã ưu đãi):`,
       widget: 'CONFIRM_PAYMENT',
       isTypingComplete: false,
     };
