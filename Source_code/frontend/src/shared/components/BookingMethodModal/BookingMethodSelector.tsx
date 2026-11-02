@@ -1200,11 +1200,11 @@ function parsePatientBookingIntent(
   const is1h30 = /(?<!\d)(?:13:30|13h30|1h30)\b/i.test(text);
   const isLunchBreakOrEarlyAfternoon = !is1h30 && (
     (explicitRangeStartMinutes !== null && explicitRangeStartMinutes >= 11 * 60 && explicitRangeStartMinutes < 13 * 60 + 30) ||
-    /(?:11h30|12h|12:00|12h30|12:30|13h|13:00|1h\s*chiều|1h\s*trưa)\b/i.test(text) ||
+    /(?:11h|11:00|11h30|11:30|12h|12:00|12h30|12:30|13h|13:00|1h\s*chiều|1h\s*trưa)\b/i.test(text) ||
     /11h(?:30)?\s*(?:đến|-|tới)/i.test(text) ||
     /1h\s*(?:đến|-|tới)?\s*2h/i.test(text) ||
     /13h\s*(?:đến|-|tới)?\s*14h/i.test(text) ||
-    /từ\s*(?:1h|13h|12h|11h30)/i.test(text) ||
+    /từ\s*(?:1h|13h|12h|11h)/i.test(text) ||
     /(?:1h|13h)\s*(?:chiều|trưa)/i.test(text) ||
     /\b(?:13h|13:00)\b/i.test(text) ||
     text.includes('1h đến 2h') ||
@@ -1248,9 +1248,6 @@ function parsePatientBookingIntent(
   } else if (text.includes('10h') || text.includes('10:00')) {
     matchedShift = 'MORNING';
     proposedSlot = text.includes('10h30') || text.includes('10:30') ? '10:30 - 11:00' : '10:00 - 10:30';
-  } else if (text.includes('11h') || text.includes('11:00')) {
-    matchedShift = 'MORNING';
-    proposedSlot = '10:30 - 11:00';
   }
 
   // 4. Nhận diện ngày khám
@@ -2755,7 +2752,30 @@ export default function BookingMethodSelector({
     const lower = text.toLowerCase();
     const intent = parsePatientBookingIntent(text, selectedBranch, bookingDate, branches);
 
-    // Kiểm tra đổi giờ
+    // 1. Kiểm tra nếu người dùng chọn giờ rơi vào giờ nghỉ trưa của phòng khám (11:00 - 13:30)
+    if (intent.isEarlyAfternoonConflict) {
+      const nextRealSlot = shiftSlots
+        .filter(slot => !slot.disabled && slot.startMinutes >= 13 * 60 + 30)
+        .sort((a, b) => a.startMinutes - b.startMinutes)[0];
+      const targetSlotTime = nextRealSlot?.time || '13:30 - 14:00';
+
+      setSelectedShiftId('AFTERNOON');
+      setSelectedSlotTime(targetSlotTime);
+      if (nextRealSlot) setSelectedSlotId(nextRealSlot.id);
+      if (intent.matchedDate) setBookingDate(intent.matchedDate);
+
+      const aiMsg: ChatMessage = {
+        id: 'msg-' + (Date.now() + 1),
+        sender: 'ai',
+        time: getFormattedTime(),
+        text: `Dạ, khung giờ bạn vừa yêu cầu rơi vào **giờ nghỉ trưa của phòng khám (từ 11:00 đến 13:30)** nên phòng khám tạm ngưng đón bệnh để bác sĩ nghỉ ngơi.\n\n• **Ca sáng:** Làm việc từ **08:00 đến 11:00** (khung giờ cuối cùng là 10:30 - 11:00).\n• **Ca chiều:** Bắt đầu đón tiếp trở lại từ **13:30**.\n\nVì vậy, em đã chuyển lịch khám của bạn sang khung giờ sớm nhất của ca chiều là **${targetSlotTime}**${nextRealSlot ? ' (khớp theo lịch trực thực tế của bác sĩ)' : ''}. Bạn hãy kiểm tra và tiếp tục các bước bên dưới nhé!`,
+        isTypingComplete: false,
+      };
+      setMessages(prev => [...prev, userMsg, aiMsg]);
+      return;
+    }
+
+    // 2. Kiểm tra đổi giờ thông thường
     if (intent.proposedSlot) {
       const targetDate = intent.matchedDate || bookingDate;
       const requestedStartParts = intent.proposedSlot.split(' - ')[0]?.split(':').map(Number) || [];
