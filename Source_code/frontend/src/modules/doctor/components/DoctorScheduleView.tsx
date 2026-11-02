@@ -2039,7 +2039,8 @@ export default function DoctorScheduleView() {
               const blockedPriorDate = (!isDayAlreadyRegistered && dailyHoursSummary?.incompleteDates ? dailyHoursSummary.incompleteDates.find((d) => d < workDate) : null) || null;
 
               // Kiểm tra giờ kết thúc có trôi qua trong quá khứ của hôm nay chưa (Bỏ qua khi bật Chế Độ Develop 24/7)
-              const isEndTimePassedToday = !clinicConfig.devMode247 && workDate === todayStr && (() => {
+              const isDev247Mode = Boolean(clinicConfig.devMode247 || getClinicScheduleConfig().devMode247);
+              const isEndTimePassedToday = !isDev247Mode && workDate === todayStr && (() => {
                 const now = new Date();
                 const currentMinutes = now.getHours() * 60 + now.getMinutes();
                 const [endH, endM] = endTime.split(':').map(Number);
