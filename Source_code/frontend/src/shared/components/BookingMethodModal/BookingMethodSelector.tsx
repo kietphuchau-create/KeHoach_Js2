@@ -1530,6 +1530,12 @@ export default function BookingMethodSelector({
   }>>({});
 
   useEffect(() => {
+    if (Object.values(doctorSchedulesMap).some((s: any) => s.availableCount > 0)) {
+      setIsTriageDoctorOffDuty(false);
+    }
+  }, [doctorSchedulesMap]);
+
+  useEffect(() => {
     let isCancelled = false;
     api.getDoctorSchedules(undefined, bookingDate, bookingDate)
       .then((schedules: any[]) => {
@@ -3657,7 +3663,7 @@ export default function BookingMethodSelector({
       id: 'msg-' + Date.now(),
       sender: 'user',
       time: getFormattedTime(),
-      text: `Chọn cơ sở: ${selectedBranch?.shortName || 'Phòng khám'} • Ngày khám: ${formatVietnameseFullDate(bookingDate)} • Buổi: ${selectedShiftId === 'MORNING' ? 'Buổi Sáng' : 'Buổi Chiều'}`,
+      text: `Chọn cơ sở: ${selectedBranch?.shortName || 'Phòng khám'} • Ngày khám: ${formatVietnameseFullDate(bookingDate)} • Buổi: ${selectedShiftId === 'MORNING' ? 'Buổi Sáng' : selectedShiftId === 'AFTERNOON' ? 'Buổi Chiều' : selectedShiftId === 'EVENING' ? 'Ca Tối & Đêm' : 'Tất cả ca khám (Cả ngày)'}`,
     };
 
     // Kiểm tra tính sẵn sàng của Bác sĩ tại cơ sở đã chọn
@@ -4769,7 +4775,7 @@ export default function BookingMethodSelector({
                           <div className="space-y-1.5 pt-1">
                             <div className="flex items-center justify-between">
                               <span className="text-xs font-bold text-slate-800">
-                                2. Chọn ngày khám (Thứ 2 - Thứ 6):
+                                2. Chọn ngày khám:
                               </span>
                               <span className="text-[10px] text-purple-700 font-bold">
                                 {formatVietnameseFullDate(bookingDate)}
