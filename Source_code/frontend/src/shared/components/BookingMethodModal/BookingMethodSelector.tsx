@@ -3053,18 +3053,61 @@ export default function BookingMethodSelector({
         return;
       }
 
-      setSelectedSlotTime(intent.proposedSlot);
-      if (intent.matchedShift) setSelectedShiftId(intent.matchedShift);
-
       const slotPool = availableAllSlots.length > 0 ? availableAllSlots : shiftSlots;
       const targetSlot = slotPool.find(s =>
         !s.disabled && (intent.proposedSlot ? (s.time === intent.proposedSlot || s.time.startsWith(intent.proposedSlot.split(' - ')[0])) : false)
       );
+
       if (targetSlot) {
         setSelectedSlotId(targetSlot.id);
         setSelectedSlotTime(targetSlot.time);
+        if (targetSlot.session) setSelectedShiftId(targetSlot.session);
+
+        const aiMsg: ChatMessage = {
+          id: 'msg-' + (Date.now() + 1),
+          sender: 'ai',
+          time: getFormattedTime(),
+          text: `Dạ em đã cập nhật khung giờ khám sang **${targetSlot.time}**${selectedDoctor ? ` cùng Bác sĩ **${selectedDoctor.name}** (${selectedDoctor.room || 'Phòng khám'})` : ''} rồi nhé!\n\nBạn có đồng ý đặt khám vào khung giờ này để em chuẩn bị hồ sơ giữ chỗ không ạ?`,
+          quickReplies: [
+            `Đồng ý khám ${targetSlot.time}`,
+            'Không đồng ý, chọn giờ khác',
+          ],
+          isTypingComplete: false,
+        };
+        setMessages(prev => [...prev, userMsg, aiMsg]);
+        return;
       }
 
+      // Nếu Bác sĩ không có khung giờ chính xác này trong ca trực hôm nay: gợi ý khung giờ khả dụng gần nhất
+      const availableRealSlots = slotPool.filter(s => !s.disabled);
+      if (availableRealSlots.length > 0) {
+        const closestSlot = [...availableRealSlots].sort((a, b) => 
+          Math.abs(a.startMinutes - requestedStartMinutes) - Math.abs(b.startMinutes - requestedStartMinutes)
+        )[0];
+
+        setSelectedSlotId(closestSlot.id);
+        setSelectedSlotTime(closestSlot.time);
+        if (closestSlot.session) setSelectedShiftId(closestSlot.session);
+
+        const shiftName = closestSlot.session === 'EVENING' ? 'Ca Tối & Đêm' : closestSlot.session === 'MORNING' ? 'Buổi Sáng' : 'Buổi Chiều';
+
+        const aiMsg: ChatMessage = {
+          id: 'msg-' + (Date.now() + 1),
+          sender: 'ai',
+          time: getFormattedTime(),
+          text: `Dạ, Bác sĩ **${selectedDoctor?.name || 'phụ trách'}** hiện không có lịch khám vào khung **${intent.proposedSlot}** hôm nay.\n\n👉 Khung giờ gần nhất còn trống mà bác sĩ có ca trực là **${closestSlot.time}** (${shiftName}).\n\nBạn có đồng ý đặt khám vào khung giờ **${closestSlot.time}** này để em chuẩn bị hồ sơ giữ chỗ không ạ?`,
+          quickReplies: [
+            `Đồng ý khám ${closestSlot.time}`,
+            'Không đồng ý, chọn giờ khác',
+          ],
+          isTypingComplete: false,
+        };
+        setMessages(prev => [...prev, userMsg, aiMsg]);
+        return;
+      }
+
+      setSelectedSlotTime(intent.proposedSlot);
+      if (intent.matchedShift) setSelectedShiftId(intent.matchedShift);
       const aiMsg: ChatMessage = {
         id: 'msg-' + (Date.now() + 1),
         sender: 'ai',
