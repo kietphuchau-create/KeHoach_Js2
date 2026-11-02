@@ -2902,7 +2902,31 @@ export default function BookingMethodSelector({
 
     if (matchedDoc) {
       setSelectedDoctor(matchedDoc);
-      handleProceedToPayment(matchedDoc, text);
+
+      const targetSlotTime = intent.proposedSlot || selectedSlotTime;
+      const targetSlot = shiftSlots.find(slot =>
+        !slot.disabled && (
+          (selectedSlotId && slot.id === selectedSlotId) ||
+          (targetSlotTime && (slot.time === targetSlotTime || slot.time.startsWith(targetSlotTime.split(' - ')[0])))
+        )
+      );
+
+      if (targetSlot) {
+        setSelectedSlotId(targetSlot.id);
+        setSelectedSlotTime(targetSlot.time);
+        handleProceedToPayment(matchedDoc, text, targetSlot);
+        return;
+      }
+
+      const aiMsg: ChatMessage = {
+        id: 'msg-' + (Date.now() + 1),
+        sender: 'ai',
+        time: getFormattedTime(),
+        text: `Dạ em đã chọn Bác sĩ **${matchedDoc.name}** (${matchedDoc.room || 'Phòng khám'}) giúp bạn rồi ạ! 🩺\n\nBạn hãy bấm chọn một khung giờ khám còn trống bên dưới để em chuẩn bị hồ sơ giữ chỗ nhé!`,
+        widget: 'SELECT_DOCTOR_SLOT',
+        isTypingComplete: false,
+      };
+      setMessages(prev => [...prev, userMsg, aiMsg]);
       return;
     }
 
@@ -3703,17 +3727,52 @@ export default function BookingMethodSelector({
   };
 
   // Bước 4 -> Bước 5: Chuyển sang Xác nhận & Giữ chỗ (Cọc 2k / Ưu đãi)
-  const handleProceedToPayment = async (overrideDoctor?: DemoDoctor, customUserText?: string) => {
+  const handleProceedToPayment = async (
+    overrideDoctor?: DemoDoctor,
+    customUserText?: string,
+    overrideSlot?: { id: string; time: string }
+  ) => {
     const docToUse = overrideDoctor || selectedDoctor;
+    const targetSlotId = overrideSlot?.id || selectedSlotId;
+    const targetSlotTime = overrideSlot?.time || selectedSlotTime;
+
     const selectedRealSlot = shiftSlots.find(slot =>
-      slot.id === selectedSlotId && slot.time === selectedSlotTime && !slot.disabled
+      !slot.disabled && (
+        (targetSlotId && slot.id === targetSlotId) ||
+        (targetSlotTime && (slot.time === targetSlotTime || slot.time.startsWith(targetSlotTime.split(' - ')[0])))
+      )
     );
+
     if (!docToUse || !selectedRealSlot || isBookingSubmitting) {
+      if (customUserText) {
+        const userMsg: ChatMessage = {
+          id: 'msg-' + Date.now(),
+          sender: 'user',
+          time: getFormattedTime(),
+          text: customUserText,
+        };
+        const aiMsg: ChatMessage = {
+          id: 'msg-' + (Date.now() + 1),
+          sender: 'ai',
+          time: getFormattedTime(),
+          text: !docToUse
+            ? 'Dạ bạn hãy bấm chọn một Bác sĩ trước để em chuẩn bị hồ sơ nhé! 🩺'
+            : `Dạ em đã chọn Bác sĩ **${docToUse.name}** (${docToUse.room || 'Phòng khám'}) giúp bạn rồi ạ! 🩺\n\nBạn hãy bấm chọn một khung giờ khám còn trống bên dưới để em chuẩn bị hồ sơ giữ chỗ nhé!`,
+          widget: 'SELECT_DOCTOR_SLOT',
+          isTypingComplete: false,
+        };
+        setMessages(prev => [...prev, userMsg, aiMsg]);
+      }
       return;
     }
 
+    if (selectedRealSlot) {
+      setSelectedSlotId(selectedRealSlot.id);
+      setSelectedSlotTime(selectedRealSlot.time);
+    }
+
     setIsBookingSubmitting(true);
-    const appointment = await initiateBackendAppointment(undefined, docToUse);
+    const appointment = await initiateBackendAppointment(selectedRealSlot, docToUse);
     if (!appointment?.id) {
       setIsBookingSubmitting(false);
       const aiMsg: ChatMessage = {
