@@ -314,8 +314,8 @@ export default function DoctorClinicView() {
       const room = activeRoom || currentUser?.roomNumber || 'P.101';
       await api.createDoctorSchedule({
         workDate: today,
-        startTime: '08:00',
-        endTime: '17:00',
+        startTime: '00:00',
+        endTime: '23:30',
         slotDurationMinutes: 15,
         roomNumber: room,
       });
