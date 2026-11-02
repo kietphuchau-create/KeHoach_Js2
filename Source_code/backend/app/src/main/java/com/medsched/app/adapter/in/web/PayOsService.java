@@ -36,6 +36,7 @@ public class PayOsService {
         this.objectMapper = objectMapper;
         this.restClient = RestClient.builder()
                 .baseUrl(PAYOS_BASE_URL)
+                .defaultHeader("User-Agent", "MedSched/1.0")
                 .build();
     }
 
