@@ -62,6 +62,25 @@ const normalizeQueueNumber = (num?: string, isWalkin = false): string => {
   return isWalkin ? `W-${str}` : `A-${str}`;
 };
 
+const getPaidInvoiceCodes = (): Set<string> => {
+  if (typeof window === 'undefined') return new Set();
+  try {
+    const raw = localStorage.getItem('medsched_paid_invoices');
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch {
+    return new Set();
+  }
+};
+
+const markInvoiceCodePaid = (codeOrId: string) => {
+  if (!codeOrId || typeof window === 'undefined') return;
+  try {
+    const current = getPaidInvoiceCodes();
+    current.add(codeOrId);
+    localStorage.setItem('medsched_paid_invoices', JSON.stringify(Array.from(current)));
+  } catch {}
+};
+
 export default function ReceptionView() {
   const router = useRouter();
   const { isBlocked, handleTakeOver } = useSingleTabLock({
@@ -520,8 +539,14 @@ export default function ReceptionView() {
       discountAmount: appliedBillingPromo?.discountAmount,
       originalTotal: originalTotal,
     });
-    if (billingAppointmentId) paidInvoiceSetRef.current.add(billingAppointmentId);
-    if (billingData.bookingCode) paidInvoiceSetRef.current.add(billingData.bookingCode);
+    if (billingAppointmentId) {
+      paidInvoiceSetRef.current.add(billingAppointmentId);
+      markInvoiceCodePaid(billingAppointmentId);
+    }
+    if (billingData.bookingCode) {
+      paidInvoiceSetRef.current.add(billingData.bookingCode);
+      markInvoiceCodePaid(billingData.bookingCode);
+    }
 
     if (billingAppointmentId || billingData.bookingCode) {
       setHistory((prev) =>
@@ -617,7 +642,14 @@ export default function ReceptionView() {
               room: roomTitle,
               checkInTime: timeStr,
               status: item.status === 'COMPLETED' ? 'ĐÃ KHÁM' : item.status === 'IN_CONSULTATION' ? 'ĐANG KHÁM' : 'ĐÃ TIẾP ĐÓN',
-              invoiceStatus: (item.invoiceStatus === 'PAID' || paidInvoiceSetRef.current.has(item.id) || (item.bookingCode && paidInvoiceSetRef.current.has(item.bookingCode))) ? 'PAID' : (item.invoiceStatus || 'UNPAID'),
+              invoiceStatus: (() => {
+                const paidCodes = getPaidInvoiceCodes();
+                const isPaid = paidInvoiceSetRef.current.has(item.id) ||
+                  (item.bookingCode && paidInvoiceSetRef.current.has(item.bookingCode)) ||
+                  paidCodes.has(item.id) ||
+                  (item.bookingCode && paidCodes.has(item.bookingCode));
+                return isPaid ? 'PAID' : 'UNPAID';
+              })(),
             };
           });
         if (mapped.length > 0) {
@@ -2569,10 +2601,15 @@ export default function ReceptionView() {
                             <CreditCard size={14} className="text-blue-600" />
                             <span>Quẹt thẻ máy POS</span>
                           </>
-                        ) : (
+                        ) : billingSuccessData.paymentMethod === 'PROMO_FREE' ? (
                           <>
                             <Gift size={14} className="text-emerald-600" />
                             <span>Tài trợ miễn phí 100%</span>
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 size={14} className="text-emerald-600" />
+                            <span>Đã tất toán viện phí</span>
                           </>
                         )}
                       </strong>
@@ -2626,8 +2663,14 @@ export default function ReceptionView() {
                         if (billingAppointmentId || billingData?.bookingCode) {
                           const targetAppId = billingAppointmentId;
                           const targetCode = billingData?.bookingCode;
-                          if (targetAppId) paidInvoiceSetRef.current.add(targetAppId);
-                          if (targetCode) paidInvoiceSetRef.current.add(targetCode);
+                          if (targetAppId) {
+                            paidInvoiceSetRef.current.add(targetAppId);
+                            markInvoiceCodePaid(targetAppId);
+                          }
+                          if (targetCode) {
+                            paidInvoiceSetRef.current.add(targetCode);
+                            markInvoiceCodePaid(targetCode);
+                          }
                           setHistory((prev) =>
                             prev.map((h) =>
                               (targetAppId && h.appointmentId === targetAppId) ||
