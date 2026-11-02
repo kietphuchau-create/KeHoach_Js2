@@ -2314,32 +2314,40 @@ export default function BookingMethodSelector({
       setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg, aiMsg]);
     } else {
       // ĐÃ HOÀN TẤT CÁC CÂU HỎI -> TỔNG HỢP VÀ ĐÁNH GIÁ TÍNH PHÙ HỢP CỦA BÁC SĨ TẠI PHÒNG KHÁM
-      // Nếu khảo sát hoàn tất trước request ban đầu, đồng bộ lại trước khi kết luận
-      // phòng khám không có bác sĩ đúng chuyên khoa.
-      let doctorPool = dbDoctors;
-      if (isDoctorsLoading || doctorPool.length === 0) {
-        setIsDoctorsLoading(true);
-        try {
-          const latestDoctors = await api.getDoctors();
-          doctorPool = Array.isArray(latestDoctors) ? mapApiDoctors(latestDoctors) : [];
-          setDbDoctors(doctorPool);
-        } catch (error) {
-          console.warn('Không thể xác minh danh sách bác sĩ trước khi định hướng chuyên khoa:', error);
-          const retryMsg: ChatMessage = {
-            id: 'msg-' + (Date.now() + 1),
-            sender: 'ai',
-            time: getFormattedTime(),
-            text: '⚠️ Hệ thống chưa thể đồng bộ danh sách bác sĩ từ máy chủ nên chưa thể kết luận chuyên khoa có được hỗ trợ hay không. Bạn vui lòng thử gửi lại câu trả lời sau ít giây.',
-            widget: 'CLARIFY_DETAILS',
-            clarifyMeta: messages[messages.length - 1]?.clarifyMeta,
-            isTypingComplete: false,
-          };
-          setMessages(prev => [...prev, userMsg, retryMsg]);
-          return;
-        } finally {
-          setIsDoctorsLoading(false);
+      if (aiRequestInFlightRef.current) return;
+      aiRequestInFlightRef.current = true;
+      setIsAiAnalyzing(true);
+
+      // Đánh dấu ngay lập tức các widget câu hỏi trước là hoàn tất và đưa tin nhắn người dùng lên hội thoại
+      setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg]);
+
+      try {
+        // Nếu khảo sát hoàn tất trước request ban đầu, đồng bộ lại trước khi kết luận
+        // phòng khám không có bác sĩ đúng chuyên khoa.
+        let doctorPool = dbDoctors;
+        if (isDoctorsLoading || doctorPool.length === 0) {
+          setIsDoctorsLoading(true);
+          try {
+            const latestDoctors = await api.getDoctors();
+            doctorPool = Array.isArray(latestDoctors) ? mapApiDoctors(latestDoctors) : [];
+            setDbDoctors(doctorPool);
+          } catch (error) {
+            console.warn('Không thể xác minh danh sách bác sĩ trước khi định hướng chuyên khoa:', error);
+            const retryMsg: ChatMessage = {
+              id: 'msg-' + (Date.now() + 1),
+              sender: 'ai',
+              time: getFormattedTime(),
+              text: '⚠️ Hệ thống chưa thể đồng bộ danh sách bác sĩ từ máy chủ nên chưa thể kết luận chuyên khoa có được hỗ trợ hay không. Bạn vui lòng thử gửi lại câu trả lời sau ít giây.',
+              widget: 'CLARIFY_DETAILS',
+              clarifyMeta: messages[messages.length - 1]?.clarifyMeta,
+              isTypingComplete: false,
+            };
+            setMessages(prev => [...prev, retryMsg]);
+            return;
+          } finally {
+            setIsDoctorsLoading(false);
+          }
         }
-      }
       const matchingDoctors = doctorPool.filter(d => {
         const dSpec = (d.specialtyName || '').toLowerCase();
         const actSpec = (activeCategory.specialtyName || '').toLowerCase();
@@ -2387,7 +2395,7 @@ export default function BookingMethodSelector({
           isTypingComplete: false,
         };
 
-        setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg, aiMsg]);
+        setMessages(prev => [...prev, aiMsg]);
         return;
       }
 
@@ -2460,7 +2468,7 @@ export default function BookingMethodSelector({
           isTypingComplete: false,
         };
 
-        setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg, aiMsg]);
+        setMessages(prev => [...prev, aiMsg]);
         return;
       }
 
@@ -2498,9 +2506,13 @@ export default function BookingMethodSelector({
         isTypingComplete: false,
       };
 
-      setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg, aiMsg]);
+      setMessages(prev => [...prev, aiMsg]);
+    } finally {
+      aiRequestInFlightRef.current = false;
+      setIsAiAnalyzing(false);
     }
-  };
+  }
+};
 
   // Đặt lại khảo sát để người dùng mô tả lại triệu chứng khác
   const handleResetToSymptomChoice = () => {
@@ -3306,7 +3318,7 @@ export default function BookingMethodSelector({
   // Khi người dùng gửi tin nhắn từ thanh nhập cố định ở đáy
   const handleSendInputMessage = async (overrideText?: string) => {
     const text = (overrideText ?? inputMessage).trim();
-    if (!text || isAiAnalyzing) return;
+    if (!text || isAiAnalyzing || aiRequestInFlightRef.current) return;
 
     setInputMessage('');
 
@@ -4712,6 +4724,7 @@ export default function BookingMethodSelector({
                                     <button
                                       key={idx}
                                       type="button"
+                                      disabled={isAiAnalyzing || Boolean(msg.isCompleteWidget)}
                                       onClick={() => handleSelectClarifyOption(opt, msg.clarifyMeta?.fieldKey)}
                                       className={`p-2.5 sm:p-3 text-xs text-left rounded-xl border transition-all cursor-pointer flex items-center justify-between group active:scale-98 ${
                                         isSelected
@@ -4745,11 +4758,23 @@ export default function BookingMethodSelector({
 
                                 <button
                                   type="button"
+                                  disabled={isAiAnalyzing || Boolean(msg.isCompleteWidget)}
                                   onClick={() => handleAdvanceClarify()}
-                                  className="py-1.5 px-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                                  className={`py-1.5 px-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 ${
+                                    isAiAnalyzing || Boolean(msg.isCompleteWidget) ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
+                                  }`}
                                 >
-                                  <span>{msg.clarifyMeta.questionNumber === msg.clarifyMeta.totalQuestions ? 'Xác nhận & Kiểm tra bác sĩ ➔' : 'Tiếp tục câu sau'}</span>
-                                  <ArrowRight size={13} />
+                                  {isAiAnalyzing ? (
+                                    <>
+                                      <Loader2 size={13} className="animate-spin" />
+                                      <span>Đang kiểm tra bác sĩ...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span>{msg.clarifyMeta.questionNumber === msg.clarifyMeta.totalQuestions ? 'Xác nhận & Kiểm tra bác sĩ ➔' : 'Tiếp tục câu sau'}</span>
+                                      <ArrowRight size={13} />
+                                    </>
+                                  )}
                                 </button>
                               </div>
                             </div>
