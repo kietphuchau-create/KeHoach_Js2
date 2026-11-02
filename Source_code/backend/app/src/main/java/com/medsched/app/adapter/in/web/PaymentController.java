@@ -54,19 +54,12 @@ public class PaymentController {
             try {
                 invoiceJpaRepository.findByAppointmentId(appointmentId).ifPresent(inv -> {
                     if (!"PAID".equalsIgnoreCase(inv.getStatus())) {
-                        BigDecimal required = inv.getTotalAmount() != null ? inv.getTotalAmount() : BigDecimal.ZERO;
-                        // Chỉ đánh dấu PAID nếu số tiền thực tế >= tổng tiền viện phí (khi hóa đơn có tổng tiền > 0)
-                        if (required.compareTo(BigDecimal.ZERO) > 0) {
-                            if (amount == null || amount.compareTo(required) < 0) {
-                                return; // Số tiền (ví dụ cọc 2.000 đ) không đủ để thanh toán toàn bộ hóa đơn viện phí!
-                            }
-                        }
                         inv.setStatus("PAID");
                         inv.setPaymentMethod(method != null ? method : "BANK_TRANSFER");
                         if (amount != null && amount.compareTo(BigDecimal.ZERO) > 0) {
                             inv.setAmountPaid(amount);
-                        } else {
-                            inv.setAmountPaid(required);
+                        } else if (inv.getTotalAmount() != null) {
+                            inv.setAmountPaid(inv.getTotalAmount());
                         }
                         inv.setPaidAt(Instant.now());
                         inv.setUpdatedAt(Instant.now());
@@ -385,40 +378,53 @@ public class PaymentController {
                         "transactionRef", "CONFIRMED_" + (appClean.isBlank() ? targetAppId : appClean)
                 ));
             }
-        } else if (!clean.isBlank()) {
-            if (standalonePaymentMap.containsKey(clean)) {
-                Map<String, Object> paid = standalonePaymentMap.get(clean);
-                String pType = paid.getOrDefault("paymentType", "DEPOSIT").toString();
-                if (!isFullCheck || "FULL".equalsIgnoreCase(pType)) {
+        }
+
+        if (!clean.isBlank() && standalonePaymentMap.containsKey(clean)) {
+            Map<String, Object> paid = standalonePaymentMap.get(clean);
+            String pType = paid.getOrDefault("paymentType", "DEPOSIT").toString();
+            if (!isFullCheck || "FULL".equalsIgnoreCase(pType)) {
+                return ResponseEntity.ok(Map.of(
+                        "success", true,
+                        "status", "SUCCEEDED",
+                        "amountPaid", paid.getOrDefault("amount", new BigDecimal("2000")),
+                        "paymentType", pType,
+                        "transactionRef", paid.getOrDefault("transactionRef", "")
+                ));
+            }
+        }
+
+        Long orderCode = !clean.isBlank() ? standaloneOrderMap.get(clean) : null;
+        if (orderCode == null && appOpt.isPresent() && appOpt.get().getBookingCode() != null) {
+            String appClean = appOpt.get().getBookingCode().replaceAll("[^a-zA-Z0-9]", "").toUpperCase();
+            orderCode = standaloneOrderMap.get(appClean);
+        }
+        if (orderCode != null && payOsService != null && !isFullCheck) {
+            try {
+                var infoOpt = payOsService.getPaymentInfo(orderCode);
+                if (infoOpt.isPresent() && "PAID".equalsIgnoreCase(infoOpt.get().status())) {
+                    standalonePaymentMap.put(clean, Map.of(
+                            "amount", new BigDecimal(infoOpt.get().amount()),
+                            "paymentType", "DEPOSIT",
+                            "transactionRef", String.valueOf(orderCode)
+                    ));
+                    if (appOpt.isPresent()) {
+                        AppointmentEntity app = appOpt.get();
+                        if (app.getStatus() == AppointmentStatus.PENDING) {
+                            app.setStatus(AppointmentStatus.CONFIRMED);
+                            app.setUpdatedAt(Instant.now());
+                            appointmentJpaRepository.save(app);
+                        }
+                    }
                     return ResponseEntity.ok(Map.of(
                             "success", true,
                             "status", "SUCCEEDED",
-                            "amountPaid", paid.getOrDefault("amount", new BigDecimal("2000")),
-                            "paymentType", pType,
-                            "transactionRef", paid.getOrDefault("transactionRef", "")
+                            "amountPaid", infoOpt.get().amount(),
+                            "paymentType", "DEPOSIT",
+                            "transactionRef", String.valueOf(orderCode)
                     ));
                 }
-            }
-            Long orderCode = standaloneOrderMap.get(clean);
-            if (orderCode != null && payOsService != null && !isFullCheck) {
-                try {
-                    var infoOpt = payOsService.getPaymentInfo(orderCode);
-                    if (infoOpt.isPresent() && "PAID".equalsIgnoreCase(infoOpt.get().status())) {
-                        standalonePaymentMap.put(clean, Map.of(
-                                "amount", new BigDecimal(infoOpt.get().amount()),
-                                "paymentType", "DEPOSIT",
-                                "transactionRef", String.valueOf(orderCode)
-                        ));
-                        return ResponseEntity.ok(Map.of(
-                                "success", true,
-                                "status", "SUCCEEDED",
-                                "amountPaid", infoOpt.get().amount(),
-                                "paymentType", "DEPOSIT",
-                                "transactionRef", String.valueOf(orderCode)
-                        ));
-                    }
-                } catch (Exception ignored) {}
-            }
+            } catch (Exception ignored) {}
         }
 
         if (targetAppId != null && !targetAppId.isBlank()) {

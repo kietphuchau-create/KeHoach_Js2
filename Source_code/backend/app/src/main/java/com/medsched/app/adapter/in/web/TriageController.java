@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.medsched.app.adapter.in.ai.MedSchedAiTools;
 import com.medsched.core.port.out.AiTriagePort;
 import com.medsched.core.port.out.TriageEvaluation;
-import com.medsched.app.adapter.out.ai.GeminiGeneralAssistantService;
 import com.medsched.app.adapter.out.ai.InternalKnowledgeRagService;
 import com.medsched.app.adapter.out.ai.PatientBookingRecommendationService;
 import org.springframework.http.ResponseEntity;
@@ -33,20 +32,17 @@ public class TriageController {
     private final AiTriagePort aiTriagePort;
     private final MedSchedAiTools aiTools;
     private final AiRequestGuard aiRequestGuard;
-    private final GeminiGeneralAssistantService generalAssistant;
     private final InternalKnowledgeRagService knowledgeRag;
     private final PatientBookingRecommendationService bookingRecommendations;
     private final ObjectMapper objectMapper;
 
     public TriageController(AiTriagePort aiTriagePort, MedSchedAiTools aiTools, AiRequestGuard aiRequestGuard,
-                            GeminiGeneralAssistantService generalAssistant,
                             InternalKnowledgeRagService knowledgeRag,
                             PatientBookingRecommendationService bookingRecommendations,
                             ObjectMapper objectMapper) {
         this.aiTriagePort = aiTriagePort;
         this.aiTools = aiTools;
         this.aiRequestGuard = aiRequestGuard;
-        this.generalAssistant = generalAssistant;
         this.knowledgeRag = knowledgeRag;
         this.bookingRecommendations = bookingRecommendations;
         this.objectMapper = objectMapper;
@@ -137,7 +133,7 @@ public class TriageController {
             return ResponseEntity.status(403).body(chatError("Bạn không có quyền dùng trợ lý AI ở chế độ " + role + "."));
         }
         String identity = actualRole != null ? SecurityContextHolder.getContext().getAuthentication().getName() : "ip:" + httpRequest.getRemoteAddr();
-        AiRequestGuard.Decision guard = aiRequestGuard.check(identity, msg);
+        AiRequestGuard.Decision guard = aiRequestGuard.check(identity, msg, request.context());
         if (!guard.allowed()) {
             return ResponseEntity.status(429).header(HttpHeaders.RETRY_AFTER, String.valueOf(guard.retryAfterSeconds()))
                     .body(chatError(guard.message()));
@@ -181,11 +177,13 @@ public class TriageController {
             );
         }
 
-        String lastAssistant = lastContextMessage(context, "[ASSISTANT] ");
+        String lastAssistant = lastClarificationQuestion(context);
         String explicitFamily = explicitSymptomFamily(lower);
-        boolean continuation = explicitFamily == null && isLikelyClinicalAnswer(lower, lastAssistant);
+        boolean hasPriorTriageStory = !contextMessages(context, "[USER] ").isEmpty();
+        boolean continuation = (explicitFamily == null && isLikelyClinicalAnswer(lower, lastAssistant))
+                || (hasPriorTriageStory && (isLikelyClinicalAnswer(lower, lastAssistant) || isLikelyBodyPart(lower)));
         if (!looksLikeSymptomTriage(lower) && !continuation) {
-            return aiFirstOrInternal(message, "PATIENT", context,
+            return answerFromInternalKnowledge(message, true,
                     "Mình chưa có đủ thông tin để trả lời chắc chắn. Bạn có thể diễn đạt câu hỏi rõ hơn một chút nhé.");
         }
 
@@ -197,16 +195,22 @@ public class TriageController {
         }
 
         String family = episode.family();
+        boolean negativeFollowUp = isNegativeClinicalAnswer(lower);
         String primaryQuestion = missingPrimaryQuestion(story, family);
-        if (primaryQuestion != null) {
+        if (primaryQuestion != null && !hasAskedQuestion(context, primaryQuestion)) {
+            if (negativeFollowUp) return insufficientSymptomDetail(family);
             return new ChatResult(primaryQuestion, null, "CLARIFICATION");
         }
         String courseQuestion = missingCourseQuestion(story);
-        if (courseQuestion != null) {
+        if (courseQuestion != null && !hasAskedQuestion(context, courseQuestion)) {
+            if (negativeFollowUp) return insufficientSymptomDetail(family);
             return new ChatResult(courseQuestion, null, "CLARIFICATION");
         }
-        if (!hasAssociatedSymptoms(story)) {
-            return new ChatResult(associatedSymptomQuestion(family), null, "CLARIFICATION");
+        if (!hasAssociatedSymptoms(story) && !negativeFollowUp) {
+            String assocQ = associatedSymptomQuestion(family);
+            if (!hasAskedQuestion(context, assocQ)) {
+                return new ChatResult(assocQ, null, "CLARIFICATION");
+            }
         }
 
         String raw = normalizeTriageForFamily(aiTools.triagePatientSymptoms(story, ""), family);
@@ -237,7 +241,7 @@ public class TriageController {
             String raw = aiTools.getAdminAccountOverview();
             return new ChatResult(formatAdminAccounts(raw), "admin_account_overview", "MCP_TOOL");
         }
-        return aiFirstOrInternal(message, "ADMIN", context,
+        return answerFromInternalKnowledge(message, false,
                 "Tôi có thể tổng hợp dữ liệu vận hành, tài khoản đang hoạt động hoặc bị khóa, số hồ sơ bệnh nhân, bác sĩ, thuốc và tình hình khám theo ngày, tuần hoặc tháng. Bạn có thể hỏi tự nhiên, chẳng hạn: “Hiện có bao nhiêu tài khoản bị khóa?”");
     }
 
@@ -264,7 +268,7 @@ public class TriageController {
             String raw = aiTools.searchPatient(keyword);
             return new ChatResult(formatPatientSearch(raw, keyword), "search_patient", "MCP_TOOL");
         }
-        return aiFirstOrInternal(message, "STAFF", context,
+        return answerFromInternalKnowledge(message, false,
                 "Tôi có thể hỗ trợ tra cứu bệnh nhân, kiểm tra vé hẹn, tiếp đón, xem hàng đợi và liệt kê các bệnh nhân mới nhất trong ngày. Bạn cứ hỏi theo cách tự nhiên, tôi sẽ tự chọn dữ liệu phù hợp.");
     }
 
@@ -291,19 +295,57 @@ public class TriageController {
             String raw = aiTools.triagePatientSymptoms(message, "");
             return new ChatResult(formatTriageForDoctor(raw), "triage_patient_symptoms", "MCP_TOOL");
         }
-        return aiFirstOrInternal(message, "DOCTOR", context,
+        return answerFromInternalKnowledge(message, false,
                 "Tôi có thể hỗ trợ bác sĩ xem tải khám hôm nay, tóm tắt bệnh án theo mã, tra cứu danh mục thuốc và phân tích triệu chứng để tham khảo chuyên khoa. Vui lòng nêu câu hỏi hoặc mã ca khám cụ thể.");
     }
 
-    private ChatResult aiFirstOrInternal(String message, String role, String context, String fallback) {
-        var aiAnswer = generalAssistant.answerDetailed(message, role, context);
-        if (aiAnswer.isPresent()) {
-            return new ChatResult(aiAnswer.get().text(), null, aiAnswer.get().source());
+    private ChatResult answerFromInternalKnowledge(String message, boolean patient, String fallback) {
+        boolean medicalQuestion = patient && knowledgeRag.isMedicalQuestion(message);
+        if (patient && !medicalQuestion && !knowledgeRag.isClinicQuestion(message)) {
+            return unrelatedQuestion();
+        }
+        if (medicalQuestion && knowledgeRag.isUnsupportedMedicalTopic(message)) {
+            return unsupportedMedicalTopic();
         }
         var ragAnswer = knowledgeRag.retrieve(message);
-        return ragAnswer
-                .map(answer -> new ChatResult(answer.text() + "\n\nNguồn: dữ liệu hướng dẫn nội bộ MedSched.", "internal_rag_retrieval", "INTERNAL_RAG"))
-                .orElseGet(() -> new ChatResult(fallback, null, "LOCAL_ASSISTANT"));
+        if (ragAnswer.isPresent()) {
+            return new ChatResult(ragAnswer.get().text() + "\n\nNguồn: dữ liệu nội bộ MedSched.",
+                    "internal_rag_retrieval", "INTERNAL_RAG");
+        }
+        if (medicalQuestion) {
+            return unsupportedMedicalTopic();
+        }
+        if (patient) {
+            return unrelatedQuestion();
+        }
+        return new ChatResult(fallback, null, "LOCAL_ASSISTANT");
+    }
+
+    private ChatResult unsupportedMedicalTopic() {
+        return new ChatResult(
+                "Hệ thống MedSched hiện không điều trị hoặc chưa có dữ liệu nội bộ về vấn đề y tế này. Bạn vui lòng liên hệ cơ sở y tế có chuyên khoa phù hợp.",
+                null, "INTERNAL_SCOPE_GUARDRAIL");
+    }
+
+    private ChatResult unrelatedQuestion() {
+        return new ChatResult(
+                "Xin lỗi, hệ thống MedSched chỉ hỗ trợ các vấn đề thuộc lĩnh vực y tế và thông tin khám chữa bệnh tại MedSched. Hệ thống chưa hỗ trợ câu hỏi không liên quan đến phạm vi này.",
+                null, "UNRELATED_GUARDRAIL");
+    }
+
+    private ChatResult insufficientSymptomDetail(String family) {
+        String example = switch (family) {
+            case "HEADACHE" -> "vị trí đau đầu, cảm giác đau, thời điểm bắt đầu";
+            case "ABDOMINAL" -> "vị trí đau bụng, cảm giác đau, thời điểm bắt đầu";
+            case "CHEST" -> "vị trí đau ngực, cảm giác đau, thời điểm bắt đầu";
+            case "DENTAL" -> "răng hoặc vùng hàm bị đau, cảm giác đau, thời điểm bắt đầu";
+            case "SKIN" -> "vị trí tổn thương, hình dạng, thời điểm xuất hiện và mức độ ngứa hoặc đau";
+            default -> "vị trí khó chịu, cảm giác cụ thể, thời điểm bắt đầu";
+        };
+        return new ChatResult(
+                "Mình chưa có đủ thông tin để chọn chuyên khoa và khung khám phù hợp. Bạn vui lòng mô tả chi tiết hơn về "
+                        + example + ". Khi đủ thông tin, mình sẽ hỗ trợ bạn đặt lịch ngay.",
+                null, "CLARIFICATION");
     }
 
     private record ChatResult(String reply, String tool, String source, Object data) {
@@ -317,13 +359,17 @@ public class TriageController {
                                                   String currentFamily, boolean continuation) {
         List<String> priorUsers = contextMessages(context, "[USER] ");
         String family = currentFamily;
-        int start = priorUsers.size();
+        int start = 0; // Luôn giữ toàn bộ tiến trình hỏi bệnh của bệnh nhân để không bị mất ngữ cảnh
 
         if (currentFamily != null) {
             for (int i = priorUsers.size() - 1; i >= 0; i--) {
                 String priorFamily = explicitSymptomFamily(priorUsers.get(i).toLowerCase(Locale.ROOT));
                 if (priorFamily != null) {
-                    if (priorFamily.equals(currentFamily)) start = i;
+                    if (priorFamily.equals(currentFamily)) {
+                        start = i;
+                    } else {
+                        start = i + 1; // Chuyển sang triệu chứng khác
+                    }
                     break;
                 }
             }
@@ -332,17 +378,38 @@ public class TriageController {
                 String priorFamily = explicitSymptomFamily(priorUsers.get(i).toLowerCase(Locale.ROOT));
                 if (priorFamily != null) {
                     family = priorFamily;
-                    start = i;
                     break;
                 }
             }
+            start = 0;
         }
 
-        if (family == null) family = "GENERAL";
         List<String> episode = new ArrayList<>();
         if (start < priorUsers.size()) episode.addAll(priorUsers.subList(start, priorUsers.size()));
         episode.add(currentMessage.trim());
-        return new PatientEpisode(String.join("; ", episode), family);
+        String story = String.join("; ", episode);
+
+        if (family == null || "GENERAL".equals(family)) {
+            String storyLower = normalizeForMatching(story);
+            if (Pattern.compile("\\b(ho|sot|cum|cam)\\b").matcher(storyLower).find()
+                    || containsAny(storyLower, "dau hong", "rat hong", "rat co", "kho tho", "co", "hong")) {
+                family = "RESPIRATORY";
+            } else if (containsAny(storyLower, "dau dau", "nhuc dau", "chong mat", "hoa mat", "sau gay", "thai duong")) {
+                family = "HEADACHE";
+            } else if (containsAny(storyLower, "dau bung", "buon non", "tieu chay", "tao bon", "thuong vi", "da day")) {
+                family = "ABDOMINAL";
+            } else if (containsAny(storyLower, "dau nguc", "tuc nguc", "sau xuong uc")) {
+                family = "CHEST";
+            } else if (containsAny(storyLower, "rang", "nuou", "loi")) {
+                family = "DENTAL";
+            } else if (containsAny(storyLower, "ngua", "man", "phat ban", "me day", "da")) {
+                family = "SKIN";
+            } else {
+                family = "GENERAL";
+            }
+        }
+
+        return new PatientEpisode(story, family);
     }
 
     private List<String> contextMessages(String context, String prefix) {
@@ -357,6 +424,22 @@ public class TriageController {
     private String lastContextMessage(String context, String prefix) {
         List<String> messages = contextMessages(context, prefix);
         return messages.isEmpty() ? "" : messages.get(messages.size() - 1);
+    }
+
+    private String lastClarificationQuestion(String context) {
+        List<String> messages = contextMessages(context, "[ASSISTANT] ");
+        for (int i = messages.size() - 1; i >= 0; i--) {
+            String msg = messages.get(i);
+            if (isClarificationQuestion(msg)) {
+                return msg;
+            }
+        }
+        return messages.isEmpty() ? "" : messages.get(messages.size() - 1);
+    }
+
+    private boolean isLikelyBodyPart(String lower) {
+        return containsAny(lower, "họng", "cổ", "đầu", "bụng", "ngực", "lưng", "vai", "gáy",
+                "tay", "chân", "mặt", "tai", "mũi", "mắt", "răng", "hàm", "nướu", "da", "khớp");
     }
 
     private String explicitSymptomFamily(String lower) {
@@ -374,8 +457,9 @@ public class TriageController {
         if (positive.contains("dau bung")) return "ABDOMINAL";
         if (positive.contains("dau nguc") || positive.contains("tuc nguc")) return "CHEST";
         if (positive.contains("dau rang") || positive.contains("nhuc rang") || positive.contains("buot rang")) return "DENTAL";
-        if (containsAny(positive, "ngua da", "noi man", "phat ban", "me day")) return "SKIN";
-        if (containsAny(positive, "ho khan", "ho co dom", "kho tho", "dau hong", "sot")) return "RESPIRATORY";
+        if (containsAny(positive, "ngua da", "noi man", "phat ban", "me day", "di ung")) return "SKIN";
+        if (containsAny(positive, "ho khan", "ho co dom", "kho tho", "dau hong", "rat hong", "rat co", "sot", "viem hong", "cam cum", "hong", "co hong", "amidan", "viem amidan", "khan tieng", "so mui", "nghet mui")
+                || Pattern.compile("\\b(ho|sot|cum|cam|hong)\\b").matcher(positive).find()) return "RESPIRATORY";
         return null;
     }
 
@@ -383,13 +467,21 @@ public class TriageController {
         if (lastAssistant == null || lastAssistant.isBlank() || !isClarificationQuestion(lastAssistant)) return false;
         boolean meaningfulDetail = containsAny(lower, "bên trái", "bên phải", "ở giữa", "trên rốn", "dưới rốn", "quanh rốn",
                 "thượng vị", "hạ sườn", "hố chậu", "nửa đầu", "cả đầu", "trán", "thái dương", "sau gáy",
-                "hàm trên", "hàm dưới", "ở cổ", "cổ", "mặt", "tay", "chân", "lưng", "toàn thân",
+                "hàm trên", "hàm dưới", "ở cổ", "cổ", "họng", "cổ họng", "vòm họng", "amidan", "mặt", "tai", "mũi", "mắt",
+                "tay", "chân", "lưng", "vai", "gáy", "bụng", "ngực", "răng", "nướu", "da", "khớp", "toàn thân",
                 "âm ỉ", "nhói", "quặn", "buốt", "nóng rát", "bóp nghẹt", "đè nặng",
                 "liên tục", "từng cơn", "đột ngột", "tăng dần", "nhẹ", "vừa", "nặng", "dữ dội",
                 "có sốt", "không sốt", "buồn nôn", "không nôn", "khó thở", "không có", "không kèm", "có kèm");
         boolean measuredDetail = Pattern.compile("\\b\\d+\\s*(phút|giờ|ngày|tuần|tháng|/\\s*10|độ)\\b",
                 Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE).matcher(lower).find();
-        return meaningfulDetail || measuredDetail;
+        return meaningfulDetail || measuredDetail || isNegativeClinicalAnswer(lower);
+    }
+
+    private boolean isNegativeClinicalAnswer(String value) {
+        if (value == null) return false;
+        String clean = value.trim().toLowerCase(Locale.ROOT)
+                .replaceAll("[.!?]+$", "").trim();
+        return clean.matches("^(dạ\\s+|ạ\\s+)?(không|không có|không có gì|không gì cả|không kèm gì|không có triệu chứng gì|không biết|chưa)$");
     }
 
     private boolean isClarificationQuestion(String text) {
@@ -429,10 +521,13 @@ public class TriageController {
     }
 
     private boolean hasQuality(String lower, String family) {
+        boolean genericQuality = containsAny(lower, "giật", "nhói", "âm ỉ", "siết", "quặn", "buốt", "nóng rát",
+                "bóp nghẹt", "đè nặng", "đau khi nhai", "đau rát", "rát", "ngứa", "châm chích", "co thắt", "đau");
+        if (genericQuality) return true;
         return switch (family) {
             case "SKIN" -> containsAny(lower, "mụn nước", "mảng đỏ", "sưng", "bong tróc", "mề đay", "ngứa", "rát");
-            case "RESPIRATORY" -> containsAny(lower, "ho khan", "ho đờm", "có đờm", "khó thở", "đau họng", "sổ mũi", "độ c");
-            default -> containsAny(lower, "giật", "nhói", "âm ỉ", "siết", "quặn", "buốt", "nóng rát", "bóp nghẹt", "đè nặng", "đau khi nhai");
+            case "RESPIRATORY" -> containsAny(lower, "ho khan", "ho đờm", "có đờm", "khó thở", "đau họng", "sổ mũi", "độ c", "khan tiếng");
+            default -> false;
         };
     }
 
@@ -466,7 +561,6 @@ public class TriageController {
         List<String> questions = new ArrayList<>();
         if (!duration) questions.add("Triệu chứng bắt đầu từ khi nào");
         if (!pattern) questions.add("xuất hiện đột ngột hay tăng dần, liên tục hay từng cơn");
-        if (!severity) questions.add("mức độ khó chịu từ 0 đến 10 là bao nhiêu");
         if (questions.isEmpty()) return null;
         return "Cảm ơn bạn. " + String.join("; ", questions) + "?";
     }
@@ -483,6 +577,17 @@ public class TriageController {
             case "CHEST" -> "Bạn có khó thở, vã mồ hôi, buồn nôn, chóng mặt hoặc đau lan ra tay, lưng hay hàm không? Cơn đau có tăng khi vận động không?";
             default -> "Bạn có triệu chứng nào đi kèm như sốt, buồn nôn, chóng mặt, khó thở, tê yếu, phát ban hoặc chảy máu không? Nếu không có, bạn hãy trả lời “không có triệu chứng kèm theo”.";
         };
+    }
+
+    private boolean hasAskedQuestion(String context, String question) {
+        if (context == null || context.isBlank() || question == null) return false;
+        String lowerContext = context.toLowerCase(Locale.ROOT);
+        String lowerQ = question.toLowerCase(Locale.ROOT);
+        if (lowerQ.contains("vị trí") && lowerContext.contains("vị trí")) return true;
+        if (lowerQ.contains("cảm giác khó chịu") && lowerContext.contains("cảm giác khó chịu")) return true;
+        if (lowerQ.contains("bắt đầu từ khi nào") && lowerContext.contains("bắt đầu từ khi nào")) return true;
+        if (lowerQ.contains("triệu chứng nào đi kèm") && (lowerContext.contains("đi kèm") || lowerContext.contains("kèm theo"))) return true;
+        return lowerContext.contains(lowerQ.substring(0, Math.min(30, lowerQ.length())));
     }
 
     private boolean hasEmergencyWarning(String story) {
@@ -803,7 +908,7 @@ public class TriageController {
     }
 
     private static final Pattern SYMPTOM_WORD_PATTERN = Pattern.compile(
-            "(?<!\\p{L})(ho|sốt|đau|nhức|ngứa|buốt)(?!\\p{L})",
+            "(?<!\\p{L})(ho|sốt|đau|nhức|ngứa|buốt|họng|rát|mỏi|tê|mờ|ói|nôn|quặn|nhói)(?!\\p{L})",
             Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CHARACTER_CLASS);
 
     private boolean looksLikeSymptomTriage(String lower) {
@@ -812,7 +917,11 @@ public class TriageController {
                 || lower.contains("chóng mặt")
                 || lower.contains("buồn nôn")
                 || lower.contains("khám gì")
-                || lower.contains("triệu chứng");
+                || lower.contains("triệu chứng")
+                || lower.contains("âm ỉ")
+                || lower.contains("nóng rát")
+                || lower.contains("khó thở")
+                || lower.contains("tức ngực");
     }
 
     private String authenticatedRole() {

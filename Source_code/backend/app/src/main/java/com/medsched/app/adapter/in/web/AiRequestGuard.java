@@ -2,6 +2,7 @@ package com.medsched.app.adapter.in.web;
 
 import io.github.bucket4j.Bucket;
 import io.github.bucket4j.ConsumptionProbe;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -22,6 +23,11 @@ public class AiRequestGuard {
     private final Map<String, BucketState> buckets = new ConcurrentHashMap<>();
     private final Map<String, DuplicateState> duplicateStates = new ConcurrentHashMap<>();
 
+    public AiRequestGuard() {
+        this(20, 60, 5, 2000, 10000);
+    }
+
+    @Autowired
     public AiRequestGuard(
             @Value("${medsched.ai.guard.max-requests-per-window:20}") int maxRequests,
             @Value("${medsched.ai.guard.window-seconds:60}") long windowSeconds,
@@ -40,21 +46,39 @@ public class AiRequestGuard {
                 .build();
     }
 
+    public AiRequestGuard(int maxRequests, long windowSeconds, long duplicateSeconds, int maxMessageChars) {
+        this(maxRequests, windowSeconds, duplicateSeconds, maxMessageChars, 10000);
+    }
+
     private final java.util.function.Supplier<Bucket> bucketFactory;
 
     public Decision check(String key, String message) {
+        return check(key, message, "");
+    }
+
+    /**
+     * Kiểm tra yêu cầu AI theo cả nội dung và ngữ cảnh hội thoại. Cùng một câu
+     * trả lời ngắn (ví dụ "không" hoặc "tiểu buốt") vẫn hợp lệ nếu bệnh nhân
+     * đang trả lời một câu hỏi làm rõ mới; chỉ yêu cầu lặp trong cùng ngữ cảnh
+     * mới được xem là thao tác gửi trùng.
+     */
+    public Decision check(String key, String message, String conversationContext) {
         if (message == null || message.isBlank()) return Decision.reject("Tin nhắn không được để trống.", 0);
         if (message.length() > maxMessageChars) {
             return Decision.reject("Tin nhắn quá dài. Vui lòng rút gọn còn tối đa " + maxMessageChars + " ký tự.", 0);
         }
         String safeKey = key == null || key.isBlank() ? "anonymous" : key;
         Instant now = Instant.now();
-        String fingerprint = message.trim().toLowerCase(java.util.Locale.ROOT);
+        String normalizedMessage = message.trim().toLowerCase(java.util.Locale.ROOT);
+        String normalizedContext = conversationContext == null
+                ? ""
+                : conversationContext.trim().toLowerCase(java.util.Locale.ROOT);
+        String fingerprint = normalizedMessage + "|ctx:" + Integer.toHexString(normalizedContext.hashCode());
         DuplicateState duplicate = duplicateStates.computeIfAbsent(safeKey, ignored -> new DuplicateState());
         synchronized (duplicate) {
             if (fingerprint.equals(duplicate.lastMessage) && duplicate.lastAt != null
                     && duplicate.lastAt.plus(duplicateWindow).isAfter(now)) {
-                return Decision.reject("Yêu cầu giống hệt vừa được xử lý. Vui lòng chờ vài giây.", 5);
+                return Decision.reject("Yêu cầu lặp lại hoặc giống hệt vừa được xử lý. Vui lòng chờ vài giây.", 5);
             }
             duplicate.lastMessage = fingerprint;
             duplicate.lastAt = now;
@@ -101,6 +125,10 @@ public class AiRequestGuard {
     }
 
     public record Decision(boolean allowed, String message, long retryAfterSeconds) {
+        public String reason() {
+            return message;
+        }
+
         static Decision allow() { return new Decision(true, null, 0); }
         static Decision reject(String message, long retryAfter) { return new Decision(false, message, retryAfter); }
     }

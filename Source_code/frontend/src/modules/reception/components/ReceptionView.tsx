@@ -34,7 +34,10 @@ import {
   Banknote,
   Tag,
   Gift,
-  Percent
+  Percent,
+  ChevronRight,
+  UserCheck,
+  FileText
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -118,6 +121,19 @@ export default function ReceptionView() {
 
   // Ca trực thực tế hôm nay để ràng buộc tiếp đón (Tránh trường hợp Bác sĩ chưa đăng ký lịch mà vẫn cho tiếp đón)
   const [todaySchedules, setTodaySchedules] = useState<any[]>([]);
+  const [showSpecialtyModal, setShowSpecialtyModal] = useState<boolean>(false);
+  const [showDoctorModal, setShowDoctorModal] = useState<boolean>(false);
+  const [specialtySearchTerm, setSpecialtySearchTerm] = useState<string>('');
+  const [doctorSearchTerm, setDoctorSearchTerm] = useState<string>('');
+  const [showSlotModal, setShowSlotModal] = useState<boolean>(false);
+  const [showTicketPreviewModal, setShowTicketPreviewModal] = useState<boolean>(false);
+  const [targetDoctorForSlots, setTargetDoctorForSlots] = useState<any>(null);
+  const [doctorSlotsLoading, setDoctorSlotsLoading] = useState<boolean>(false);
+  const [doctorSlotsList, setDoctorSlotsList] = useState<any[]>([]);
+  const [selectedSlotId, setSelectedSlotId] = useState<string>('');
+  const [selectedSlotTime, setSelectedSlotTime] = useState<string>('');
+  const [slotFilterSession, setSlotFilterSession] = useState<'ALL' | 'MORNING' | 'AFTERNOON' | 'EVENING'>('ALL');
+  const [onlyAvailableSlots, setOnlyAvailableSlots] = useState<boolean>(true);
   const [todaySchedulesLoading, setTodaySchedulesLoading] = useState(false);
   const [walkinGender, setWalkinGender] = useState<'MALE' | 'FEMALE' | 'OTHER'>('MALE');
   const [walkinBirthYear, setWalkinBirthYear] = useState('1990');
@@ -164,6 +180,35 @@ export default function ReceptionView() {
   }, [todaySchedules, doctors]);
 
   // Lọc Bác sĩ có ca trực hôm nay THEO ĐÚNG CHUYÊN KHOA ĐANG CHỌN
+  const currentSelectedDoctor = useMemo(() => {
+    return doctors.find((d) => d.id === selectedDoctorId) || activeDoctorsToday.find((d) => d.id === selectedDoctorId);
+  }, [doctors, activeDoctorsToday, selectedDoctorId]);
+
+  // Tự động chọn chuyên khoa có Bác sĩ trực hôm nay nếu chuyên khoa hiện tại chưa có BS
+  useEffect(() => {
+    if (activeDoctorsToday.length > 0 && specialties.length > 0) {
+      const hasDoc = activeDoctorsToday.some((d) => {
+        const dSpec = (d.specialtyName || '').toLowerCase().trim();
+        const targetSpec = (walkinSpecialty || '').toLowerCase().trim();
+        return targetSpec && (dSpec === targetSpec || dSpec.includes(targetSpec) || targetSpec.includes(dSpec));
+      });
+      if (!hasDoc) {
+        const firstSpecWithDoc = specialties.find((s) => {
+          return activeDoctorsToday.some((d) => {
+            const dSpec = (d.specialtyName || '').toLowerCase().trim();
+            const targetSpec = (s.name || '').toLowerCase().trim();
+            return dSpec === targetSpec || dSpec.includes(targetSpec) || targetSpec.includes(dSpec);
+          });
+        });
+        if (firstSpecWithDoc) {
+          setWalkinSpecialty(firstSpecWithDoc.name);
+        } else if (activeDoctorsToday[0]?.specialtyName) {
+          setWalkinSpecialty(activeDoctorsToday[0].specialtyName);
+        }
+      }
+    }
+  }, [activeDoctorsToday, specialties, walkinSpecialty]);
+
   const availableDoctorsForSpecialty = useMemo(() => {
     if (!walkinSpecialty) return activeDoctorsToday;
     return activeDoctorsToday.filter((d) => {
@@ -172,6 +217,126 @@ export default function ReceptionView() {
       return dSpec === targetSpec || dSpec.includes(targetSpec) || targetSpec.includes(dSpec);
     });
   }, [activeDoctorsToday, walkinSpecialty]);
+
+  const isDevModeActive = useMemo(() => {
+    try {
+      return Boolean(getClinicScheduleConfig().devMode247);
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const loadDoctorSlots = useCallback(async (docId: string) => {
+    if (!docId) {
+      setDoctorSlotsList([]);
+      return;
+    }
+    setDoctorSlotsLoading(true);
+    try {
+      const todayStr = getLocalDateString();
+      const res = await api.getDoctorAvailableSlots(docId, todayStr);
+      if (Array.isArray(res)) {
+        setDoctorSlotsList(res);
+      } else {
+        setDoctorSlotsList([]);
+      }
+    } catch (err) {
+      console.warn('Lỗi tải danh sách khung giờ bác sĩ:', err);
+      setDoctorSlotsList([]);
+    } finally {
+      setDoctorSlotsLoading(false);
+    }
+  }, []);
+
+  const handleSelectDoctorAndOpenSlots = useCallback((doc: any) => {
+    if (!doc) return;
+    console.log('[ReceptionView] Chọn Bác sĩ và mở popup khung giờ:', doc.fullName || doc.id);
+    setSelectedDoctorId(doc.id);
+    setTargetDoctorForSlots(doc);
+    if (selectedDoctorId !== doc.id) {
+      setSelectedSlotId('');
+      setSelectedSlotTime('');
+    }
+    setShowDoctorModal(false);
+    setShowSlotModal(true);
+    loadDoctorSlots(doc.id);
+  }, [selectedDoctorId, loadDoctorSlots]);
+
+  const activeSlotDoctor = useMemo(() => {
+    return targetDoctorForSlots || currentSelectedDoctor || null;
+  }, [targetDoctorForSlots, currentSelectedDoctor]);
+
+  const getSlotTiming = useCallback((timeStr: string) => {
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const startPart = (timeStr || '').split('-')[0]?.trim() || '';
+    const [startH, startM] = startPart.split(':').map(Number);
+    const slotStartMinutes = (startH || 0) * 60 + (startM || 0);
+    const minutesDiff = slotStartMinutes - currentMinutes;
+    const isPast = minutesDiff <= 0;
+    const isUrgent = minutesDiff > 0 && minutesDiff < 15;
+    return { isPast, isUrgent, minutesDiff };
+  }, []);
+
+  const isMorningSlot = (timeStr: string) => {
+    const hour = parseInt((timeStr || '').split(':')[0], 10) || 0;
+    return hour >= 8 && hour < 12;
+  };
+  const isAfternoonSlot = (timeStr: string) => {
+    const hour = parseInt((timeStr || '').split(':')[0], 10) || 0;
+    return hour >= 12 && hour < 17;
+  };
+  const isEveningSlot = (timeStr: string) => {
+    const hour = parseInt((timeStr || '').split(':')[0], 10) || 0;
+    return hour >= 17;
+  };
+
+  const isSlotAvailable = useCallback((slot: any) => {
+    if (!slot || slot.disabled || slot.status === 'full' || slot.status === 'BOOKED' || slot.status === 'locked') return false;
+    if (slot.status === 'expired') return false;
+    const timing = getSlotTiming(slot.time);
+    return !timing.isPast && !timing.isUrgent;
+  }, [getSlotTiming]);
+
+  const morningSlots = useMemo(() => {
+    return doctorSlotsList.filter((s) => isMorningSlot(s.time));
+  }, [doctorSlotsList]);
+
+  const afternoonSlots = useMemo(() => {
+    return doctorSlotsList.filter((s) => isAfternoonSlot(s.time));
+  }, [doctorSlotsList]);
+
+  const eveningSlots = useMemo(() => {
+    return doctorSlotsList.filter((s) => isEveningSlot(s.time));
+  }, [doctorSlotsList]);
+
+  const displayedDoctorSlots = useMemo(() => {
+    let list = doctorSlotsList;
+    if (slotFilterSession === 'MORNING') list = morningSlots;
+    else if (slotFilterSession === 'AFTERNOON') list = afternoonSlots;
+    else if (slotFilterSession === 'EVENING') list = eveningSlots;
+
+    if (onlyAvailableSlots) {
+      return list.filter(isSlotAvailable);
+    }
+    return list;
+  }, [slotFilterSession, morningSlots, afternoonSlots, eveningSlots, doctorSlotsList, onlyAvailableSlots, isSlotAvailable]);
+
+  const morningAvailableCount = useMemo(() => {
+    return morningSlots.filter(isSlotAvailable).length;
+  }, [morningSlots, isSlotAvailable]);
+
+  const afternoonAvailableCount = useMemo(() => {
+    return afternoonSlots.filter(isSlotAvailable).length;
+  }, [afternoonSlots, isSlotAvailable]);
+
+  const eveningAvailableCount = useMemo(() => {
+    return eveningSlots.filter(isSlotAvailable).length;
+  }, [eveningSlots, isSlotAvailable]);
+
+  const availableSlotsTotalCount = useMemo(() => {
+    return doctorSlotsList.filter(isSlotAvailable).length;
+  }, [doctorSlotsList, isSlotAvailable]);
 
   // Tự động chọn Bác sĩ đầu tiên khả dụng khi đổi chuyên khoa
   useEffect(() => {
@@ -355,13 +520,27 @@ export default function ReceptionView() {
       discountAmount: appliedBillingPromo?.discountAmount,
       originalTotal: originalTotal,
     });
-  }, [billingData, appliedBillingPromo]);
+    if (billingAppointmentId) paidInvoiceSetRef.current.add(billingAppointmentId);
+    if (billingData.bookingCode) paidInvoiceSetRef.current.add(billingData.bookingCode);
+
+    if (billingAppointmentId || billingData.bookingCode) {
+      setHistory((prev) =>
+        prev.map((h) =>
+          (billingAppointmentId && h.appointmentId === billingAppointmentId) ||
+          (billingData.bookingCode && h.bookingCode === billingData.bookingCode)
+            ? { ...h, invoiceStatus: 'PAID' }
+            : h
+        )
+      );
+    }
+  }, [billingData, appliedBillingPromo, billingAppointmentId]);
 
   // Camera QR Scanner Modal State
   const [showCameraScanner, setShowCameraScanner] = useState(false);
   const [showCheckinModal, setShowCheckinModal] = useState(false);
 
   const qrInputRef = useRef<HTMLInputElement>(null);
+  const paidInvoiceSetRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const token = getAuthToken();
@@ -438,6 +617,7 @@ export default function ReceptionView() {
               room: roomTitle,
               checkInTime: timeStr,
               status: item.status === 'COMPLETED' ? 'ĐÃ KHÁM' : item.status === 'IN_CONSULTATION' ? 'ĐANG KHÁM' : 'ĐÃ TIẾP ĐÓN',
+              invoiceStatus: (item.invoiceStatus === 'PAID' || paidInvoiceSetRef.current.has(item.id) || (item.bookingCode && paidInvoiceSetRef.current.has(item.bookingCode))) ? 'PAID' : (item.invoiceStatus || 'UNPAID'),
             };
           });
         if (mapped.length > 0) {
@@ -524,6 +704,17 @@ export default function ReceptionView() {
           if (appliedBillingPromo) {
             recordPromotionUsage(appliedBillingPromo.code);
           }
+          if (billingData.invoiceId) {
+            try {
+              await api.payInvoice(billingData.invoiceId, {
+                amountPaid: Number(res.amountPaid || billingData.totalAmount || 0),
+                paymentMethod: 'BANK_TRANSFER',
+                note: appliedBillingPromo ? `VOUCHER:${appliedBillingPromo.code}` : 'VIETQR_PAYOS',
+              });
+            } catch (payErr) {
+              console.warn('payInvoice background sync error:', payErr);
+            }
+          }
           triggerBillingSuccess({
             amountPaid: res.amountPaid,
             paymentMethod: 'BANK_TRANSFER',
@@ -561,6 +752,17 @@ export default function ReceptionView() {
       if (res && res.success && res.status === 'SUCCEEDED') {
         if (appliedBillingPromo) {
           recordPromotionUsage(appliedBillingPromo.code);
+        }
+        if (billingData.invoiceId) {
+          try {
+            await api.payInvoice(billingData.invoiceId, {
+              amountPaid: Number(res.amountPaid || billingData.totalAmount || 0),
+              paymentMethod: 'BANK_TRANSFER',
+              note: appliedBillingPromo ? `VOUCHER:${appliedBillingPromo.code}` : 'VIETQR_PAYOS',
+            });
+          } catch (payErr) {
+            console.warn('payInvoice manual sync error:', payErr);
+          }
         }
         triggerBillingSuccess({
           amountPaid: res.amountPaid,
@@ -893,7 +1095,9 @@ export default function ReceptionView() {
         doctorId: docId,
         specialty: spec,
         password: autoPass,
-        symptoms: walkinSymptoms.trim() || undefined,
+        symptoms: selectedSlotTime
+          ? `${walkinSymptoms.trim() ? walkinSymptoms.trim() + ' | ' : ''}Khung giờ tiếp nhận: ${selectedSlotTime}`
+          : walkinSymptoms.trim() || undefined,
         gender: walkinGender,
         birthYear: walkinBirthYear ? Number(walkinBirthYear) : undefined,
       });
@@ -967,6 +1171,9 @@ export default function ReceptionView() {
       setWalkinSymptoms('');
       setWalkinBirthYear('');
       setWalkinGender('OTHER');
+      setSelectedSlotId('');
+      setSelectedSlotTime('');
+      setPreselectedWalkinInfo(null);
       handleGenerateRandomPass();
     } catch (err: any) {
       setError(err.message || 'Tiếp đón tại quầy thất bại. Vui lòng thử lại.');
@@ -1010,23 +1217,43 @@ export default function ReceptionView() {
           <div>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
               <div>
-                <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-3 flex-wrap">
                   <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
                     <Clock size={18} className="text-blue-600" />
                     <span>Danh Sách Đã Tiếp Đón</span>
                   </h3>
-                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold flex items-center gap-1 border shadow-2xs ${
-                    feedDateFilter === 'TODAY'
-                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                      : 'bg-teal-50 text-teal-800 border-teal-200'
-                  }`}>
-                    <CalendarDays size={13} />
-                    <span>{feedDateFilter === 'TODAY' ? `Hôm nay: ${todayDisplay}` : `Hôm qua: ${yesterdayDisplay}`}</span>
-                  </span>
+
+                  {/* Bộ chuyển ngày xem Live Feed: Hôm nay vs Hôm qua */}
+                  <div className="flex items-center bg-slate-100 p-0.5 rounded-xl gap-0.5 shrink-0 border border-slate-200/60 shadow-2xs">
+                    <button
+                      type="button"
+                      onClick={() => setFeedDateFilter('TODAY')}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                        feedDateFilter === 'TODAY'
+                          ? 'bg-white text-emerald-800 shadow-2xs font-black'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                      title="Xem hàng đợi hôm nay"
+                    >
+                      <Clock size={13} />
+                      <span>Hôm nay ({todayShort})</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFeedDateFilter('YESTERDAY')}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                        feedDateFilter === 'YESTERDAY'
+                          ? 'bg-white text-teal-800 shadow-2xs font-black'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                      title="Xem các ca tiếp đón ngày hôm qua"
+                    >
+                      <History size={13} />
+                      <span>Hôm qua ({yesterdayShort})</span>
+                    </button>
+                  </div>
                 </div>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Tự động chuyển tiếp vào hàng đợi phòng khám của Bác sĩ sau khi check-in.
-                </p>
+
               </div>
               <div className="flex items-center gap-2 flex-wrap">
                 <button
@@ -1059,41 +1286,9 @@ export default function ReceptionView() {
 
             {/* Filter & Search Toolbar */}
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 mb-3.5 pb-3 border-b border-slate-100">
-              {/* Date Switcher + Pill Tabs with flex-wrap and shrink-0 to prevent clipping */}
+              {/* Status Filter Tabs */}
               <div className="flex items-center gap-2 flex-wrap">
-                {/* 1. Bộ chuyển ngày xem Live Feed: Hôm nay vs Hôm qua (Chống hiểu lầm lúc giao thời nửa đêm) */}
-                <div className="flex items-center bg-slate-100 p-0.5 rounded-xl gap-0.5 shrink-0 border border-slate-200/60">
-                  <button
-                    type="button"
-                    onClick={() => setFeedDateFilter('TODAY')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
-                      feedDateFilter === 'TODAY'
-                        ? 'bg-white text-emerald-800 shadow-2xs font-black'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                    title="Xem hàng đợi hôm nay"
-                  >
-                    <Clock size={13} />
-                    <span>Hôm nay ({todayShort})</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFeedDateFilter('YESTERDAY')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
-                      feedDateFilter === 'YESTERDAY'
-                        ? 'bg-white text-teal-800 shadow-2xs font-black'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                    title="Xem các ca tiếp đón ngày hôm qua"
-                  >
-                    <History size={13} />
-                    <span>Hôm qua ({yesterdayShort})</span>
-                  </button>
-                </div>
-
-                <div className="h-5 w-px bg-slate-200 hidden sm:block mx-0.5" />
-
-                {/* 2. Trạng thái ca khám */}
+                {/* Trạng thái ca khám */}
                 <button
                   type="button"
                   onClick={() => setFilterStatus('ALL')}
@@ -1215,23 +1410,10 @@ export default function ReceptionView() {
                                 ? `Hôm Nay (${todayDisplay}) Chưa Có Ca Tiếp Đón Mới`
                                 : `Hôm Qua (${yesterdayDisplay}) Không Có Ca Khám Nào`}
                             </h4>
-                            <p className="text-xs text-slate-500 leading-relaxed">
-                              {feedDateFilter === 'TODAY'
-                                ? 'Hệ thống tự động làm mới hàng đợi mỗi ngày (từ 00:00) để sẵn sàng đón lượt bệnh nhân mới. Các ca tiếp đón từ hôm qua hoặc các ngày trước vẫn được lưu trữ đầy đủ trong mục Lịch Sử Tiếp Đón.'
-                                : 'Không tìm thấy hồ sơ tiếp đón nào trong ngày hôm qua. Bạn có thể bấm nút Hôm Nay bên trên hoặc mở Lịch Sử Tiếp Đón để xem tất cả.'}
-                            </p>
+
                           </div>
                           <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-                            {feedDateFilter === 'TODAY' && (
-                              <button
-                                type="button"
-                                onClick={() => setFeedDateFilter('YESTERDAY')}
-                                className="px-3.5 py-2 bg-white hover:bg-teal-50 text-slate-700 hover:text-teal-800 border border-slate-200 hover:border-teal-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                              >
-                                <History size={14} className="text-teal-600" />
-                                <span>Xem ca tiếp đón hôm qua ({yesterdayShort})</span>
-                              </button>
-                            )}
+
                             <button
                               type="button"
                               onClick={() => setShowCheckinModal(true)}
@@ -1240,12 +1422,7 @@ export default function ReceptionView() {
                               <UserPlus size={14} />
                               <span>+ Tiếp Đón Bệnh Nhân Mới</span>
                             </button>
-                            <Link
-                              href="/reception/history"
-                              className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-semibold transition flex items-center gap-1"
-                            >
-                              <span>Mở Sổ Lưu Trữ Toàn Viện →</span>
-                            </Link>
+
                           </div>
                         </div>
                       </td>
@@ -1321,72 +1498,109 @@ export default function ReceptionView() {
                               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                                 <CheckCircle2 size={11} /> ĐÃ KHÁM
                               </span>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setBillingAppointmentId(item.appointmentId);
-                                  setBillingLoading(true);
-                                  setBillingError(null);
-                                  setBillingPayOs(null);
-                                  setBillingSuccessData(null);
-                                  setPaymentMethod('BANK_TRANSFER');
-                                  setBillingPromoCode('');
-                                  setAppliedBillingPromo(null);
-                                  setBillingPromoError(null);
-                                  api.getBillDetail(item.appointmentId)
-                                    .then((data) => {
-                                      setBillingData(data);
-                                      if (data && data.status === 'PAID') {
+                              {item.invoiceStatus === 'PAID' ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setBillingAppointmentId(item.appointmentId);
+                                    setBillingLoading(true);
+                                    setBillingError(null);
+                                    setBillingPayOs(null);
+                                    setBillingSuccessData(null);
+                                    setPaymentMethod('BANK_TRANSFER');
+                                    api.getBillDetail(item.appointmentId)
+                                      .then((data) => {
+                                        setBillingData(data);
                                         setBillingSuccessData({
                                           invoiceId: data.invoiceId,
                                           bookingCode: data.bookingCode,
                                           patientName: data.patientName,
                                           doctorName: data.doctorName,
-                                          amountPaid: Number(data.totalAmount || 0),
-                                          paymentMethod: 'ĐÃ TẤT TOÁN',
-                                          transactionRef: data.invoiceId,
+                                          amountPaid: Number(data.amountPaid || data.totalAmount || 0),
+                                          paymentMethod: data.paymentMethod || 'ĐÃ TẤT TOÁN',
+                                          transactionRef: data.invoiceNumber || data.invoiceId,
                                           paidAt: 'Đã hoàn tất',
                                           originalTotal: Number(data.totalAmount || 0),
                                         });
-                                      } else if (data) {
-                                        const amount = Number(data.totalAmount) || 0;
-                                        const cleanCode = (data.bookingCode || 'MED').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-                                        api.createRealPayment({
-                                          appointmentId: item.appointmentId,
-                                          bookingCode: cleanCode,
-                                          paymentType: 'FULL',
-                                          amount: amount,
-                                          method: 'BANK_TRANSFER',
-                                        }).then((res: any) => {
-                                          if (res) {
-                                            setBillingPayOs({
-                                              accountNumber: res.accountNumber || '18112007',
-                                              accountName: res.accountName || 'CHAU TUAN KIET',
-                                              bin: res.bin || 'KLB',
-                                              checkoutUrl: res.checkoutUrl,
-                                              qrCode: res.qrCode,
-                                              transferContent: res.transferContent || `MEDPAY ${cleanCode}`,
-                                              amount: res.amount || amount,
-                                            });
-                                          }
-                                        }).catch(() => {
-                                          setBillingPayOs({
-                                            accountNumber: '18112007',
-                                            accountName: 'CHAU TUAN KIET',
-                                            bin: 'KLB',
-                                            transferContent: `MEDPAY ${cleanCode}`,
-                                            amount: amount,
+                                      })
+                                      .catch(e => alert(e.message))
+                                      .finally(() => setBillingLoading(false));
+                                  }}
+                                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold transition shadow-sm cursor-pointer whitespace-nowrap flex items-center gap-1"
+                                  title="Đã thanh toán viện phí. Bấm để xem hoặc in biên lai"
+                                >
+                                  <Check size={11} className="stroke-[2.5]" />
+                                  <span>ĐÃ THANH TOÁN</span>
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setBillingAppointmentId(item.appointmentId);
+                                    setBillingLoading(true);
+                                    setBillingError(null);
+                                    setBillingPayOs(null);
+                                    setBillingSuccessData(null);
+                                    setPaymentMethod('BANK_TRANSFER');
+                                    setBillingPromoCode('');
+                                    setAppliedBillingPromo(null);
+                                    setBillingPromoError(null);
+                                    api.getBillDetail(item.appointmentId)
+                                      .then((data) => {
+                                        setBillingData(data);
+                                        if (data && data.status === 'PAID') {
+                                          setBillingSuccessData({
+                                            invoiceId: data.invoiceId,
+                                            bookingCode: data.bookingCode,
+                                            patientName: data.patientName,
+                                            doctorName: data.doctorName,
+                                            amountPaid: Number(data.totalAmount || 0),
+                                            paymentMethod: 'ĐÃ TẤT TOÁN',
+                                            transactionRef: data.invoiceId,
+                                            paidAt: 'Đã hoàn tất',
+                                            originalTotal: Number(data.totalAmount || 0),
                                           });
-                                        });
-                                      }
-                                    })
-                                    .catch(e => alert(e.message))
-                                    .finally(() => setBillingLoading(false));
-                                }}
-                                className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[10px] font-bold transition shadow-sm cursor-pointer whitespace-nowrap"
-                              >
-                                THU NGÂN
-                              </button>
+                                        } else if (data) {
+                                          const amount = Number(data.totalAmount) || 0;
+                                          const cleanCode = (data.bookingCode || 'MED').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+                                          api.createRealPayment({
+                                            appointmentId: item.appointmentId,
+                                            bookingCode: cleanCode,
+                                            paymentType: 'FULL',
+                                            amount: amount,
+                                            method: 'BANK_TRANSFER',
+                                          }).then((res: any) => {
+                                            if (res) {
+                                              setBillingPayOs({
+                                                accountNumber: res.accountNumber || '18112007',
+                                                accountName: res.accountName || 'CHAU TUAN KIET',
+                                                bin: res.bin || 'KLB',
+                                                checkoutUrl: res.checkoutUrl,
+                                                qrCode: res.qrCode,
+                                                transferContent: res.transferContent || `MEDPAY ${cleanCode}`,
+                                                amount: res.amount || amount,
+                                              });
+                                            }
+                                          }).catch(() => {
+                                            setBillingPayOs({
+                                              accountNumber: '18112007',
+                                              accountName: 'CHAU TUAN KIET',
+                                              bin: 'KLB',
+                                              transferContent: `MEDPAY ${cleanCode}`,
+                                              amount: amount,
+                                            });
+                                          });
+                                        }
+                                      })
+                                      .catch(e => alert(e.message))
+                                      .finally(() => setBillingLoading(false));
+                                  }}
+                                  className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[10px] font-bold transition shadow-sm cursor-pointer whitespace-nowrap flex items-center gap-1"
+                                >
+                                  <CreditCard size={11} />
+                                  <span>THU NGÂN</span>
+                                </button>
+                              )}
                             </div>
                           ) : (
                             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
@@ -1406,36 +1620,11 @@ export default function ReceptionView() {
             <span>
               Đang xem: <strong className="text-slate-800 font-semibold">{feedDateFilter === 'TODAY' ? todayDisplay : yesterdayDisplay}</strong> • Hiển thị: <strong className="text-slate-700">{filteredHistory.length}</strong> / <strong className="text-slate-700">{history.length}</strong> ca tiếp nhận
             </span>
-            <Link
-              href="/reception/history"
-              className="text-emerald-700 hover:text-emerald-800 font-bold hover:underline inline-flex items-center gap-1 text-xs"
-            >
-              <span>Xem toàn bộ lịch sử tiếp đón &amp; Tra cứu nâng cao →</span>
-            </Link>
+
           </div>
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-3xl border border-slate-200 shadow-2xs">
-            <div>
-              <h3 className="font-bold text-slate-800 text-base flex items-center gap-2">
-                <CalendarDays size={18} className="text-teal-600" />
-                <span>Tra Cứu Lịch Trực Bác Sĩ Toàn Viện</span>
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Bấm vào khung giờ còn trống để chọn bác sĩ và tiếp đón cho bệnh nhân vãng lai.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setMainTab('CHECK_IN')}
-              className="px-4 py-2 bg-teal-700 hover:bg-teal-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm shrink-0"
-            >
-              <Clock size={15} />
-              <span>← Quay lại Danh Sách Tiếp Đón (Live Feed)</span>
-            </button>
-          </div>
-
           <ReceptionScheduleBoard
             onSelectSlotForWalkin={handleSelectSlotForWalkin}
             specialties={specialties}
@@ -1525,13 +1714,24 @@ export default function ReceptionView() {
                       </div>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setPreselectedWalkinInfo(null)}
-                    className="text-[11px] font-bold text-teal-700 hover:text-teal-900 underline ml-2 cursor-pointer"
-                  >
-                    Đổi bác sĩ khác
-                  </button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setShowTicketPreviewModal(true)}
+                      className="px-3.5 py-1.5 bg-teal-700 hover:bg-teal-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                    >
+                      <FileText size={14} />
+                      <span>Xem trước phiếu khám</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPreselectedWalkinInfo(null)}
+                      className="text-[11px] font-bold text-teal-700 hover:text-teal-900 underline ml-1 cursor-pointer"
+                      title="Bỏ chọn để đổi Bác sĩ khác"
+                    >
+                      Đổi bác sĩ khác
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -1573,63 +1773,66 @@ export default function ReceptionView() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {/* SĐT */}
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        SỐ ĐIỆN THOẠI NGƯỜI BỆNH <span className="text-rose-500">*</span>
-                      </label>
-                      <div className="relative">
-                        <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                        <input
-                          type="tel"
-                          required
-                          value={walkinPhone}
-                          onChange={handlePhoneChange}
-                          placeholder="Ví dụ: 0912345678 (10 số)"
-                          maxLength={10}
-                          className={`w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border rounded-xl focus:bg-white focus:ring-2 focus:outline-none text-xs font-semibold text-slate-800 transition ${
-                            walkinPhone.length > 0
-                              ? walkinPhoneValidation.isValid
-                                ? 'border-emerald-400 focus:ring-emerald-500'
-                                : 'border-rose-300 focus:ring-rose-400 bg-rose-50/20'
-                              : 'border-slate-200 focus:ring-emerald-500'
-                          }`}
-                        />
+                    {/* SĐT & Họ tên trên cùng 1 hàng */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                      {/* SĐT */}
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          SỐ ĐIỆN THOẠI NGƯỜI BỆNH <span className="text-rose-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                          <input
+                            type="tel"
+                            required
+                            value={walkinPhone}
+                            onChange={handlePhoneChange}
+                            placeholder="Ví dụ: 0912345678 (10 số)"
+                            maxLength={10}
+                            className={`w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border rounded-xl focus:bg-white focus:ring-2 focus:outline-none text-xs font-semibold text-slate-800 transition ${
+                              walkinPhone.length > 0
+                                ? walkinPhoneValidation.isValid
+                                  ? 'border-emerald-400 focus:ring-emerald-500'
+                                  : 'border-rose-300 focus:ring-rose-400 bg-rose-50/20'
+                                : 'border-slate-200 focus:ring-emerald-500'
+                            }`}
+                          />
+                        </div>
+                        {walkinPhone.length > 0 && (
+                          <p className={`text-[11px] mt-1 font-medium ${walkinPhoneValidation.isValid ? 'text-emerald-600' : 'text-rose-600'}`}>
+                            {walkinPhoneValidation.isValid ? '✓ ' : '✕ '}{walkinPhoneValidation.message}
+                          </p>
+                        )}
                       </div>
-                      {walkinPhone.length > 0 && (
-                        <p className={`text-[11px] mt-1 font-medium ${walkinPhoneValidation.isValid ? 'text-emerald-600' : 'text-rose-600'}`}>
-                          {walkinPhoneValidation.isValid ? '✓ ' : '✕ '}{walkinPhoneValidation.message}
-                        </p>
-                      )}
-                    </div>
 
-                    {/* Họ tên */}
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        HỌ VÀ TÊN NGƯỜI BỆNH <span className="text-rose-500">*</span>
-                      </label>
-                      <div className="relative">
-                        <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                        <input
-                          type="text"
-                          required
-                          value={walkinName}
-                          onChange={(e) => setWalkinName(e.target.value)}
-                          placeholder="Ví dụ: NGUYỄN VĂN AN"
-                          className={`w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border rounded-xl focus:bg-white focus:ring-2 focus:outline-none text-xs font-semibold text-slate-800 uppercase transition ${
-                            walkinName.length > 0
-                              ? walkinNameValidation.isValid
-                                ? 'border-emerald-400 focus:ring-emerald-500'
-                                : 'border-rose-300 focus:ring-rose-400 bg-rose-50/20'
-                              : 'border-slate-200 focus:ring-emerald-500'
-                          }`}
-                        />
+                      {/* Họ tên */}
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          HỌ VÀ TÊN NGƯỜI BỆNH <span className="text-rose-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <User className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                          <input
+                            type="text"
+                            required
+                            value={walkinName}
+                            onChange={(e) => setWalkinName(e.target.value)}
+                            placeholder="Ví dụ: NGUYỄN VĂN AN"
+                            className={`w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border rounded-xl focus:bg-white focus:ring-2 focus:outline-none text-xs font-semibold text-slate-800 uppercase transition ${
+                              walkinName.length > 0
+                                ? walkinNameValidation.isValid
+                                  ? 'border-emerald-400 focus:ring-emerald-500'
+                                  : 'border-rose-300 focus:ring-rose-400 bg-rose-50/20'
+                                : 'border-slate-200 focus:ring-emerald-500'
+                            }`}
+                          />
+                        </div>
+                        {walkinName.length > 0 && (
+                          <p className={`text-[11px] mt-1 font-medium ${walkinNameValidation.isValid ? 'text-emerald-600' : 'text-rose-600'}`}>
+                            {walkinNameValidation.isValid ? '✓ ' : '✕ '}{walkinNameValidation.message}
+                          </p>
+                        )}
                       </div>
-                      {walkinName.length > 0 && (
-                        <p className={`text-[11px] mt-1 font-medium ${walkinNameValidation.isValid ? 'text-emerald-600' : 'text-rose-600'}`}>
-                          {walkinNameValidation.isValid ? '✓ ' : '✕ '}{walkinNameValidation.message}
-                        </p>
-                      )}
                     </div>
 
                     {/* Chuyên khoa & Bác sĩ */}
@@ -1661,45 +1864,85 @@ export default function ReceptionView() {
                       </div>
                     ) : null}
 
-                    {/* Chuyên khoa & Bác sĩ */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Chuyên khoa, Bác sĩ & Khung giờ khám (Dạng Button mở Modal Popup) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div>
                         <label className="block text-xs font-bold text-slate-700 mb-1">
                           Chuyên khoa khám
                         </label>
-                        <select
-                          value={walkinSpecialty}
-                          onChange={(e) => setWalkinSpecialty(e.target.value)}
-                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none text-xs font-semibold text-slate-800"
+                        <button
+                          type="button"
+                          onClick={() => { setSpecialtySearchTerm(''); setShowSpecialtyModal(true); }}
+                          className="w-full px-3.5 py-2.5 bg-slate-50 hover:bg-slate-100/90 border border-slate-200 rounded-xl flex items-center justify-between text-xs font-semibold text-slate-800 transition cursor-pointer text-left focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                         >
-                          {specialties.map((s) => (
-                            <option key={s.id || s.name} value={s.name}>
-                              {s.name}
-                            </option>
-                          ))}
-                        </select>
+                          <div className="flex items-center gap-2 truncate">
+                            <span className="w-6 h-6 rounded-lg bg-teal-50 border border-teal-200 text-teal-700 flex items-center justify-center shrink-0">
+                              <Stethoscope size={13} />
+                            </span>
+                            <span className="truncate">{walkinSpecialty || 'Chọn chuyên khoa khám...'}</span>
+                          </div>
+                          <ChevronRight size={15} className="text-slate-400 shrink-0 ml-1" />
+                        </button>
                       </div>
 
                       <div>
                         <label className="block text-xs font-bold text-slate-700 mb-1">
-                          Bác sĩ &amp; Buồng khám (Chỉ hiện BS có ca trực hôm nay)
+                          Bác sĩ &amp; Phòng khám
                         </label>
-                        <select
-                          value={selectedDoctorId}
-                          onChange={(e) => setSelectedDoctorId(e.target.value)}
+                        <button
+                          type="button"
+                          onClick={() => { setDoctorSearchTerm(''); setShowDoctorModal(true); }}
                           disabled={availableDoctorsForSpecialty.length === 0}
-                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none text-xs font-semibold text-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="w-full px-3.5 py-2.5 bg-slate-50 hover:bg-slate-100/90 border border-slate-200 rounded-xl flex items-center justify-between text-xs font-semibold text-slate-800 transition cursor-pointer text-left focus:ring-2 focus:ring-emerald-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          {availableDoctorsForSpecialty.length === 0 ? (
-                            <option value="">-- Chưa có Bác sĩ trực chuyên khoa này --</option>
-                          ) : (
-                            availableDoctorsForSpecialty.map((d) => (
-                              <option key={d.id} value={d.id}>
-                                {formatDoctorFullName(d.academicTitle, d.fullName)} - Buồng {d.roomNumber}
-                              </option>
-                            ))
-                          )}
-                        </select>
+                          <div className="flex items-center gap-2 truncate">
+                            <span className="w-6 h-6 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 flex items-center justify-center shrink-0">
+                              <UserCheck size={13} />
+                            </span>
+                            <span className="truncate">
+                              {currentSelectedDoctor
+                                ? `${formatDoctorFullName(currentSelectedDoctor.academicTitle, currentSelectedDoctor.fullName)} - Buồng ${currentSelectedDoctor.roomNumber || 'P.208'}`
+                                : availableDoctorsForSpecialty.length === 0
+                                ? 'Chưa có Bác sĩ trực chuyên khoa này'
+                                : 'Chọn bác sĩ & phòng khám...'}
+                            </span>
+                          </div>
+                          <ChevronRight size={15} className="text-slate-400 shrink-0 ml-1" />
+                        </button>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          Khung giờ khám (Ca trực)
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (currentSelectedDoctor) {
+                              setTargetDoctorForSlots(currentSelectedDoctor);
+                              loadDoctorSlots(currentSelectedDoctor.id);
+                              setShowSlotModal(true);
+                            } else {
+                              setShowDoctorModal(true);
+                            }
+                          }}
+                          disabled={!currentSelectedDoctor}
+                          className="w-full px-3.5 py-2.5 bg-slate-50 hover:bg-slate-100/90 border border-slate-200 rounded-xl flex items-center justify-between text-xs font-semibold text-slate-800 transition cursor-pointer text-left focus:ring-2 focus:ring-emerald-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <div className="flex items-center gap-2 truncate">
+                            <span className="w-6 h-6 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center shrink-0">
+                              <Clock size={13} />
+                            </span>
+                            <span className="truncate">
+                              {selectedSlotTime ? (
+                                <span className="font-bold text-emerald-950">{selectedSlotTime}</span>
+                              ) : (
+                                <span className="text-slate-500">Chọn ca / giờ trống...</span>
+                              )}
+                            </span>
+                          </div>
+                          <ChevronRight size={15} className="text-slate-400 shrink-0 ml-1" />
+                        </button>
                       </div>
                     </div>
 
@@ -1845,7 +2088,159 @@ export default function ReceptionView() {
         </div>
       )}
 
-      {/* ── Modal Bàn Giao Tài Khoản & In Phiếu Tiếp Đón K80 (Walk-in Handover Ticket - High Density Layout) ── */}
+            {/* ── Modal Xem Trước Phiếu Khám (Ticket Preview Modal) ── */}
+      {showTicketPreviewModal && preselectedWalkinInfo && (
+        <div 
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-2 sm:p-3 overflow-y-auto animate-in fade-in duration-150"
+          onClick={() => setShowTicketPreviewModal(false)}
+        >
+          <div 
+            className="bg-white rounded-2xl sm:rounded-3xl max-w-xl w-full shadow-2xl overflow-hidden border border-slate-200 flex flex-col my-auto animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-teal-700 to-emerald-700 text-white px-4 py-2.5 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center font-bold">
+                  <FileText size={16} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm">Xem Trước Phiếu Tiếp Đón &amp; Khám Bệnh</h3>
+                  <p className="text-[10px] text-teal-100">Bản mẫu K80 dự kiến • Chưa chốt tiếp nhận</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTicketPreviewModal(false)}
+                className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition cursor-pointer"
+                title="Đóng cửa sổ"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Printable Ticket Area */}
+            <div className="p-3 sm:p-3.5 bg-[#f8fafc] text-slate-800 shrink-0">
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 relative overflow-hidden">
+                {/* Top Mini Header */}
+                <div className="px-3.5 py-1.5 flex items-center justify-between border-b-[2px] border-dashed border-slate-200 bg-white">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-5 h-5 rounded-full bg-gradient-to-br from-teal-600 to-emerald-600 flex items-center justify-center text-white shrink-0">
+                      <Sparkles size={11} />
+                    </div>
+                    <span className="font-black text-teal-800 text-xs tracking-tight">MEDSCHED</span>
+                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">• BẢN XEM TRƯỚC PHIẾU KHÁM</span>
+                  </div>
+                  <div className="text-[10px] text-slate-400 font-mono">
+                    {preselectedWalkinInfo.date} • {preselectedWalkinInfo.slotTime}
+                  </div>
+                </div>
+
+                {/* Core 2-Column Content */}
+                <div className="p-3 grid grid-cols-1 sm:grid-cols-12 gap-3 items-center bg-gradient-to-b from-white to-teal-50/20">
+                  {/* Cột Trái: Số thứ tự dự kiến & Buồng khám */}
+                  <div className="sm:col-span-5 flex flex-col items-center justify-center text-center sm:border-r border-slate-100 sm:pr-3">
+                    <span className="text-[9px] font-bold text-teal-700 uppercase tracking-widest block">SỐ THỨ TỰ (DỰ KIẾN)</span>
+                    <div className="text-3xl sm:text-4xl font-black text-teal-700 tracking-tight leading-none my-1 drop-shadow-xs">
+                      #--
+                    </div>
+                    <span className="text-[9px] text-amber-700 font-semibold bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full mb-1">
+                      Cấp tự động khi bấm Tiếp Đón
+                    </span>
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-teal-100/70 rounded-full text-teal-900 text-xs font-bold border border-teal-200/60 max-w-full truncate">
+                      <Building2 size={13} className="shrink-0" />
+                      <span className="font-mono">{preselectedWalkinInfo.roomNumber}</span>
+                      <span className="w-1 h-1 rounded-full bg-teal-400 shrink-0" />
+                      <span className="truncate">{walkinSpecialty || 'Chuyên khoa khám'}</span>
+                    </div>
+                    <div className="text-[11px] text-slate-600 font-medium mt-1.5 truncate max-w-full">
+                      BS: <strong className="text-slate-800">{preselectedWalkinInfo.doctorName}</strong>
+                    </div>
+                  </div>
+
+                  {/* Cột Phải: Thông tin ca khám & QR */}
+                  <div className="sm:col-span-7 flex flex-col gap-1.5">
+                    <div className="bg-slate-900 rounded-xl p-2.5 text-white shadow-inner flex items-center justify-between gap-2.5 relative overflow-hidden">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 text-teal-400 font-bold text-[9px] uppercase tracking-wider mb-1.5">
+                          <Clock size={12} className="shrink-0" />
+                          <span>Khung Giờ Đặt Khám</span>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5 text-[10px] text-slate-300">
+                            <span className="text-slate-400 w-16 shrink-0">Giờ khám:</span>
+                            <span className="font-mono font-bold text-white bg-white/10 px-1.5 py-0.5 rounded text-[11px]">
+                              {preselectedWalkinInfo.slotTime}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-[10px] text-slate-300">
+                            <span className="text-slate-400 w-16 shrink-0">Ngày khám:</span>
+                            <span className="font-mono font-bold text-teal-300 bg-teal-950/80 px-1.5 py-0.5 rounded border border-teal-500/30 text-[11px]">
+                              {preselectedWalkinInfo.date}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Mã QR Tra Cứu Dự kiến */}
+                      <div className="flex flex-col items-center justify-center shrink-0 bg-white p-1 rounded-lg shadow-xs">
+                        <QrCodeImage
+                          value={`MEDSCHED-${walkinPhone || 'PREVIEW'}`}
+                          size={54}
+                          className="rounded"
+                        />
+                        <span className="text-[8px] font-mono font-bold text-slate-600 mt-0.5 tracking-tight">
+                          QR XÁC NHẬN
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[9px] text-slate-400 px-1">
+                      <span>Đến trước 10 phút • Xuất trình tại buồng khám</span>
+                      <span className="font-mono font-bold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded">medsched.hospital.vn</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Patient Summary Strip */}
+                <div className="px-3.5 py-2 bg-slate-50 border-t-[2px] border-dashed border-slate-200 grid grid-cols-2 sm:grid-cols-4 gap-2 text-left">
+                  <div>
+                    <span className="block text-[9px] text-slate-400 font-bold uppercase tracking-wider">Bệnh nhân</span>
+                    <strong className="text-slate-800 text-xs truncate block">{walkinName.trim() || 'Chưa nhập họ tên'}</strong>
+                  </div>
+                  <div>
+                    <span className="block text-[9px] text-slate-400 font-bold uppercase tracking-wider">Số điện thoại</span>
+                    <span className="text-slate-700 text-xs font-mono">{walkinPhone.trim() || 'Chưa nhập SĐT'}</span>
+                  </div>
+                  <div>
+                    <span className="block text-[9px] text-slate-400 font-bold uppercase tracking-wider">Phòng khám</span>
+                    <strong className="text-slate-700 text-xs font-mono">{preselectedWalkinInfo.roomNumber}</strong>
+                  </div>
+                  <div>
+                    <span className="block text-[9px] text-slate-400 font-bold uppercase tracking-wider">Hình thức</span>
+                    <span className="inline-block text-[10px] font-bold text-teal-700 bg-teal-100/80 px-2 py-0.5 rounded-full">
+                      Khám tại quầy
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowTicketPreviewModal(false)}
+                className="py-2 px-4 bg-teal-700 hover:bg-teal-800 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-sm"
+              >
+                Đóng Xem Trước
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+{/* ── Modal Bàn Giao Tài Khoản & In Phiếu Tiếp Đón K80 (Walk-in Handover Ticket - High Density Layout) ── */}
       {accountHandoverModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-2 sm:p-3 overflow-y-auto">
           <div className="bg-white rounded-2xl sm:rounded-3xl max-w-xl w-full shadow-2xl overflow-hidden border border-slate-200 flex flex-col my-auto animate-in fade-in zoom-in-95 duration-150">
@@ -2181,6 +2576,20 @@ export default function ReceptionView() {
                     <button
                       type="button"
                       onClick={() => {
+                        if (billingAppointmentId || billingData?.bookingCode) {
+                          const targetAppId = billingAppointmentId;
+                          const targetCode = billingData?.bookingCode;
+                          if (targetAppId) paidInvoiceSetRef.current.add(targetAppId);
+                          if (targetCode) paidInvoiceSetRef.current.add(targetCode);
+                          setHistory((prev) =>
+                            prev.map((h) =>
+                              (targetAppId && h.appointmentId === targetAppId) ||
+                              (targetCode && h.bookingCode === targetCode)
+                                ? { ...h, invoiceStatus: 'PAID' }
+                                : h
+                            )
+                          );
+                        }
                         setBillingAppointmentId(null);
                         setBillingData(null);
                         setBillingSuccessData(null);
@@ -2771,6 +3180,507 @@ export default function ReceptionView() {
                   })()}
                 </div>
               ) : null}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Popup Chọn Chuyên Khoa Khám ── */}
+      {showSpecialtyModal && (
+        <div 
+          className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setShowSpecialtyModal(false)}
+        >
+          <div 
+            className="bg-white rounded-3xl max-w-lg w-full max-h-[85vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-teal-50/50 to-white">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-teal-100/80 text-teal-800 flex items-center justify-center">
+                  <Stethoscope size={18} />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm sm:text-base text-slate-800">Chọn Chuyên Khoa Khám Bệnh</h3>
+                  <p className="text-[11px] text-slate-500">Danh mục chuyên khoa tiếp nhận hôm nay</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSpecialtyModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="p-3 border-b border-slate-100 bg-slate-50/50">
+              <div className="relative">
+                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Tìm kiếm chuyên khoa..."
+                  value={specialtySearchTerm}
+                  onChange={(e) => setSpecialtySearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </div>
+            </div>
+
+            <div className="p-4 overflow-y-auto space-y-2 flex-1">
+              {(() => {
+                const availableSpecialtiesWithDocs = specialties
+                  .map((s) => {
+                    const docCount = activeDoctorsToday.filter((d) => {
+                      const dSpec = (d.specialtyName || '').toLowerCase().trim();
+                      const targetSpec = (s.name || '').toLowerCase().trim();
+                      return dSpec === targetSpec || dSpec.includes(targetSpec) || targetSpec.includes(dSpec);
+                    }).length;
+                    return { ...s, docCount };
+                  })
+                  .filter((s) => s.docCount > 0)
+                  .filter((s) => (s.name || '').toLowerCase().includes(specialtySearchTerm.toLowerCase().trim()));
+
+                if (availableSpecialtiesWithDocs.length === 0) {
+                  return (
+                    <div className="p-8 text-center text-slate-400 space-y-2 bg-slate-50/60 rounded-2xl border border-dashed border-slate-200">
+                      <Stethoscope size={28} className="mx-auto text-slate-300" />
+                      <p className="text-xs font-bold text-slate-600">
+                        {specialtySearchTerm ? 'Không tìm thấy chuyên khoa phù hợp' : 'Không có chuyên khoa nào có Bác sĩ trực hôm nay'}
+                      </p>
+                      <p className="text-[11px] text-slate-400">
+                        {specialtySearchTerm ? 'Vui lòng thử từ khóa tìm kiếm khác' : 'Chỉ các chuyên khoa có Bác sĩ nhận khám mới được hiển thị tiếp đón'}
+                      </p>
+                    </div>
+                  );
+                }
+
+                return availableSpecialtiesWithDocs.map((s) => {
+                  const isSelected = walkinSpecialty === s.name;
+
+                  return (
+                    <button
+                      key={s.id || s.name}
+                      type="button"
+                      onClick={() => {
+                        setWalkinSpecialty(s.name);
+                        setShowSpecialtyModal(false);
+                      }}
+                      className={`w-full p-3 rounded-2xl border text-left transition flex items-center justify-between gap-3 cursor-pointer ${
+                        isSelected
+                          ? 'bg-teal-50/80 border-teal-500 shadow-2xs'
+                          : 'bg-white border-slate-200 hover:bg-slate-50 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 ${
+                          isSelected ? 'bg-teal-700 text-white' : 'bg-slate-100 text-slate-700'
+                        }`}>
+                          {s.name.charAt(0)}
+                        </div>
+                        <div className="min-w-0">
+                          <span className={`text-xs font-bold block truncate ${isSelected ? 'text-teal-900' : 'text-slate-800'}`}>
+                            {s.name}
+                          </span>
+                          <span className="text-[10px] text-slate-500 block truncate">
+                            {s.description || 'Khám, chẩn đoán và điều trị theo tiêu chuẩn'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="shrink-0 flex items-center gap-2">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          {s.docCount} Bác sĩ trực
+                        </span>
+                        {isSelected && <Check size={16} className="text-teal-700 shrink-0" />}
+                      </div>
+                    </button>
+                  );
+                });
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Popup Chọn Bác Sĩ & Buồng Khám ── */}
+      {showDoctorModal && (
+        <div 
+          className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setShowDoctorModal(false)}
+        >
+          <div 
+            className="bg-white rounded-3xl max-w-xl w-full max-h-[85vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-blue-50/50 to-white">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-blue-100/80 text-blue-800 flex items-center justify-center">
+                  <UserCheck size={18} />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm sm:text-base text-slate-800">Chọn Bác Sĩ &amp; Phòng Khám</h3>
+                  <p className="text-[11px] text-slate-500">Chuyên khoa: {walkinSpecialty || 'Đang chọn'} • Ca trực hôm nay</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDoctorModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="p-3 border-b border-slate-100 bg-slate-50/50">
+              <div className="relative">
+                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Tìm theo tên bác sĩ hoặc buồng khám (P.205)..."
+                  value={doctorSearchTerm}
+                  onChange={(e) => setDoctorSearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            <div className="p-4 overflow-y-auto space-y-2.5 flex-1">
+              {availableDoctorsForSpecialty.length === 0 ? (
+                <div className="text-center py-12 bg-slate-50/60 rounded-2xl border border-dashed border-slate-200 p-6 space-y-2">
+                  <AlertTriangle size={28} className="text-amber-500 mx-auto" />
+                  <p className="text-xs font-bold text-slate-700">Hôm nay chưa có Bác sĩ trực chuyên khoa này</p>
+                  <p className="text-[11px] text-slate-500">Vui lòng chọn chuyên khoa khác hoặc Bác sĩ mở ca trực trước.</p>
+                </div>
+              ) : (
+                availableDoctorsForSpecialty
+                  .filter((d) => {
+                    const term = doctorSearchTerm.toLowerCase().trim();
+                    if (!term) return true;
+                    const name = (d.fullName || '').toLowerCase();
+                    const room = (d.roomNumber || '').toLowerCase();
+                    return name.includes(term) || room.includes(term);
+                  })
+                  .map((d) => {
+                    const isSelected = selectedDoctorId === d.id;
+                    const docName = formatDoctorFullName(d.academicTitle, d.fullName);
+
+                    return (
+                      <button
+                        key={d.id}
+                        type="button"
+                        onClick={() => handleSelectDoctorAndOpenSlots(d)}
+                        className={`w-full p-3.5 rounded-2xl border text-left transition flex items-center justify-between gap-3 cursor-pointer ${
+                          isSelected
+                            ? 'bg-blue-50/80 border-blue-500 shadow-2xs'
+                            : 'bg-white border-slate-200 hover:bg-slate-50 hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 shadow-2xs ${
+                            isSelected
+                              ? 'bg-gradient-to-br from-blue-600 to-indigo-700 text-white'
+                              : 'bg-gradient-to-br from-teal-700 to-emerald-800 text-white'
+                          }`}>
+                            {d.fullName ? d.fullName.charAt(d.fullName.length - 1) : 'BS'}
+                          </div>
+
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className={`text-xs font-bold truncate ${isSelected ? 'text-blue-950' : 'text-slate-800'}`}>
+                                {docName}
+                              </span>
+                              <span className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.2 rounded flex items-center gap-1">
+                                <DoorOpen size={10} />
+                                <span>Buồng {d.roomNumber || 'P.208'}</span>
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5">
+                              <span>{d.specialtyName || walkinSpecialty}</span>
+                              {d.startTime && d.endTime && (
+                                <>
+                                  <span>•</span>
+                                  <span className="font-semibold text-slate-600">Ca: {d.startTime} - {d.endTime}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="shrink-0 flex items-center gap-2">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            Đang trực
+                          </span>
+                          <span className="text-[11px] font-bold px-2.5 py-1 rounded-xl bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1 shadow-2xs transition">
+                            <span>Chọn giờ</span>
+                            <ChevronRight size={13} />
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Popup Chọn Khung Giờ Khám Còn Trống ── */}
+      {showSlotModal && activeSlotDoctor && (
+        <div 
+          className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setShowSlotModal(false)}
+        >
+          <div 
+            className="bg-white rounded-3xl max-w-2xl w-full max-h-[88vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-emerald-50/60 to-white">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-100/80 text-emerald-800 flex items-center justify-center shrink-0">
+                  <Clock size={20} />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-extrabold text-sm sm:text-base text-slate-800">
+                      Chọn Khung Giờ Khám Còn Trống
+                    </h3>
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                      Hôm nay
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                    {formatDoctorFullName(activeSlotDoctor.academicTitle, activeSlotDoctor.fullName)} • Buồng {activeSlotDoctor.roomNumber || 'P.208'} • {activeSlotDoctor.specialtyName || walkinSpecialty}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSlotModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition cursor-pointer shrink-0 ml-2"
+                title="Đóng"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Thanh lọc Buổi (Tất cả / Ca Sáng / Ca Chiều / Ca Tối) & Toggle chỉ hiện slot trống */}
+            <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/60 flex items-center justify-between flex-wrap gap-2.5">
+              <div className="flex items-center gap-1.5 bg-slate-200/60 p-1 rounded-xl flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setSlotFilterSession('ALL')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    slotFilterSession === 'ALL'
+                      ? 'bg-white text-emerald-800 shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Tất cả ({displayedDoctorSlots.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSlotFilterSession('MORNING')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    slotFilterSession === 'MORNING'
+                      ? 'bg-white text-emerald-800 shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Ca Sáng ({morningAvailableCount} trống)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSlotFilterSession('AFTERNOON')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    slotFilterSession === 'AFTERNOON'
+                      ? 'bg-white text-emerald-800 shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Ca Chiều ({afternoonAvailableCount} trống)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSlotFilterSession('EVENING')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    slotFilterSession === 'EVENING'
+                      ? 'bg-white text-emerald-800 shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Ca Tối &amp; Đêm ({eveningAvailableCount} trống)
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2.5 text-xs font-semibold text-slate-600">
+                <button
+                  type="button"
+                  onClick={() => setOnlyAvailableSlots(!onlyAvailableSlots)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition flex items-center gap-1.5 cursor-pointer ${
+                    onlyAvailableSlots
+                      ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                  }`}
+                  title="Chỉ hiển thị các khung giờ chưa có người đặt và chưa qua giờ"
+                >
+                  <Zap size={12} className={onlyAvailableSlots ? 'text-emerald-700' : 'text-slate-400'} />
+                  <span>Chỉ hiện giờ còn trống</span>
+                </button>
+                <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg font-bold text-[11px]">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  {availableSlotsTotalCount} khung giờ trống
+                </span>
+              </div>
+            </div>
+
+            {/* Nội dung danh sách slot */}
+            <div className="p-4 overflow-y-auto flex-1">
+              {doctorSlotsLoading ? (
+                <div className="py-16 text-center space-y-3">
+                  <RefreshCw size={28} className="animate-spin text-emerald-600 mx-auto" />
+                  <p className="text-xs font-semibold text-slate-600">Đang tải danh sách khung giờ trống của Bác sĩ...</p>
+                </div>
+              ) : displayedDoctorSlots.length === 0 ? (
+                <div className="text-center py-12 bg-slate-50/70 rounded-2xl border border-dashed border-slate-200 p-6 space-y-2">
+                  <CalendarDays size={32} className="text-slate-400 mx-auto" />
+                  <p className="text-xs font-bold text-slate-700">Chưa tìm thấy khung giờ nào trong ca trực này</p>
+                  <p className="text-[11px] text-slate-500">
+                    Bác sĩ đang có ca trực hôm nay nhưng chưa phân bổ slot lẻ. Bạn có thể tiếp nhận tự do vào hàng đợi của Bác sĩ.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedDoctorId(activeSlotDoctor.id);
+                      setSelectedSlotId('');
+                      setSelectedSlotTime('');
+                      setShowSlotModal(false);
+                    }}
+                    className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 shadow-sm cursor-pointer"
+                  >
+                    <Check size={14} />
+                    <span>Tiếp nhận theo thứ tự (Không cố định giờ)</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+                  {displayedDoctorSlots.map((slot: any) => {
+                    const isSlotSelected = selectedSlotId === slot.id || (selectedSlotTime === slot.time && selectedDoctorId === activeSlotDoctor.id);
+                    const isFull = slot.status === 'full' || slot.status === 'BOOKED';
+                    const isLocked = slot.status === 'locked';
+                    const timing = getSlotTiming(slot.time);
+                    const isPast = timing.isPast || slot.status === 'expired';
+                    const isUrgent = timing.isUrgent;
+                    const isAvailable = (!isFull && !isLocked && !isPast && !isUrgent && !slot.disabled);
+
+                    return (
+                      <button
+                        key={slot.id || slot.time}
+                        type="button"
+                        disabled={!isAvailable}
+                        onClick={() => {
+                          if (!isAvailable) return;
+                          setSelectedDoctorId(activeSlotDoctor.id);
+                          setSelectedSlotId(slot.id);
+                          setSelectedSlotTime(slot.time);
+                          setPreselectedWalkinInfo({
+                            doctorName: formatDoctorFullName(activeSlotDoctor.academicTitle, activeSlotDoctor.fullName),
+                            roomNumber: activeSlotDoctor.roomNumber || 'P.208',
+                            slotTime: slot.time,
+                            date: getLocalDateString(),
+                          });
+                        }}
+                        className={`p-3 rounded-2xl border text-center transition flex flex-col items-center justify-between gap-1.5 relative ${
+                          isSlotSelected
+                            ? 'bg-emerald-600 border-emerald-600 text-white shadow-md ring-2 ring-emerald-500/50 cursor-pointer'
+                            : isAvailable
+                            ? 'bg-white border-emerald-200 hover:border-emerald-500 hover:bg-emerald-50/60 text-slate-800 hover:shadow-2xs cursor-pointer'
+                            : 'bg-slate-100/70 border-slate-200 text-slate-400 cursor-not-allowed opacity-60'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1">
+                          <Clock size={13} className={isSlotSelected ? 'text-white' : isAvailable ? 'text-emerald-600' : 'text-slate-400'} />
+                          <span className={`text-xs font-black tracking-tight ${isSlotSelected ? 'text-white' : 'text-slate-800'}`}>
+                            {slot.time}
+                          </span>
+                        </div>
+
+                        <div className="w-full flex items-center justify-center">
+                          {isSlotSelected ? (
+                            <span className="text-[10px] font-bold bg-white/20 text-white px-2 py-0.5 rounded-full flex items-center gap-1">
+                              <Check size={11} />
+                              <span>Đang chọn</span>
+                            </span>
+                          ) : isAvailable ? (
+                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.2 rounded-full">
+                              Còn trống
+                            </span>
+                          ) : isFull ? (
+                            <span className="text-[10px] font-bold text-slate-500 bg-slate-200 px-2 py-0.2 rounded-full">
+                              Đã kín chỗ
+                            </span>
+                          ) : isUrgent ? (
+                            <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.2 rounded-full">
+                              Sát giờ (&lt;15p)
+                            </span>
+                          ) : isPast ? (
+                            <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.2 rounded-full">
+                              Đã qua giờ
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold text-slate-400 bg-slate-200 px-2 py-0.2 rounded-full">
+                              Tạm khóa
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSlotModal(false);
+                    setShowDoctorModal(true);
+                  }}
+                  className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-xs font-bold text-slate-700 transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <span>← Đổi Bác Sĩ</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedDoctorId(activeSlotDoctor.id);
+                    setSelectedSlotId('');
+                    setSelectedSlotTime('');
+                    setShowSlotModal(false);
+                  }}
+                  className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-500 hover:text-slate-800 transition cursor-pointer"
+                >
+                  Tiếp nhận tự do (Không ấn định giờ)
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowSlotModal(false)}
+                  className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <Check size={15} />
+                  <span>
+                    {selectedSlotTime ? `Xác Nhận Giờ Khám (${selectedSlotTime})` : 'Xác Nhận & Đóng'}
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

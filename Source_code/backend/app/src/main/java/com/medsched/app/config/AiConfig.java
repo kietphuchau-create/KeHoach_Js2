@@ -9,10 +9,8 @@ import org.springframework.context.annotation.Configuration;
 /**
  * Đăng ký bản cài đặt AI.
  * <p>
- * Mặc định dùng bản quy tắc từ khóa để ứng dụng chạy được ngay khi chưa có khóa
- * API. Khi phần Spring AI hoàn thiện, chỉ cần khai báo một bean khác cài
- * {@link AiTriagePort} (ví dụ đánh dấu {@code @Component} cho lớp mới) - nhờ
- * {@link ConditionalOnMissingBean}, bean tạm ở đây tự động không được tạo nữa.
+ * Mặc định luôn dùng bản quy tắc nội bộ, không phụ thuộc khóa API ngoài.
+ * Adapter ngoài chỉ được bật khi cấu hình rõ {@code app.ai.external-enabled=true}.
  */
 @Configuration
 public class AiConfig {

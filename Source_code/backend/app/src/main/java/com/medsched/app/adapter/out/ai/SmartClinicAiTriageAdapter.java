@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -25,6 +26,7 @@ import java.util.Map;
  */
 @Component
 @Primary
+@ConditionalOnProperty(name = "app.ai.external-enabled", havingValue = "true")
 public class SmartClinicAiTriageAdapter implements AiTriagePort {
 
     private static final Logger log = LoggerFactory.getLogger(SmartClinicAiTriageAdapter.class);

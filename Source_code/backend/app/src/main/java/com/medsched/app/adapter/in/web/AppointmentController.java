@@ -132,35 +132,46 @@ public class AppointmentController {
             centerId = medicalCenters.findAll().get(0).getId();
         }
 
-        List<String> candidateSlotIds = new ArrayList<>();
-        if (request.slotId() != null && !request.slotId().isBlank()) {
-            candidateSlotIds.add(request.slotId().trim());
-        }
-
-        List<String> validDoctorSlots = ensureAvailableSlots(doctorId);
-        for (String sId : validDoctorSlots) {
-            if (!candidateSlotIds.contains(sId)) {
-                candidateSlotIds.add(sId);
-            }
-        }
+        boolean userSpecifiedSlot = request.slotId() != null && !request.slotId().isBlank();
+        String requestedSlotId = userSpecifiedSlot ? request.slotId().trim() : null;
 
         Appointment result = null;
         RuntimeException lastEx = null;
 
-        for (String slotId : candidateSlotIds) {
+        if (userSpecifiedSlot) {
+            // Khi user/AI đã chọn slot cụ thể: CHỈ thử đúng slot đó.
+            // Tuyệt đối KHÔNG fallback sang slot khác để tránh khung giờ bị thay đổi ngầm.
             try {
                 BookAppointmentUseCase.Command command = new BookAppointmentUseCase.Command(
                         centerId,
                         patientProfileId,
                         doctorId,
-                        slotId,
+                        requestedSlotId,
                         request.symptoms(),
                         request.medicalHistory()
                 );
                 result = bookAppointmentUseCase.book(command);
-                break;
             } catch (SlotNotAvailableException | ResourceNotFoundException ex) {
                 lastEx = ex;
+            }
+        } else {
+            // Khi không có slotId cụ thể: thử lần lượt các slot khả dụng của bác sĩ (fallback tự động)
+            List<String> validDoctorSlots = ensureAvailableSlots(doctorId);
+            for (String slotId : validDoctorSlots) {
+                try {
+                    BookAppointmentUseCase.Command command = new BookAppointmentUseCase.Command(
+                            centerId,
+                            patientProfileId,
+                            doctorId,
+                            slotId,
+                            request.symptoms(),
+                            request.medicalHistory()
+                    );
+                    result = bookAppointmentUseCase.book(command);
+                    break;
+                } catch (SlotNotAvailableException | ResourceNotFoundException ex) {
+                    lastEx = ex;
+                }
             }
         }
 
@@ -343,8 +354,9 @@ public class AppointmentController {
     ) {}
 
     /**
-     * Lấy danh sách khung giờ khám (TimeSlots) của bác sĩ theo ngày (phục vụ BookingForm).
-     * Tự động sinh slot chuẩn nếu ngày đó bác sĩ chưa đăng ký ca làm việc tùy biến.
+     * Lấy danh sách khung giờ khám thật của bác sĩ theo ngày (phục vụ BookingForm).
+     * Endpoint đọc tuyệt đối không tự tạo lịch hoặc slot. Lịch chỉ được sinh bởi
+     * nghiệp vụ quản lý ca trực của bác sĩ/quản trị viên.
      */
     @GetMapping("/doctors/{doctorId}/slots")
     public ResponseEntity<List<DoctorSlotDto>> getDoctorSlots(
@@ -363,25 +375,15 @@ public class AppointmentController {
 
         // Nếu Chế Độ Bác Sĩ Tự Đặt Lịch Thủ Công đang BẬT (!isAutoMode):
         // 1. Kiểm tra xem Bác sĩ có ca trực thực sự (ACTIVE) trong ngày này hay không.
-        // 2. Nếu Bác sĩ chưa đăng ký ca trực hoặc chỉ có ca trực mẫu tự sinh 8:00-17:00 chưa có hẹn:
-        //    Dọn dẹp các slot trống tự sinh (SlotStatus.AVAILABLE) và trả về rỗng.
+        // 2. Nếu Bác sĩ chưa đăng ký ca trực: Dọn dẹp các slot trống tự sinh (SlotStatus.AVAILABLE) và trả về rỗng.
+        // 3. Nếu Bác sĩ CÓ ca trực nhưng slots chưa được tạo hoặc bị thiếu: Tự động tái tạo lại các slot theo ca trực của bác sĩ.
         if (!isAutoMode) {
             List<DoctorScheduleEntity> activeSchedules = doctorScheduleJpaRepository.findByDoctorIdAndWorkDate(doctorId, targetDate)
                     .stream()
                     .filter(s -> s.getStatus() == ScheduleStatus.ACTIVE)
                     .toList();
 
-            boolean hasBookedSlots = slots.stream().anyMatch(s -> s.getStatus() == SlotStatus.BOOKED);
-            boolean isAutoPlaceholder = !activeSchedules.isEmpty()
-                    && activeSchedules.size() == 1
-                    && activeSchedules.get(0).getStartTime().equals(LocalTime.of(8, 0))
-                    && activeSchedules.get(0).getEndTime().equals(LocalTime.of(17, 0))
-                    && !hasBookedSlots;
-
-            if (activeSchedules.isEmpty() || isAutoPlaceholder) {
-                if (isAutoPlaceholder) {
-                    doctorScheduleJpaRepository.deleteAll(activeSchedules);
-                }
+            if (activeSchedules.isEmpty()) {
                 if (!slots.isEmpty()) {
                     List<TimeSlotEntity> unbooked = slots.stream()
                             .filter(s -> s.getStatus() == SlotStatus.AVAILABLE)
@@ -391,6 +393,43 @@ public class AppointmentController {
                     }
                 }
                 return ResponseEntity.ok(Collections.emptyList());
+            }
+
+            // Nếu bác sĩ CÓ ca trực hợp lệ nhưng danh sách slots trống: Tự động khôi phục lại các slot theo ca trực
+            if (slots.isEmpty()) {
+                Instant now = Instant.now();
+                List<TimeSlotEntity> regeneratedSlots = new ArrayList<>();
+                for (DoctorScheduleEntity sch : activeSchedules) {
+                    LocalTime cursor = sch.getStartTime();
+                    int duration = sch.getSlotDurationMinutes() != null && sch.getSlotDurationMinutes() > 0
+                            ? sch.getSlotDurationMinutes()
+                            : 30;
+                    while (cursor.isBefore(sch.getEndTime())) {
+                        LocalTime next = cursor.plusMinutes(duration);
+                        if (!next.isAfter(cursor) || next.isAfter(sch.getEndTime())) {
+                            break;
+                        }
+                        boolean isLunch = !cursor.isBefore(LocalTime.of(12, 0)) && cursor.isBefore(LocalTime.of(13, 30));
+                        if (!isLunch) {
+                            Instant slotStart = targetDate.atTime(cursor).atZone(vnZone).toInstant();
+                            Instant slotEnd = targetDate.atTime(next).atZone(vnZone).toInstant();
+                            regeneratedSlots.add(new TimeSlotEntity(
+                                    UUID.randomUUID().toString(),
+                                    sch.getId(),
+                                    doctorId,
+                                    slotStart,
+                                    slotEnd,
+                                    SlotStatus.AVAILABLE,
+                                    now,
+                                    now
+                            ));
+                        }
+                        cursor = next;
+                    }
+                }
+                if (!regeneratedSlots.isEmpty()) {
+                    slots = timeSlotJpaRepository.saveAll(regeneratedSlots);
+                }
             }
         }
 
