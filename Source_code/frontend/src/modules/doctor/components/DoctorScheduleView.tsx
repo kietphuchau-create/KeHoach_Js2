@@ -697,6 +697,17 @@ export default function DoctorScheduleView() {
       alert('Khung giờ này đã có bệnh nhân đặt lịch hẹn, không thể khóa.');
       return;
     }
+    const todayStr = getLocalDateString();
+    const isPastSchedule = activeScheduleForSlots?.workDate ? activeScheduleForSlots.workDate < todayStr : false;
+    const isToday = activeScheduleForSlots?.workDate === todayStr;
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const [startH, startM] = slot.startTime.split(':').map(Number);
+    const slotStartMinutes = (startH || 0) * 60 + (startM || 0);
+    if (isPastSchedule || (isToday && slotStartMinutes <= currentMinutes)) {
+      alert('Khung giờ này đã trôi qua trong quá khứ, không thể mở hoặc thao tác.');
+      return;
+    }
     try {
       setActionLoadingId(slot.id);
       await api.toggleDoctorSlotLock(slot.id);
@@ -2134,81 +2145,135 @@ export default function DoctorScheduleView() {
             </div>
 
             {/* Thống kê nhanh các slot */}
-            <div className="p-3 sm:p-4 bg-slate-50/70 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
-              <div className="flex items-center gap-2">
-                <span className="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 font-bold text-[11px] flex items-center gap-1">
-                  <Unlock size={12} />
-                  <span>Trống: {activeScheduleForSlots.slots.filter(s => s.status === 'AVAILABLE').length}</span>
-                </span>
-                <span className="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 font-bold text-[11px] flex items-center gap-1">
-                  <Lock size={12} />
-                  <span>Tạm khóa: {activeScheduleForSlots.slots.filter(s => s.status === 'LOCKED').length}</span>
-                </span>
-                <span className="px-2.5 py-1 rounded-lg bg-blue-100 text-blue-800 font-bold text-[11px] flex items-center gap-1">
-                  <UserCheck size={12} />
-                  <span>Đã đặt: {activeScheduleForSlots.slots.filter(s => s.status === 'BOOKED').length}</span>
-                </span>
-              </div>
-              <span className="text-[11px] text-slate-500 italic">
-                * Nhấp vào slot trống/khóa để đóng hoặc mở
-              </span>
-            </div>
+            {(() => {
+              const todayStr = getLocalDateString();
+              const isToday = activeScheduleForSlots.workDate === todayStr;
+              const isPastSchedule = activeScheduleForSlots.workDate < todayStr;
+              const now = new Date();
+              const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+              let availableCount = 0;
+              let lockedCount = 0;
+              let bookedCount = 0;
+              let expiredCount = 0;
+
+              activeScheduleForSlots.slots.forEach((s) => {
+                const [h, m] = s.startTime.split(':').map(Number);
+                const startMin = (h || 0) * 60 + (m || 0);
+                const isPast = isPastSchedule || (isToday && startMin <= currentMinutes);
+
+                if (s.status === 'BOOKED') {
+                  bookedCount++;
+                } else if (isPast) {
+                  expiredCount++;
+                } else if (s.status === 'LOCKED') {
+                  lockedCount++;
+                } else {
+                  availableCount++;
+                }
+              });
+
+              return (
+                <div className="p-3 sm:p-4 bg-slate-50/70 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 font-bold text-[11px] flex items-center gap-1">
+                      <Unlock size={12} />
+                      <span>Trống: {availableCount}</span>
+                    </span>
+                    <span className="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 font-bold text-[11px] flex items-center gap-1">
+                      <Lock size={12} />
+                      <span>Tạm khóa: {lockedCount}</span>
+                    </span>
+                    <span className="px-2.5 py-1 rounded-lg bg-blue-100 text-blue-800 font-bold text-[11px] flex items-center gap-1">
+                      <UserCheck size={12} />
+                      <span>Đã đặt: {bookedCount}</span>
+                    </span>
+                    {expiredCount > 0 && (
+                      <span className="px-2.5 py-1 rounded-lg bg-slate-200 text-slate-700 font-bold text-[11px] flex items-center gap-1" title="Các khung giờ đã trôi qua trong quá khứ">
+                        <Clock size={12} />
+                        <span>Đã qua: {expiredCount}</span>
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[11px] text-slate-500 italic">
+                    * Nhấp vào slot trống/khóa để đóng hoặc mở
+                  </span>
+                </div>
+              );
+            })()}
 
             {/* Danh sách lưới các slot */}
             <div className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-3">
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                {activeScheduleForSlots.slots.map((slot) => {
-                  const isLocked = slot.status === 'LOCKED';
-                  const isBooked = slot.status === 'BOOKED';
+                {(() => {
+                  const todayStr = getLocalDateString();
+                  const isToday = activeScheduleForSlots.workDate === todayStr;
+                  const isPastSchedule = activeScheduleForSlots.workDate < todayStr;
+                  const now = new Date();
+                  const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
-                  return (
-                    <button
-                      key={slot.id}
-                      type="button"
-                      disabled={isBooked || actionLoadingId === slot.id}
-                      onClick={() => handleToggleSlot(slot)}
-                      className={`p-3 rounded-xl border text-left transition flex flex-col justify-between gap-1.5 relative ${
-                        isBooked
-                          ? 'bg-blue-50 border-blue-200 text-blue-900 cursor-not-allowed'
-                          : isLocked
-                          ? 'bg-amber-50 border-amber-300 text-amber-900 hover:bg-amber-100 cursor-pointer shadow-2xs'
-                          : 'bg-emerald-50 border-emerald-300 text-emerald-900 hover:bg-emerald-100 cursor-pointer shadow-2xs'
-                      }`}
-                      title={
-                        isBooked
-                          ? 'Đã có người bệnh đặt hẹn'
-                          : isLocked
-                          ? 'Nhấp để mở lại khung giờ cho bệnh nhân đặt'
-                          : 'Nhấp để tạm khóa khung giờ (nghỉ giữa giờ / hội chẩn)'
-                      }
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-extrabold text-xs">
-                          {slot.startTime} - {slot.endTime}
-                        </span>
-                        {actionLoadingId === slot.id ? (
-                          <RefreshCw size={13} className="animate-spin text-slate-500" />
-                        ) : isBooked ? (
-                          <UserCheck size={13} className="text-blue-600" />
-                        ) : isLocked ? (
-                          <Lock size={13} className="text-amber-700" />
-                        ) : (
-                          <Unlock size={13} className="text-emerald-700" />
-                        )}
-                      </div>
-                      <div className="text-[10px] font-bold flex items-center justify-between">
-                        <span>
-                          {isBooked ? 'Đã đặt' : isLocked ? 'Tạm khóa' : 'Sẵn sàng'}
-                        </span>
-                        {!isBooked && (
-                          <span className="text-[9px] underline opacity-70">
-                            {isLocked ? 'Mở lại' : 'Khóa slot'}
+                  return activeScheduleForSlots.slots.map((slot) => {
+                    const [h, m] = slot.startTime.split(':').map(Number);
+                    const startMin = (h || 0) * 60 + (m || 0);
+                    const isPast = isPastSchedule || (isToday && startMin <= currentMinutes);
+                    const isLocked = slot.status === 'LOCKED';
+                    const isBooked = slot.status === 'BOOKED';
+
+                    return (
+                      <button
+                        key={slot.id}
+                        type="button"
+                        disabled={isBooked || isPast || actionLoadingId === slot.id}
+                        onClick={() => handleToggleSlot(slot)}
+                        className={`p-3 rounded-xl border text-left transition flex flex-col justify-between gap-1.5 relative ${
+                          isBooked
+                            ? 'bg-blue-50 border-blue-200 text-blue-900 cursor-not-allowed'
+                            : isPast
+                            ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-75'
+                            : isLocked
+                            ? 'bg-amber-50 border-amber-300 text-amber-900 hover:bg-amber-100 cursor-pointer shadow-2xs'
+                            : 'bg-emerald-50 border-emerald-300 text-emerald-900 hover:bg-emerald-100 cursor-pointer shadow-2xs'
+                        }`}
+                        title={
+                          isBooked
+                            ? 'Đã có người bệnh đặt hẹn'
+                            : isPast
+                            ? 'Khung giờ đã trôi qua trong quá khứ (Hệ thống tự động khóa)'
+                            : isLocked
+                            ? 'Nhấp để mở lại khung giờ cho bệnh nhân đặt'
+                            : 'Nhấp để tạm khóa khung giờ (nghỉ giữa giờ / hội chẩn)'
+                        }
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-extrabold text-xs">
+                            {slot.startTime} - {slot.endTime}
                           </span>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
+                          {actionLoadingId === slot.id ? (
+                            <RefreshCw size={13} className="animate-spin text-slate-500" />
+                          ) : isBooked ? (
+                            <UserCheck size={13} className="text-blue-600" />
+                          ) : isPast ? (
+                            <Clock size={13} className="text-slate-400" />
+                          ) : isLocked ? (
+                            <Lock size={13} className="text-amber-700" />
+                          ) : (
+                            <Unlock size={13} className="text-emerald-700" />
+                          )}
+                        </div>
+                        <div className="text-[10px] font-bold flex items-center justify-between">
+                          <span>
+                            {isBooked ? 'Đã đặt' : isPast ? 'Đã qua giờ' : isLocked ? 'Tạm khóa' : 'Sẵn sàng'}
+                          </span>
+                          {!isBooked && !isPast && (
+                            <span className="text-[9px] underline opacity-70">
+                              {isLocked ? 'Mở lại' : 'Khóa slot'}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  });
+                })()}
               </div>
             </div>
 
