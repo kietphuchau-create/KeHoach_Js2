@@ -1813,36 +1813,33 @@ export default function BookingMethodSelector({
     }
   }, [patientName, patientPhone]);
 
-  // Sinh mã chuyển khoản cọc 2k khi vào bước thanh toán và khởi tạo appointment thực tế
+  // Sinh mã chuyển khoản cọc 2k khi vào bước thanh toán và đảm bảo luôn lấy được STK ảo PayOS
   useEffect(() => {
-    if (aiStep === 'CONFIRM_PAYMENT' && !transferBookingCode && !isInitiatingAptRef.current && !createdAppointment?.id) {
-      initiateBackendAppointment().then((apt) => {
-        if (!apt) {
-          const randNum = Math.floor(100000 + Math.random() * 900000);
-          const code = `MED${randNum}`;
-          setTransferBookingCode(code);
-          api.createRealPayment({
-            bookingCode: code,
-            amount: 2000,
-            paymentType: 'DEPOSIT',
-            method: 'BANK_TRANSFER',
-          }).then((payRes: any) => {
-            if (payRes) {
-              setPayOsData({
-                accountNumber: payRes.accountNumber || undefined,
-                accountName: payRes.accountName || undefined,
-                bin: payRes.bin || undefined,
-                checkoutUrl: payRes.checkoutUrl || undefined,
-                qrCode: payRes.qrCode || undefined,
-              });
-            }
-          }).catch((err) => {
-            console.warn('Khởi tạo giao dịch cọc 2k AI booking:', err);
-          });
-        }
-      });
+    if (aiStep === 'CONFIRM_PAYMENT' && !payOsData) {
+      const code = createdAppointment?.bookingCode || transferBookingCode;
+      if (code) {
+        api.createRealPayment({
+          appointmentId: createdAppointment?.id,
+          bookingCode: code,
+          amount: 2000,
+          paymentType: 'DEPOSIT',
+          method: 'BANK_TRANSFER',
+        }).then((payRes: any) => {
+          if (payRes) {
+            setPayOsData({
+              accountNumber: payRes.accountNumber || undefined,
+              accountName: payRes.accountName || undefined,
+              bin: payRes.bin || undefined,
+              checkoutUrl: payRes.checkoutUrl || undefined,
+              qrCode: payRes.qrCode || undefined,
+            });
+          }
+        }).catch((err) => {
+          console.warn('Khởi tạo giao dịch cọc 2k AI booking:', err);
+        });
+      }
     }
-  }, [aiStep, transferBookingCode, createdAppointment?.id]);
+  }, [aiStep, payOsData, transferBookingCode, createdAppointment?.id, createdAppointment?.bookingCode]);
 
   // Đếm ngược 5 phút QR và tự động polling kiểm tra tiền cọc qua checkRealPaymentStatus
   useEffect(() => {
@@ -3718,8 +3715,8 @@ export default function BookingMethodSelector({
 
     setIsBookingSubmitting(true);
     const appointment = await initiateBackendAppointment();
-    setIsBookingSubmitting(false);
     if (!appointment?.id) {
+      setIsBookingSubmitting(false);
       const aiMsg: ChatMessage = {
         id: 'msg-' + Date.now(),
         sender: 'ai',
@@ -3734,13 +3731,15 @@ export default function BookingMethodSelector({
     }
 
     if (appointment.bookingCode) {
-      api.createRealPayment({
-        appointmentId: appointment.id,
-        bookingCode: appointment.bookingCode,
-        amount: 2000,
-        paymentType: 'DEPOSIT',
-        method: 'BANK_TRANSFER',
-      }).then((payRes: any) => {
+      setTransferBookingCode(appointment.bookingCode);
+      try {
+        const payRes: any = await api.createRealPayment({
+          appointmentId: appointment.id,
+          bookingCode: appointment.bookingCode,
+          amount: 2000,
+          paymentType: 'DEPOSIT',
+          method: 'BANK_TRANSFER',
+        });
         if (payRes) {
           setPayOsData({
             accountNumber: payRes.accountNumber || undefined,
@@ -3750,8 +3749,11 @@ export default function BookingMethodSelector({
             qrCode: payRes.qrCode || undefined,
           });
         }
-      }).catch(console.warn);
+      } catch (err) {
+        console.warn('Khởi tạo PayOS payment link:', err);
+      }
     }
+    setIsBookingSubmitting(false);
 
     const userMsg: ChatMessage = {
       id: 'msg-' + Date.now(),
