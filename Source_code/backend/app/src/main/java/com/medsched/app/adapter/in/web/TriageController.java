@@ -177,9 +177,11 @@ public class TriageController {
             );
         }
 
-        String lastAssistant = lastContextMessage(context, "[ASSISTANT] ");
+        String lastAssistant = lastClarificationQuestion(context);
         String explicitFamily = explicitSymptomFamily(lower);
-        boolean continuation = explicitFamily == null && isLikelyClinicalAnswer(lower, lastAssistant);
+        boolean hasPriorTriageStory = !contextMessages(context, "[USER] ").isEmpty();
+        boolean continuation = (explicitFamily == null && isLikelyClinicalAnswer(lower, lastAssistant))
+                || (hasPriorTriageStory && (isLikelyClinicalAnswer(lower, lastAssistant) || isLikelyBodyPart(lower)));
         if (!looksLikeSymptomTriage(lower) && !continuation) {
             return answerFromInternalKnowledge(message, true,
                     "Mình chưa có đủ thông tin để trả lời chắc chắn. Bạn có thể diễn đạt câu hỏi rõ hơn một chút nhé.");
@@ -424,6 +426,22 @@ public class TriageController {
         return messages.isEmpty() ? "" : messages.get(messages.size() - 1);
     }
 
+    private String lastClarificationQuestion(String context) {
+        List<String> messages = contextMessages(context, "[ASSISTANT] ");
+        for (int i = messages.size() - 1; i >= 0; i--) {
+            String msg = messages.get(i);
+            if (isClarificationQuestion(msg)) {
+                return msg;
+            }
+        }
+        return messages.isEmpty() ? "" : messages.get(messages.size() - 1);
+    }
+
+    private boolean isLikelyBodyPart(String lower) {
+        return containsAny(lower, "họng", "cổ", "đầu", "bụng", "ngực", "lưng", "vai", "gáy",
+                "tay", "chân", "mặt", "tai", "mũi", "mắt", "răng", "hàm", "nướu", "da", "khớp");
+    }
+
     private String explicitSymptomFamily(String lower) {
         String positive = normalizeForMatching(lower);
         for (String symptom : List.of("sot", "kho tho", "ho", "dau hong", "dau dau", "dau bung",
@@ -440,8 +458,8 @@ public class TriageController {
         if (positive.contains("dau nguc") || positive.contains("tuc nguc")) return "CHEST";
         if (positive.contains("dau rang") || positive.contains("nhuc rang") || positive.contains("buot rang")) return "DENTAL";
         if (containsAny(positive, "ngua da", "noi man", "phat ban", "me day", "di ung")) return "SKIN";
-        if (containsAny(positive, "ho khan", "ho co dom", "kho tho", "dau hong", "rat hong", "rat co", "sot", "viem hong", "cam cum")
-                || Pattern.compile("\\b(ho|sot|cum|cam)\\b").matcher(positive).find()) return "RESPIRATORY";
+        if (containsAny(positive, "ho khan", "ho co dom", "kho tho", "dau hong", "rat hong", "rat co", "sot", "viem hong", "cam cum", "hong", "co hong", "amidan", "viem amidan", "khan tieng", "so mui", "nghet mui")
+                || Pattern.compile("\\b(ho|sot|cum|cam|hong)\\b").matcher(positive).find()) return "RESPIRATORY";
         return null;
     }
 
@@ -449,7 +467,8 @@ public class TriageController {
         if (lastAssistant == null || lastAssistant.isBlank() || !isClarificationQuestion(lastAssistant)) return false;
         boolean meaningfulDetail = containsAny(lower, "bên trái", "bên phải", "ở giữa", "trên rốn", "dưới rốn", "quanh rốn",
                 "thượng vị", "hạ sườn", "hố chậu", "nửa đầu", "cả đầu", "trán", "thái dương", "sau gáy",
-                "hàm trên", "hàm dưới", "ở cổ", "cổ", "mặt", "tay", "chân", "lưng", "toàn thân",
+                "hàm trên", "hàm dưới", "ở cổ", "cổ", "họng", "cổ họng", "vòm họng", "amidan", "mặt", "tai", "mũi", "mắt",
+                "tay", "chân", "lưng", "vai", "gáy", "bụng", "ngực", "răng", "nướu", "da", "khớp", "toàn thân",
                 "âm ỉ", "nhói", "quặn", "buốt", "nóng rát", "bóp nghẹt", "đè nặng",
                 "liên tục", "từng cơn", "đột ngột", "tăng dần", "nhẹ", "vừa", "nặng", "dữ dội",
                 "có sốt", "không sốt", "buồn nôn", "không nôn", "khó thở", "không có", "không kèm", "có kèm");
@@ -890,7 +909,7 @@ public class TriageController {
     }
 
     private static final Pattern SYMPTOM_WORD_PATTERN = Pattern.compile(
-            "(?<!\\p{L})(ho|sốt|đau|nhức|ngứa|buốt)(?!\\p{L})",
+            "(?<!\\p{L})(ho|sốt|đau|nhức|ngứa|buốt|họng|rát|mỏi|tê|mờ|ói|nôn|quặn|nhói)(?!\\p{L})",
             Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CHARACTER_CLASS);
 
     private boolean looksLikeSymptomTriage(String lower) {
@@ -899,7 +918,11 @@ public class TriageController {
                 || lower.contains("chóng mặt")
                 || lower.contains("buồn nôn")
                 || lower.contains("khám gì")
-                || lower.contains("triệu chứng");
+                || lower.contains("triệu chứng")
+                || lower.contains("âm ỉ")
+                || lower.contains("nóng rát")
+                || lower.contains("khó thở")
+                || lower.contains("tức ngực");
     }
 
     private String authenticatedRole() {
