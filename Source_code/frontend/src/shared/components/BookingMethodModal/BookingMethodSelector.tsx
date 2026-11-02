@@ -1280,11 +1280,24 @@ function parsePatientBookingIntent(
     matchedDate = getNextAvailableWeekday(tom);
   }
 
-  // 5. Nhận diện phản hồi đồng ý / xác nhận từ bệnh nhân
-  const isAgreement =
-    /^(đồng ý|dong y|ok|oke|okie|được|duoc|chốt|chot|vâng|vang|yes|yep|chuyển đi|chuyen di|đặt đi|dat di|tiếp tục|tiep tuc|chọn bác sĩ|xem bác sĩ|được nha|ok em|được chứ|duoc nha)/i.test(text) ||
+  // 5. Nhận diện phản hồi từ chối / không đồng ý / muốn chọn giờ khác
+  const isDisagreement =
+    /^(không đồng ý|khong dong y|không|khong|ko|k|thôi|thoi|đổi giờ|doi gio|chọn giờ khác|chon gio khac|khung giờ khác|khung gio khac|giờ khác|gio khac|chọn lại|chon lai|hủy|huy|không được|khong duoc|đổi bác sĩ|doi bac si)\b/i.test(text) ||
+    text === 'không' || text === 'khong' || text === 'ko' || text === 'k' ||
+    text.includes('không đồng ý') || text.includes('khong dong y') ||
+    text.includes('chọn giờ khác') || text.includes('chon gio khac') ||
+    text.includes('khung giờ khác') || text.includes('khung gio khac') ||
+    text.includes('chọn lại') || text.includes('chon lai') ||
+    text.includes('không được') || text.includes('khong duoc') ||
+    (text.includes('đổi giờ') && !text.includes('đồng ý'));
+
+  // 6. Nhận diện phản hồi đồng ý / xác nhận từ bệnh nhân
+  const isAgreement = !isDisagreement && (
+    /^(đồng ý|dong y|ok|oke|okie|được|duoc|chốt|chot|vâng|vang|yes|yep|chuyển đi|chuyen di|đặt đi|dat di|tiếp tục|tiep tuc|chọn bác sĩ|xem bác sĩ|được nha|ok em|được chứ|duoc nha)\b/i.test(text) ||
     text === 'ok' || text === 'oke' || text === 'được' || text === 'đồng ý' || text === 'chốt' ||
-    text.includes('chuyển sang') || text.includes('đặt từ 13:30');
+    text.includes('đồng ý khám') || text.includes('dong y kham') ||
+    text.includes('chuyển sang') || text.includes('đặt từ 13:30')
+  );
 
   return {
     matchedBranch,
@@ -1293,6 +1306,7 @@ function parsePatientBookingIntent(
     isEarlyAfternoonConflict,
     matchedDate,
     isAgreement,
+    isDisagreement,
   };
 }
 
@@ -2837,6 +2851,49 @@ export default function BookingMethodSelector({
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
     const isToday = targetDate === getTodayISODate();
 
+    // 0a. Nếu người dùng đồng ý với khung giờ hoặc bác sĩ đã gợi ý
+    if (intent.isAgreement) {
+      const slotPool = availableAllSlots.length > 0 ? availableAllSlots : shiftSlots;
+      const targetSlot = (intent.proposedSlot ? slotPool.find(s => !s.disabled && (s.time === intent.proposedSlot || s.time.startsWith(intent.proposedSlot!.split(' - ')[0]))) : null)
+        || (selectedSlotId ? slotPool.find(s => s.id === selectedSlotId) : null)
+        || (selectedSlotTime ? slotPool.find(s => s.time === selectedSlotTime || s.time.startsWith(selectedSlotTime.split(' - ')[0])) : null)
+        || slotPool.find(s => !s.disabled);
+
+      handleProceedToPayment(selectedDoctor || undefined, text, targetSlot);
+      return;
+    }
+
+    // 0b. Nếu người dùng không đồng ý với khung giờ gợi ý, lúc này mới hiển thị widget chọn giờ/bác sĩ
+    if (intent.isDisagreement) {
+      const aiMsg: ChatMessage = {
+        id: 'msg-' + (Date.now() + 1),
+        sender: 'ai',
+        time: getFormattedTime(),
+        text: `Dạ vâng, bạn hãy bấm chọn một khung giờ khám còn trống bên dưới phù hợp với thời gian của bạn nhé! 👇`,
+        widget: 'SELECT_DOCTOR_SLOT',
+        isTypingComplete: false,
+      };
+      setMessages(prev => [...prev, userMsg, aiMsg]);
+      return;
+    }
+
+    // 0c. Nếu người dùng muốn xem lịch ngày mai / đổi ngày khám
+    if (intent.matchedDate && intent.matchedDate !== bookingDate) {
+      setBookingDate(intent.matchedDate);
+      const isTomorrow = intent.matchedDate !== getTodayISODate();
+      const dateLabel = isTomorrow ? 'ngày mai' : 'ngày đã chọn';
+      const aiMsg: ChatMessage = {
+        id: 'msg-' + (Date.now() + 1),
+        sender: 'ai',
+        time: getFormattedTime(),
+        text: `Dạ em đã chuyển lịch khám sang **${dateLabel} (${formatVietnameseFullDate(intent.matchedDate)})** giúp bạn rồi ạ! 📅\n\nBạn hãy bấm chọn Bác sĩ và khung giờ khám bên dưới nhé:`,
+        widget: 'SELECT_DOCTOR_SLOT',
+        isTypingComplete: false,
+      };
+      setMessages(prev => [...prev, userMsg, aiMsg]);
+      return;
+    }
+
     // 1. Kiểm tra nếu người dùng chọn giờ rơi vào giờ nghỉ trưa của phòng khám (11:00 - 13:30)
     // CHỈ áp dụng nếu là ngày khác HOẶC hôm nay nhưng hiện tại chưa qua giờ trưa (currentMinutes < 13:30).
     // Nếu hôm nay đã qua 13:30 (chiều/tối) thì đây là giờ quá khứ đã kết thúc.
@@ -2860,9 +2917,9 @@ export default function BookingMethodSelector({
         sender: 'ai',
         time: getFormattedTime(),
         text: `Dạ, khung giờ bạn vừa yêu cầu rơi vào **giờ nghỉ trưa của phòng khám (từ 11:00 đến 13:30)** nên phòng khám tạm ngưng đón bệnh để bác sĩ nghỉ ngơi.\n\n• **Ca sáng:** Làm việc từ **08:00 đến 11:00**.\n• **Ca chiều:** Bắt đầu đón tiếp trở lại từ **13:30**.\n\n👉 Em đã chọn sẵn khung giờ sớm nhất của ca chiều là **${targetSlotTime}**${selectedDoctor ? ` cùng Bác sĩ **${selectedDoctor.name}** (${selectedDoctor.room || 'Phòng khám'})` : ''}.\n\nBạn có đồng ý khám vào khung giờ **${targetSlotTime}** này để em chuẩn bị hồ sơ giữ chỗ không ạ?`,
-        widget: 'SELECT_DOCTOR_SLOT',
         quickReplies: [
           `Đồng ý khám ${targetSlotTime}`,
+          'Không đồng ý, chọn giờ khác',
           'Xem lịch ngày mai',
         ],
         isTypingComplete: false,
@@ -2911,9 +2968,9 @@ export default function BookingMethodSelector({
             sender: 'ai',
             time: getFormattedTime(),
             text: `Dạ, bạn đã chọn khung **${intent.proposedSlot}** cho hôm nay. Tuy nhiên, khung giờ này ${pastReason}; thời điểm hiện tại là **${currentTimeText}**, nên hệ thống không thể tiếp nhận đặt lịch cho giờ đã qua.\n\n👉 Em đã tìm thấy khung giờ gần nhất còn trống hôm nay là **${nextSlotTime}** (${shiftLabel})${selectedDoctor ? ` cùng Bác sĩ **${selectedDoctor.name}** (${selectedDoctor.room || 'Phòng khám'})` : ''}.\n\nBạn có đồng ý đặt khám vào khung giờ **${nextSlotTime}** này để em chuẩn bị hồ sơ giữ chỗ không ạ?`,
-            widget: 'SELECT_DOCTOR_SLOT',
             quickReplies: [
               `Đồng ý khám ${nextSlotTime}`,
+              'Không đồng ý, chọn giờ khác',
               'Xem lịch ngày mai',
             ],
             isTypingComplete: false,
@@ -2952,10 +3009,9 @@ export default function BookingMethodSelector({
         sender: 'ai',
         time: getFormattedTime(),
         text: `Dạ em đã cập nhật khung giờ khám sang **${intent.proposedSlot}**${selectedDoctor ? ` cùng Bác sĩ **${selectedDoctor.name}** (${selectedDoctor.room || 'Phòng khám'})` : ''} rồi nhé!\n\nBạn có đồng ý đặt khám vào khung giờ này để em chuẩn bị hồ sơ giữ chỗ không ạ?`,
-        widget: 'SELECT_DOCTOR_SLOT',
         quickReplies: [
           `Đồng ý khám ${intent.proposedSlot}`,
-          'Chọn khung giờ khác',
+          'Không đồng ý, chọn giờ khác',
         ],
         isTypingComplete: false,
       };
