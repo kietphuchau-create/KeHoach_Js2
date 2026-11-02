@@ -1815,9 +1815,14 @@ export default function BookingMethodSelector({
 
   // Sinh mã chuyển khoản cọc 2k khi vào bước thanh toán và đảm bảo luôn lấy được STK ảo PayOS
   useEffect(() => {
-    if (aiStep === 'CONFIRM_PAYMENT' && !payOsData) {
-      const code = createdAppointment?.bookingCode || transferBookingCode;
-      if (code) {
+    if (aiStep === 'CONFIRM_PAYMENT') {
+      let code = createdAppointment?.bookingCode || transferBookingCode;
+      if (!code) {
+        const randNum = Math.floor(100000 + Math.random() * 900000);
+        code = `MED${randNum}`;
+        setTransferBookingCode(code);
+      }
+      if (!payOsData) {
         api.createRealPayment({
           appointmentId: createdAppointment?.id,
           bookingCode: code,
@@ -1843,7 +1848,9 @@ export default function BookingMethodSelector({
 
   // Đếm ngược 5 phút QR và tự động polling kiểm tra tiền cọc qua checkRealPaymentStatus
   useEffect(() => {
-    if (aiStep !== 'CONFIRM_PAYMENT' || !transferBookingCode) return;
+    if (aiStep !== 'CONFIRM_PAYMENT') return;
+    const targetCode = transferBookingCode || createdAppointment?.bookingCode;
+    if (!targetCode) return;
 
     const timer = setInterval(() => {
       setQrCountdown(prev => (prev > 0 ? prev - 1 : 0));
@@ -1853,7 +1860,7 @@ export default function BookingMethodSelector({
       try {
         setIsCheckingAuto(true);
         const res = await api.checkRealPaymentStatus({
-          bookingCode: transferBookingCode,
+          bookingCode: targetCode,
           appointmentId: createdAppointment?.id,
         });
         if (res?.status === 'SUCCEEDED' || res?.success) {
@@ -2895,16 +2902,7 @@ export default function BookingMethodSelector({
 
     if (matchedDoc) {
       setSelectedDoctor(matchedDoc);
-      const aiMsg: ChatMessage = {
-        id: 'msg-' + (Date.now() + 1),
-        sender: 'ai',
-        time: getFormattedTime(),
-        text: `Dạ em đã chọn **${matchedDoc.name}** (${matchedDoc.title} - ${matchedDoc.room}) giúp bạn rồi ạ! 🩺\n\nEm đã chuẩn bị sẵn hồ sơ đặt khám bên dưới. Mời bạn kiểm tra lại thông tin và xác nhận đặt cọc 2.000đ (hoặc nhập mã ưu đãi) để giữ chỗ nhé!`,
-        widget: 'CONFIRM_PAYMENT',
-        isTypingComplete: false,
-      };
-      setAiStep('CONFIRM_PAYMENT');
-      setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg, aiMsg]);
+      handleProceedToPayment();
       return;
     }
 
