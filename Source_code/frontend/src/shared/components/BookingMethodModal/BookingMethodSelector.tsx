@@ -1429,7 +1429,7 @@ export default function BookingMethodSelector({
   // Bước 3: Chi nhánh & Dịch vụ phòng khám & Ngày khám
   const [selectedBranch, setSelectedBranch] = useState<ClinicBranch | null>(null);
   const [selectedServiceId, setSelectedServiceId] = useState<string>('STANDARD');
-  const [bookingDate, setBookingDate] = useState<string>(() => getNextAvailableWeekday());
+  const [bookingDate, setBookingDate] = useState<string>(() => getTodayISODate());
   const [selectedShiftId, setSelectedShiftId] = useState<string>('ALL');
   // Đề xuất lịch khám thông minh từ Y tá / Lễ tân AI
   const [nurseProposal, setNurseProposal] = useState<NurseProposal | null>(null);
@@ -1552,7 +1552,7 @@ export default function BookingMethodSelector({
             if (!s.doctorId) return;
             const validSlots = Array.isArray(s.slots) ? s.slots.filter((slot: any) => {
               if (slot.status !== 'AVAILABLE') return false;
-              if (isToday && slot.startTime) {
+              if (isToday && slot.startTime && !getClinicScheduleConfig().devMode247) {
                 const parts = slot.startTime.split(':');
                 const startMin = parseInt(parts[0], 10) * 60 + parseInt(parts[1] || '0', 10);
                 return startMin > currentMinutes;
@@ -2395,7 +2395,7 @@ export default function BookingMethodSelector({
         const availCount = doctorSchedulesMap[primaryDoc.id]?.availableCount || 0;
         const earliestTime = doctorSchedulesMap[primaryDoc.id]?.earliestSlotTime || '08:00';
         const earliestHour = parseInt(earliestTime.split(':')[0] || '8', 10);
-        const autoShift = earliestHour < 12 ? 'MORNING' : (earliestHour < 17 ? 'AFTERNOON' : 'EVENING');
+        const autoShift = earliestHour < 8 ? 'ALL' : (earliestHour < 12 ? 'MORNING' : (earliestHour < 17 ? 'AFTERNOON' : 'EVENING'));
         setSelectedShiftId(autoShift);
 
         const aiMsg: ChatMessage = {
@@ -3549,10 +3549,10 @@ export default function BookingMethodSelector({
             ? (bookingSupport.doctors[0]?.doctorName || '')
             : '';
           if (firstDoc) setTriageDoctorOffDutyName(firstDoc);
-          // Tự động chuyển ngày khám sang Ngày mai để tránh kẹt ở ngày hôm nay không có ca
-          const nextDay = new Date();
-          nextDay.setDate(nextDay.getDate() + 1);
-          setBookingDate(nextDay.toISOString().split('T')[0]);
+          // Giữ nguyên ngày hôm nay, không tự ý nhảy sang ngày mai
+
+
+
         } else {
           setIsTriageDoctorOffDuty(false);
           setTriageDoctorOffDutyName('');
