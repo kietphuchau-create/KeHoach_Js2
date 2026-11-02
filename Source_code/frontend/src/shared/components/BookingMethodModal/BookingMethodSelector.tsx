@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { api, getAuthToken, getAuthUser } from '@/shared/lib/api';
 import { validatePromotion } from '@/shared/lib/promotions';
+import { getClinicScheduleConfig } from '@/shared/lib/scheduleConfig';
 import { formatDoctorFullName } from '@/shared/lib/formatters';
 import { 
   getBranchGoogleMapsUrl, 
@@ -1645,10 +1646,11 @@ export default function BookingMethodSelector({
   // Đếm số lượng slot khả dụng theo từng ca để hiển thị badge số lượng
   const shiftSlotCounts = useMemo(() => {
     const isToday = bookingDate === getTodayISODate();
+    const isDev247 = getClinicScheduleConfig().devMode247;
     const now = new Date();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
     const available = dynamicSlots.filter(s => {
-      const isPast = isToday && s.startMinutes !== undefined && s.startMinutes <= currentMinutes;
+      const isPast = !isDev247 && isToday && s.startMinutes !== undefined && s.startMinutes <= currentMinutes;
       return !(s.disabled || s.status === 'full' || s.status === 'expired' || s.status === 'locked' || isPast);
     });
     return {
@@ -1679,13 +1681,14 @@ export default function BookingMethodSelector({
   // TOÀN BỘ CÁC KHUNG GIỜ CÒN KHẢ DỤNG TRONG NGÀY (Khả dụng, không bị quá giờ, không hết chỗ)
   const availableAllSlots = useMemo(() => {
     const isToday = bookingDate === getTodayISODate();
+    const isDev247 = getClinicScheduleConfig().devMode247;
     const now = new Date();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
     if (dynamicSlots.length > 0) {
       return dynamicSlots
         .filter(slot => {
-          const isPast = isToday && slot.startMinutes !== undefined && slot.startMinutes <= currentMinutes;
+          const isPast = !isDev247 && isToday && slot.startMinutes !== undefined && slot.startMinutes <= currentMinutes;
           const isDisabled = slot.disabled || slot.status === 'full' || slot.status === 'expired' || slot.status === 'locked' || isPast;
           return !isDisabled;
         })
@@ -2894,10 +2897,11 @@ export default function BookingMethodSelector({
       return;
     }
 
+    const isDev247 = getClinicScheduleConfig().devMode247;
     // 1. Kiểm tra nếu người dùng chọn giờ rơi vào giờ nghỉ trưa của phòng khám (11:00 - 13:30)
     // CHỈ áp dụng nếu là ngày khác HOẶC hôm nay nhưng hiện tại chưa qua giờ trưa (currentMinutes < 13:30).
-    // Nếu hôm nay đã qua 13:30 (chiều/tối) thì đây là giờ quá khứ đã kết thúc.
-    const isLunchBreakActive = intent.isEarlyAfternoonConflict && (!isToday || currentMinutes < 13 * 60 + 30);
+    // Bỏ qua toàn bộ nếu bật Chế Độ Develop 24/7.
+    const isLunchBreakActive = !isDev247 && intent.isEarlyAfternoonConflict && (!isToday || currentMinutes < 13 * 60 + 30);
     if (isLunchBreakActive) {
       const slotPool = availableAllSlots.length > 0 ? availableAllSlots : shiftSlots;
       const nextRealSlot = slotPool
@@ -2933,7 +2937,7 @@ export default function BookingMethodSelector({
       const requestedStartParts = intent.proposedSlot.split(' - ')[0]?.split(':').map(Number) || [];
       const requestedStartMinutes = (requestedStartParts[0] * 60) + requestedStartParts[1];
       const requestedEndMinutes = requestedStartMinutes + 30;
-      const isPastTimeToday = isToday && requestedStartMinutes <= currentMinutes;
+      const isPastTimeToday = !isDev247 && isToday && requestedStartMinutes <= currentMinutes;
 
       if (isPastTimeToday) {
         const slotPool = availableAllSlots.length > 0 ? availableAllSlots : shiftSlots;
