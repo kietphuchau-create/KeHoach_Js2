@@ -52,7 +52,7 @@ export interface BookingMethodSelectorProps {
 // ---------------------------------------------------------------------------
 const EMERGENCY_KEYWORDS = [
   'đau thắt ngực', 'đau ngực dữ dội', 'tức ngực dữ dội', 'bóp nghẹt ngực',
-  'khó thở dữ dội', 'thở dốc tím tái', 'ngưng thở', 'không thở được',
+  'khó thở', 'thở dốc tím tái', 'ngưng thở', 'không thở được',
   'ngất xỉu', 'ngất', 'mất ý thức', 'hôn mê', 'bất tỉnh',
   'đột quỵ', 'tai biến', 'liệt nửa người', 'méo miệng', 'nói ngọng đột ngột',
   'nôn ra máu', 'ho ra máu tươi', 'xuất huyết dữ dội', 'chảy máu không cầm',
@@ -63,6 +63,10 @@ const EMERGENCY_KEYWORDS = [
 function isEmergencySymptom(text: string): boolean {
   if (!text) return false;
   const lower = text.toLowerCase();
+  // Bỏ qua nếu là câu phủ định (ví dụ: "không khó thở", "không bị khó thở")
+  if (lower.includes('không khó thở') || lower.includes('không bị khó thở') || lower.includes('chưa khó thở') || lower.includes('không có khó thở')) {
+    return false;
+  }
   return EMERGENCY_KEYWORDS.some(kw => lower.includes(kw));
 }
 
@@ -3681,71 +3685,148 @@ export default function BookingMethodSelector({
         setCustomNatureInput(text);
         setOtherSymptomDetail(bookingSupport.symptoms || text);
 
-        // Backend chỉ trả PATIENT_BOOKING_SUPPORT sau khi đã thu thập đủ thông
-        // tin lâm sàng. Kiểm tra xem bác sĩ/chuyên khoa có ca trực hôm nay hay không.
-        const hasAvailDocs = bookingSupport?.hasAvailableDoctors ?? (
-          Array.isArray(bookingSupport?.doctors) &&
-          bookingSupport.doctors.length > 0 &&
-          bookingSupport.doctors.some((d: any) => Array.isArray(d.availableSlots) && d.availableSlots.length > 0)
-        );
-        const isDocOffDutyToday = hasAvailDocs === false
-          || summary.includes('chưa có ca khám sẵn sàng')
-          || summary.includes('không có ca trực');
-
-        if (isDocOffDutyToday) {
-          setIsTriageDoctorOffDuty(true);
-          const firstDoc = Array.isArray(bookingSupport?.doctors) && bookingSupport.doctors.length > 0
-            ? (bookingSupport.doctors[0]?.doctorName || '')
-            : '';
-          if (firstDoc) setTriageDoctorOffDutyName(firstDoc);
-          // Giữ nguyên ngày hôm nay, không tự ý nhảy sang ngày mai
-
-
-
-        } else {
-          setIsTriageDoctorOffDuty(false);
-          setTriageDoctorOffDutyName('');
+        // Sau khi hoàn tất sàng lọc lâm sàng qua AI Chat:
+        // Tự động kiểm tra Bác sĩ trực và chuyển THẲNG sang bước Chọn Khung Giờ (SELECT_DOCTOR_SLOT)
+        // Không bắt người dùng chọn lại cơ sở hay buổi khám thủ công qua INPUT_LOCATION nữa.
+        let doctorPool = dbDoctors;
+        if (isDoctorsLoading || doctorPool.length === 0) {
+          try {
+            const latestDoctors = await api.getDoctors();
+            doctorPool = Array.isArray(latestDoctors) ? mapApiDoctors(latestDoctors) : [];
+            setDbDoctors(doctorPool);
+          } catch (e) {
+            console.warn('Lỗi lấy danh sách bác sĩ:', e);
+          }
         }
 
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        const tomorrowIso = tomorrow.toISOString().split('T')[0];
-        const tomorrowFormatted = formatVietnameseFullDate(tomorrowIso);
+        const activeCat = SYMPTOM_CATEGORIES[targetKey];
+        const specName = activeCat?.specialtyName || bookingSupport.specialtyName || 'Chuyên khoa phù hợp';
 
+        const matchingDoctors = doctorPool.filter(d => {
+          const dSpec = (d.specialtyName || '').toLowerCase();
+          const actSpec = (specName || '').toLowerCase();
+          return (
+            d.categoryKeys?.includes(targetKey) ||
+            (d.specialtyCode && d.specialtyCode === activeCat?.specialtyCode) ||
+            (dSpec && actSpec && (
+              dSpec.includes(actSpec) ||
+              actSpec.includes(dSpec) ||
+              (actSpec.includes('da') && dSpec.includes('da')) ||
+              (actSpec.includes('nội') && dSpec.includes('nội')) ||
+              (actSpec.includes('răng') && dSpec.includes('răng')) ||
+              (actSpec.includes('mắt') && dSpec.includes('mắt'))
+            ))
+          );
+        });
+
+        // ĐỒNG BỘ LỊCH TRỰC THỜI GIAN THỰC TỪ CSDL CHO TẤT CẢ BÁC SĨ
+        let activeSchedulesMap = doctorSchedulesMap;
+        try {
+          const freshSchedules = await api.getDoctorSchedules('ALL', bookingDate, bookingDate);
+          if (Array.isArray(freshSchedules)) {
+            const isToday = bookingDate === getTodayISODate();
+            const isDev247 = typeof window !== 'undefined' ? getClinicScheduleConfig().devMode247 : false;
+            const now = new Date();
+            const currentMinutes = now.getHours() * 60 + now.getMinutes();
+            const map: Record<string, any> = {};
+
+            freshSchedules.forEach((s: any) => {
+              if (!s.doctorId) return;
+              const validSlots = Array.isArray(s.slots) ? s.slots.filter((slot: any) => {
+                if (slot.status !== 'AVAILABLE') return false;
+                if (isToday && slot.startTime && !isDev247) {
+                  const parts = slot.startTime.split(':');
+                  const startMin = parseInt(parts[0], 10) * 60 + parseInt(parts[1] || '0', 10);
+                  return startMin > currentMinutes;
+                }
+                return true;
+              }) : [];
+
+              map[s.doctorId] = {
+                hasSchedule: s.status === 'ACTIVE',
+                availableCount: validSlots.length,
+                totalSlots: s.totalSlots || 0,
+                bookedSlots: s.bookedSlots || 0,
+                earliestSlotTime: validSlots.length > 0 ? validSlots[0].startTime : undefined,
+                roomNumber: s.roomNumber,
+              };
+            });
+            activeSchedulesMap = map;
+            setDoctorSchedulesMap(map);
+          }
+        } catch (err) {
+          console.warn('Không thể đồng bộ lịch trực mới nhất:', err);
+        }
+
+        const matchingWithSlots = matchingDoctors.filter(d => (activeSchedulesMap[d.id]?.availableCount ?? 0) > 0);
+        const matchingWithoutSlots = matchingDoctors.filter(d => (activeSchedulesMap[d.id]?.availableCount ?? 0) === 0);
+        const otherDoctorsWithSlots = doctorPool.filter(d => !matchingDoctors.some(m => m.id === d.id) && (activeSchedulesMap[d.id]?.availableCount ?? 0) > 0);
+
+        const primaryDoc = matchingWithSlots.length > 0 ? matchingWithSlots[0] : null;
+
+        if (primaryDoc) {
+          // Ưu tiên cao nhất: Tự động chọn Bác sĩ, Chi nhánh, Ca trực và mở ngay bảng giờ khám
+          setSelectedDoctor(primaryDoc);
+          if (primaryDoc.centerId) {
+            const matchBranch = branches.find(b => b.id === primaryDoc.centerId || b.code === primaryDoc.centerId);
+            if (matchBranch) setSelectedBranch(matchBranch);
+          }
+          setAiStep('SELECT_DOCTOR_SLOT');
+          const availCount = activeSchedulesMap[primaryDoc.id]?.availableCount || 0;
+          const earliestTime = activeSchedulesMap[primaryDoc.id]?.earliestSlotTime || '08:00';
+          const earliestHour = parseInt(earliestTime.split(':')[0] || '8', 10);
+          const autoShift = earliestHour < 8 ? 'ALL' : (earliestHour < 12 ? 'MORNING' : (earliestHour < 17 ? 'AFTERNOON' : 'EVENING'));
+          setSelectedShiftId(autoShift);
+
+          const aiMsg: ChatMessage = {
+            id: 'msg-' + (Date.now() + 1),
+            sender: 'ai',
+            time: getFormattedTime(),
+            text: `Dạ em đã ghi nhận đầy đủ hồ sơ triệu chứng của bạn! 🩺\n\nTheo định hướng chuyên môn, tình trạng của bạn hoàn toàn phù hợp thăm khám tại **${specName}** (Độ khớp AI: 100%).\n\n👨‍⚕️ **Bác sĩ chuyên môn phụ trách:** **${primaryDoc.name}** (${primaryDoc.room || 'Phòng khám chuyên khoa'}).\n⚡ **Cập nhật thời gian thực:** Bác sĩ đang có ca trực với **${availCount} khung giờ khám** trong ngày (khung giờ sớm nhất: **${earliestTime}**).\n\nEm đã chọn sẵn bác sĩ cho bạn. Mời bạn chọn khung giờ khám phù hợp bên dưới để giữ chỗ ngay nhé!`,
+            widget: 'SELECT_DOCTOR_SLOT',
+            isTypingComplete: false,
+          };
+
+          setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), aiMsg]);
+          return;
+        }
+
+        if (matchingDoctors.length > 0) {
+          // Bác sĩ chuyên khoa có trong hệ thống nhưng hôm nay chưa mở ca trực
+          setAiStep('DOCTOR_NO_SLOTS');
+          setSelectedDoctor(null);
+          const altDoctor = otherDoctorsWithSlots.length > 0 ? otherDoctorsWithSlots[0] : null;
+
+          const aiMsg: ChatMessage = {
+            id: 'msg-' + (Date.now() + 1),
+            sender: 'ai',
+            time: getFormattedTime(),
+            text: `Dạ em đã ghi nhận hồ sơ triệu chứng của bạn.\n\nTheo định hướng chuyên môn, tình trạng của bạn cần được thăm khám tại **${specName}**.\n\nHiện tại chuyên khoa này **chưa có ca khám / bác sĩ trực mở sẵn trên hệ thống tiếp đón vào ngày ${formatVietnameseFullDate(bookingDate)}**. Bạn vui lòng bấm chọn ngày khám khác bên dưới hoặc quay lại sau nhé!${altDoctor ? `\n\n💡 *Gợi ý thay thế:* Nếu bạn cần được thăm khám ban đầu ngay hôm nay, phòng khám có Bác sĩ **${altDoctor.name}** (${altDoctor.specialtyName}) đang có ca trực sẵn sàng tiếp nhận.` : ''}`,
+            widget: 'DOCTOR_NO_SLOTS',
+            actionOptions: [
+              { label: '📅 Kiểm tra lịch ngày mai', actionKey: 'CHANGE_DATE', variant: 'primary' },
+              ...(altDoctor ? [{ label: `🩺 Khám với ${altDoctor.name}`, actionKey: 'SELECT_ALT_DOCTOR' as const, variant: 'secondary' as const, payload: { doctor: altDoctor } }] : []),
+              { label: '🔄 Mô tả triệu chứng khác', actionKey: 'RESET_SYMPTOMS', variant: 'outline' },
+            ],
+            isTypingComplete: false,
+          };
+          setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), aiMsg]);
+          return;
+        }
+
+        // Chuyên khoa không có bác sĩ tại MedSched
+        setAiStep('UNSUPPORTED_SPECIALTY');
+        setSelectedDoctor(null);
         const aiMsg: ChatMessage = {
           id: 'msg-' + (Date.now() + 1),
           sender: 'ai',
           time: getFormattedTime(),
-          text: isDocOffDutyToday
-            ? `${summary}\n\n⚠️ **Lưu ý:** Hôm nay chuyên khoa chưa có ca trực sẵn sàng. Bạn vui lòng bấm chọn **Đặt lịch ngày mai (${tomorrowFormatted})** hoặc chọn cơ sở bên dưới để khám vào ngày khác nhé!`
-            : `${summary}\n\nMời bạn chọn cơ sở và ngày khám thuận tiện bên dưới để MedSched tiếp tục sắp xếp bác sĩ và khung giờ phù hợp.`,
-          widget: 'INPUT_LOCATION',
-          actionOptions: isDocOffDutyToday
-            ? [
-                {
-                  label: `📅 Đặt lịch ngày mai (${tomorrow.getDate()}/${tomorrow.getMonth() + 1})`,
-                  actionKey: 'SET_DATE_AND_BRANCH',
-                  variant: 'default' as const,
-                  payload: { targetDate: tomorrowIso, branch: branches[0] },
-                },
-                ...branches.slice(0, 2).map(branch => ({
-                  label: `🏥 Chọn ${branch.shortName}`,
-                  actionKey: 'SELECT_BRANCH' as const,
-                  variant: 'outline' as const,
-                  payload: { branch },
-                })),
-              ]
-            : branches.slice(0, 3).map(branch => ({
-                label: `🏥 Chọn ${branch.shortName}`,
-                actionKey: 'SELECT_BRANCH' as const,
-                variant: 'outline' as const,
-                payload: { branch },
-              })),
+          text: `⚠️ **THÔNG BÁO GIỚI HẠN CHUYÊN MÔN Y TẾ TẠI PHÒNG KHÁM**\n\nDạ sau khi ghi nhận biểu hiện của bạn:\nTheo định hướng chuyên môn, tình trạng của bạn cần được thăm khám tại **${specName}**.\n\nTuy nhiên, hiện tại hệ thống MedSched **chưa có bác sĩ chuyên môn phụ trách chuyên khoa này**. Để bảo đảm an toàn tuyệt đối và hiệu quả chẩn đoán chính xác nhất, hệ thống không thể gán ghép bác sĩ chuyên khoa khác.\n\n👉 Bạn nên đến trực tiếp các bệnh viện chuyên khoa tuyến trên để được thăm khám chu đáo nhất!`,
+          widget: 'UNSUPPORTED_SPECIALTY',
           isTypingComplete: false,
         };
-
-        setAiStep('INPUT_LOCATION');
         setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), aiMsg]);
+        return;
       } catch (err) {
         console.error(err);
         const aiMsg: ChatMessage = {
