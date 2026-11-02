@@ -1871,7 +1871,7 @@ export default function BookingMethodSelector({
       } finally {
         setIsCheckingAuto(false);
       }
-    }, 3000);
+    }, 2000);
 
     return () => {
       clearInterval(timer);
@@ -5222,24 +5222,15 @@ export default function BookingMethodSelector({
                           {/* Nút kiểm tra thanh toán / hoàn tất đặt chỗ */}
                           <div className="space-y-1.5 pt-1">
                             {paymentTab === 'vietqr' ? (
-                              <button
-                                type="button"
-                                onClick={handleCheckPaymentManual}
-                                disabled={isCheckingManual || isBookingSubmitting}
-                                className="w-full py-3 px-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
-                              >
-                                {isCheckingManual || isBookingSubmitting ? (
-                                  <>
-                                    <Loader2 size={16} className="animate-spin shrink-0" />
-                                    <span>Đang Kiểm Tra Đối Soát Ngân Hàng...</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <RefreshCw size={15} className="shrink-0" />
-                                    <span>Tôi Đã Chuyển Khoản — Kiểm Tra Ngay</span>
-                                  </>
-                                )}
-                              </button>
+                              <div className="p-3.5 bg-gradient-to-r from-purple-50 to-indigo-50/70 border border-purple-200 rounded-xl space-y-2 text-center">
+                                <div className="flex items-center justify-center gap-2 text-purple-950 font-extrabold text-xs">
+                                  <Loader2 size={16} className="animate-spin text-purple-600 shrink-0" />
+                                  <span>Hệ thống đang tự động lắng nghe và khớp lệnh từ MoMo / Ngân Hàng...</span>
+                                </div>
+                                <p className="text-[11px] text-purple-800 leading-relaxed max-w-sm mx-auto">
+                                  Ngay khi bạn chuyển 2.000 VNĐ thành công trên App Ngân Hàng hoặc Ví MoMo, hệ thống sẽ <strong>tự động chuyển trang và cấp thẻ khám bệnh tức thì</strong> mà không cần thao tác thêm.
+                                </p>
+                              </div>
                             ) : (
                               promoSuccessMsg && isPaymentVerified ? (
                                 <button
@@ -5265,39 +5256,6 @@ export default function BookingMethodSelector({
                                   Nhập mã ưu đãi hợp lệ phía trên để nhận ưu đãi cọc 0 VNĐ, hoặc chọn tab <strong>Chuyển khoản VietQR</strong> để chuyển 2.000 VNĐ.
                                 </div>
                               )
-                            )}
-
-                            {checkManualMessage && (
-                              <p className={`text-[11px] p-2.5 rounded-xl border text-center leading-relaxed ${
-                                checkManualMessage.includes('✓')
-                                  ? 'text-emerald-800 bg-emerald-50 border-emerald-200 font-semibold'
-                                  : 'text-amber-800 bg-amber-50 border-amber-200'
-                              }`}>
-                                {checkManualMessage}
-                              </p>
-                            )}
-
-                            {showManualBankAttest && (
-                              <div className="p-3 bg-emerald-50/90 border border-emerald-300 rounded-xl space-y-2 text-left animate-in fade-in duration-200">
-                                <div className="flex items-start gap-2">
-                                  <CheckCircle2 size={16} className="text-emerald-700 shrink-0 mt-0.5" />
-                                  <div className="text-[11px] text-emerald-950">
-                                    <p className="font-bold">Bạn đã chuyển 2.000 VNĐ thành công trên MoMo / App Ngân Hàng?</p>
-                                    <p className="text-slate-600 mt-0.5 leading-relaxed">
-                                      Do kết nối liên ngân hàng có thể trễ vài phút để đồng bộ số dư, bạn có thể <strong>xác nhận đã chuyển ngay</strong> để giữ chỗ khám và xuất trình biên lai tại quầy tiếp đón.
-                                    </p>
-                                  </div>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={handleDirectBankTransferConfirm}
-                                  disabled={isBookingSubmitting}
-                                  className="w-full py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50"
-                                >
-                                  <Check size={14} className="stroke-[3]" />
-                                  <span>Tôi Đã Chuyển 2.000đ — Cấp Phiếu Khám Ngay</span>
-                                </button>
-                              </div>
                             )}
 
                             {/* Nút hủy bỏ ca đặt chỗ này */}
