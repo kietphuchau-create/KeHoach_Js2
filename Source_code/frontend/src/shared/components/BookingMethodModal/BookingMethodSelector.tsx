@@ -1643,6 +1643,23 @@ export default function BookingMethodSelector({
     };
   }, [dynamicSlots, bookingDate]);
 
+  // Tự động chuyển sang ca có khung giờ khả dụng để người dùng luôn thấy các nút giờ khám ngay lập tức
+  useEffect(() => {
+    if (dynamicSlots.length === 0) return;
+    const currentCount = (shiftSlotCounts as any)[selectedShiftId] ?? 0;
+    if (currentCount === 0) {
+      if (shiftSlotCounts.EVENING > 0) {
+        setSelectedShiftId('EVENING');
+      } else if (shiftSlotCounts.AFTERNOON > 0) {
+        setSelectedShiftId('AFTERNOON');
+      } else if (shiftSlotCounts.MORNING > 0) {
+        setSelectedShiftId('MORNING');
+      } else if (shiftSlotCounts.ALL > 0) {
+        setSelectedShiftId('ALL');
+      }
+    }
+  }, [shiftSlotCounts, selectedShiftId, dynamicSlots]);
+
   // TOÀN BỘ CÁC KHUNG GIỜ CÒN KHẢ DỤNG TRONG NGÀY (Khả dụng, không bị quá giờ, không hết chỗ)
   const availableAllSlots = useMemo(() => {
     const isToday = bookingDate === getTodayISODate();
@@ -2354,6 +2371,9 @@ export default function BookingMethodSelector({
         setAiStep('SELECT_DOCTOR_SLOT');
         const availCount = doctorSchedulesMap[primaryDoc.id]?.availableCount || 0;
         const earliestTime = doctorSchedulesMap[primaryDoc.id]?.earliestSlotTime || '08:00';
+        const earliestHour = parseInt(earliestTime.split(':')[0] || '8', 10);
+        const autoShift = earliestHour < 12 ? 'MORNING' : (earliestHour < 17 ? 'AFTERNOON' : 'EVENING');
+        setSelectedShiftId(autoShift);
 
         const aiMsg: ChatMessage = {
           id: 'msg-' + (Date.now() + 1),
@@ -4829,153 +4849,178 @@ export default function BookingMethodSelector({
                             </span>
                           </div>
 
-                          {/* Bộ lọc bác sĩ */}
-                          <div className="flex flex-wrap gap-1.5">
-                            {[
-                              { id: 'ALL', label: '✨ Tất Cả Bác Sĩ' },
-                              { id: 'EXPERT', label: '🏆 Trưởng Khoa / Chuyên Gia' },
-                              { id: 'MALE', label: '👨‍⚕️ Bác Sĩ Nam' },
-                              { id: 'FEMALE', label: '👩‍⚕️ Bác Sĩ Nữ' },
-                            ].map((f) => {
-                              const isActive = doctorFilter === f.id;
-                              return (
-                                <button
-                                  key={f.id}
-                                  type="button"
-                                  onClick={() => setDoctorFilter(f.id as any)}
-                                  className={`px-2.5 py-1 text-[11px] rounded-full border transition cursor-pointer ${
-                                    isActive
-                                      ? 'bg-purple-600 text-white border-purple-600 font-bold'
-                                      : 'bg-slate-100 hover:bg-purple-50 text-slate-700 border-slate-200'
-                                  }`}
-                                >
-                                  {f.label}
-                                </button>
-                              );
-                            })}
-                          </div>
-
-                          {/* Danh sách Bác sĩ */}
-                          <div className="space-y-2">
-                            {isDoctorsLoading && availableDoctors.length === 0 ? (
-                              <div className="py-6 px-4 bg-slate-50 rounded-xl border border-dashed border-slate-300 text-center flex flex-col items-center justify-center gap-2">
-                                <Loader2 size={20} className="animate-spin text-purple-600" />
-                                <span className="text-xs font-semibold text-slate-600">
-                                  Đang đồng bộ danh sách bác sĩ chuyên khoa từ hệ thống...
-                                </span>
-                              </div>
-                            ) : availableDoctors.length === 0 ? (
-                              <div className="py-5 px-4 bg-amber-50 rounded-2xl border border-amber-200 text-center space-y-2.5">
-                                <p className="text-xs font-bold text-amber-900 flex items-center justify-center gap-1.5">
-                                  <AlertCircle size={15} className="text-amber-600 shrink-0" />
-                                  <span>Cơ sở &quot;{selectedBranch?.shortName}&quot; hiện chưa có Bác sĩ chuyên khoa {activeCategory.specialtyName} làm việc!</span>
-                                </p>
-                                <p className="text-[11px] text-amber-800 leading-relaxed">
-                                  Bác sĩ chuyên môn hiện đang làm việc và tiếp đón bệnh nhân tại <strong>Chi Nhánh TĐN</strong>. Bạn vui lòng chuyển cơ sở để tiếp tục đặt lịch:
-                                </p>
-                                <div className="flex flex-wrap justify-center gap-2 pt-1">
-                                  {branches.filter(b => b.id !== selectedBranch?.id).map(b => (
-                                    <button
-                                      key={b.id}
-                                      type="button"
-                                      onClick={() => setSelectedBranch(b)}
-                                      className="inline-flex items-center gap-1 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer"
-                                    >
-                                      <Building2 size={12} />
-                                      <span>Chuyển sang {b.shortName} ➔</span>
-                                    </button>
-                                  ))}
-                                </div>
-                              </div>
-                            ) : doctorsWithShifts.length === 0 ? (
-                              <div className="py-5 px-4 bg-amber-50 rounded-2xl border border-amber-200 text-center space-y-3">
-                                <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto">
-                                  <Calendar size={20} />
-                                </div>
-                                <div>
-                                  <h4 className="text-xs sm:text-sm font-extrabold text-amber-950">
-                                    Chưa có ca trực vào {bookingDate === getTodayISODate() ? 'Hôm nay' : formatVietnameseFullDate(bookingDate)}
-                                  </h4>
-                                  <p className="text-[11px] text-amber-800 mt-1 max-w-md mx-auto leading-relaxed">
-                                    Bác sĩ chuyên khoa {activeCategory.specialtyName} tại {selectedBranch?.shortName || 'phòng khám'} hiện chưa có ca trực khả dụng vào ngày này. Vui lòng chọn ngày khám khác (ví dụ: Ngày mai) hoặc quay lại sau nhé!
-                                  </p>
-                                </div>
-                                <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const tomorrow = new Date();
-                                      tomorrow.setDate(tomorrow.getDate() + 1);
-                                      setBookingDate(tomorrow.toISOString().split('T')[0]);
-                                    }}
-                                    className="px-3.5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
-                                  >
-                                    <Calendar size={13} />
-                                    <span>📅 Đặt Lịch Khám Vào Ngày Mai ({upcomingWeekdays[1]?.label || 'Ngày mai'}) ➔</span>
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              doctorsWithShifts.map((doc) => {
-                                const isSelected = selectedDoctor?.id === doc.id;
+                          {/* Bộ lọc bác sĩ: Chỉ hiển thị khi có từ 2 bác sĩ trở lên */}
+                          {availableDoctors.length > 1 && (
+                            <div className="flex flex-wrap gap-1.5">
+                              {[
+                                { id: 'ALL', label: '✨ Tất Cả Bác Sĩ' },
+                                { id: 'EXPERT', label: '🏆 Trưởng Khoa / Chuyên Gia' },
+                                { id: 'MALE', label: '👨‍⚕️ Bác Sĩ Nam' },
+                                { id: 'FEMALE', label: '👩‍⚕️ Bác Sĩ Nữ' },
+                              ].map((f) => {
+                                const isActive = doctorFilter === f.id;
                                 return (
-                                  <div
-                                    key={doc.id}
-                                    onClick={() => {
-                                      setSelectedDoctor(doc);
-                                      setSelectedSlotId('');
-                                      setSelectedSlotTime('');
-                                    }}
-                                    className={`p-2.5 rounded-xl border-2 transition cursor-pointer flex items-center justify-between ${
-                                      isSelected
-                                        ? 'bg-purple-50/90 border-purple-600 shadow-2xs ring-1 ring-purple-300'
-                                        : 'bg-white hover:bg-slate-50 border-slate-200'
+                                  <button
+                                    key={f.id}
+                                    type="button"
+                                    onClick={() => setDoctorFilter(f.id as any)}
+                                    className={`px-2.5 py-1 text-[11px] rounded-full border transition cursor-pointer ${
+                                      isActive
+                                        ? 'bg-purple-600 text-white border-purple-600 font-bold'
+                                        : 'bg-slate-100 hover:bg-purple-50 text-slate-700 border-slate-200'
                                     }`}
                                   >
-                                    <div className="flex items-center gap-2.5">
-                                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-extrabold text-sm ${
-                                        isSelected ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-700'
-                                      }`}>
-                                        {doc.gender === 'female' ? '👩‍⚕️' : '👨‍⚕️'}
-                                      </div>
-                                      <div>
-                                        <div className="flex items-center gap-1.5 flex-wrap">
-                                          <h4 className="text-xs font-extrabold text-slate-900 flex items-center gap-1">
-                                            {doc.name}
-                                            {doc.isExpert && (
-                                              <span className="text-[8.5px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.2 rounded flex items-center gap-0.5">
-                                                <Award size={9} /> Chuyên Gia
-                                              </span>
-                                            )}
-                                          </h4>
-                                          {doctorSchedulesMap[doc.id] ? (
-                                            (doctorSchedulesMap[doc.id].availableCount > 0) ? (
-                                              <span className="text-[8.5px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded-full">
-                                                ⚡ Có ca trực ({doctorSchedulesMap[doc.id].availableCount} slot)
-                                              </span>
-                                            ) : (
-                                              <span className="text-[8.5px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded-full">
-                                                🕒 Chưa mở ca ngày này
-                                              </span>
-                                            )
-                                          ) : null}
-                                        </div>
-                                        <p className="text-[10px] text-slate-500 line-clamp-1">{doc.title}</p>
-                                        <p className="text-[9.5px] text-purple-700 font-bold">
-                                          📍 {doc.room} • Phí khám: {doc.fee.toLocaleString('vi-VN')} đ
-                                        </p>
-                                      </div>
-                                    </div>
-                                    <div className={`w-4 h-4 rounded-full flex items-center justify-center border ${
-                                      isSelected ? 'bg-purple-600 border-purple-600 text-white' : 'border-slate-300'
-                                    }`}>
-                                      {isSelected && <Check size={10} />}
-                                    </div>
-                                  </div>
+                                    {f.label}
+                                  </button>
                                 );
-                              })
-                            )}
-                          </div>
+                              })}
+                            </div>
+                          )}
+
+                          {/* Danh sách Bác sĩ: Nếu có từ 2 bác sĩ trở lên thì cho người dùng chọn; nếu chỉ có 1 bác sĩ duy nhất thì hiển thị thẻ thông tin gọn */}
+                          {availableDoctors.length > 1 ? (
+                            <div className="space-y-2">
+                              {isDoctorsLoading && availableDoctors.length === 0 ? (
+                                <div className="py-6 px-4 bg-slate-50 rounded-xl border border-dashed border-slate-300 text-center flex flex-col items-center justify-center gap-2">
+                                  <Loader2 size={20} className="animate-spin text-purple-600" />
+                                  <span className="text-xs font-semibold text-slate-600">
+                                    Đang đồng bộ danh sách bác sĩ chuyên khoa từ hệ thống...
+                                  </span>
+                                </div>
+                              ) : availableDoctors.length === 0 ? (
+                                <div className="py-5 px-4 bg-amber-50 rounded-2xl border border-amber-200 text-center space-y-2.5">
+                                  <p className="text-xs font-bold text-amber-900 flex items-center justify-center gap-1.5">
+                                    <AlertCircle size={15} className="text-amber-600 shrink-0" />
+                                    <span>Cơ sở &quot;{selectedBranch?.shortName}&quot; hiện chưa có Bác sĩ chuyên khoa {activeCategory.specialtyName} làm việc!</span>
+                                  </p>
+                                  <p className="text-[11px] text-amber-800 leading-relaxed">
+                                    Bác sĩ chuyên môn hiện đang làm việc và tiếp đón bệnh nhân tại <strong>Chi Nhánh TĐN</strong>. Bạn vui lòng chuyển cơ sở để tiếp tục đặt lịch:
+                                  </p>
+                                  <div className="flex flex-wrap justify-center gap-2 pt-1">
+                                    {branches.filter(b => b.id !== selectedBranch?.id).map(b => (
+                                      <button
+                                        key={b.id}
+                                        type="button"
+                                        onClick={() => setSelectedBranch(b)}
+                                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer"
+                                      >
+                                        <Building2 size={12} />
+                                        <span>Chuyển sang {b.shortName} ➔</span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              ) : doctorsWithShifts.length === 0 ? (
+                                <div className="py-5 px-4 bg-amber-50 rounded-2xl border border-amber-200 text-center space-y-3">
+                                  <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto">
+                                    <Calendar size={20} />
+                                  </div>
+                                  <div>
+                                    <h4 className="text-xs sm:text-sm font-extrabold text-amber-950">
+                                      Chưa có ca trực vào {bookingDate === getTodayISODate() ? 'Hôm nay' : formatVietnameseFullDate(bookingDate)}
+                                    </h4>
+                                    <p className="text-[11px] text-amber-800 mt-1 max-w-md mx-auto leading-relaxed">
+                                      Bác sĩ chuyên khoa {activeCategory.specialtyName} tại {selectedBranch?.shortName || 'phòng khám'} hiện chưa có ca trực khả dụng vào ngày này. Vui lòng chọn ngày khám khác (ví dụ: Ngày mai) hoặc quay lại sau nhé!
+                                    </p>
+                                  </div>
+                                  <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const tomorrow = new Date();
+                                        tomorrow.setDate(tomorrow.getDate() + 1);
+                                        setBookingDate(tomorrow.toISOString().split('T')[0]);
+                                      }}
+                                      className="px-3.5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                                    >
+                                      <Calendar size={13} />
+                                      <span>📅 Đặt Lịch Khám Vào Ngày Mai ({upcomingWeekdays[1]?.label || 'Ngày mai'}) ➔</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                doctorsWithShifts.map((doc) => {
+                                  const isSelected = selectedDoctor?.id === doc.id;
+                                  return (
+                                    <div
+                                      key={doc.id}
+                                      onClick={() => {
+                                        setSelectedDoctor(doc);
+                                        setSelectedSlotId('');
+                                        setSelectedSlotTime('');
+                                      }}
+                                      className={`p-2.5 rounded-xl border-2 transition cursor-pointer flex items-center justify-between ${
+                                        isSelected
+                                          ? 'bg-purple-50/90 border-purple-600 shadow-2xs ring-1 ring-purple-300'
+                                          : 'bg-white hover:bg-slate-50 border-slate-200'
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-2.5">
+                                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-extrabold text-sm ${
+                                          isSelected ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-700'
+                                        }`}>
+                                          {doc.gender === 'female' ? '👩‍⚕️' : '👨‍⚕️'}
+                                        </div>
+                                        <div>
+                                          <div className="flex items-center gap-1.5 flex-wrap">
+                                            <h4 className="text-xs font-extrabold text-slate-900 flex items-center gap-1">
+                                              {doc.name}
+                                              {doc.isExpert && (
+                                                <span className="text-[8.5px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.2 rounded flex items-center gap-0.5">
+                                                  <Award size={9} /> Chuyên Gia
+                                                </span>
+                                              )}
+                                            </h4>
+                                            {doctorSchedulesMap[doc.id] ? (
+                                              (doctorSchedulesMap[doc.id].availableCount > 0) ? (
+                                                <span className="text-[8.5px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded-full">
+                                                  ⚡ Có ca trực ({doctorSchedulesMap[doc.id].availableCount} slot)
+                                                </span>
+                                              ) : (
+                                                <span className="text-[8.5px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded-full">
+                                                  🕒 Chưa mở ca ngày này
+                                                </span>
+                                              )
+                                            ) : null}
+                                          </div>
+                                          <p className="text-[10px] text-slate-500 line-clamp-1">{doc.title}</p>
+                                          <p className="text-[9.5px] text-purple-700 font-bold">
+                                            📍 {doc.room} • Phí khám: {doc.fee.toLocaleString('vi-VN')} đ
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <div className={`w-4 h-4 rounded-full flex items-center justify-center border ${
+                                        isSelected ? 'bg-purple-600 border-purple-600 text-white' : 'border-slate-300'
+                                      }`}>
+                                        {isSelected && <Check size={10} />}
+                                      </div>
+                                    </div>
+                                  );
+                                })
+                              )}
+                            </div>
+                          ) : availableDoctors.length === 1 ? (
+                            <div className="p-2.5 rounded-xl border border-purple-200 bg-purple-50/80 flex items-center justify-between">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-lg bg-purple-600 text-white flex items-center justify-center text-sm font-bold shrink-0">
+                                  {(selectedDoctor?.gender || availableDoctors[0]?.gender) === 'female' ? '👩‍⚕️' : '👨‍⚕️'}
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <h4 className="text-xs font-extrabold text-slate-900">
+                                      {selectedDoctor?.name || availableDoctors[0]?.name}
+                                    </h4>
+                                    <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded-full">
+                                      ✓ Bác sĩ phụ trách
+                                    </span>
+                                  </div>
+                                  <p className="text-[10px] text-purple-700 font-semibold mt-0.5">
+                                    📍 {selectedDoctor?.room || availableDoctors[0]?.room} • Phí khám: {(selectedDoctor?.fee || availableDoctors[0]?.fee || 300000).toLocaleString('vi-VN')} đ
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          ) : null}
 
                           {/* Khung giờ khám */}
                           <div className="space-y-1.5 pt-1">
