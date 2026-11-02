@@ -1023,9 +1023,9 @@ export interface ClarifyQuestionMeta {
 
 export interface ChatActionOption {
   label: string;
-  actionKey: 'CONFIRM_PROPOSAL_TO_DOCTOR' | 'SELECT_BRANCH' | 'SELECT_SHIFT' | 'CUSTOM_TEXT' | 'CHANGE_DATE' | 'SELECT_ALT_DOCTOR' | 'RESET_SYMPTOMS';
+  actionKey: 'CONFIRM_PROPOSAL_TO_DOCTOR' | 'SELECT_BRANCH' | 'SELECT_SHIFT' | 'CUSTOM_TEXT' | 'CHANGE_DATE' | 'SET_DATE_AND_BRANCH' | 'SELECT_ALT_DOCTOR' | 'RESET_SYMPTOMS' | (string & {});
   payload?: any;
-  variant?: 'primary' | 'secondary' | 'outline';
+  variant?: 'primary' | 'secondary' | 'outline' | 'default';
 }
 
 export interface NurseProposal {
@@ -3402,14 +3402,14 @@ export default function BookingMethodSelector({
                 },
                 ...branches.slice(0, 2).map(branch => ({
                   label: `🏥 Chọn ${branch.shortName}`,
-                  actionKey: 'SELECT_BRANCH',
+                  actionKey: 'SELECT_BRANCH' as const,
                   variant: 'outline' as const,
                   payload: { branch },
                 })),
               ]
             : branches.slice(0, 3).map(branch => ({
                 label: `🏥 Chọn ${branch.shortName}`,
-                actionKey: 'SELECT_BRANCH',
+                actionKey: 'SELECT_BRANCH' as const,
                 variant: 'outline' as const,
                 payload: { branch },
               })),
