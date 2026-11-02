@@ -924,6 +924,8 @@ const getTodayISODate = (): string => {
 };
 
 const isPastAllTodaySlots = (): boolean => {
+  // Khi bật chế độ Develop 24/7: Hệ thống mở xuyên suốt 24/7, không bao giờ coi là hết giờ khám hôm nay
+  if (typeof window !== 'undefined' && getClinicScheduleConfig().devMode247) return false;
   const now = new Date();
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
   return currentMinutes >= 23 * 60; // 23:00 (Phòng khám tiếp nhận ca tối đến 23:30)
@@ -2026,10 +2028,14 @@ export default function BookingMethodSelector({
       if (!selectedDoctor || !doctorsWithShifts.some(d => d.id === selectedDoctor.id)) {
         setSelectedDoctor(doctorsWithShifts[0]);
       }
+    } else if (availableDoctors.length > 0) {
+      if (!selectedDoctor || !availableDoctors.some(d => d.id === selectedDoctor.id)) {
+        setSelectedDoctor(availableDoctors[0]);
+      }
     } else {
       setSelectedDoctor(null);
     }
-  }, [doctorsWithShifts, selectedDoctor, aiStep]);
+  }, [doctorsWithShifts, availableDoctors, selectedDoctor, aiStep]);
 
   // --- CÁC HÀM XỬ LÝ SỰ KIỆN LIỀN MẠCH (ZALO CHAT FLOW) ---
 
@@ -2376,9 +2382,7 @@ export default function BookingMethodSelector({
       const matchingWithoutSlots = matchingDoctors.filter(d => (doctorSchedulesMap[d.id]?.availableCount ?? 0) === 0);
       const otherDoctorsWithSlots = doctorPool.filter(d => !matchingDoctors.some(m => m.id === d.id) && (doctorSchedulesMap[d.id]?.availableCount ?? 0) > 0);
 
-      const primaryDoc = matchingWithSlots.length > 0 
-        ? matchingWithSlots[0] 
-        : (matchingDoctors.length > 0 ? matchingDoctors[0] : null);
+      const primaryDoc = matchingWithSlots.length > 0 ? matchingWithSlots[0] : null;
 
       if (primaryDoc) {
         // ƯU TIÊN HÀNG ĐẦU: BÁC SĨ CHUYÊN KHOA ĐÃ ĐƯỢC XÁC ĐỊNH -> CHUYỂN SANG BƯỚC CHỌN KHUNG GIỜ
@@ -2398,7 +2402,7 @@ export default function BookingMethodSelector({
           id: 'msg-' + (Date.now() + 1),
           sender: 'ai',
           time: getFormattedTime(),
-          text: `Dạ rất rõ ràng và chi tiết! 🩺 Em đã ghi nhận đầy đủ hồ sơ triệu chứng của bạn:\n\n${summaryNote}\n\nTheo định hướng chuyên môn, tình trạng của bạn hoàn toàn phù hợp thăm khám tại **${activeCategory.specialtyName}** (Độ khớp AI: 100%).\n\n👨‍⚕️ **Bác sĩ chuyên môn phụ trách:** **${primaryDoc.name}** (${primaryDoc.room || 'Phòng khám chuyên khoa'}).\n⚡ **Cập nhật thời gian thực:** Bác sĩ đang có ca trực với **${availCount > 0 ? availCount : 'các'} khung giờ khám** trong ngày${availCount > 0 ? ` (khung giờ sớm nhất: **${earliestTime}**)` : ''}.\n\nEm đã chọn sẵn bác sĩ cho bạn. Mời bạn chọn khung giờ khám phù hợp bên dưới để giữ chỗ ngay nhé!`,
+          text: `Dạ rất rõ ràng và chi tiết! 🩺 Em đã ghi nhận đầy đủ hồ sơ triệu chứng của bạn:\n\n${summaryNote}\n\nTheo định hướng chuyên môn, tình trạng của bạn hoàn toàn phù hợp thăm khám tại **${activeCategory.specialtyName}** (Độ khớp AI: 100%).\n\n👨‍⚕️ **Bác sĩ chuyên môn phụ trách:** **${primaryDoc.name}** (${primaryDoc.room || 'Phòng khám chuyên khoa'}).\n⚡ **Cập nhật thời gian thực:** Bác sĩ đang có ca trực với **${availCount} khung giờ khám** trong ngày (khung giờ sớm nhất: **${earliestTime}**).\n\nEm đã chọn sẵn bác sĩ cho bạn. Mời bạn chọn khung giờ khám phù hợp bên dưới để giữ chỗ ngay nhé!`,
           widget: 'SELECT_DOCTOR_SLOT',
           isTypingComplete: false,
         };
@@ -2418,7 +2422,7 @@ export default function BookingMethodSelector({
         id: 'msg-' + (Date.now() + 1),
         sender: 'ai',
         time: getFormattedTime(),
-        text: `Dạ em đã ghi nhận đầy đủ hồ sơ triệu chứng của bạn:\n\n${summaryNote}\n\nTheo định hướng chuyên môn, tình trạng của bạn cần được thăm khám tại **${activeCategory.specialtyName}**.\n\n👨‍⚕️ Bác sĩ **${doctorNames}** tại phòng khám MedSched có thể điều trị những triệu chứng mà bạn nêu, nhưng hiện tại **hôm nay chưa có ca khám mở sẵn** (hoặc các ca khám trong ngày đã kín lịch). Bạn vui lòng quay lại sau hoặc chọn ngày khám khác nhé!${altDoctor ? `\n\n💡 *Gợi ý thay thế:* Nếu bạn cần được thăm khám ban đầu ngay hôm nay, phòng khám có Bác sĩ **${altDoctor.name}** (${altDoctor.specialtyName}) đang có ca trực sẵn sàng tiếp nhận.` : ''}`,
+        text: `Dạ em đã ghi nhận đầy đủ hồ sơ triệu chứng của bạn:\n\n${summaryNote}\n\nTheo định hướng chuyên môn, tình trạng của bạn cần được thăm khám tại **${activeCategory.specialtyName}**.\n\n👨‍⚕️ Bác sĩ **${doctorNames}** tại phòng khám MedSched có thể điều trị những triệu chứng mà bạn nêu, nhưng hiện tại **ngày ${formatVietnameseFullDate(bookingDate)} chưa có ca khám mở sẵn** (hoặc các ca khám trong ngày đã kín lịch). Bạn vui lòng quay lại sau hoặc chọn ngày khám khác nhé!${altDoctor ? `\n\n💡 *Gợi ý thay thế:* Nếu bạn cần được thăm khám ban đầu ngay hôm nay, phòng khám có Bác sĩ **${altDoctor.name}** (${altDoctor.specialtyName}) đang có ca trực sẵn sàng tiếp nhận.` : ''}`,
         widget: 'DOCTOR_NO_SLOTS',
         actionOptions: [
           {
@@ -5982,6 +5986,8 @@ export default function BookingMethodSelector({
                       <span className="text-slate-500 font-medium">⏳ Chờ chọn bác sĩ ở bước tiếp theo</span>
                     ) : selectedDoctor ? (
                       selectedDoctor.name
+                    ) : availableDoctors.length > 0 ? (
+                      availableDoctors[0].name
                     ) : (
                       <span className="text-amber-600 font-medium">⚠️ Chưa có bác sĩ tại cơ sở này</span>
                     )}
