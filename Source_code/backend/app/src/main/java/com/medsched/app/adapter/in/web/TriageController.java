@@ -711,8 +711,8 @@ public class TriageController {
                     .reduce((a, b) -> a + ", " + b)
                     .orElse("Bác sĩ chuyên khoa");
             reply.append("• Bác sĩ **").append(docNames)
-                    .append("** tại phòng khám có thể điều trị những triệu chứng mà bạn nêu, nhưng hiện tại chưa có ca khám sẵn sàng. Bạn vui lòng quay lại sau hoặc chọn ngày khám khác nhé!\n\n")
-                    .append("📞 Hoặc bạn có thể liên hệ hotline 1900 1234 để được nhân viên tiếp đón hỗ trợ xếp ca khám ưu tiên.");
+                    .append("** phụ trách chuyên môn tại phòng khám có thể điều trị những triệu chứng mà bạn nêu, nhưng **hôm nay không có ca trực / ca khám sẵn sàng**.\n\n")
+                    .append("👉 Bạn vui lòng bấm chọn **Đặt lịch ngày mai** hoặc chọn ngày khám khác bên dưới để gặp bác sĩ, hoặc gọi hotline **1900 1234** để nhân viên tiếp đón hỗ trợ nhé!");
             return reply.toString();
         }
 
@@ -749,6 +749,9 @@ public class TriageController {
         data.put("symptoms", symptoms);
         data.put("bookingPath", "/booking");
         data.put("doctors", booking.doctors());
+        boolean hasAvailableDoctors = booking.doctors() != null && booking.doctors().stream()
+                .anyMatch(d -> d.availableSlots() != null && !d.availableSlots().isEmpty());
+        data.put("hasAvailableDoctors", hasAvailableDoctors);
         return data;
     }
 
