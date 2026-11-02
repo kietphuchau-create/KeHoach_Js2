@@ -70,11 +70,14 @@ public class PatientBookingRecommendationService {
                         .limit(3)
                         .map(this::toSlot)
                         .toList();
-                options.add(new DoctorOption(
-                        doctor.getId(), doctorName, doctor.getAcademicTitle(), doctor.getRoomNumber(),
-                        doctor.getConsultationFee() != null ? doctor.getConsultationFee().longValue() : null,
-                        specialty.getId(), specialty.getMedicalCenterId(), slots
-                ));
+                // Chỉ thêm vào gợi ý nếu bác sĩ THỰC SỰ CÓ CA TRỰC / KHUNG GIỜ KHÁM KHẢ DỤNG trên hệ thống
+                if (!slots.isEmpty()) {
+                    options.add(new DoctorOption(
+                            doctor.getId(), doctorName, doctor.getAcademicTitle(), doctor.getRoomNumber(),
+                            doctor.getConsultationFee() != null ? doctor.getConsultationFee().longValue() : null,
+                            specialty.getId(), specialty.getMedicalCenterId(), slots
+                    ));
+                }
             }
         }
 
