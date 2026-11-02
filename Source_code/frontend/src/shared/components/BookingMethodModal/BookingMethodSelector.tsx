@@ -2902,7 +2902,7 @@ export default function BookingMethodSelector({
 
     if (matchedDoc) {
       setSelectedDoctor(matchedDoc);
-      handleProceedToPayment();
+      handleProceedToPayment(matchedDoc, text);
       return;
     }
 
@@ -2927,7 +2927,7 @@ export default function BookingMethodSelector({
 
     // Nếu người dùng đồng ý với bác sĩ hiện tại
     if (intent.isAgreement) {
-      handleProceedToPayment();
+      handleProceedToPayment(undefined, text);
       return;
     }
 
@@ -3565,7 +3565,7 @@ export default function BookingMethodSelector({
   };
 
   // Khởi tạo bản ghi Appointment thực tế trong CSDL Backend
-  const initiateBackendAppointment = async (slotOverride?: { id: string; time: string }): Promise<any> => {
+  const initiateBackendAppointment = async (slotOverride?: { id: string; time: string }, doctorOverride?: DemoDoctor): Promise<any> => {
     const targetSlotId = slotOverride?.id || selectedSlotId;
     const targetSlotTime = slotOverride?.time || selectedSlotTime;
     if (createdAppointment?.id && createdAppointment.slotId === targetSlotId) return createdAppointment;
@@ -3591,7 +3591,7 @@ export default function BookingMethodSelector({
       }
 
       // 2. Tìm Bác sĩ & Chi nhánh hợp lệ (Ưu tiên ID thực từ DB)
-      let docId = selectedDoctor?.id;
+      let docId = doctorOverride?.id || selectedDoctor?.id;
       if (!docId || docId.startsWith('doc-')) {
         const realDoc = dbDoctors.find(d => !d.id.startsWith('doc-')) || dbDoctors[0];
         if (realDoc) docId = realDoc.id;
@@ -3703,16 +3703,17 @@ export default function BookingMethodSelector({
   };
 
   // Bước 4 -> Bước 5: Chuyển sang Xác nhận & Giữ chỗ (Cọc 2k / Ưu đãi)
-  const handleProceedToPayment = async () => {
+  const handleProceedToPayment = async (overrideDoctor?: DemoDoctor, customUserText?: string) => {
+    const docToUse = overrideDoctor || selectedDoctor;
     const selectedRealSlot = shiftSlots.find(slot =>
       slot.id === selectedSlotId && slot.time === selectedSlotTime && !slot.disabled
     );
-    if (!selectedDoctor || !selectedRealSlot || isBookingSubmitting) {
+    if (!docToUse || !selectedRealSlot || isBookingSubmitting) {
       return;
     }
 
     setIsBookingSubmitting(true);
-    const appointment = await initiateBackendAppointment();
+    const appointment = await initiateBackendAppointment(undefined, docToUse);
     if (!appointment?.id) {
       setIsBookingSubmitting(false);
       const aiMsg: ChatMessage = {
@@ -3757,7 +3758,7 @@ export default function BookingMethodSelector({
       id: 'msg-' + Date.now(),
       sender: 'user',
       time: getFormattedTime(),
-      text: `Chọn bác sĩ: ${selectedDoctor?.name || 'Bác sĩ chuyên khoa'} (${selectedDoctor?.room || 'Phòng khám'}) • Khung giờ: ${selectedSlotTime}`,
+      text: customUserText || `Chọn bác sĩ: ${docToUse?.name || 'Bác sĩ chuyên khoa'} (${docToUse?.room || 'Phòng khám'}) • Khung giờ: ${selectedSlotTime}`,
     };
 
     const aiMsg: ChatMessage = {
@@ -4983,7 +4984,7 @@ export default function BookingMethodSelector({
                             <button
                               type="button"
                               disabled={!selectedDoctor || !selectedSlotId || !selectedSlotTime || isSlotsLoading || isBookingSubmitting}
-                              onClick={handleProceedToPayment}
+                              onClick={() => handleProceedToPayment()}
                               className={`w-full py-2.5 px-4 font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 mt-2 ${
                                 !selectedDoctor || !selectedSlotId || !selectedSlotTime || isSlotsLoading || isBookingSubmitting
                                   ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
