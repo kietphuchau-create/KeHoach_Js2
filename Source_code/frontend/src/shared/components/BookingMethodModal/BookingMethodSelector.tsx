@@ -1696,6 +1696,10 @@ export default function BookingMethodSelector({
   // Mã định danh chuyển khoản cọc (duy nhất mỗi phiên đặt khám)
   const [transferBookingCode, setTransferBookingCode] = useState<string>('');
 
+  // Cảnh báo bác sĩ/chuyên khoa không có ca trực trong ngày
+  const [isTriageDoctorOffDuty, setIsTriageDoctorOffDuty] = useState<boolean>(false);
+  const [triageDoctorOffDutyName, setTriageDoctorOffDutyName] = useState<string>('');
+
   // Trạng thái kiểm tra thanh toán
   const [isCheckingManual, setIsCheckingManual] = useState<boolean>(false);
   const [checkManualMessage, setCheckManualMessage] = useState<string>('');
@@ -2456,6 +2460,29 @@ export default function BookingMethodSelector({
         isTypingComplete: false,
       };
 
+      setAiStep('SELECT_DOCTOR_SLOT');
+      setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg, aiMsg]);
+    } else if (opt.actionKey === 'SET_DATE_AND_BRANCH') {
+      const targetDate = (opt.payload?.targetDate as string) || '';
+      const branch = (opt.payload?.branch as ClinicBranch) || branches[0];
+      if (targetDate) setBookingDate(targetDate);
+      if (branch) setSelectedBranch(branch);
+      setIsTriageDoctorOffDuty(false);
+
+      const userMsg: ChatMessage = {
+        id: 'msg-' + Date.now(),
+        sender: 'user',
+        time: getFormattedTime(),
+        text: `Tôi muốn đặt lịch ngày ${formatVietnameseFullDate(targetDate)} tại ${branch?.shortName || ''}`,
+      };
+      const aiMsg: ChatMessage = {
+        id: 'msg-' + (Date.now() + 1),
+        sender: 'ai',
+        time: getFormattedTime(),
+        text: `Dạ em đã cập nhật ngày khám sang **${formatVietnameseFullDate(targetDate)}** tại **${branch?.shortName || ''}** giúp bạn rồi ạ! 📅\n\nDưới đây là danh sách bác sĩ chuyên môn và các khung giờ khám khả dụng. Mời bạn chọn bác sĩ và giờ khám phù hợp bên dưới nhé:`,
+        widget: 'SELECT_DOCTOR_SLOT',
+        isTypingComplete: false,
+      };
       setAiStep('SELECT_DOCTOR_SLOT');
       setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg, aiMsg]);
     } else if (opt.actionKey === 'SELECT_BRANCH') {
@@ -3331,21 +3358,61 @@ export default function BookingMethodSelector({
         setOtherSymptomDetail(bookingSupport.symptoms || text);
 
         // Backend chỉ trả PATIENT_BOOKING_SUPPORT sau khi đã thu thập đủ thông
-        // tin lâm sàng. Từ đây phải chuyển thẳng sang đặt lịch; nếu quay lại
-        // CLARIFY_DETAILS, state nhóm triệu chứng cũ có thể làm hiện câu hỏi
-        // của một bệnh khác (ví dụ đau đầu sau khi vừa sàng lọc đau bụng).
+        // tin lâm sàng. Kiểm tra xem bác sĩ/chuyên khoa có ca trực hôm nay hay không.
+        const hasAvailDocs = bookingSupport?.hasAvailableDoctors ?? (
+          Array.isArray(bookingSupport?.doctors) &&
+          bookingSupport.doctors.length > 0 &&
+          bookingSupport.doctors.some((d: any) => Array.isArray(d.availableSlots) && d.availableSlots.length > 0)
+        );
+        const isDocOffDutyToday = hasAvailDocs === false
+          || summary.includes('chưa có ca khám sẵn sàng')
+          || summary.includes('không có ca trực');
+
+        if (isDocOffDutyToday) {
+          setIsTriageDoctorOffDuty(true);
+          const firstDoc = Array.isArray(bookingSupport?.doctors) && bookingSupport.doctors.length > 0
+            ? (bookingSupport.doctors[0]?.doctorName || '')
+            : '';
+          if (firstDoc) setTriageDoctorOffDutyName(firstDoc);
+        } else {
+          setIsTriageDoctorOffDuty(false);
+          setTriageDoctorOffDutyName('');
+        }
+
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const tomorrowIso = tomorrow.toISOString().split('T')[0];
+        const tomorrowFormatted = formatVietnameseFullDate(tomorrowIso);
+
         const aiMsg: ChatMessage = {
           id: 'msg-' + (Date.now() + 1),
           sender: 'ai',
           time: getFormattedTime(),
-          text: `${summary}\n\nMời bạn chọn cơ sở và ngày khám thuận tiện bên dưới để MedSched tiếp tục sắp xếp bác sĩ và khung giờ phù hợp.`,
+          text: isDocOffDutyToday
+            ? `${summary}\n\n⚠️ **Lưu ý:** Hôm nay chuyên khoa chưa có ca trực sẵn sàng. Bạn vui lòng bấm chọn **Đặt lịch ngày mai (${tomorrowFormatted})** hoặc chọn cơ sở bên dưới để khám vào ngày khác nhé!`
+            : `${summary}\n\nMời bạn chọn cơ sở và ngày khám thuận tiện bên dưới để MedSched tiếp tục sắp xếp bác sĩ và khung giờ phù hợp.`,
           widget: 'INPUT_LOCATION',
-          actionOptions: branches.slice(0, 3).map(branch => ({
-            label: `🏥 Chọn ${branch.shortName}`,
-            actionKey: 'SELECT_BRANCH',
-            variant: 'outline' as const,
-            payload: { branch },
-          })),
+          actionOptions: isDocOffDutyToday
+            ? [
+                {
+                  label: `📅 Đặt lịch ngày mai (${tomorrow.getDate()}/${tomorrow.getMonth() + 1})`,
+                  actionKey: 'SET_DATE_AND_BRANCH',
+                  variant: 'default' as const,
+                  payload: { targetDate: tomorrowIso, branch: branches[0] },
+                },
+                ...branches.slice(0, 2).map(branch => ({
+                  label: `🏥 Chọn ${branch.shortName}`,
+                  actionKey: 'SELECT_BRANCH',
+                  variant: 'outline' as const,
+                  payload: { branch },
+                })),
+              ]
+            : branches.slice(0, 3).map(branch => ({
+                label: `🏥 Chọn ${branch.shortName}`,
+                actionKey: 'SELECT_BRANCH',
+                variant: 'outline' as const,
+                payload: { branch },
+              })),
           isTypingComplete: false,
         };
 
@@ -5592,6 +5659,8 @@ export default function BookingMethodSelector({
                       <span className="text-amber-700 font-semibold">🕒 Chưa có ca khám mở sẵn hôm nay</span>
                     ) : aiStep === 'CHOOSE_SYMPTOM' || aiStep === 'CLARIFY_DETAILS' ? (
                       <span className="text-purple-700 font-medium">🔍 Đang khảo sát triệu chứng...</span>
+                    ) : isTriageDoctorOffDuty && bookingDate === getTodayISODate() ? (
+                      <span className="text-amber-700 font-medium">⚠️ Hôm nay chưa có ca trực</span>
                     ) : aiStep === 'INPUT_LOCATION' ? (
                       <span className="text-slate-500 font-medium">⏳ Chờ chọn bác sĩ ở bước tiếp theo</span>
                     ) : selectedDoctor ? (
@@ -5607,7 +5676,11 @@ export default function BookingMethodSelector({
                 <div>
                   <span className="text-[9.5px] xl:text-[10px] text-slate-400 block font-medium">Ngày &amp; Giờ khám:</span>
                   <span className="font-bold text-purple-700 block text-xs">
-                    {aiStep === 'INPUT_LOCATION' ? (
+                    {isTriageDoctorOffDuty && bookingDate === getTodayISODate() ? (
+                      <span className="text-amber-700 font-semibold block text-[11px]">
+                        ⚠️ Chưa có ca trực hôm nay (Vui lòng chọn ngày khác)
+                      </span>
+                    ) : aiStep === 'INPUT_LOCATION' ? (
                       `${selectedShiftId === 'MORNING' ? 'Buổi Sáng (08:00 - 11:30)' : 'Buổi Chiều (13:30 - 16:00)'} • ${formatVietnameseFullDate(bookingDate)}`
                     ) : (
                       `${selectedSlotTime} • ${formatVietnameseFullDate(bookingDate)}`
