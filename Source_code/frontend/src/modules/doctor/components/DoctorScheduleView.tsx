@@ -305,6 +305,9 @@ export default function DoctorScheduleView() {
 
   // Tính toán khung giờ bắt đầu thông minh theo thời gian thực (làm tròn lên mốc 30 phút kế tiếp nếu là hôm nay)
   const getSmartStartTime = (targetDate: string, defaultStart: string) => {
+    // ĐÃ LÀ CHẾ ĐỘ DEVELOP 24/7: Bác sĩ được tự do chọn mọi khung giờ mà không bị ép giờ
+    if (clinicConfig.devMode247) return defaultStart;
+
     const todayStr = getLocalDateString();
     if (targetDate !== todayStr) return defaultStart;
 
@@ -497,6 +500,9 @@ export default function DoctorScheduleView() {
 
   // Kiểm tra ca trực mẫu đã trôi qua trong ngày hôm nay chưa
   const isShiftPresetExpiredToday = (targetDate: string, shiftEndTime: string, isFullDay: boolean = false) => {
+    // ĐÃ LÀ CHẾ ĐỘ DEVELOP 24/7 THÌ KHÔNG ĐƯỢC KHÓA BẤT KỲ KHUNG GIỜ NÀO
+    if (clinicConfig.devMode247) return false;
+
     const todayStr = getLocalDateString();
     if (targetDate !== todayStr) return false;
 
@@ -621,8 +627,8 @@ export default function DoctorScheduleView() {
     }
     const todayStr = getLocalDateString();
 
-    // Kiểm tra giờ kết thúc không được nằm trong quá khứ của ngày hôm nay
-    if (workDate === todayStr) {
+    // Kiểm tra giờ kết thúc không được nằm trong quá khứ của ngày hôm nay (Bỏ qua khi bật Chế Độ Develop 24/7)
+    if (!clinicConfig.devMode247 && workDate === todayStr) {
       const now = new Date();
       const currentMinutes = now.getHours() * 60 + now.getMinutes();
       const [endH, endM] = endTime.split(':').map(Number);
@@ -710,7 +716,7 @@ export default function DoctorScheduleView() {
   // CLAB-113: Đổi buồng khám phân công (Chỉ cho phép trước 1 ngày / trước 00:00:00)
   const handleOpenChangeRoomModal = (sch: DoctorScheduleDto) => {
     const todayStr = getLocalDateString();
-    if (sch.workDate <= todayStr) {
+    if (!clinicConfig.devMode247 && sch.workDate <= todayStr) {
       alert(`🔒 Quy định phòng khám:\nBuồng khám cho ca trực ngày ${sch.workDate} đã chốt cố định và đồng bộ với phiếu số thứ tự và màn hình LCD tiếp đón.\nBác sĩ chỉ được phép đổi buồng khám trước tối thiểu 1 ngày (trước 00:00:00).`);
       return;
     }
@@ -725,7 +731,7 @@ export default function DoctorScheduleView() {
     e.preventDefault();
     if (!scheduleToChangeRoom) return;
     const todayStr = getLocalDateString();
-    if (scheduleToChangeRoom.workDate <= todayStr) {
+    if (!clinicConfig.devMode247 && scheduleToChangeRoom.workDate <= todayStr) {
       setError(`Theo quy định phòng khám, Bác sĩ chỉ được đổi buồng khám trước tối thiểu 1 ngày (trước 00:00:00). Khi bước sang ngày mới, buồng khám đã chốt cố định.`);
       return;
     }
@@ -2032,8 +2038,8 @@ export default function DoctorScheduleView() {
               const isDayAlreadyRegistered = (dailyHoursSummary?.dailyHours?.[workDate] || 0) > 0;
               const blockedPriorDate = (!isDayAlreadyRegistered && dailyHoursSummary?.incompleteDates ? dailyHoursSummary.incompleteDates.find((d) => d < workDate) : null) || null;
 
-              // Kiểm tra giờ kết thúc có trôi qua trong quá khứ của hôm nay chưa
-              const isEndTimePassedToday = workDate === todayStr && (() => {
+              // Kiểm tra giờ kết thúc có trôi qua trong quá khứ của hôm nay chưa (Bỏ qua khi bật Chế Độ Develop 24/7)
+              const isEndTimePassedToday = !clinicConfig.devMode247 && workDate === todayStr && (() => {
                 const now = new Date();
                 const currentMinutes = now.getHours() * 60 + now.getMinutes();
                 const [endH, endM] = endTime.split(':').map(Number);
