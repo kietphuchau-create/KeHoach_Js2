@@ -2422,7 +2422,7 @@ export default function BookingMethodSelector({
         id: 'msg-' + (Date.now() + 1),
         sender: 'ai',
         time: getFormattedTime(),
-        text: `Dạ em đã ghi nhận đầy đủ hồ sơ triệu chứng của bạn:\n\n${summaryNote}\n\nTheo định hướng chuyên môn, tình trạng của bạn cần được thăm khám tại **${activeCategory.specialtyName}**.\n\n👨‍⚕️ Bác sĩ **${doctorNames}** tại phòng khám MedSched có thể điều trị những triệu chứng mà bạn nêu, nhưng hiện tại **ngày ${formatVietnameseFullDate(bookingDate)} chưa có ca khám mở sẵn** (hoặc các ca khám trong ngày đã kín lịch). Bạn vui lòng quay lại sau hoặc chọn ngày khám khác nhé!${altDoctor ? `\n\n💡 *Gợi ý thay thế:* Nếu bạn cần được thăm khám ban đầu ngay hôm nay, phòng khám có Bác sĩ **${altDoctor.name}** (${altDoctor.specialtyName}) đang có ca trực sẵn sàng tiếp nhận.` : ''}`,
+        text: `Dạ em đã ghi nhận đầy đủ hồ sơ triệu chứng của bạn:\n\n${summaryNote}\n\nTheo định hướng chuyên môn, tình trạng của bạn cần được thăm khám tại **${activeCategory.specialtyName}**.\n\nHiện tại chuyên khoa này **chưa có ca khám / bác sĩ trực mở sẵn trên hệ thống tiếp đón vào ngày ${formatVietnameseFullDate(bookingDate)}**. Bạn vui lòng bấm chọn ngày khám khác bên dưới hoặc quay lại sau nhé!${altDoctor ? `\n\n💡 *Gợi ý thay thế:* Nếu bạn cần được thăm khám ban đầu ngay hôm nay, phòng khám có Bác sĩ **${altDoctor.name}** (${altDoctor.specialtyName}) đang có ca trực sẵn sàng tiếp nhận.` : ''}`,
         widget: 'DOCTOR_NO_SLOTS',
         actionOptions: [
           {
