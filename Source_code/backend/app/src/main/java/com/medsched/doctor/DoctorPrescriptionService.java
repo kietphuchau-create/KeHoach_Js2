@@ -552,9 +552,8 @@ public class DoctorPrescriptionService {
                 try {
                     var payments = paymentRepository.findByAppointmentId(a.getId());
                     if (payments != null && payments.stream().anyMatch(p -> p.getStatus() == PaymentStatus.SUCCEEDED && (
-                            (p.getNote() != null && (p.getNote().toUpperCase().contains("FULL") || p.getNote().toUpperCase().contains("MEDPAY"))) ||
-                            (p.getAmount() != null && p.getAmount().compareTo(new BigDecimal("50000")) > 0) ||
-                            (a.getStatus() == AppointmentStatus.COMPLETED)
+                            (p.getNote() != null && (p.getNote().toUpperCase().contains("FULL") || p.getNote().toUpperCase().contains("THANH_TOAN_VIEN_PHI") || p.getNote().toUpperCase().contains("INVOICE_PAID"))) ||
+                            (p.getAmount() != null && p.getAmount().compareTo(new BigDecimal("50000")) > 0)
                     ))) {
                         invStatus = "PAID";
                     }
