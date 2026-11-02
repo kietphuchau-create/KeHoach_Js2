@@ -75,8 +75,9 @@ function isSpamOrMathOrGibberishInput(text: string): { isInvalid: boolean; messa
   const clean = text.trim();
 
   // a. Phép tính số học hoặc phương trình toán (ví dụ: 1+=, 1+1=, 1+1, 2*3, 5+5, 10/2)
-  // Loại trừ các trường hợp khung giờ y tế như "13:30 - 14:00", "08:00 - 11:30", "1h - 2h", "13h - 14h", "ngày 23/10"
-  const isTimeRange = /\d{1,2}(?::\d{2}|h)\s*(?:-|đến|tới)\s*\d{1,2}(?::\d{2}|h)/i.test(clean) ||
+  // Loại trừ các trường hợp khung giờ y tế như "13:30 - 14:00", "08:00 - 11:30", "1h - 2h", "13h - 14h", "ngày 23/10" hoặc thang đo mức độ đau lâm sàng (5/10, 7/10)
+  const isTimeRange = /^(?:mức\s*độ\s*)?\d{1,2}\/10$/i.test(clean) ||
+                      /\d{1,2}(?::\d{2}|h)\s*(?:-|đến|tới)\s*\d{1,2}(?::\d{2}|h)/i.test(clean) ||
                       /(?:hôm nay|ngày mai|thứ\s*\d|\d{1,2}\/\d{1,2})/i.test(clean);
 
   if (!isTimeRange) {
@@ -197,7 +198,19 @@ function isNonMedicalOrSpamInput(text: string): { isInvalid: boolean; message?: 
     'mụn', 'mun', 'vảy nến', 'vay nen', 'chàm', 'cham', 'sâu răng', 'sau rang',
     'thị lực', 'thi luc', 'khám', 'kham', 'bệnh', 'benh', 'ốm', 'om', 'bị', 'bi',
     'chảy máu', 'chay mau', 'nổi hạch', 'noi hach', 'khó nuốt', 'kho nuot', 'ù tai', 'u tai',
-    'chấn thương', 'chan thuong', 'bỏng', 'bong', 'ngã', 'nga', 'đụng', 'dung'
+    'chấn thương', 'chan thuong', 'bỏng', 'bong', 'ngã', 'nga', 'đụng', 'dung',
+    // Đặc tính lâm sàng / cảm giác khó chịu
+    'âm ỉ', 'am i', 'nhói', 'nhoi', 'quặn', 'quan', 'siết', 'siet',
+    'đè nặng', 'de nang', 'bóp nghẹt', 'bop nghet', 'nóng rát', 'nong rat',
+    'liên tục', 'lien tuc', 'từng cơn', 'tung con', 'co thắt', 'co that',
+    'châm chích', 'cham chich', 'châm kim',
+    // Vị trí định khu lâm sàng
+    'bên trái', 'ben trai', 'bên phải', 'ben phai',
+    'trên rốn', 'tren ron', 'dưới rốn', 'duoi ron', 'quanh rốn', 'quanh ron',
+    'thượng vị', 'thuong vi', 'hạ vị', 'ha vi', 'hạ sườn', 'ha suon',
+    'thái dương', 'thai duong', 'sau gáy', 'sau gay',
+    // Dấu hiệu lâm sàng phủ định / thời gian
+    'không sốt', 'khong sot', 'không đau', 'khong dau', 'không nôn', 'khong non'
   ];
 
   const hasHealthIndicator = HEALTH_INDICATORS.some(kw => lower.includes(kw));
@@ -205,6 +218,34 @@ function isNonMedicalOrSpamInput(text: string): { isInvalid: boolean; message?: 
     return {
       isInvalid: true,
       message: `⚠️ Nội dung "${clean}" dường như không phải là một triệu chứng y tế hoặc vấn đề sức khỏe cần thăm khám.\n\nVui lòng mô tả rõ hơn biểu hiện bất thường trên cơ thể của bạn (ví dụ: *"đau đầu căng thẳng"*, *"sốt về chiều"*, *"đau rát bao tử"*, *"ngứa da nổi hột"*...) hoặc bấm chọn vào các thẻ triệu chứng chuyên khoa bên dưới để bác sĩ hỗ trợ bạn chính xác nhất!`
+    };
+  }
+
+  return { isInvalid: false };
+}
+
+// 4. Kiểm tra riêng cho câu trả lời bổ sung của câu hỏi làm rõ lâm sàng (Clinical Follow-up / Clarification)
+function validateClinicalFollowUp(text: string): { isInvalid: boolean; message?: string } {
+  // Tiền lọc qua bộ lọc spam toàn cục: chặn phép tính (2+2), ký tự đặc biệt lặp, chuỗi gõ phím vô nghĩa (asdfgh)
+  const spamCheck = isSpamOrMathOrGibberishInput(text);
+  if (spamCheck.isInvalid) return spamCheck;
+
+  const clean = text.trim();
+
+  // Chặn nếu chỉ là từ chào hỏi vu vơ hoặc câu cảm thán không chứa nội dung trả lời
+  const greetingsOnly = /^(chào|chao|hi|hello|alo|ê|hey|test|abc|xyz|haha|hihi|hehe)$/i;
+  if (greetingsOnly.test(clean)) {
+    return {
+      isInvalid: true,
+      message: '⚠️ Vui lòng cung cấp thông tin liên quan đến câu hỏi khảo sát lâm sàng của bác sĩ hoặc bấm chọn phương án có sẵn bên trên.'
+    };
+  }
+
+  // Chặn nếu chuỗi quá ngắn (1 ký tự và không phải số thứ tự/mức độ 0-9)
+  if (clean.length === 1 && !/^[0-9]$/.test(clean)) {
+    return {
+      isInvalid: true,
+      message: '⚠️ Câu trả lời quá ngắn. Vui lòng mô tả cụ thể hơn hoặc bấm chọn phương án gợi ý bên trên.'
     };
   }
 
@@ -2031,8 +2072,8 @@ export default function BookingMethodSelector({
       else if (clarifyQuestionIndex === 3) answer = selectedAssociated || activeCategory.associatedOptions[0];
       else answer = selectedFollowup || 'Không có';
     } else if (customAnswer) {
-      // Nếu người dùng tự gõ câu trả lời, kiểm tra ràng buộc không được nhập phép tính hoặc spam
-      const validation = isNonMedicalOrSpamInput(answer);
+      // Nếu người dùng tự gõ câu trả lời bổ sung, kiểm tra ràng buộc không được nhập phép tính hoặc spam
+      const validation = validateClinicalFollowUp(answer);
       if (validation.isInvalid) {
         const userMsg: ChatMessage = {
           id: 'msg-' + Date.now(),
@@ -2897,18 +2938,29 @@ export default function BookingMethodSelector({
 
     // Nếu đang ở bước đầu, cấp cứu, hoặc vừa được cảnh báo giới hạn chuyên môn / chưa có ca khám và muốn nhập triệu chứng khác
     if (aiStep === 'CHOOSE_SYMPTOM' || aiStep === 'EMERGENCY' || aiStep === 'UNSUPPORTED_SPECIALTY' || aiStep === 'DOCTOR_NO_SLOTS') {
-      // 1. Kiểm tra tiền lọc ràng buộc y tế: Phép tính, spam, câu vô nghĩa
-      const validation = isNonMedicalOrSpamInput(text);
+      const hasPriorUserMessage = messages.some(m => m.sender === 'user');
+      const lastAiMsg = [...messages].reverse().find(m => m.sender === 'ai');
+      const isClinicalFollowUp = hasPriorUserMessage || Boolean(lastAiMsg?.quickReplies && lastAiMsg.quickReplies.length > 0);
+
+      // 1. Kiểm tra tiền lọc ràng buộc y tế theo ngữ cảnh:
+      // - Nếu đang trả lời câu hỏi làm rõ lâm sàng (Follow-up): chỉ chặn spam/toán/vô nghĩa (chấp nhận "âm ỉ", "nhói", "bên trái", "2 ngày", "5/10")
+      // - Nếu là triệu chứng khởi đầu: yêu cầu có từ khóa y tế/sức khỏe hợp lệ
+      const validation = isClinicalFollowUp
+        ? validateClinicalFollowUp(text)
+        : isNonMedicalOrSpamInput(text);
+
       if (validation.isInvalid) {
         const warningMsg: ChatMessage = {
           id: 'msg-' + (Date.now() + 1),
           sender: 'ai',
           time: getFormattedTime(),
           text: validation.message || 'Nội dung bạn vừa nhập không phải là triệu chứng y tế hợp lệ.',
-          widget: 'CHOOSE_SYMPTOM',
+          widget: isClinicalFollowUp ? undefined : 'CHOOSE_SYMPTOM',
           isTypingComplete: false,
         };
-        setAiStep('CHOOSE_SYMPTOM');
+        if (!isClinicalFollowUp) {
+          setAiStep('CHOOSE_SYMPTOM');
+        }
         setMessages(prev => [...prev, userMsg, warningMsg]);
         return;
       }
