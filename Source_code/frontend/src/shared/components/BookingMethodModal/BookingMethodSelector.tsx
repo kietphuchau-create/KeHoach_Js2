@@ -2855,17 +2855,16 @@ export default function BookingMethodSelector({
       if (nextRealSlot) setSelectedSlotId(nextRealSlot.id);
       if (intent.matchedDate) setBookingDate(intent.matchedDate);
 
-      if (selectedDoctor && nextRealSlot) {
-        const explanation = `Dạ, khung giờ bạn vừa yêu cầu rơi vào **giờ nghỉ trưa của phòng khám (từ 11:00 đến 13:30)** nên phòng khám tạm ngưng đón bệnh để bác sĩ nghỉ ngơi.\n\n• **Ca sáng:** Làm việc từ **08:00 đến 11:00**.\n• **Ca chiều:** Bắt đầu đón tiếp trở lại từ **13:30**.\n\nVì vậy, em đã chuyển lịch khám sang khung giờ sớm nhất của ca chiều là **${targetSlotTime}** cùng Bác sĩ **${selectedDoctor.name}** (${selectedDoctor.room || 'Phòng khám'}) giúp bạn rồi nhé! 🩺`;
-        handleProceedToPayment(selectedDoctor, text, nextRealSlot, explanation);
-        return;
-      }
-
       const aiMsg: ChatMessage = {
         id: 'msg-' + (Date.now() + 1),
         sender: 'ai',
         time: getFormattedTime(),
-        text: `Dạ, khung giờ bạn vừa yêu cầu rơi vào **giờ nghỉ trưa của phòng khám (từ 11:00 đến 13:30)** nên phòng khám tạm ngưng đón bệnh để bác sĩ nghỉ ngơi.\n\n• **Ca sáng:** Làm việc từ **08:00 đến 11:00** (khung giờ cuối cùng là 10:30 - 11:00).\n• **Ca chiều:** Bắt đầu đón tiếp trở lại từ **13:30**.\n\nVì vậy, em đã chuyển lịch khám của bạn sang khung giờ sớm nhất của ca chiều là **${targetSlotTime}**${nextRealSlot ? ' (khớp theo lịch trực thực tế của bác sĩ)' : ''}.${selectedDoctor ? ` Em đã giữ lịch cùng Bác sĩ **${selectedDoctor.name}** giúp bạn rồi nhé!` : ' Bạn hãy kiểm tra và tiếp tục các bước bên dưới nhé!'}`,
+        text: `Dạ, khung giờ bạn vừa yêu cầu rơi vào **giờ nghỉ trưa của phòng khám (từ 11:00 đến 13:30)** nên phòng khám tạm ngưng đón bệnh để bác sĩ nghỉ ngơi.\n\n• **Ca sáng:** Làm việc từ **08:00 đến 11:00**.\n• **Ca chiều:** Bắt đầu đón tiếp trở lại từ **13:30**.\n\n👉 Em đã chọn sẵn khung giờ sớm nhất của ca chiều là **${targetSlotTime}**${selectedDoctor ? ` cùng Bác sĩ **${selectedDoctor.name}** (${selectedDoctor.room || 'Phòng khám'})` : ''}.\n\nBạn có đồng ý khám vào khung giờ **${targetSlotTime}** này để em chuẩn bị hồ sơ giữ chỗ không ạ?`,
+        widget: 'SELECT_DOCTOR_SLOT',
+        quickReplies: [
+          `Đồng ý khám ${targetSlotTime}`,
+          'Xem lịch ngày mai',
+        ],
         isTypingComplete: false,
       };
       setMessages(prev => [...prev, userMsg, aiMsg]);
@@ -2902,21 +2901,21 @@ export default function BookingMethodSelector({
         if (nextSlotTime) {
           const nextStart = nextRealSlot?.startMinutes ?? nextStartMinutes;
           const nextShift = nextStart < 720 ? 'MORNING' : (nextStart < 1020 ? 'AFTERNOON' : 'EVENING');
+          const shiftLabel = nextShift === 'MORNING' ? 'ca sáng' : (nextShift === 'AFTERNOON' ? 'ca chiều' : 'ca tối & đêm');
           setSelectedShiftId(nextShift);
           setSelectedSlotTime(nextSlotTime);
-          setSelectedSlotId(nextRealSlot?.id || '');
-
-          if (selectedDoctor && nextRealSlot) {
-            const explanation = `Dạ, bạn đã chọn khung **${intent.proposedSlot}** cho hôm nay. Tuy nhiên, khung giờ này ${pastReason}; thời điểm hiện tại là **${currentTimeText}**, nên hệ thống không thể tiếp nhận đặt lịch cho giờ đã qua.\n\nVì vậy, em đã tự động chuyển sang khung gần nhất còn trống lúc **${nextSlotTime}** cùng Bác sĩ **${selectedDoctor.name}** (${selectedDoctor.room || 'Phòng khám'}) giúp bạn rồi ạ! 🩺`;
-            handleProceedToPayment(selectedDoctor, text, nextRealSlot, explanation);
-            return;
-          }
+          if (nextRealSlot) setSelectedSlotId(nextRealSlot.id);
 
           const aiMsg: ChatMessage = {
             id: 'msg-' + (Date.now() + 1),
             sender: 'ai',
             time: getFormattedTime(),
-            text: `Dạ, bạn đã chọn khung **${intent.proposedSlot}** cho hôm nay. Tuy nhiên, khung giờ này ${pastReason}; thời điểm hiện tại là **${currentTimeText}**, nên hệ thống không thể tiếp nhận đặt lịch cho giờ đã qua.\n\nVì vậy, em đã chuyển sang khung gần nhất phù hợp là **${nextSlotTime}**.${selectedDoctor ? ` Em đã giữ lịch cùng Bác sĩ **${selectedDoctor.name}** cho bạn rồi nhé!` : ' Bạn hãy bấm chọn Bác sĩ bên dưới để tiếp tục nhé!'}`,
+            text: `Dạ, bạn đã chọn khung **${intent.proposedSlot}** cho hôm nay. Tuy nhiên, khung giờ này ${pastReason}; thời điểm hiện tại là **${currentTimeText}**, nên hệ thống không thể tiếp nhận đặt lịch cho giờ đã qua.\n\n👉 Em đã tìm thấy khung giờ gần nhất còn trống hôm nay là **${nextSlotTime}** (${shiftLabel})${selectedDoctor ? ` cùng Bác sĩ **${selectedDoctor.name}** (${selectedDoctor.room || 'Phòng khám'})` : ''}.\n\nBạn có đồng ý đặt khám vào khung giờ **${nextSlotTime}** này để em chuẩn bị hồ sơ giữ chỗ không ạ?`,
+            widget: 'SELECT_DOCTOR_SLOT',
+            quickReplies: [
+              `Đồng ý khám ${nextSlotTime}`,
+              'Xem lịch ngày mai',
+            ],
             isTypingComplete: false,
           };
           setMessages(prev => [...prev, userMsg, aiMsg]);
@@ -2948,17 +2947,16 @@ export default function BookingMethodSelector({
         setSelectedSlotTime(targetSlot.time);
       }
 
-      if (selectedDoctor && targetSlot) {
-        const explanation = `Dạ em đã cập nhật khung giờ khám của bạn sang **${targetSlot.time}** cùng Bác sĩ **${selectedDoctor.name}** (${selectedDoctor.room || 'Phòng khám'}) rồi nhé! 🩺`;
-        handleProceedToPayment(selectedDoctor, text, targetSlot, explanation);
-        return;
-      }
-
       const aiMsg: ChatMessage = {
         id: 'msg-' + (Date.now() + 1),
         sender: 'ai',
         time: getFormattedTime(),
-        text: `Dạ em đã chuyển khung giờ khám của bạn sang **${intent.proposedSlot}** rồi nhé! ${selectedDoctor ? `(Bác sĩ phụ trách: **${selectedDoctor.name}**)` : 'Bạn hãy bấm chọn Bác sĩ bên dưới để tiếp tục nhé!'}`,
+        text: `Dạ em đã cập nhật khung giờ khám sang **${intent.proposedSlot}**${selectedDoctor ? ` cùng Bác sĩ **${selectedDoctor.name}** (${selectedDoctor.room || 'Phòng khám'})` : ''} rồi nhé!\n\nBạn có đồng ý đặt khám vào khung giờ này để em chuẩn bị hồ sơ giữ chỗ không ạ?`,
+        widget: 'SELECT_DOCTOR_SLOT',
+        quickReplies: [
+          `Đồng ý khám ${intent.proposedSlot}`,
+          'Chọn khung giờ khác',
+        ],
         isTypingComplete: false,
       };
       setMessages(prev => [...prev, userMsg, aiMsg]);
