@@ -1545,7 +1545,7 @@ export default function BookingMethodSelector({
 
   useEffect(() => {
     let isCancelled = false;
-    api.getDoctorSchedules(undefined, bookingDate, bookingDate)
+    api.getDoctorSchedules('ALL', bookingDate, bookingDate)
       .then((schedules: any[]) => {
         if (isCancelled) return;
         const map: Record<string, {
@@ -2391,10 +2391,49 @@ export default function BookingMethodSelector({
         return;
       }
 
+      // ĐỒNG BỘ LỊCH TRỰC THỜI GIAN THỰC TỪ CSDL CHO TẤT CẢ BÁC SĨ (DÙNG 'ALL' ĐỂ LẤY TOÀN VIỆN)
+      let activeSchedulesMap = doctorSchedulesMap;
+      try {
+        const freshSchedules = await api.getDoctorSchedules('ALL', bookingDate, bookingDate);
+        if (Array.isArray(freshSchedules)) {
+          const isToday = bookingDate === getTodayISODate();
+          const isDev247 = typeof window !== 'undefined' ? getClinicScheduleConfig().devMode247 : false;
+          const now = new Date();
+          const currentMinutes = now.getHours() * 60 + now.getMinutes();
+          const map: Record<string, any> = {};
+
+          freshSchedules.forEach((s: any) => {
+            if (!s.doctorId) return;
+            const validSlots = Array.isArray(s.slots) ? s.slots.filter((slot: any) => {
+              if (slot.status !== 'AVAILABLE') return false;
+              if (isToday && slot.startTime && !isDev247) {
+                const parts = slot.startTime.split(':');
+                const startMin = parseInt(parts[0], 10) * 60 + parseInt(parts[1] || '0', 10);
+                return startMin > currentMinutes;
+              }
+              return true;
+            }) : [];
+
+            map[s.doctorId] = {
+              hasSchedule: s.status === 'ACTIVE',
+              availableCount: validSlots.length,
+              totalSlots: s.totalSlots || 0,
+              bookedSlots: s.bookedSlots || 0,
+              earliestSlotTime: validSlots.length > 0 ? validSlots[0].startTime : undefined,
+              roomNumber: s.roomNumber,
+            };
+          });
+          activeSchedulesMap = map;
+          setDoctorSchedulesMap(map);
+        }
+      } catch (err) {
+        console.warn('Không thể đồng bộ lịch trực mới nhất:', err);
+      }
+
       // KIỂM TRA SỐ LƯỢNG CA KHÁM VÀ SLOT KHẢ DỤNG THỜI GIAN THỰC TỪ CSDL
-      const matchingWithSlots = matchingDoctors.filter(d => (doctorSchedulesMap[d.id]?.availableCount ?? 0) > 0);
-      const matchingWithoutSlots = matchingDoctors.filter(d => (doctorSchedulesMap[d.id]?.availableCount ?? 0) === 0);
-      const otherDoctorsWithSlots = doctorPool.filter(d => !matchingDoctors.some(m => m.id === d.id) && (doctorSchedulesMap[d.id]?.availableCount ?? 0) > 0);
+      const matchingWithSlots = matchingDoctors.filter(d => (activeSchedulesMap[d.id]?.availableCount ?? 0) > 0);
+      const matchingWithoutSlots = matchingDoctors.filter(d => (activeSchedulesMap[d.id]?.availableCount ?? 0) === 0);
+      const otherDoctorsWithSlots = doctorPool.filter(d => !matchingDoctors.some(m => m.id === d.id) && (activeSchedulesMap[d.id]?.availableCount ?? 0) > 0);
 
       const primaryDoc = matchingWithSlots.length > 0 ? matchingWithSlots[0] : null;
 
@@ -2406,8 +2445,8 @@ export default function BookingMethodSelector({
           if (matchBranch) setSelectedBranch(matchBranch);
         }
         setAiStep('SELECT_DOCTOR_SLOT');
-        const availCount = doctorSchedulesMap[primaryDoc.id]?.availableCount || 0;
-        const earliestTime = doctorSchedulesMap[primaryDoc.id]?.earliestSlotTime || '08:00';
+        const availCount = activeSchedulesMap[primaryDoc.id]?.availableCount || 0;
+        const earliestTime = activeSchedulesMap[primaryDoc.id]?.earliestSlotTime || '08:00';
         const earliestHour = parseInt(earliestTime.split(':')[0] || '8', 10);
         const autoShift = earliestHour < 8 ? 'ALL' : (earliestHour < 12 ? 'MORNING' : (earliestHour < 17 ? 'AFTERNOON' : 'EVENING'));
         setSelectedShiftId(autoShift);
