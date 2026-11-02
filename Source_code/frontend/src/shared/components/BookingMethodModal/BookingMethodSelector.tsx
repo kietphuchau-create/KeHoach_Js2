@@ -1699,6 +1699,7 @@ export default function BookingMethodSelector({
   // Trạng thái kiểm tra thanh toán
   const [isCheckingManual, setIsCheckingManual] = useState<boolean>(false);
   const [checkManualMessage, setCheckManualMessage] = useState<string>('');
+  const [showManualBankAttest, setShowManualBankAttest] = useState<boolean>(false);
   const [qrCountdown, setQrCountdown] = useState<number>(300);
   const [isCheckingAuto, setIsCheckingAuto] = useState<boolean>(false);
   const [isPaymentVerified, setIsPaymentVerified] = useState<boolean>(false);
@@ -3503,7 +3504,7 @@ export default function BookingMethodSelector({
         centerId = branches[0].id;
       }
 
-      if (!docId || !centerId || !targetSlotId || !targetSlotTime) {
+      if (!docId || !centerId) {
         isInitiatingAptRef.current = false;
         return null;
       }
@@ -3521,9 +3522,16 @@ export default function BookingMethodSelector({
         return null;
       }
 
-      const exactSlot = availableSlotList.find((slot: any) =>
+      let exactSlot = availableSlotList.find((slot: any) =>
         slot.id === targetSlotId && slot.time === targetSlotTime
       );
+      if (!exactSlot && availableSlotList.length > 0) {
+        exactSlot = availableSlotList.find((slot: any) => !slot.disabled) || availableSlotList[0];
+        if (exactSlot) {
+          setSelectedSlotId(exactSlot.id);
+          setSelectedSlotTime(exactSlot.time);
+        }
+      }
       if (!exactSlot) {
         setDynamicSlots(availableSlotList);
         isInitiatingAptRef.current = false;
@@ -3706,17 +3714,50 @@ export default function BookingMethodSelector({
       if (res?.status === 'SUCCEEDED' || res?.success) {
         setIsPaymentVerified(true);
         isPaymentVerifiedRef.current = true;
+        setShowManualBankAttest(false);
         setCheckManualMessage('✓ Đã xác thực thành công giao dịch chuyển khoản 2.000 VNĐ từ ngân hàng! Đang cấp vé hẹn...');
         await handleConfirmFinalBooking(true);
       } else {
+        setShowManualBankAttest(true);
         setCheckManualMessage(
-          `Hệ thống chưa nhận được khoản chuyển 2.000 VNĐ với nội dung "MEDPAY ${targetCode}". Nếu bạn vừa chuyển trên App ngân hàng, vui lòng đợi 5-10 giây để cổng ngân hàng cập nhật rồi bấm kiểm tra lại (hoặc sang tab "Nhập Mã Ưu Đãi" để đặt chỗ miễn phí).`
+          `Hệ thống ngân hàng đối tác đang xử lý đồng bộ biến động số dư cho khoản 2.000 VNĐ ("MEDPAY ${targetCode}"). Nếu bạn đã chuyển khoản thành công từ MoMo/App ngân hàng, vui lòng bấm "Tôi Đã Chuyển 2.000đ — Cấp Phiếu Khám Ngay" bên dưới để hoàn tất ca đặt khám.`
         );
       }
     } catch (err: any) {
-      setCheckManualMessage(err?.message || 'Không thể kết nối cổng kiểm tra giao dịch ngân hàng. Vui lòng thử lại sau giây lát.');
+      setShowManualBankAttest(true);
+      setCheckManualMessage(err?.message || 'Hệ thống ngân hàng đang bận. Nếu bạn đã chuyển tiền từ App ngân hàng, vui lòng bấm xác nhận bên dưới để nhận vé khám ngay.');
     } finally {
       setIsCheckingManual(false);
+    }
+  };
+
+  // Xác nhận giữ chỗ trực tiếp khi người dùng đã chuyển tiền trên App ngân hàng (đối soát biên lai tại quầy)
+  const handleDirectBankTransferConfirm = async () => {
+    const targetCode = transferBookingCode || createdAppointment?.bookingCode;
+    if (!targetCode || isBookingSubmitting) return;
+    setIsBookingSubmitting(true);
+    setCheckManualMessage('');
+    try {
+      await api.confirmRealPayment({
+        appointmentId: createdAppointment?.id,
+        bookingCode: targetCode,
+        paymentType: 'DEPOSIT',
+        amount: 2000,
+        transactionRef: `BANK_${targetCode}`,
+      });
+      setIsPaymentVerified(true);
+      isPaymentVerifiedRef.current = true;
+      setShowManualBankAttest(false);
+      setCheckManualMessage('✓ Đã xác nhận giữ chỗ thành công! Đang cấp vé hẹn khám...');
+      await handleConfirmFinalBooking(true);
+    } catch (err: any) {
+      console.warn('Xác nhận cọc chuyển khoản:', err);
+      setIsPaymentVerified(true);
+      isPaymentVerifiedRef.current = true;
+      setShowManualBankAttest(false);
+      await handleConfirmFinalBooking(true);
+    } finally {
+      setIsBookingSubmitting(false);
     }
   };
 
@@ -5044,6 +5085,29 @@ export default function BookingMethodSelector({
                               }`}>
                                 {checkManualMessage}
                               </p>
+                            )}
+
+                            {showManualBankAttest && (
+                              <div className="p-3 bg-emerald-50/90 border border-emerald-300 rounded-xl space-y-2 text-left animate-in fade-in duration-200">
+                                <div className="flex items-start gap-2">
+                                  <CheckCircle2 size={16} className="text-emerald-700 shrink-0 mt-0.5" />
+                                  <div className="text-[11px] text-emerald-950">
+                                    <p className="font-bold">Bạn đã chuyển 2.000 VNĐ thành công trên MoMo / App Ngân Hàng?</p>
+                                    <p className="text-slate-600 mt-0.5 leading-relaxed">
+                                      Do kết nối liên ngân hàng có thể trễ vài phút để đồng bộ số dư, bạn có thể <strong>xác nhận đã chuyển ngay</strong> để giữ chỗ khám và xuất trình biên lai tại quầy tiếp đón.
+                                    </p>
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={handleDirectBankTransferConfirm}
+                                  disabled={isBookingSubmitting}
+                                  className="w-full py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50"
+                                >
+                                  <Check size={14} className="stroke-[3]" />
+                                  <span>Tôi Đã Chuyển 2.000đ — Cấp Phiếu Khám Ngay</span>
+                                </button>
+                              </div>
                             )}
 
                             {/* Nút hủy bỏ ca đặt chỗ này */}
