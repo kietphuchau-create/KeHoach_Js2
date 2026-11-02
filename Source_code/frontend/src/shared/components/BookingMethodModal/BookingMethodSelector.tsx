@@ -1158,13 +1158,15 @@ function parsePatientBookingIntent(
   const explicitRangeMatch = text.match(/(?:^|\s)(\d{1,2})(?:h|:)?(\d{2})?\s*(?:-|–|đến|tới)/i);
   let explicitRangeStartMinutes: number | null = null;
   if (explicitRangeMatch) {
-    let hour = Number(explicitRangeMatch[1]);
+    const rawHourStr = explicitRangeMatch[1];
+    let hour = Number(rawHourStr);
     const minute = Number(explicitRangeMatch[2] || 0);
     // Nếu có nói rõ 'chiều'/'pm' thì cộng 12h (VD: 1h chiều -> 13h).
-    // Nếu KHÔNG nói rõ 'sáng'/'am'/'đêm', và KHÔNG bật devMode247, và từ 1 đến 6h thì mới cộng 12h:
+    // Nếu có số 0 ở đầu (VD: '01', '02', '03') thì là chuẩn giờ 24h ban đêm, KHÔNG cộng 12.
+    const isLeadingZero24h = rawHourStr.length === 2 && rawHourStr.startsWith('0');
     if (isAfternoonExplicit && hour >= 1 && hour <= 6) {
       hour += 12;
-    } else if (!isNightOrMorningExplicit && !isDev247 && hour >= 1 && hour <= 6) {
+    } else if (!isNightOrMorningExplicit && !isDev247 && !isLeadingZero24h && hour >= 1 && hour <= 6) {
       hour += 12;
     }
     if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
@@ -1174,14 +1176,16 @@ function parsePatientBookingIntent(
     // Hỗ trợ dạng giờ đơn lẻ: "1h", "5h", "17h", "18h30", "19h", "13:30", "5h chiều"
     const singleTimeMatch = text.match(/(?:^|\s)(?:lúc|khoảng|tầm)?\s*(\d{1,2})(?:h|:)(\d{2})?(?:\s*(chiều|tối|sáng|đêm|am|pm))?/i);
     if (singleTimeMatch) {
-      let hour = Number(singleTimeMatch[1]);
+      const rawHourStr = singleTimeMatch[1];
+      let hour = Number(rawHourStr);
       const minute = Number(singleTimeMatch[2] || 0);
       const period = singleTimeMatch[3]?.toLowerCase() || '';
       const isMorning = period === 'sáng' || period === 'đêm' || period === 'am' || isNightOrMorningExplicit;
       const isAfternoon = period === 'chiều' || period === 'tối' || period === 'pm' || isAfternoonExplicit;
+      const isLeadingZero24h = rawHourStr.length === 2 && rawHourStr.startsWith('0');
       if (isAfternoon && hour >= 1 && hour <= 6) {
         hour += 12;
-      } else if (!isMorning && !isDev247 && hour >= 1 && hour <= 6) {
+      } else if (!isMorning && !isDev247 && !isLeadingZero24h && hour >= 1 && hour <= 6) {
         hour += 12;
       }
       if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
@@ -2925,13 +2929,50 @@ export default function BookingMethodSelector({
 
     // 0a. Nếu người dùng đồng ý với khung giờ hoặc bác sĩ đã gợi ý
     if (intent.isAgreement) {
+      // Trích xuất trực tiếp giờ nếu người dùng click quick reply dạng "Đồng ý khám 02:30 - 03:00"
+      const agreeTimeMatch = text.match(/đồng ý\s*(?:đặt\s*)?khám\s*([0-2]?\d:[0-5]\d\s*-\s*[0-2]?\d:[0-5]\d)/i)
+        || text.match(/([0-2]?\d:[0-5]\d\s*-\s*[0-2]?\d:[0-5]\d)/);
+      const explicitAgreedTime = agreeTimeMatch ? agreeTimeMatch[1].replace(/\s+/g, ' ') : null;
+
       const slotPool = availableAllSlots.length > 0 ? availableAllSlots : shiftSlots;
-      const targetSlot = (intent.proposedSlot ? slotPool.find(s => !s.disabled && (s.time === intent.proposedSlot || s.time.startsWith(intent.proposedSlot!.split(' - ')[0]))) : null)
+      let targetSlot = (explicitAgreedTime ? slotPool.find(s => !s.disabled && (s.time === explicitAgreedTime || s.time.startsWith(explicitAgreedTime.split(' - ')[0]))) : null)
+        || (intent.proposedSlot ? slotPool.find(s => !s.disabled && (s.time === intent.proposedSlot || s.time.startsWith(intent.proposedSlot!.split(' - ')[0]))) : null)
         || (selectedSlotId ? slotPool.find(s => s.id === selectedSlotId) : null)
         || (selectedSlotTime ? slotPool.find(s => s.time === selectedSlotTime || s.time.startsWith(selectedSlotTime.split(' - ')[0])) : null)
         || slotPool.find(s => !s.disabled);
 
-      handleProceedToPayment(selectedDoctor || undefined, text, targetSlot);
+      // Nếu trong slotPool chưa có (ví dụ do filter), tìm tiếp trong dynamicSlots
+      if (!targetSlot && dynamicSlots.length > 0) {
+        const matchDynamic = dynamicSlots.find(s =>
+          !s.disabled && s.status !== 'full' && s.status !== 'expired' && s.status !== 'locked' && (
+            (explicitAgreedTime && (s.time === explicitAgreedTime || s.time.startsWith(explicitAgreedTime.split(' - ')[0]))) ||
+            (intent.proposedSlot && (s.time === intent.proposedSlot || s.time.startsWith(intent.proposedSlot.split(' - ')[0])))
+          )
+        );
+        if (matchDynamic) {
+          targetSlot = {
+            id: matchDynamic.id,
+            time: matchDynamic.time,
+            startMinutes: matchDynamic.startMinutes,
+            session: ((matchDynamic.startMinutes < 480 || matchDynamic.startMinutes >= 1020) ? 'EVENING' : (matchDynamic.startMinutes < 720 ? 'MORNING' : 'AFTERNOON')) as any,
+            disabled: false,
+            label: matchDynamic.label || 'Khả dụng',
+          };
+        }
+      }
+
+      // Nếu vẫn chưa có slot object nhưng có khung giờ rõ ràng từ AI/người dùng
+      const slotToUse = targetSlot || (explicitAgreedTime ? { id: `slot-${explicitAgreedTime.replace(/[^0-9]/g, '')}`, time: explicitAgreedTime } : undefined);
+
+      if (slotToUse) {
+        setSelectedSlotId(slotToUse.id);
+        setSelectedSlotTime(slotToUse.time);
+        if ((slotToUse as any).session) {
+          setSelectedShiftId((slotToUse as any).session);
+        }
+      }
+
+      handleProceedToPayment(selectedDoctor || undefined, text, slotToUse);
       return;
     }
 
@@ -3997,12 +4038,45 @@ export default function BookingMethodSelector({
     const targetSlotTime = overrideSlot?.time || selectedSlotTime;
 
     const slotPool = availableAllSlots.length > 0 ? availableAllSlots : shiftSlots;
-    const selectedRealSlot = slotPool.find(slot =>
+    let selectedRealSlot = slotPool.find(slot =>
       !slot.disabled && (
         (targetSlotId && slot.id === targetSlotId) ||
         (targetSlotTime && (slot.time === targetSlotTime || slot.time.startsWith(targetSlotTime.split(' - ')[0])))
       )
     );
+
+    // Fallback 1: Nếu trong availableAllSlots chưa có (ví dụ do filter), tìm tiếp trong dynamicSlots
+    if (!selectedRealSlot && dynamicSlots.length > 0) {
+      const matchDynamic = dynamicSlots.find(slot =>
+        !slot.disabled && slot.status !== 'full' && slot.status !== 'expired' && slot.status !== 'locked' && (
+          (targetSlotId && slot.id === targetSlotId) ||
+          (targetSlotTime && (slot.time === targetSlotTime || slot.time.startsWith(targetSlotTime.split(' - ')[0])))
+        )
+      );
+      if (matchDynamic) {
+        selectedRealSlot = {
+          id: matchDynamic.id,
+          time: matchDynamic.time,
+          startMinutes: matchDynamic.startMinutes,
+          session: ((matchDynamic.startMinutes < 480 || matchDynamic.startMinutes >= 1020) ? 'EVENING' : (matchDynamic.startMinutes < 720 ? 'MORNING' : 'AFTERNOON')) as any,
+          disabled: false,
+          label: matchDynamic.label || 'Khả dụng',
+        };
+      }
+    }
+
+    // Fallback 2: Nếu có overrideSlot rõ ràng (ví dụ do AI tìm được hoặc người dùng bấm Quick Reply)
+    if (!selectedRealSlot && overrideSlot?.time) {
+      const startM = parseInt(overrideSlot.time.split(':')[0] || '8', 10) * 60 + parseInt(overrideSlot.time.split(':')[1] || '0', 10);
+      selectedRealSlot = {
+        id: overrideSlot.id || `slot-${overrideSlot.time.replace(/[^0-9]/g, '')}`,
+        time: overrideSlot.time,
+        startMinutes: startM,
+        session: ((startM < 480 || startM >= 1020) ? 'EVENING' : (startM < 720 ? 'MORNING' : 'AFTERNOON')) as any,
+        disabled: false,
+        label: 'Khả dụng',
+      };
+    }
 
     if (!docToUse || !selectedRealSlot || isBookingSubmitting) {
       if (customUserText) {
