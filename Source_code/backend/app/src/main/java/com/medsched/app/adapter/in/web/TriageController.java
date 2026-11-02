@@ -195,17 +195,20 @@ public class TriageController {
         String family = episode.family();
         boolean negativeFollowUp = isNegativeClinicalAnswer(lower);
         String primaryQuestion = missingPrimaryQuestion(story, family);
-        if (primaryQuestion != null) {
+        if (primaryQuestion != null && !hasAskedQuestion(context, primaryQuestion)) {
             if (negativeFollowUp) return insufficientSymptomDetail(family);
             return new ChatResult(primaryQuestion, null, "CLARIFICATION");
         }
         String courseQuestion = missingCourseQuestion(story);
-        if (courseQuestion != null) {
+        if (courseQuestion != null && !hasAskedQuestion(context, courseQuestion)) {
             if (negativeFollowUp) return insufficientSymptomDetail(family);
             return new ChatResult(courseQuestion, null, "CLARIFICATION");
         }
         if (!hasAssociatedSymptoms(story) && !negativeFollowUp) {
-            return new ChatResult(associatedSymptomQuestion(family), null, "CLARIFICATION");
+            String assocQ = associatedSymptomQuestion(family);
+            if (!hasAskedQuestion(context, assocQ)) {
+                return new ChatResult(assocQ, null, "CLARIFICATION");
+            }
         }
 
         String raw = normalizeTriageForFamily(aiTools.triagePatientSymptoms(story, ""), family);
@@ -354,13 +357,17 @@ public class TriageController {
                                                   String currentFamily, boolean continuation) {
         List<String> priorUsers = contextMessages(context, "[USER] ");
         String family = currentFamily;
-        int start = priorUsers.size();
+        int start = 0; // Luôn giữ toàn bộ tiến trình hỏi bệnh của bệnh nhân để không bị mất ngữ cảnh
 
         if (currentFamily != null) {
             for (int i = priorUsers.size() - 1; i >= 0; i--) {
                 String priorFamily = explicitSymptomFamily(priorUsers.get(i).toLowerCase(Locale.ROOT));
                 if (priorFamily != null) {
-                    if (priorFamily.equals(currentFamily)) start = i;
+                    if (priorFamily.equals(currentFamily)) {
+                        start = i;
+                    } else {
+                        start = i + 1; // Chuyển sang triệu chứng khác
+                    }
                     break;
                 }
             }
@@ -369,17 +376,38 @@ public class TriageController {
                 String priorFamily = explicitSymptomFamily(priorUsers.get(i).toLowerCase(Locale.ROOT));
                 if (priorFamily != null) {
                     family = priorFamily;
-                    start = i;
                     break;
                 }
             }
+            start = 0;
         }
 
-        if (family == null) family = "GENERAL";
         List<String> episode = new ArrayList<>();
         if (start < priorUsers.size()) episode.addAll(priorUsers.subList(start, priorUsers.size()));
         episode.add(currentMessage.trim());
-        return new PatientEpisode(String.join("; ", episode), family);
+        String story = String.join("; ", episode);
+
+        if (family == null || "GENERAL".equals(family)) {
+            String storyLower = normalizeForMatching(story);
+            if (Pattern.compile("\\b(ho|sot|cum|cam)\\b").matcher(storyLower).find()
+                    || containsAny(storyLower, "dau hong", "rat hong", "rat co", "kho tho", "co", "hong")) {
+                family = "RESPIRATORY";
+            } else if (containsAny(storyLower, "dau dau", "nhuc dau", "chong mat", "hoa mat", "sau gay", "thai duong")) {
+                family = "HEADACHE";
+            } else if (containsAny(storyLower, "dau bung", "buon non", "tieu chay", "tao bon", "thuong vi", "da day")) {
+                family = "ABDOMINAL";
+            } else if (containsAny(storyLower, "dau nguc", "tuc nguc", "sau xuong uc")) {
+                family = "CHEST";
+            } else if (containsAny(storyLower, "rang", "nuou", "loi")) {
+                family = "DENTAL";
+            } else if (containsAny(storyLower, "ngua", "man", "phat ban", "me day", "da")) {
+                family = "SKIN";
+            } else {
+                family = "GENERAL";
+            }
+        }
+
+        return new PatientEpisode(story, family);
     }
 
     private List<String> contextMessages(String context, String prefix) {
@@ -411,8 +439,9 @@ public class TriageController {
         if (positive.contains("dau bung")) return "ABDOMINAL";
         if (positive.contains("dau nguc") || positive.contains("tuc nguc")) return "CHEST";
         if (positive.contains("dau rang") || positive.contains("nhuc rang") || positive.contains("buot rang")) return "DENTAL";
-        if (containsAny(positive, "ngua da", "noi man", "phat ban", "me day")) return "SKIN";
-        if (containsAny(positive, "ho khan", "ho co dom", "kho tho", "dau hong", "sot")) return "RESPIRATORY";
+        if (containsAny(positive, "ngua da", "noi man", "phat ban", "me day", "di ung")) return "SKIN";
+        if (containsAny(positive, "ho khan", "ho co dom", "kho tho", "dau hong", "rat hong", "rat co", "sot", "viem hong", "cam cum")
+                || Pattern.compile("\\b(ho|sot|cum|cam)\\b").matcher(positive).find()) return "RESPIRATORY";
         return null;
     }
 
@@ -473,10 +502,13 @@ public class TriageController {
     }
 
     private boolean hasQuality(String lower, String family) {
+        boolean genericQuality = containsAny(lower, "giật", "nhói", "âm ỉ", "siết", "quặn", "buốt", "nóng rát",
+                "bóp nghẹt", "đè nặng", "đau khi nhai", "đau rát", "rát", "ngứa", "châm chích", "co thắt", "đau");
+        if (genericQuality) return true;
         return switch (family) {
             case "SKIN" -> containsAny(lower, "mụn nước", "mảng đỏ", "sưng", "bong tróc", "mề đay", "ngứa", "rát");
-            case "RESPIRATORY" -> containsAny(lower, "ho khan", "ho đờm", "có đờm", "khó thở", "đau họng", "sổ mũi", "độ c");
-            default -> containsAny(lower, "giật", "nhói", "âm ỉ", "siết", "quặn", "buốt", "nóng rát", "bóp nghẹt", "đè nặng", "đau khi nhai");
+            case "RESPIRATORY" -> containsAny(lower, "ho khan", "ho đờm", "có đờm", "khó thở", "đau họng", "sổ mũi", "độ c", "khan tiếng");
+            default -> false;
         };
     }
 
@@ -527,6 +559,17 @@ public class TriageController {
             case "CHEST" -> "Bạn có khó thở, vã mồ hôi, buồn nôn, chóng mặt hoặc đau lan ra tay, lưng hay hàm không? Cơn đau có tăng khi vận động không?";
             default -> "Bạn có triệu chứng nào đi kèm như sốt, buồn nôn, chóng mặt, khó thở, tê yếu, phát ban hoặc chảy máu không? Nếu không có, bạn hãy trả lời “không có triệu chứng kèm theo”.";
         };
+    }
+
+    private boolean hasAskedQuestion(String context, String question) {
+        if (context == null || context.isBlank() || question == null) return false;
+        String lowerContext = context.toLowerCase(Locale.ROOT);
+        String lowerQ = question.toLowerCase(Locale.ROOT);
+        if (lowerQ.contains("vị trí") && lowerContext.contains("vị trí")) return true;
+        if (lowerQ.contains("cảm giác khó chịu") && lowerContext.contains("cảm giác khó chịu")) return true;
+        if (lowerQ.contains("bắt đầu từ khi nào") && lowerContext.contains("bắt đầu từ khi nào")) return true;
+        if (lowerQ.contains("triệu chứng nào đi kèm") && (lowerContext.contains("đi kèm") || lowerContext.contains("kèm theo"))) return true;
+        return lowerContext.contains(lowerQ.substring(0, Math.min(30, lowerQ.length())));
     }
 
     private boolean hasEmergencyWarning(String story) {

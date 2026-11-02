@@ -174,7 +174,8 @@ function isNonMedicalOrSpamInput(text: string): { isInvalid: boolean; message?: 
 
   // Từ chào hỏi vu vơ hoặc quá ngắn mà không chứa bất kỳ từ khóa sức khỏe nào
   const greetingsOnly = /^(chào|chao|hi|hello|alo|ê|hey|test|abc|xyz|haha|hihi|hehe|ok|vâng|da|dạ|có|không|khong|ai|bot|help)$/i;
-  if (greetingsOnly.test(clean) || (clean.length < 3 && !['ho', 'sốt', 'đau'].includes(lower))) {
+  const isDirectHealthWord = ['ho', 'sốt', 'đau', 'sot', 'dau', 'ói', 'oi', 'tê', 'te', 'cổ', 'co', 'da', 'ốm', 'om', 'mờ', 'mo', 'đỏ', 'do', 'mệt', 'met'].includes(lower);
+  if (greetingsOnly.test(clean) || (clean.length < 3 && !isDirectHealthWord)) {
     return {
       isInvalid: true,
       message: `Dạ MedSched chào bạn! Để em có thể tìm đúng bác sĩ chuyên khoa phù hợp nhất, bạn hãy mô tả cảm giác khó chịu bạn đang gặp phải (ví dụ: *"tôi bị đau đầu chóng mặt"*, *"sốt cao 39 độ"*, *"đau nhức lưng"*...) hoặc chọn nhanh vào một trong các thẻ triệu chứng bên dưới nhé!`
