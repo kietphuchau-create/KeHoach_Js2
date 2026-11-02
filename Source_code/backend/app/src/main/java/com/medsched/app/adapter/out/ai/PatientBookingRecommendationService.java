@@ -1,5 +1,6 @@
 package com.medsched.app.adapter.out.ai;
 
+import com.medsched.doctor.DoctorScheduleService;
 import com.medsched.persistence.entity.DoctorEntity;
 import com.medsched.persistence.entity.MedicalCenterEntity;
 import com.medsched.persistence.entity.SpecialtyEntity;
@@ -18,6 +19,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 /** Builds actionable booking choices from real MedSched specialty, doctor and slot data. */
@@ -49,14 +51,21 @@ public class PatientBookingRecommendationService {
             return Optional.empty();
         }
         List<SpecialtyEntity> matchingSpecialties = specialties.findByCodeIgnoreCase(specialtyCode);
+        if (matchingSpecialties.isEmpty()) {
+            matchingSpecialties = specialties.findAll().stream()
+                    .filter(s -> (s.getCode() != null && s.getCode().equalsIgnoreCase(specialtyCode)) ||
+                            (s.getName() != null && matchesSpecialtyName(s.getName(), specialtyCode)))
+                    .toList();
+        }
         if (matchingSpecialties.isEmpty()) return Optional.empty();
 
         List<DoctorOption> options = new ArrayList<>();
         Instant now = Instant.now();
+        boolean isDev247 = DoctorScheduleService.isDevMode247Active();
         for (SpecialtyEntity specialty : matchingSpecialties) {
-            boolean centerIsActive = centers.findById(specialty.getMedicalCenterId())
+            boolean centerIsActive = specialty.getMedicalCenterId() == null || centers.findById(specialty.getMedicalCenterId())
                     .map(MedicalCenterEntity::isActive)
-                    .orElse(false);
+                    .orElse(true);
             if (!centerIsActive) continue;
             for (DoctorEntity doctor : doctors.findBySpecialtyId(specialty.getId())) {
                 Optional<UserEntity> activeDoctorUser = users.findById(doctor.getUserId())
@@ -66,7 +75,7 @@ public class PatientBookingRecommendationService {
                 List<SlotOption> slots = timeSlots
                         .findByDoctorIdAndStatusOrderByStartTimeAsc(doctor.getId(), SlotStatus.AVAILABLE)
                         .stream()
-                        .filter(slot -> slot.getStartTime() != null && slot.getStartTime().isAfter(now))
+                        .filter(slot -> slot.getStartTime() != null && (isDev247 || slot.getStartTime().isAfter(now)))
                         .limit(3)
                         .map(this::toSlot)
                         .toList();
@@ -83,8 +92,21 @@ public class PatientBookingRecommendationService {
 
         SpecialtyEntity first = matchingSpecialties.get(0);
         return Optional.of(new BookingRecommendation(
-                specialtyCode.toUpperCase(), first.getName(), first.getId(), List.copyOf(options)
+                specialtyCode.toUpperCase(Locale.ROOT), first.getName(), first.getId(), List.copyOf(options)
         ));
+    }
+
+    private boolean matchesSpecialtyName(String name, String specialtyCode) {
+        if (name == null || specialtyCode == null) return false;
+        String n = name.toLowerCase(Locale.ROOT);
+        String code = specialtyCode.toUpperCase(Locale.ROOT);
+        return switch (code) {
+            case "DERMATOLOGY", "SKIN" -> n.contains("da") || n.contains("liễu");
+            case "ODONTO_STOMATOLOGY", "DENTAL" -> n.contains("răng") || n.contains("hàm");
+            case "OPHTHALMOLOGY", "EYE" -> n.contains("mắt") || n.contains("nhãn");
+            case "INTERNAL_MEDICINE" -> n.contains("nội") || n.contains("tổng quát");
+            default -> n.contains(code.toLowerCase(Locale.ROOT));
+        };
     }
 
     private SlotOption toSlot(TimeSlotEntity slot) {

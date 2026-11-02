@@ -522,7 +522,7 @@ const TIME_SHIFTS: TimeShiftOption[] = [
   { id: 'ALL', label: 'Tất cả ca khám', timeRange: 'Cả ngày', icon: '⚡' },
   { id: 'MORNING', label: 'Buổi Sáng', timeRange: '08:00 - 12:00', icon: '🌅' },
   { id: 'AFTERNOON', label: 'Buổi Chiều', timeRange: '12:00 - 17:00', icon: '🌇' },
-  { id: 'EVENING', label: 'Ca Tối & Đêm', timeRange: '17:00 - 23:30', icon: '🌙' },
+  { id: 'EVENING', label: 'Ca Tối & Đêm', timeRange: '17:00 - 08:00', icon: '🌙' },
 ];
 
 interface DemoDoctor {
@@ -1151,14 +1151,20 @@ function parsePatientBookingIntent(
 
   // Với câu dạng "9h-9h30", giờ bệnh nhân yêu cầu là mốc đầu (09:00),
   // không phải mốc cuối 09:30 xuất hiện trong cùng chuỗi.
+  const isDev247 = typeof window !== 'undefined' ? getClinicScheduleConfig().devMode247 : false;
+  const isNightOrMorningExplicit = text.includes('sáng') || text.includes('sang') || text.includes('am') || text.includes('đêm') || text.includes('dem') || text.includes('khuya');
+  const isAfternoonExplicit = text.includes('chiều') || text.includes('chieu') || text.includes('pm') || text.includes('tối') || text.includes('toi');
+
   const explicitRangeMatch = text.match(/(?:^|\s)(\d{1,2})(?:h|:)?(\d{2})?\s*(?:-|–|đến|tới)/i);
   let explicitRangeStartMinutes: number | null = null;
   if (explicitRangeMatch) {
     let hour = Number(explicitRangeMatch[1]);
     const minute = Number(explicitRangeMatch[2] || 0);
-    const isMorningExplicit = text.includes('sáng') || text.includes('sang') || text.includes('am');
-    // Phòng khám chỉ đón bệnh ban ngày/tối (08:00 - 20:30). Các mốc từ 1 đến 6 luôn là giờ chiều/tối (13:00 - 18:00) trừ khi nói rõ 'sáng'
-    if (!isMorningExplicit && hour >= 1 && hour <= 6) {
+    // Nếu có nói rõ 'chiều'/'pm' thì cộng 12h (VD: 1h chiều -> 13h).
+    // Nếu KHÔNG nói rõ 'sáng'/'am'/'đêm', và KHÔNG bật devMode247, và từ 1 đến 6h thì mới cộng 12h:
+    if (isAfternoonExplicit && hour >= 1 && hour <= 6) {
+      hour += 12;
+    } else if (!isNightOrMorningExplicit && !isDev247 && hour >= 1 && hour <= 6) {
       hour += 12;
     }
     if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
@@ -1166,13 +1172,16 @@ function parsePatientBookingIntent(
     }
   } else {
     // Hỗ trợ dạng giờ đơn lẻ: "1h", "5h", "17h", "18h30", "19h", "13:30", "5h chiều"
-    const singleTimeMatch = text.match(/(?:^|\s)(?:lúc|khoảng|tầm)?\s*(\d{1,2})(?:h|:)(\d{2})?(?:\s*(chiều|tối|sáng))?/i);
+    const singleTimeMatch = text.match(/(?:^|\s)(?:lúc|khoảng|tầm)?\s*(\d{1,2})(?:h|:)(\d{2})?(?:\s*(chiều|tối|sáng|đêm|am|pm))?/i);
     if (singleTimeMatch) {
       let hour = Number(singleTimeMatch[1]);
       const minute = Number(singleTimeMatch[2] || 0);
       const period = singleTimeMatch[3]?.toLowerCase() || '';
-      const isMorning = period === 'sáng' || text.includes('sáng') || text.includes('sang') || text.includes('am');
-      if (!isMorning && hour >= 1 && hour <= 6) {
+      const isMorning = period === 'sáng' || period === 'đêm' || period === 'am' || isNightOrMorningExplicit;
+      const isAfternoon = period === 'chiều' || period === 'tối' || period === 'pm' || isAfternoonExplicit;
+      if (isAfternoon && hour >= 1 && hour <= 6) {
+        hour += 12;
+      } else if (!isMorning && !isDev247 && hour >= 1 && hour <= 6) {
         hour += 12;
       }
       if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
@@ -1211,26 +1220,24 @@ function parsePatientBookingIntent(
   // 2. Nhận diện ca / buổi
   let matchedShift: 'MORNING' | 'AFTERNOON' | 'EVENING' | null = null;
   const isMorningMentioned = text.includes('sáng') || text.includes('sang') || text.includes('morning');
-  const isAfternoonMentioned = text.includes('chiều') || text.includes('chieu') || text.includes('afternoon') || text.includes('tối');
+  const isAfternoonMentioned = text.includes('chiều') || text.includes('chieu') || text.includes('afternoon');
+  const isEveningMentioned = text.includes('tối') || text.includes('toi') || text.includes('đêm') || text.includes('dem') || text.includes('khuya');
 
-  if (isMorningMentioned && !isAfternoonMentioned) matchedShift = 'MORNING';
-  if (isAfternoonMentioned && !isMorningMentioned) matchedShift = 'AFTERNOON';
+  if (isMorningMentioned && !isAfternoonMentioned && !isEveningMentioned) matchedShift = 'MORNING';
+  if (isAfternoonMentioned && !isMorningMentioned && !isEveningMentioned) matchedShift = 'AFTERNOON';
+  if (isEveningMentioned) matchedShift = 'EVENING';
 
   // 3. Nhận diện xung đột giờ nghỉ trưa (11:00 - 13:30): Ca chiều đón tiếp từ 13:30
-  // Tránh text.includes('1h30') bị dính với '11h30' bằng regex word boundary
-  const is1h30 = /(?<!\d)(?:13:30|13h30|1h30)\b/i.test(text);
-  const isLunchBreakOrEarlyAfternoon = !is1h30 && (
+  // Chỉ áp dụng khi KHÔNG bật devMode247
+  const is1h30Afternoon = /(?<!\d)(?:13:30|13h30)\b/i.test(text) || (isAfternoonExplicit && /(?<!\d)1h30\b/i.test(text));
+  const isLunchBreakOrEarlyAfternoon = !isDev247 && !is1h30Afternoon && (
     (explicitRangeStartMinutes !== null && explicitRangeStartMinutes >= 11 * 60 && explicitRangeStartMinutes < 13 * 60 + 30) ||
     /(?:11h|11:00|11h30|11:30|12h|12:00|12h30|12:30|13h|13:00|1h\s*chiều|1h\s*trưa)\b/i.test(text) ||
     /11h(?:30)?\s*(?:đến|-|tới)/i.test(text) ||
-    /1h\s*(?:đến|-|tới)?\s*2h/i.test(text) ||
     /13h\s*(?:đến|-|tới)?\s*14h/i.test(text) ||
-    /từ\s*(?:1h|13h|12h|11h)/i.test(text) ||
+    /từ\s*(?:13h|12h|11h)/i.test(text) ||
     /(?:1h|13h)\s*(?:chiều|trưa)/i.test(text) ||
     /\b(?:13h|13:00)\b/i.test(text) ||
-    text.includes('1h đến 2h') ||
-    text.includes('1h den 2h') ||
-    text.includes('1h-2h') ||
     text.includes('13h-14h') ||
     text.includes('13h đến 14h')
   );
@@ -1238,18 +1245,19 @@ function parsePatientBookingIntent(
   let proposedSlot: string | null = null;
   let isEarlyAfternoonConflict = false;
 
-  if (isLunchBreakOrEarlyAfternoon) {
+  if (explicitRangeStartMinutes !== null) {
+    // 00:00 - 08:00 và 17:00 - 24:00 thuộc Ca Tối & Đêm (EVENING)
+    matchedShift = (explicitRangeStartMinutes < 480 || explicitRangeStartMinutes >= 1020)
+      ? 'EVENING'
+      : (explicitRangeStartMinutes < 720 ? 'MORNING' : 'AFTERNOON');
+    proposedSlot = formatSlotFromStartMinutes(explicitRangeStartMinutes);
+  } else if (isLunchBreakOrEarlyAfternoon) {
     isEarlyAfternoonConflict = true;
     matchedShift = 'AFTERNOON';
-    proposedSlot = explicitRangeStartMinutes !== null
-      ? formatSlotFromStartMinutes(explicitRangeStartMinutes)
-      : '13:30 - 14:00';
-  } else if (is1h30) {
+    proposedSlot = '13:30 - 14:00';
+  } else if (is1h30Afternoon) {
     matchedShift = 'AFTERNOON';
     proposedSlot = '13:30 - 14:00';
-  } else if (explicitRangeStartMinutes !== null) {
-    matchedShift = explicitRangeStartMinutes < 720 ? 'MORNING' : (explicitRangeStartMinutes < 1020 ? 'AFTERNOON' : 'EVENING');
-    proposedSlot = formatSlotFromStartMinutes(explicitRangeStartMinutes);
   } else if (text.includes('14:00') || text.includes('14h') || text.includes('2h chiều') || text.includes('2h')) {
     matchedShift = 'AFTERNOON';
     proposedSlot = '14:00 - 14:30';
@@ -1429,7 +1437,7 @@ export default function BookingMethodSelector({
   // Bước 3: Chi nhánh & Dịch vụ phòng khám & Ngày khám
   const [selectedBranch, setSelectedBranch] = useState<ClinicBranch | null>(null);
   const [selectedServiceId, setSelectedServiceId] = useState<string>('STANDARD');
-  const [bookingDate, setBookingDate] = useState<string>(() => getNextAvailableWeekday());
+  const [bookingDate, setBookingDate] = useState<string>(() => getTodayISODate());
   const [selectedShiftId, setSelectedShiftId] = useState<string>('ALL');
   // Đề xuất lịch khám thông minh từ Y tá / Lễ tân AI
   const [nurseProposal, setNurseProposal] = useState<NurseProposal | null>(null);
@@ -1530,8 +1538,14 @@ export default function BookingMethodSelector({
   }>>({});
 
   useEffect(() => {
+    if (Object.values(doctorSchedulesMap).some((s: any) => s.availableCount > 0)) {
+      setIsTriageDoctorOffDuty(false);
+    }
+  }, [doctorSchedulesMap]);
+
+  useEffect(() => {
     let isCancelled = false;
-    api.getDoctorSchedules(undefined, bookingDate, bookingDate)
+    api.getDoctorSchedules('ALL', bookingDate, bookingDate)
       .then((schedules: any[]) => {
         if (isCancelled) return;
         const map: Record<string, {
@@ -1552,7 +1566,7 @@ export default function BookingMethodSelector({
             if (!s.doctorId) return;
             const validSlots = Array.isArray(s.slots) ? s.slots.filter((slot: any) => {
               if (slot.status !== 'AVAILABLE') return false;
-              if (isToday && slot.startTime) {
+              if (isToday && slot.startTime && !getClinicScheduleConfig().devMode247) {
                 const parts = slot.startTime.split(':');
                 const startMin = parseInt(parts[0], 10) * 60 + parseInt(parts[1] || '0', 10);
                 return startMin > currentMinutes;
@@ -1657,9 +1671,9 @@ export default function BookingMethodSelector({
     });
     return {
       ALL: available.length,
-      MORNING: available.filter(s => (s.startMinutes ?? 0) < 720).length,
+      MORNING: available.filter(s => (s.startMinutes ?? 0) >= 480 && (s.startMinutes ?? 0) < 720).length,
       AFTERNOON: available.filter(s => (s.startMinutes ?? 0) >= 720 && (s.startMinutes ?? 0) < 1020).length,
-      EVENING: available.filter(s => (s.startMinutes ?? 0) >= 1020).length,
+      EVENING: available.filter(s => (s.startMinutes ?? 0) >= 1020 || (s.startMinutes ?? 0) < 480).length,
     };
   }, [dynamicSlots, bookingDate]);
 
@@ -1696,7 +1710,7 @@ export default function BookingMethodSelector({
         })
         .map(slot => {
           const startM = slot.startMinutes !== undefined ? slot.startMinutes : (parseInt(slot.time?.split(':')[0] || '8', 10) * 60);
-          const session = startM < 720 ? 'MORNING' : (startM < 1020 ? 'AFTERNOON' : 'EVENING');
+          const session = (startM < 480 || startM >= 1020) ? 'EVENING' : (startM < 720 ? 'MORNING' : 'AFTERNOON');
           return {
             id: slot.id,
             time: slot.time,
@@ -1718,9 +1732,9 @@ export default function BookingMethodSelector({
     }
 
     return availableAllSlots.filter(s => {
-      if (selectedShiftId === 'MORNING') return s.startMinutes < 720;
+      if (selectedShiftId === 'MORNING') return s.startMinutes >= 480 && s.startMinutes < 720;
       if (selectedShiftId === 'AFTERNOON') return s.startMinutes >= 720 && s.startMinutes < 1020;
-      if (selectedShiftId === 'EVENING') return s.startMinutes >= 1020;
+      if (selectedShiftId === 'EVENING') return s.startMinutes >= 1020 || s.startMinutes < 480;
       return true;
     });
   }, [availableAllSlots, selectedShiftId]);
@@ -2377,10 +2391,49 @@ export default function BookingMethodSelector({
         return;
       }
 
+      // ĐỒNG BỘ LỊCH TRỰC THỜI GIAN THỰC TỪ CSDL CHO TẤT CẢ BÁC SĨ (DÙNG 'ALL' ĐỂ LẤY TOÀN VIỆN)
+      let activeSchedulesMap = doctorSchedulesMap;
+      try {
+        const freshSchedules = await api.getDoctorSchedules('ALL', bookingDate, bookingDate);
+        if (Array.isArray(freshSchedules)) {
+          const isToday = bookingDate === getTodayISODate();
+          const isDev247 = typeof window !== 'undefined' ? getClinicScheduleConfig().devMode247 : false;
+          const now = new Date();
+          const currentMinutes = now.getHours() * 60 + now.getMinutes();
+          const map: Record<string, any> = {};
+
+          freshSchedules.forEach((s: any) => {
+            if (!s.doctorId) return;
+            const validSlots = Array.isArray(s.slots) ? s.slots.filter((slot: any) => {
+              if (slot.status !== 'AVAILABLE') return false;
+              if (isToday && slot.startTime && !isDev247) {
+                const parts = slot.startTime.split(':');
+                const startMin = parseInt(parts[0], 10) * 60 + parseInt(parts[1] || '0', 10);
+                return startMin > currentMinutes;
+              }
+              return true;
+            }) : [];
+
+            map[s.doctorId] = {
+              hasSchedule: s.status === 'ACTIVE',
+              availableCount: validSlots.length,
+              totalSlots: s.totalSlots || 0,
+              bookedSlots: s.bookedSlots || 0,
+              earliestSlotTime: validSlots.length > 0 ? validSlots[0].startTime : undefined,
+              roomNumber: s.roomNumber,
+            };
+          });
+          activeSchedulesMap = map;
+          setDoctorSchedulesMap(map);
+        }
+      } catch (err) {
+        console.warn('Không thể đồng bộ lịch trực mới nhất:', err);
+      }
+
       // KIỂM TRA SỐ LƯỢNG CA KHÁM VÀ SLOT KHẢ DỤNG THỜI GIAN THỰC TỪ CSDL
-      const matchingWithSlots = matchingDoctors.filter(d => (doctorSchedulesMap[d.id]?.availableCount ?? 0) > 0);
-      const matchingWithoutSlots = matchingDoctors.filter(d => (doctorSchedulesMap[d.id]?.availableCount ?? 0) === 0);
-      const otherDoctorsWithSlots = doctorPool.filter(d => !matchingDoctors.some(m => m.id === d.id) && (doctorSchedulesMap[d.id]?.availableCount ?? 0) > 0);
+      const matchingWithSlots = matchingDoctors.filter(d => (activeSchedulesMap[d.id]?.availableCount ?? 0) > 0);
+      const matchingWithoutSlots = matchingDoctors.filter(d => (activeSchedulesMap[d.id]?.availableCount ?? 0) === 0);
+      const otherDoctorsWithSlots = doctorPool.filter(d => !matchingDoctors.some(m => m.id === d.id) && (activeSchedulesMap[d.id]?.availableCount ?? 0) > 0);
 
       const primaryDoc = matchingWithSlots.length > 0 ? matchingWithSlots[0] : null;
 
@@ -2392,10 +2445,10 @@ export default function BookingMethodSelector({
           if (matchBranch) setSelectedBranch(matchBranch);
         }
         setAiStep('SELECT_DOCTOR_SLOT');
-        const availCount = doctorSchedulesMap[primaryDoc.id]?.availableCount || 0;
-        const earliestTime = doctorSchedulesMap[primaryDoc.id]?.earliestSlotTime || '08:00';
+        const availCount = activeSchedulesMap[primaryDoc.id]?.availableCount || 0;
+        const earliestTime = activeSchedulesMap[primaryDoc.id]?.earliestSlotTime || '08:00';
         const earliestHour = parseInt(earliestTime.split(':')[0] || '8', 10);
-        const autoShift = earliestHour < 12 ? 'MORNING' : (earliestHour < 17 ? 'AFTERNOON' : 'EVENING');
+        const autoShift = earliestHour < 8 ? 'ALL' : (earliestHour < 12 ? 'MORNING' : (earliestHour < 17 ? 'AFTERNOON' : 'EVENING'));
         setSelectedShiftId(autoShift);
 
         const aiMsg: ChatMessage = {
@@ -3000,18 +3053,61 @@ export default function BookingMethodSelector({
         return;
       }
 
-      setSelectedSlotTime(intent.proposedSlot);
-      if (intent.matchedShift) setSelectedShiftId(intent.matchedShift);
-
       const slotPool = availableAllSlots.length > 0 ? availableAllSlots : shiftSlots;
       const targetSlot = slotPool.find(s =>
         !s.disabled && (intent.proposedSlot ? (s.time === intent.proposedSlot || s.time.startsWith(intent.proposedSlot.split(' - ')[0])) : false)
       );
+
       if (targetSlot) {
         setSelectedSlotId(targetSlot.id);
         setSelectedSlotTime(targetSlot.time);
+        if (targetSlot.session) setSelectedShiftId(targetSlot.session);
+
+        const aiMsg: ChatMessage = {
+          id: 'msg-' + (Date.now() + 1),
+          sender: 'ai',
+          time: getFormattedTime(),
+          text: `Dạ em đã cập nhật khung giờ khám sang **${targetSlot.time}**${selectedDoctor ? ` cùng Bác sĩ **${selectedDoctor.name}** (${selectedDoctor.room || 'Phòng khám'})` : ''} rồi nhé!\n\nBạn có đồng ý đặt khám vào khung giờ này để em chuẩn bị hồ sơ giữ chỗ không ạ?`,
+          quickReplies: [
+            `Đồng ý khám ${targetSlot.time}`,
+            'Không đồng ý, chọn giờ khác',
+          ],
+          isTypingComplete: false,
+        };
+        setMessages(prev => [...prev, userMsg, aiMsg]);
+        return;
       }
 
+      // Nếu Bác sĩ không có khung giờ chính xác này trong ca trực hôm nay: gợi ý khung giờ khả dụng gần nhất
+      const availableRealSlots = slotPool.filter(s => !s.disabled);
+      if (availableRealSlots.length > 0) {
+        const closestSlot = [...availableRealSlots].sort((a, b) => 
+          Math.abs(a.startMinutes - requestedStartMinutes) - Math.abs(b.startMinutes - requestedStartMinutes)
+        )[0];
+
+        setSelectedSlotId(closestSlot.id);
+        setSelectedSlotTime(closestSlot.time);
+        if (closestSlot.session) setSelectedShiftId(closestSlot.session);
+
+        const shiftName = closestSlot.session === 'EVENING' ? 'Ca Tối & Đêm' : closestSlot.session === 'MORNING' ? 'Buổi Sáng' : 'Buổi Chiều';
+
+        const aiMsg: ChatMessage = {
+          id: 'msg-' + (Date.now() + 1),
+          sender: 'ai',
+          time: getFormattedTime(),
+          text: `Dạ, Bác sĩ **${selectedDoctor?.name || 'phụ trách'}** hiện không có lịch khám vào khung **${intent.proposedSlot}** hôm nay.\n\n👉 Khung giờ gần nhất còn trống mà bác sĩ có ca trực là **${closestSlot.time}** (${shiftName}).\n\nBạn có đồng ý đặt khám vào khung giờ **${closestSlot.time}** này để em chuẩn bị hồ sơ giữ chỗ không ạ?`,
+          quickReplies: [
+            `Đồng ý khám ${closestSlot.time}`,
+            'Không đồng ý, chọn giờ khác',
+          ],
+          isTypingComplete: false,
+        };
+        setMessages(prev => [...prev, userMsg, aiMsg]);
+        return;
+      }
+
+      setSelectedSlotTime(intent.proposedSlot);
+      if (intent.matchedShift) setSelectedShiftId(intent.matchedShift);
       const aiMsg: ChatMessage = {
         id: 'msg-' + (Date.now() + 1),
         sender: 'ai',
@@ -3549,10 +3645,10 @@ export default function BookingMethodSelector({
             ? (bookingSupport.doctors[0]?.doctorName || '')
             : '';
           if (firstDoc) setTriageDoctorOffDutyName(firstDoc);
-          // Tự động chuyển ngày khám sang Ngày mai để tránh kẹt ở ngày hôm nay không có ca
-          const nextDay = new Date();
-          nextDay.setDate(nextDay.getDate() + 1);
-          setBookingDate(nextDay.toISOString().split('T')[0]);
+          // Giữ nguyên ngày hôm nay, không tự ý nhảy sang ngày mai
+
+
+
         } else {
           setIsTriageDoctorOffDuty(false);
           setTriageDoctorOffDutyName('');
@@ -3657,7 +3753,7 @@ export default function BookingMethodSelector({
       id: 'msg-' + Date.now(),
       sender: 'user',
       time: getFormattedTime(),
-      text: `Chọn cơ sở: ${selectedBranch?.shortName || 'Phòng khám'} • Ngày khám: ${formatVietnameseFullDate(bookingDate)} • Buổi: ${selectedShiftId === 'MORNING' ? 'Buổi Sáng' : 'Buổi Chiều'}`,
+      text: `Chọn cơ sở: ${selectedBranch?.shortName || 'Phòng khám'} • Ngày khám: ${formatVietnameseFullDate(bookingDate)} • Buổi: ${selectedShiftId === 'MORNING' ? 'Buổi Sáng' : selectedShiftId === 'AFTERNOON' ? 'Buổi Chiều' : selectedShiftId === 'EVENING' ? 'Ca Tối & Đêm' : 'Tất cả ca khám (Cả ngày)'}`,
     };
 
     // Kiểm tra tính sẵn sàng của Bác sĩ tại cơ sở đã chọn
@@ -4769,7 +4865,7 @@ export default function BookingMethodSelector({
                           <div className="space-y-1.5 pt-1">
                             <div className="flex items-center justify-between">
                               <span className="text-xs font-bold text-slate-800">
-                                2. Chọn ngày khám (Thứ 2 - Thứ 6):
+                                2. Chọn ngày khám:
                               </span>
                               <span className="text-[10px] text-purple-700 font-bold">
                                 {formatVietnameseFullDate(bookingDate)}

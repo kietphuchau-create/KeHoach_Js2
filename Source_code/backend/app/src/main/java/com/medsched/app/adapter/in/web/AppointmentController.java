@@ -540,7 +540,7 @@ public class AppointmentController {
             String timeStr = timeFormatter.format(s.getStartTime()) + " - " + timeFormatter.format(s.getEndTime());
             int startMinutes = startLt.getHour() * 60 + startLt.getMinute();
 
-            boolean isPast = isToday && startLt.isBefore(nowTime);
+            boolean isPast = !com.medsched.doctor.DoctorScheduleService.isDevMode247Active() && isToday && startLt.isBefore(nowTime);
             String status;
             String label;
             boolean disabled;
