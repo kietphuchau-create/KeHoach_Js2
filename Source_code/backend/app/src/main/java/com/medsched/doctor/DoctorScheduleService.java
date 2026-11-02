@@ -646,7 +646,7 @@ public class DoctorScheduleService {
         }
 
         // Bổ sung kiểm soát thời gian thực khi đăng ký ca trực trong ngày hôm nay:
-        if (request.workDate().equals(today) && !isAdmin) {
+        if (request.workDate().equals(today) && !isAdmin && !devMode247) {
             LocalTime nowTime = LocalTime.now(VN_ZONE);
             if (!request.endTime().isAfter(nowTime)) {
                 throw new IllegalArgumentException(String.format(
@@ -877,7 +877,7 @@ public class DoctorScheduleService {
             throw new IllegalArgumentException("Không thể khóa hoặc thay đổi khung giờ đã có bệnh nhân đặt lịch hẹn.");
         }
 
-        if (slot.getStartTime().isBefore(Instant.now())) {
+        if (!devMode247 && slot.getStartTime().isBefore(Instant.now())) {
             throw new IllegalArgumentException("Khung giờ này đã trôi qua trong quá khứ, không thể thay đổi trạng thái.");
         }
 
