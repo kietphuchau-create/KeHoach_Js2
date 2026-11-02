@@ -1625,15 +1625,14 @@ export default function BookingMethodSelector({
     };
   }, [dynamicSlots, bookingDate]);
 
-  // CHỈ LẤY CÁC KHUNG GIỜ CÓ THỂ CHỌN (Khả dụng, không bị quá giờ, không hết chỗ)
-  const shiftSlots = useMemo(() => {
+  // TOÀN BỘ CÁC KHUNG GIỜ CÒN KHẢ DỤNG TRONG NGÀY (Khả dụng, không bị quá giờ, không hết chỗ)
+  const availableAllSlots = useMemo(() => {
     const isToday = bookingDate === getTodayISODate();
     const now = new Date();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
     if (dynamicSlots.length > 0) {
-      // 1. Chỉ lọc các slot còn khả dụng để đặt lịch
-      const availableOnly = dynamicSlots
+      return dynamicSlots
         .filter(slot => {
           const isPast = isToday && slot.startMinutes !== undefined && slot.startMinutes <= currentMinutes;
           const isDisabled = slot.disabled || slot.status === 'full' || slot.status === 'expired' || slot.status === 'locked' || isPast;
@@ -1651,39 +1650,44 @@ export default function BookingMethodSelector({
             label: slot.label || 'Khả dụng',
           };
         });
-
-      if (selectedShiftId === 'ALL') {
-        return availableOnly;
-      }
-
-      const filtered = availableOnly.filter(s => {
-        if (selectedShiftId === 'MORNING') return s.startMinutes < 720;
-        if (selectedShiftId === 'AFTERNOON') return s.startMinutes >= 720 && s.startMinutes < 1020;
-        if (selectedShiftId === 'EVENING') return s.startMinutes >= 1020;
-        return true;
-      });
-
-      return filtered;
     }
 
     return [];
-  }, [dynamicSlots, selectedShiftId, bookingDate]);
+  }, [dynamicSlots, bookingDate]);
 
-  // Tự động đồng bộ khung giờ hợp lệ khi danh sách giờ thay đổi
+  // CHỈ LẤY CÁC KHUNG GIỜ CỦA CA ĐANG CHỌN ĐỂ RENDER GIAO DIỆN TAB
+  const shiftSlots = useMemo(() => {
+    if (selectedShiftId === 'ALL') {
+      return availableAllSlots;
+    }
+
+    return availableAllSlots.filter(s => {
+      if (selectedShiftId === 'MORNING') return s.startMinutes < 720;
+      if (selectedShiftId === 'AFTERNOON') return s.startMinutes >= 720 && s.startMinutes < 1020;
+      if (selectedShiftId === 'EVENING') return s.startMinutes >= 1020;
+      return true;
+    });
+  }, [availableAllSlots, selectedShiftId]);
+
+  // Tự động đồng bộ khung giờ hợp lệ khi danh sách giờ thay đổi (kiểm tra trên TOÀN BỘ slot trong ngày)
   useEffect(() => {
-    if (shiftSlots.length > 0) {
-      const currentValid = shiftSlots.find(s =>
-        s.id === selectedSlotId && s.time === selectedSlotTime && !s.disabled
+    if (availableAllSlots.length > 0 && selectedSlotTime) {
+      const currentValid = availableAllSlots.find(s =>
+        (selectedSlotId ? s.id === selectedSlotId : true) && s.time === selectedSlotTime && !s.disabled
       );
       if (!currentValid) {
         setSelectedSlotId('');
         setSelectedSlotTime('');
+      } else {
+        if (!selectedSlotId || selectedSlotId !== currentValid.id) {
+          setSelectedSlotId(currentValid.id);
+        }
+        if (selectedShiftId !== 'ALL' && currentValid.session && currentValid.session !== selectedShiftId) {
+          setSelectedShiftId(currentValid.session);
+        }
       }
-    } else {
-      setSelectedSlotId('');
-      setSelectedSlotTime('');
     }
-  }, [shiftSlots, selectedSlotId, selectedSlotTime]);
+  }, [availableAllSlots, selectedSlotId, selectedSlotTime, selectedShiftId]);
 
   // Bước 5: Thông tin bệnh nhân & Thanh toán cọc 2k / Mã ưu đãi
   const [patientName, setPatientName] = useState<string>('');
@@ -2791,7 +2795,8 @@ export default function BookingMethodSelector({
 
     // 1. Kiểm tra nếu người dùng chọn giờ rơi vào giờ nghỉ trưa của phòng khám (11:00 - 13:30)
     if (intent.isEarlyAfternoonConflict) {
-      const nextRealSlot = shiftSlots
+      const slotPool = availableAllSlots.length > 0 ? availableAllSlots : shiftSlots;
+      const nextRealSlot = slotPool
         .filter(slot => !slot.disabled && slot.startMinutes >= 13 * 60 + 30)
         .sort((a, b) => a.startMinutes - b.startMinutes)[0];
       const targetSlotTime = nextRealSlot?.time || '13:30 - 14:00';
@@ -2823,7 +2828,8 @@ export default function BookingMethodSelector({
       const isPastTimeToday = targetDate === getTodayISODate() && requestedStartMinutes <= currentMinutes;
 
       if (isPastTimeToday) {
-        const nextRealSlot = shiftSlots
+        const slotPool = availableAllSlots.length > 0 ? availableAllSlots : shiftSlots;
+        const nextRealSlot = slotPool
           .filter(slot => !slot.disabled && slot.startMinutes > currentMinutes)
           .sort((a, b) => a.startMinutes - b.startMinutes)[0];
 
@@ -2831,7 +2837,7 @@ export default function BookingMethodSelector({
         if (nextStartMinutes > 11 * 60 && nextStartMinutes < 13 * 60 + 30) {
           nextStartMinutes = 13 * 60 + 30;
         }
-        const hasGenericSlotToday = nextStartMinutes <= 15 * 60 + 30;
+        const hasGenericSlotToday = nextStartMinutes <= 21 * 60;
         const formatTime = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
         const nextSlotTime = nextRealSlot?.time || (hasGenericSlotToday
           ? `${formatTime(nextStartMinutes)} - ${formatTime(nextStartMinutes + 30)}`
@@ -2843,7 +2849,7 @@ export default function BookingMethodSelector({
 
         if (nextSlotTime) {
           const nextStart = nextRealSlot?.startMinutes ?? nextStartMinutes;
-          const nextShift = nextStart < 12 * 60 ? 'MORNING' : 'AFTERNOON';
+          const nextShift = nextStart < 720 ? 'MORNING' : (nextStart < 1020 ? 'AFTERNOON' : 'EVENING');
           setSelectedShiftId(nextShift);
           setSelectedSlotTime(nextSlotTime);
           setSelectedSlotId(nextRealSlot?.id || '');
@@ -2903,17 +2909,26 @@ export default function BookingMethodSelector({
     if (matchedDoc) {
       setSelectedDoctor(matchedDoc);
 
+      const slotPool = availableAllSlots.length > 0 ? availableAllSlots : shiftSlots;
       const targetSlotTime = intent.proposedSlot || selectedSlotTime;
-      const targetSlot = shiftSlots.find(slot =>
+      let targetSlot = slotPool.find(slot =>
         !slot.disabled && (
           (selectedSlotId && slot.id === selectedSlotId) ||
           (targetSlotTime && (slot.time === targetSlotTime || slot.time.startsWith(targetSlotTime.split(' - ')[0])))
         )
       );
 
+      // Nếu người dùng đã chọn hoặc được gợi ý khung giờ nhưng không khớp tuyệt đối, tự động lấy slot khả dụng phù hợp nhất
+      if (!targetSlot && targetSlotTime && slotPool.length > 0) {
+        targetSlot = slotPool.find(s => !s.disabled);
+      }
+
       if (targetSlot) {
         setSelectedSlotId(targetSlot.id);
         setSelectedSlotTime(targetSlot.time);
+        if (targetSlot.session && selectedShiftId !== 'ALL' && targetSlot.session !== selectedShiftId) {
+          setSelectedShiftId(targetSlot.session);
+        }
         handleProceedToPayment(matchedDoc, text, targetSlot);
         return;
       }
@@ -3736,7 +3751,8 @@ export default function BookingMethodSelector({
     const targetSlotId = overrideSlot?.id || selectedSlotId;
     const targetSlotTime = overrideSlot?.time || selectedSlotTime;
 
-    const selectedRealSlot = shiftSlots.find(slot =>
+    const slotPool = availableAllSlots.length > 0 ? availableAllSlots : shiftSlots;
+    const selectedRealSlot = slotPool.find(slot =>
       !slot.disabled && (
         (targetSlotId && slot.id === targetSlotId) ||
         (targetSlotTime && (slot.time === targetSlotTime || slot.time.startsWith(targetSlotTime.split(' - ')[0])))
