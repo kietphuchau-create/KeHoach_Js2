@@ -1106,12 +1106,12 @@ function buildClinicalQuickReplies(reply: string): string[] {
   if (text.includes('cảm giác khó chịu') || text.includes('cảm giác đau')) {
     return ['Đau âm ỉ', 'Đau nhói', 'Quặn từng cơn', 'Nóng rát', 'Siết chặt hoặc đè nặng'];
   }
-  if (text.includes('bắt đầu từ khi nào') || text.includes('mức độ khó chịu')) {
+  if (text.includes('bắt đầu từ khi nào') || text.includes('mức độ khó chịu') || text.includes('xuất hiện đột ngột')) {
     return [
-      'Mới bị hôm nay, liên tục, mức độ 3/10',
-      'Bị 1–2 ngày, từng cơn, mức độ 5/10',
-      'Bị hơn 1 tuần, tăng dần, mức độ 7/10',
-      'Tái phát nhiều lần, mức độ 5/10',
+      'Mới bị hôm nay, liên tục',
+      'Bị 1–2 ngày, từng cơn',
+      'Bị hơn 1 tuần, tăng dần',
+      'Tái phát nhiều lần',
     ];
   }
   if (text.includes('triệu chứng nào đi kèm') || text.includes('có kèm')) {
@@ -1129,7 +1129,7 @@ function buildClinicalQuickReplies(reply: string): string[] {
   if (text.includes('chưa có đủ thông tin')) {
     return [
       'Tôi sẽ mô tả rõ vị trí và cảm giác đau',
-      'Tôi sẽ cho biết thời điểm bắt đầu và mức độ đau',
+      'Tôi sẽ cho biết thời điểm bắt đầu',
       'Tôi muốn nhập mô tả chi tiết khác',
     ];
   }

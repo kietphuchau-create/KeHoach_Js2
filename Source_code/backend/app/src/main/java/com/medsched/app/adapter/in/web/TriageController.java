@@ -335,12 +335,12 @@ public class TriageController {
 
     private ChatResult insufficientSymptomDetail(String family) {
         String example = switch (family) {
-            case "HEADACHE" -> "vị trí đau đầu, cảm giác đau, thời điểm bắt đầu và mức độ từ 0 đến 10";
-            case "ABDOMINAL" -> "vị trí đau bụng, cảm giác đau, thời điểm bắt đầu và mức độ từ 0 đến 10";
-            case "CHEST" -> "vị trí đau ngực, cảm giác đau, thời điểm bắt đầu và mức độ từ 0 đến 10";
-            case "DENTAL" -> "răng hoặc vùng hàm bị đau, cảm giác đau, thời điểm bắt đầu và mức độ từ 0 đến 10";
+            case "HEADACHE" -> "vị trí đau đầu, cảm giác đau, thời điểm bắt đầu";
+            case "ABDOMINAL" -> "vị trí đau bụng, cảm giác đau, thời điểm bắt đầu";
+            case "CHEST" -> "vị trí đau ngực, cảm giác đau, thời điểm bắt đầu";
+            case "DENTAL" -> "răng hoặc vùng hàm bị đau, cảm giác đau, thời điểm bắt đầu";
             case "SKIN" -> "vị trí tổn thương, hình dạng, thời điểm xuất hiện và mức độ ngứa hoặc đau";
-            default -> "vị trí khó chịu, cảm giác cụ thể, thời điểm bắt đầu và mức độ từ 0 đến 10";
+            default -> "vị trí khó chịu, cảm giác cụ thể, thời điểm bắt đầu";
         };
         return new ChatResult(
                 "Mình chưa có đủ thông tin để chọn chuyên khoa và khung khám phù hợp. Bạn vui lòng mô tả chi tiết hơn về "
@@ -561,7 +561,6 @@ public class TriageController {
         List<String> questions = new ArrayList<>();
         if (!duration) questions.add("Triệu chứng bắt đầu từ khi nào");
         if (!pattern) questions.add("xuất hiện đột ngột hay tăng dần, liên tục hay từng cơn");
-        if (!severity) questions.add("mức độ khó chịu từ 0 đến 10 là bao nhiêu");
         if (questions.isEmpty()) return null;
         return "Cảm ơn bạn. " + String.join("; ", questions) + "?";
     }
