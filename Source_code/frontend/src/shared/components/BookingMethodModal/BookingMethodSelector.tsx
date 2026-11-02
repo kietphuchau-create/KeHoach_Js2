@@ -1927,6 +1927,11 @@ export default function BookingMethodSelector({
     return matched;
   }, [dbDoctors, selectedCategoryKey, activeCategory, selectedBranch, doctorFilter]);
 
+  // Danh sách bác sĩ có ca trực khả dụng (availableCount > 0) tại cơ sở và ngày đã chọn
+  const doctorsWithShifts = useMemo(() => {
+    return availableDoctors.filter(d => (doctorSchedulesMap[d.id]?.availableCount ?? 0) > 0);
+  }, [availableDoctors, doctorSchedulesMap]);
+
   // Danh sách bác sĩ thực tế đang có mặt tại phòng khám (không trùng lặp) để hiển thị minh bạch
   const activeClinicDoctors = useMemo(() => {
     const pool = dbDoctors;
@@ -1955,14 +1960,14 @@ export default function BookingMethodSelector({
       setSelectedDoctor(null);
       return;
     }
-    if (availableDoctors.length > 0) {
-      if (!selectedDoctor || !availableDoctors.some(d => d.id === selectedDoctor.id)) {
-        setSelectedDoctor(availableDoctors[0]);
+    if (doctorsWithShifts.length > 0) {
+      if (!selectedDoctor || !doctorsWithShifts.some(d => d.id === selectedDoctor.id)) {
+        setSelectedDoctor(doctorsWithShifts[0]);
       }
     } else {
       setSelectedDoctor(null);
     }
-  }, [availableDoctors, selectedDoctor, aiStep]);
+  }, [doctorsWithShifts, selectedDoctor, aiStep]);
 
   // --- CÁC HÀM XỬ LÝ SỰ KIỆN LIỀN MẠCH (ZALO CHAT FLOW) ---
 
@@ -3374,6 +3379,10 @@ export default function BookingMethodSelector({
             ? (bookingSupport.doctors[0]?.doctorName || '')
             : '';
           if (firstDoc) setTriageDoctorOffDutyName(firstDoc);
+          // Tự động chuyển ngày khám sang Ngày mai để tránh kẹt ở ngày hôm nay không có ca
+          const nextDay = new Date();
+          nextDay.setDate(nextDay.getDate() + 1);
+          setBookingDate(nextDay.toISOString().split('T')[0]);
         } else {
           setIsTriageDoctorOffDuty(false);
           setTriageDoctorOffDutyName('');
@@ -3515,6 +3524,33 @@ export default function BookingMethodSelector({
         isTypingComplete: false,
       };
 
+      setAiStep('SELECT_DOCTOR_SLOT');
+      setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg, aiMsg]);
+      return;
+    }
+
+    const doctorsWithSlots = availableDoctors.filter(d => (doctorSchedulesMap[d.id]?.availableCount ?? 0) > 0);
+    if (doctorsWithSlots.length === 0 && Object.keys(doctorSchedulesMap).length > 0) {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const tomorrowIso = tomorrow.toISOString().split('T')[0];
+
+      const aiMsg: ChatMessage = {
+        id: 'msg-' + (Date.now() + 1),
+        sender: 'ai',
+        time: getFormattedTime(),
+        text: `⚠️ **THÔNG BÁO CA TRỰC BÁC SĨ:**\n\nDạ, hiện tại vào ngày **${formatVietnameseFullDate(bookingDate)}**, các bác sĩ chuyên khoa **${activeCategory.specialtyName}** tại **${selectedBranch?.shortName || 'phòng khám'}** đều **chưa mở ca trực hoặc đã kín lượt khám**.\n\n👉 Bạn vui lòng chọn **Ngày mai (${formatVietnameseFullDate(tomorrowIso)})** để được thăm khám sớm nhất, hoặc bấm chọn ngày khác nhé!`,
+        actionOptions: [
+          {
+            label: `📅 Đặt lịch ngày mai (${tomorrow.getDate()}/${tomorrow.getMonth() + 1})`,
+            actionKey: 'SET_DATE_AND_BRANCH',
+            variant: 'default',
+            payload: { targetDate: tomorrowIso, branch: selectedBranch },
+          },
+        ],
+        widget: 'SELECT_DOCTOR_SLOT',
+        isTypingComplete: false,
+      };
       setAiStep('SELECT_DOCTOR_SLOT');
       setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg, aiMsg]);
       return;
@@ -4527,20 +4563,32 @@ export default function BookingMethodSelector({
                             <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
                               {upcomingWeekdays.map((item) => {
                                 const isSelected = bookingDate === item.iso;
+                                const isTodayNoShift = item.iso === getTodayISODate() && isTriageDoctorOffDuty;
                                 return (
                                   <button
                                     key={item.iso}
                                     type="button"
-                                    onClick={() => setBookingDate(item.iso)}
+                                    onClick={() => {
+                                      setBookingDate(item.iso);
+                                      if (item.iso !== getTodayISODate()) {
+                                        setIsTriageDoctorOffDuty(false);
+                                      }
+                                    }}
                                     className={`p-2 rounded-xl border text-center transition cursor-pointer ${
                                       isSelected
-                                        ? 'bg-purple-600 text-white border-purple-600 font-bold shadow-2xs'
-                                        : 'bg-slate-50 hover:bg-purple-50 border-slate-200 text-slate-700'
+                                        ? (isTodayNoShift
+                                            ? 'bg-amber-600 text-white border-amber-600 font-bold shadow-2xs'
+                                            : 'bg-purple-600 text-white border-purple-600 font-bold shadow-2xs')
+                                        : (isTodayNoShift
+                                            ? 'bg-amber-50/70 hover:bg-amber-100 border-amber-200 text-amber-900'
+                                            : 'bg-slate-50 hover:bg-purple-50 border-slate-200 text-slate-700')
                                     }`}
                                   >
                                     <span className="block text-[11px] font-bold leading-tight">{item.label}</span>
-                                    <span className={`block text-[9px] mt-0.5 ${isSelected ? 'text-purple-100' : 'text-slate-400'}`}>
-                                      {item.subLabel}
+                                    <span className={`block text-[9px] mt-0.5 ${
+                                      isSelected ? 'text-white/90' : (isTodayNoShift ? 'text-amber-700 font-medium' : 'text-slate-400')
+                                    }`}>
+                                      {isTodayNoShift ? 'Nghỉ trực' : item.subLabel}
                                     </span>
                                   </button>
                                 );
@@ -4578,14 +4626,59 @@ export default function BookingMethodSelector({
                           </div>
 
                           {/* Nút tiếp tục sang Bước 4 */}
-                          <button
-                            type="button"
-                            onClick={handleProceedToDoctorSlot}
-                            className="w-full py-2.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer mt-2"
-                          >
-                            <span>Tiếp Tục: Chọn Bác Sĩ Tại {selectedBranch?.shortName || 'Phòng Khám'}</span>
-                            <ArrowRight size={14} />
-                          </button>
+                          {isTriageDoctorOffDuty && bookingDate === getTodayISODate() ? (
+                            <div className="space-y-2 mt-2">
+                              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-left">
+                                <p className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                                  <AlertCircle size={14} className="text-amber-600 shrink-0" />
+                                  <span>Hôm nay ({formatVietnameseFullDate(bookingDate)}) chuyên khoa chưa có ca trực sẵn sàng.</span>
+                                </p>
+                                <p className="text-[11px] text-amber-800 mt-1 leading-relaxed">
+                                  Bác sĩ chuyên khoa hiện chưa có lịch trực hôm nay. Bạn vui lòng bấm chọn <strong>Đặt lịch ngày mai</strong> hoặc quay lại sau nhé!
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const tomorrow = new Date();
+                                  tomorrow.setDate(tomorrow.getDate() + 1);
+                                  const tomorrowIso = tomorrow.toISOString().split('T')[0];
+                                  setBookingDate(tomorrowIso);
+                                  setIsTriageDoctorOffDuty(false);
+
+                                  const userMsg: ChatMessage = {
+                                    id: 'msg-' + Date.now(),
+                                    sender: 'user',
+                                    time: getFormattedTime(),
+                                    text: `Chọn cơ sở: ${selectedBranch?.shortName || 'Phòng khám'} • Đặt lịch ngày mai (${formatVietnameseFullDate(tomorrowIso)})`,
+                                  };
+                                  const aiMsg: ChatMessage = {
+                                    id: 'msg-' + (Date.now() + 1),
+                                    sender: 'ai',
+                                    time: getFormattedTime(),
+                                    text: `Dạ em đã cập nhật ngày khám sang **Ngày mai (${formatVietnameseFullDate(tomorrowIso)})** tại **${selectedBranch?.shortName || 'phòng khám'}** giúp bạn rồi ạ! 📅\n\nDưới đây là danh sách bác sĩ có ca trực sẵn sàng. Mời bạn chọn bác sĩ và khung giờ phù hợp bên dưới nhé:`,
+                                    widget: 'SELECT_DOCTOR_SLOT',
+                                    isTypingComplete: false,
+                                  };
+                                  setAiStep('SELECT_DOCTOR_SLOT');
+                                  setMessages(prev => [...prev.map(m => ({ ...m, isCompleteWidget: true })), userMsg, aiMsg]);
+                                }}
+                                className="w-full py-2.5 px-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+                              >
+                                <Calendar size={14} />
+                                <span>📅 Đặt Lịch Khám Vào Ngày Mai ({upcomingWeekdays[1]?.label || 'Ngày mai'}) ➔</span>
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={handleProceedToDoctorSlot}
+                              className="w-full py-2.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer mt-2"
+                            >
+                              <span>Tiếp Tục: Chọn Bác Sĩ Tại {selectedBranch?.shortName || 'Phòng Khám'}</span>
+                              <ArrowRight size={14} />
+                            </button>
+                          )}
                         </div>
                       )}
 
@@ -4669,8 +4762,36 @@ export default function BookingMethodSelector({
                                   ))}
                                 </div>
                               </div>
+                            ) : doctorsWithShifts.length === 0 ? (
+                              <div className="py-5 px-4 bg-amber-50 rounded-2xl border border-amber-200 text-center space-y-3">
+                                <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto">
+                                  <Calendar size={20} />
+                                </div>
+                                <div>
+                                  <h4 className="text-xs sm:text-sm font-extrabold text-amber-950">
+                                    Chưa có ca trực vào {bookingDate === getTodayISODate() ? 'Hôm nay' : formatVietnameseFullDate(bookingDate)}
+                                  </h4>
+                                  <p className="text-[11px] text-amber-800 mt-1 max-w-md mx-auto leading-relaxed">
+                                    Bác sĩ chuyên khoa {activeCategory.specialtyName} tại {selectedBranch?.shortName || 'phòng khám'} hiện chưa có ca trực khả dụng vào ngày này. Vui lòng chọn ngày khám khác (ví dụ: Ngày mai) hoặc quay lại sau nhé!
+                                  </p>
+                                </div>
+                                <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const tomorrow = new Date();
+                                      tomorrow.setDate(tomorrow.getDate() + 1);
+                                      setBookingDate(tomorrow.toISOString().split('T')[0]);
+                                    }}
+                                    className="px-3.5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                                  >
+                                    <Calendar size={13} />
+                                    <span>📅 Đặt Lịch Khám Vào Ngày Mai ({upcomingWeekdays[1]?.label || 'Ngày mai'}) ➔</span>
+                                  </button>
+                                </div>
+                              </div>
                             ) : (
-                              availableDoctors.map((doc) => {
+                              doctorsWithShifts.map((doc) => {
                                 const isSelected = selectedDoctor?.id === doc.id;
                                 return (
                                   <div
@@ -4857,20 +4978,22 @@ export default function BookingMethodSelector({
                             )}
                           </div>
 
-                          {/* Nút tiếp tục sang Bước 5 */}
-                          <button
-                            type="button"
-                            disabled={!selectedDoctor || !selectedSlotId || !selectedSlotTime || isSlotsLoading || isBookingSubmitting}
-                            onClick={handleProceedToPayment}
-                            className={`w-full py-2.5 px-4 font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 mt-2 ${
-                              !selectedDoctor || !selectedSlotId || !selectedSlotTime || isSlotsLoading || isBookingSubmitting
-                                ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                                : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white cursor-pointer'
-                            }`}
-                          >
-                            <span>{isBookingSubmitting ? 'Đang giữ đúng khung giờ...' : 'Tiếp Tục: Xác Nhận & Giữ Chỗ (Cọc 2k / Ưu Đãi)'}</span>
-                            <ArrowRight size={14} />
-                          </button>
+                          {/* Nút tiếp tục sang Bước 5 (Chỉ hiển thị khi có bác sĩ mở ca trực) */}
+                          {doctorsWithShifts.length > 0 && (
+                            <button
+                              type="button"
+                              disabled={!selectedDoctor || !selectedSlotId || !selectedSlotTime || isSlotsLoading || isBookingSubmitting}
+                              onClick={handleProceedToPayment}
+                              className={`w-full py-2.5 px-4 font-bold text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 mt-2 ${
+                                !selectedDoctor || !selectedSlotId || !selectedSlotTime || isSlotsLoading || isBookingSubmitting
+                                  ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                                  : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white cursor-pointer'
+                              }`}
+                            >
+                              <span>{isBookingSubmitting ? 'Đang giữ đúng khung giờ...' : 'Tiếp Tục: Xác Nhận & Giữ Chỗ (Cọc 2k / Ưu Đãi)'}</span>
+                              <ArrowRight size={14} />
+                            </button>
+                          )}
                         </div>
                       )}
 
