@@ -1489,19 +1489,17 @@ export default function DoctorScheduleView() {
                                       <button
                                         type="button"
                                         onClick={() => handleDeleteSchedule(sch)}
-                                        disabled={actionLoadingId === sch.id || sch.bookedSlots > 0 || isToday || isPast}
-                                        className="text-rose-600 hover:text-rose-800 disabled:opacity-30 cursor-pointer p-0.5"
+                                        disabled={actionLoadingId === sch.id || isPast}
+                                        className="text-rose-600 hover:text-rose-800 disabled:opacity-30 cursor-pointer p-0.5 hover:scale-110 transition"
                                         title={
                                           isPast
                                             ? 'Ca trực trong quá khứ đã kết thúc'
-                                            : isToday
-                                            ? 'Ca trực hôm nay đã chốt cố định, không thể xóa tùy tiện'
                                             : sch.bookedSlots > 0
-                                            ? 'Đã có người đặt, không thể hủy'
+                                            ? `Ca có ${sch.bookedSlots} bệnh nhân đặt - Bấm để mở Hủy Khẩn Cấp`
                                             : 'Hủy ca trực này'
                                         }
                                       >
-                                        <Trash2 size={12} />
+                                        <Trash2 size={13} />
                                       </button>
                                     </div>
                                   </>
@@ -3071,13 +3069,30 @@ export default function DoctorScheduleView() {
               <span className="text-xs text-slate-500">
                 Thao tác trực tiếp trên giao diện ma trận tuần
               </span>
-              <button
-                type="button"
-                onClick={() => setSelectedScheduleForSlots(null)}
-                className="px-4 py-2 bg-teal-800 hover:bg-teal-900 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-sm"
-              >
-                Đóng Tiện Ích
-              </button>
+              <div className="flex items-center gap-2">
+                {activeScheduleForSlots.workDate >= getLocalDateString() && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const sch = activeScheduleForSlots;
+                      setSelectedScheduleForSlots(null);
+                      handleDeleteSchedule(sch);
+                    }}
+                    className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                    title={activeScheduleForSlots.bookedSlots > 0 ? "Hủy ca khẩn cấp" : "Hủy và xóa toàn bộ ca trực này"}
+                  >
+                    <Trash2 size={13} />
+                    <span>{activeScheduleForSlots.bookedSlots > 0 ? "Hủy Ca Khẩn Cấp" : "Hủy Ca Trực Này"}</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setSelectedScheduleForSlots(null)}
+                  className="px-4 py-2 bg-teal-800 hover:bg-teal-900 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-sm"
+                >
+                  Đóng Tiện Ích
+                </button>
+              </div>
             </div>
           </div>
         </div>
