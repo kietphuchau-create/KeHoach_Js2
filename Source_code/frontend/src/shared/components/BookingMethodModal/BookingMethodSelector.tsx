@@ -1674,7 +1674,7 @@ export default function BookingMethodSelector({
     const now = new Date();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
     const available = dynamicSlots.filter(s => {
-      const isPast = !isDev247 && isToday && s.startMinutes !== undefined && s.startMinutes <= currentMinutes;
+      const isPast = isToday && s.startMinutes !== undefined && s.startMinutes <= currentMinutes;
       return !(s.disabled || s.status === 'full' || s.status === 'expired' || s.status === 'locked' || isPast);
     });
     return {
@@ -1712,7 +1712,7 @@ export default function BookingMethodSelector({
     if (dynamicSlots.length > 0) {
       return dynamicSlots
         .filter(slot => {
-          const isPast = !isDev247 && isToday && slot.startMinutes !== undefined && slot.startMinutes <= currentMinutes;
+          const isPast = isToday && slot.startMinutes !== undefined && slot.startMinutes <= currentMinutes;
           const isDisabled = slot.disabled || slot.status === 'full' || slot.status === 'expired' || slot.status === 'locked' || isPast;
           return !isDisabled;
         })
@@ -2422,7 +2422,7 @@ export default function BookingMethodSelector({
             if (!s.doctorId) return;
             const validSlots = Array.isArray(s.slots) ? s.slots.filter((slot: any) => {
               if (slot.status !== 'AVAILABLE') return false;
-              if (isToday && slot.startTime && !isDev247) {
+              if (isToday && slot.startTime) {
                 const parts = slot.startTime.split(':');
                 const startMin = parseInt(parts[0], 10) * 60 + parseInt(parts[1] || '0', 10);
                 return startMin > currentMinutes;
@@ -2486,12 +2486,16 @@ export default function BookingMethodSelector({
       setSelectedDoctor(null);
       const doctorNames = (matchingWithoutSlots.length > 0 ? matchingWithoutSlots : matchingDoctors).map((d: DemoDoctor) => d.name).join(', ');
       const altDoctor = otherDoctorsWithSlots.length > 0 ? otherDoctorsWithSlots[0] : null;
+      const hasEndedSchedule = matchingDoctors.some(d => activeSchedulesMap[d.id]?.hasSchedule && (activeSchedulesMap[d.id]?.availableCount ?? 0) === 0);
+      const noSlotsReason = (bookingDate === getTodayISODate() && hasEndedSchedule)
+        ? `các ca trực hôm nay (${formatVietnameseFullDate(bookingDate)}) đã kết thúc trong quá khứ`
+        : `chưa có ca khám / bác sĩ trực mở sẵn vào ngày ${formatVietnameseFullDate(bookingDate)}`;
 
       const aiMsg: ChatMessage = {
         id: 'msg-' + (Date.now() + 1),
         sender: 'ai',
         time: getFormattedTime(),
-        text: `Dạ em đã ghi nhận đầy đủ hồ sơ triệu chứng của bạn:\n\n${summaryNote}\n\nTheo định hướng chuyên môn, tình trạng của bạn cần được thăm khám tại **${activeCategory.specialtyName}**.\n\nHiện tại chuyên khoa này **chưa có ca khám / bác sĩ trực mở sẵn trên hệ thống tiếp đón vào ngày ${formatVietnameseFullDate(bookingDate)}**. Bạn vui lòng bấm chọn ngày khám khác bên dưới hoặc quay lại sau nhé!${altDoctor ? `\n\n💡 *Gợi ý thay thế:* Nếu bạn cần được thăm khám ban đầu ngay hôm nay, phòng khám có Bác sĩ **${altDoctor.name}** (${altDoctor.specialtyName}) đang có ca trực sẵn sàng tiếp nhận.` : ''}`,
+        text: `Dạ em đã ghi nhận đầy đủ hồ sơ triệu chứng của bạn:\n\n${summaryNote}\n\nTheo định hướng chuyên môn, tình trạng của bạn cần được thăm khám tại **${activeCategory.specialtyName}**.\n\nHiện tại chuyên khoa này **${noSlotsReason}**. Bạn vui lòng bấm chọn ngày khám khác bên dưới (ví dụ **Kiểm tra lịch ngày mai**) để em chuẩn bị hồ sơ giữ chỗ sớm nhất cho bạn nhé!${altDoctor ? `\n\n💡 *Gợi ý thay thế:* Nếu bạn cần được thăm khám ban đầu ngay hôm nay, phòng khám có Bác sĩ **${altDoctor.name}** (${altDoctor.specialtyName}) đang có ca trực sẵn sàng tiếp nhận.` : ''}`,
         widget: 'DOCTOR_NO_SLOTS',
         actionOptions: [
           {
@@ -3051,7 +3055,7 @@ export default function BookingMethodSelector({
       const requestedStartParts = intent.proposedSlot.split(' - ')[0]?.split(':').map(Number) || [];
       const requestedStartMinutes = (requestedStartParts[0] * 60) + requestedStartParts[1];
       const requestedEndMinutes = requestedStartMinutes + 30;
-      const isPastTimeToday = !isDev247 && isToday && requestedStartMinutes <= currentMinutes;
+      const isPastTimeToday = isToday && requestedStartMinutes <= currentMinutes;
 
       if (isPastTimeToday) {
         const slotPool = availableAllSlots.length > 0 ? availableAllSlots : shiftSlots;
@@ -3734,7 +3738,7 @@ export default function BookingMethodSelector({
               if (!s.doctorId) return;
               const validSlots = Array.isArray(s.slots) ? s.slots.filter((slot: any) => {
                 if (slot.status !== 'AVAILABLE') return false;
-                if (isToday && slot.startTime && !isDev247) {
+                if (isToday && slot.startTime) {
                   const parts = slot.startTime.split(':');
                   const startMin = parseInt(parts[0], 10) * 60 + parseInt(parts[1] || '0', 10);
                   return startMin > currentMinutes;
@@ -3796,12 +3800,16 @@ export default function BookingMethodSelector({
           setAiStep('DOCTOR_NO_SLOTS');
           setSelectedDoctor(null);
           const altDoctor = otherDoctorsWithSlots.length > 0 ? otherDoctorsWithSlots[0] : null;
+          const hasEndedSchedule = matchingDoctors.some(d => activeSchedulesMap[d.id]?.hasSchedule && (activeSchedulesMap[d.id]?.availableCount ?? 0) === 0);
+          const noSlotsReason = (bookingDate === getTodayISODate() && hasEndedSchedule)
+            ? `các ca trực hôm nay (${formatVietnameseFullDate(bookingDate)}) đã kết thúc trong quá khứ`
+            : `chưa có ca khám / bác sĩ trực mở sẵn vào ngày ${formatVietnameseFullDate(bookingDate)}`;
 
           const aiMsg: ChatMessage = {
             id: 'msg-' + (Date.now() + 1),
             sender: 'ai',
             time: getFormattedTime(),
-            text: `Dạ em đã ghi nhận hồ sơ triệu chứng của bạn.\n\nTheo định hướng chuyên môn, tình trạng của bạn cần được thăm khám tại **${specName}**.\n\nHiện tại chuyên khoa này **chưa có ca khám / bác sĩ trực mở sẵn trên hệ thống tiếp đón vào ngày ${formatVietnameseFullDate(bookingDate)}**. Bạn vui lòng bấm chọn ngày khám khác bên dưới hoặc quay lại sau nhé!${altDoctor ? `\n\n💡 *Gợi ý thay thế:* Nếu bạn cần được thăm khám ban đầu ngay hôm nay, phòng khám có Bác sĩ **${altDoctor.name}** (${altDoctor.specialtyName}) đang có ca trực sẵn sàng tiếp nhận.` : ''}`,
+            text: `Dạ em đã ghi nhận hồ sơ triệu chứng của bạn.\n\nTheo định hướng chuyên môn, tình trạng của bạn cần được thăm khám tại **${specName}**.\n\nHiện tại chuyên khoa này **${noSlotsReason}**. Bạn vui lòng bấm chọn ngày khám khác bên dưới (ví dụ **Kiểm tra lịch ngày mai**) để em chuẩn bị hồ sơ giữ chỗ sớm nhất cho bạn nhé!${altDoctor ? `\n\n💡 *Gợi ý thay thế:* Nếu bạn cần được thăm khám ban đầu ngay hôm nay, phòng khám có Bác sĩ **${altDoctor.name}** (${altDoctor.specialtyName}) đang có ca trực sẵn sàng tiếp nhận.` : ''}`,
             widget: 'DOCTOR_NO_SLOTS',
             actionOptions: [
               { label: '📅 Kiểm tra lịch ngày mai', actionKey: 'CHANGE_DATE', variant: 'primary' },
@@ -5322,8 +5330,12 @@ export default function BookingMethodSelector({
                                                 <span className="text-[8.5px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded-full">
                                                   ⚡ Có ca trực ({doctorSchedulesMap[doc.id].availableCount} slot)
                                                 </span>
-                                              ) : (
+                                              ) : doctorSchedulesMap[doc.id].hasSchedule ? (
                                                 <span className="text-[8.5px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded-full">
+                                                  🕒 Đã hết ca trực hôm nay
+                                                </span>
+                                              ) : (
+                                                <span className="text-[8.5px] bg-slate-100 text-slate-600 font-bold px-1.5 py-0.5 rounded-full">
                                                   🕒 Chưa mở ca ngày này
                                                 </span>
                                               )
