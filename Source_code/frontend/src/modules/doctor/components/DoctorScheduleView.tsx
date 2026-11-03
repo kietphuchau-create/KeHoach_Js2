@@ -1620,14 +1620,8 @@ export default function DoctorScheduleView() {
                   {/* Buồng khám */}
                   <div className="space-y-1">
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-semibold text-slate-600 flex items-center gap-1.5 flex-wrap">
-                        <span>Buồng khám:</span>
-                        {currentSpecialtyName && (
-                          <span className="px-1.5 py-0.5 rounded bg-teal-50 text-teal-800 font-extrabold text-[10px] border border-teal-200">
-                            Khoa {currentSpecialtyName}
-                          </span>
-                        )}
-                        {myExistingShiftOnDate && <span className="text-teal-700 font-bold">(Gợi ý: {myExistingShiftOnDate.roomNumber})</span>}
+                      <span className="text-[11px] font-semibold text-slate-600">
+                        Buồng khám:
                       </span>
                       {checkingRooms && <RefreshCw size={11} className="animate-spin text-teal-600" />}
                     </div>
