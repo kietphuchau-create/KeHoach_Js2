@@ -21,7 +21,9 @@ import {
   X,
   DoorOpen,
   LayoutGrid,
-  ChevronDown
+  ChevronDown,
+  SlidersHorizontal,
+  Check
 } from 'lucide-react';
 import { api, getAuthUser } from '@/shared/lib/api';
 import { getClinicRooms, ClinicRoom } from '@/shared/lib/clinicRooms';
@@ -93,6 +95,21 @@ export default function DoctorScheduleView() {
   const [submitting, setSubmitting] = useState(false);
   const [activePreset, setActivePreset] = useState<'NIGHT' | 'MORNING' | 'AFTERNOON' | 'EVENING' | 'FULL_DAY' | null>('MORNING');
   const [showPresetModal, setShowPresetModal] = useState<boolean>(false);
+
+  // Đồng hồ kéo chọn khung giờ ca trực trực quan
+  const [showClockPickerModal, setShowClockPickerModal] = useState<boolean>(false);
+  const [clockTempStart, setClockTempStart] = useState<string>('08:00');
+  const [clockTempEnd, setClockTempEnd] = useState<string>('12:00');
+  const [activeClockTab, setActiveClockTab] = useState<'start' | 'end'>('start');
+  const [draggingClockHandle, setDraggingClockHandle] = useState<'start' | 'end' | null>(null);
+  const clockSvgRef = React.useRef<SVGSVGElement | null>(null);
+
+  const openClockPicker = (tab: 'start' | 'end' = 'start') => {
+    setClockTempStart(startTime);
+    setClockTempEnd(endTime);
+    setActiveClockTab(tab);
+    setShowClockPickerModal(true);
+  };
 
   // Cửa sổ tiện ích xem và quản lý khung giờ của một ca trực ngay trên ma trận
   const [selectedScheduleForSlots, setSelectedScheduleForSlots] = useState<DoctorScheduleDto | null>(null);
@@ -499,6 +516,129 @@ export default function DoctorScheduleView() {
       }
     }
   }, [categorizedRooms, currentRoomNumber, selectedRoom]);
+
+  // Các hàm tiện ích cho đồng hồ tương tác và xử lý thời gian
+  const timeToMinutes = (timeStr: string): number => {
+    if (!timeStr) return 0;
+    const [h, m] = timeStr.split(':').map(Number);
+    return (h || 0) * 60 + (m || 0);
+  };
+
+  const minutesToTime = (minutes: number): string => {
+    if (minutes >= 1439) return '23:59';
+    const norm = Math.max(0, Math.min(1439, Math.round(minutes)));
+    const h = Math.floor(norm / 60);
+    const m = norm % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  };
+
+  const formatTime12h = (timeStr: string): string => {
+    if (!timeStr) return '';
+    const [hStr, mStr] = timeStr.split(':');
+    const h = Number(hStr) || 0;
+    const m = mStr || '00';
+    const period = h < 12 ? 'AM' : 'PM';
+    const displayH = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    return `${String(displayH).padStart(2, '0')}:${m} ${period}`;
+  };
+
+  const polarToCartesian = (cx: number, cy: number, r: number, angleDeg: number) => {
+    const rad = ((angleDeg - 90) * Math.PI) / 180.0;
+    return {
+      x: cx + r * Math.cos(rad),
+      y: cy + r * Math.sin(rad),
+    };
+  };
+
+  const describeArc = (cx: number, cy: number, r: number, startAngle: number, endAngle: number) => {
+    const start = polarToCartesian(cx, cy, r, startAngle);
+    const end = polarToCartesian(cx, cy, r, endAngle);
+    let diff = endAngle - startAngle;
+    if (diff < 0) diff += 360;
+    const largeArcFlag = diff > 180 ? 1 : 0;
+    return `M ${start.x} ${start.y} A ${r} ${r} 0 ${largeArcFlag} 1 ${end.x} ${end.y}`;
+  };
+
+  const updateClockTimeFromAngle = (deg: number, handle: 'start' | 'end') => {
+    const rawMinutes = (deg / 360) * 1440;
+    let snappedMinutes = Math.round(rawMinutes / 15) * 15;
+    if (snappedMinutes >= 1440) snappedMinutes = 1440;
+
+    const startM = timeToMinutes(clockTempStart);
+    const endM = timeToMinutes(clockTempEnd);
+
+    if (handle === 'start') {
+      const maxStart = Math.max(0, endM - 30);
+      const finalStart = Math.min(snappedMinutes, maxStart);
+      setClockTempStart(minutesToTime(finalStart));
+    } else {
+      const minEnd = Math.min(1439, startM + 30);
+      const finalEnd = Math.max(snappedMinutes, minEnd);
+      setClockTempEnd(minutesToTime(finalEnd));
+    }
+  };
+
+  const handleClockPointerDown = (e: React.PointerEvent<SVGElement>, forceHandle?: 'start' | 'end') => {
+    if (!clockSvgRef.current) return;
+    const rect = clockSvgRef.current.getBoundingClientRect();
+    const x = e.clientX - (rect.left + rect.width / 2);
+    const y = e.clientY - (rect.top + rect.height / 2);
+    let deg = (Math.atan2(y, x) * 180 / Math.PI) + 90;
+    if (deg < 0) deg += 360;
+
+    let target = forceHandle;
+    if (!target) {
+      const startM = timeToMinutes(clockTempStart);
+      const endM = timeToMinutes(clockTempEnd);
+      const sAngle = (startM / 1440) * 360;
+      const eAngle = (endM / 1440) * 360;
+      const distS = Math.min(Math.abs(deg - sAngle), 360 - Math.abs(deg - sAngle));
+      const distE = Math.min(Math.abs(deg - eAngle), 360 - Math.abs(deg - eAngle));
+      target = distS <= distE ? 'start' : 'end';
+    }
+
+    setDraggingClockHandle(target);
+    setActiveClockTab(target);
+    try {
+      clockSvgRef.current.setPointerCapture(e.pointerId);
+    } catch {}
+
+    updateClockTimeFromAngle(deg, target);
+  };
+
+  const handleClockPointerMove = (e: React.PointerEvent<SVGElement>) => {
+    if (!draggingClockHandle || !clockSvgRef.current) return;
+    const rect = clockSvgRef.current.getBoundingClientRect();
+    const x = e.clientX - (rect.left + rect.width / 2);
+    const y = e.clientY - (rect.top + rect.height / 2);
+    let deg = (Math.atan2(y, x) * 180 / Math.PI) + 90;
+    if (deg < 0) deg += 360;
+
+    updateClockTimeFromAngle(deg, draggingClockHandle);
+  };
+
+  const handleClockPointerUp = (e: React.PointerEvent<SVGElement>) => {
+    if (clockSvgRef.current && draggingClockHandle) {
+      try {
+        clockSvgRef.current.releasePointerCapture(e.pointerId);
+      } catch {}
+    }
+    setDraggingClockHandle(null);
+  };
+
+  const adjustClockMinutes = (type: 'start' | 'end', delta: number) => {
+    if (type === 'start') {
+      const cur = timeToMinutes(clockTempStart);
+      const end = timeToMinutes(clockTempEnd);
+      const next = Math.max(0, Math.min(end - 30, cur + delta));
+      setClockTempStart(minutesToTime(next));
+    } else {
+      const cur = timeToMinutes(clockTempEnd);
+      const start = timeToMinutes(clockTempStart);
+      const next = Math.min(1410, Math.max(start + 30, cur + delta));
+      setClockTempEnd(minutesToTime(next));
+    }
+  };
 
   // Kiểm tra ca trực mẫu đã trôi qua trong ngày hôm nay chưa
   const isShiftPresetExpiredToday = (targetDate: string, shiftEndTime: string, isFullDay: boolean = false) => {
@@ -1530,33 +1670,64 @@ export default function DoctorScheduleView() {
                 </button>
               </div>
 
-              {/* 2. Tùy chỉnh chi tiết thời gian ca */}
+              {/* 2. Tùy chỉnh chi tiết thời gian ca - Bấm vào mở đồng hồ kéo 2 đầu */}
               <div className="space-y-2 pt-1 border-t border-slate-100">
-                <label className="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                  <Clock size={14} className="text-teal-700" />
-                  <span>2. Tùy chỉnh chi tiết thời gian từng ca:</span>
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                    <Clock size={14} className="text-teal-700" />
+                    <span>2. Tùy chỉnh chi tiết thời gian từng ca:</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => openClockPicker('start')}
+                    className="inline-flex items-center gap-1.5 text-[11px] font-bold text-teal-700 hover:text-teal-800 bg-teal-50 hover:bg-teal-100/80 px-2.5 py-1 rounded-xl border border-teal-200 transition cursor-pointer shadow-2xs group"
+                    title="Mở đồng hồ để nắm kéo thời gian bắt đầu và kết thúc"
+                  >
+                    <Clock size={13} className="group-hover:rotate-45 transition-transform" />
+                    <span>Kéo Đồng Hồ 🕒</span>
+                  </button>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                   <div className="space-y-1">
-                    <span className="text-[11px] font-semibold text-slate-600">Giờ bắt đầu:</span>
-                    <input
-                      type="time"
-                      required
-                      value={startTime}
-                      onChange={(e) => handleStartTimeChange(e.target.value)}
-                      className="w-full p-2.5 border border-slate-200 rounded-xl text-xs bg-slate-50 text-slate-800 outline-none focus:ring-2 focus:ring-teal-700/20 font-bold"
-                    />
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-semibold text-slate-600">Giờ bắt đầu:</span>
+                      <span className="text-[10px] text-emerald-600 font-bold">Bấm kéo đồng hồ</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => openClockPicker('start')}
+                      className="w-full p-2.5 border border-slate-200 hover:border-emerald-400 rounded-xl text-xs bg-slate-50 hover:bg-emerald-50/40 text-slate-800 flex items-center justify-between font-bold transition group cursor-pointer text-left shadow-2xs"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
+                        <span className="text-sm font-extrabold text-slate-800">{startTime}</span>
+                        <span className="text-[10px] text-slate-400 font-semibold bg-slate-200/60 px-1.5 py-0.5 rounded">
+                          {formatTime12h(startTime).split(' ')[1]}
+                        </span>
+                      </div>
+                      <Clock size={15} className="text-slate-400 group-hover:text-emerald-600 transition" />
+                    </button>
                   </div>
 
                   <div className="space-y-1">
-                    <span className="text-[11px] font-semibold text-slate-600">Giờ kết thúc:</span>
-                    <input
-                      type="time"
-                      required
-                      value={endTime}
-                      onChange={(e) => handleEndTimeChange(e.target.value)}
-                      className="w-full p-2.5 border border-slate-200 rounded-xl text-xs bg-slate-50 text-slate-800 outline-none focus:ring-2 focus:ring-teal-700/20 font-bold"
-                    />
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-semibold text-slate-600">Giờ kết thúc:</span>
+                      <span className="text-[10px] text-rose-600 font-bold">Bấm kéo đồng hồ</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => openClockPicker('end')}
+                      className="w-full p-2.5 border border-slate-200 hover:border-rose-400 rounded-xl text-xs bg-slate-50 hover:bg-rose-50/40 text-slate-800 flex items-center justify-between font-bold transition group cursor-pointer text-left shadow-2xs"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />
+                        <span className="text-sm font-extrabold text-slate-800">{endTime}</span>
+                        <span className="text-[10px] text-slate-400 font-semibold bg-slate-200/60 px-1.5 py-0.5 rounded">
+                          {formatTime12h(endTime).split(' ')[1]}
+                        </span>
+                      </div>
+                      <Clock size={15} className="text-slate-400 group-hover:text-rose-600 transition" />
+                    </button>
                   </div>
 
                   <div className="space-y-1">
@@ -2055,6 +2226,437 @@ export default function DoctorScheduleView() {
                 </div>
               );
             })()}
+          </div>
+        </div>
+      )}
+
+      {/* ── Popup Đồng Hồ Kéo Khung Giờ Ca Trực ── */}
+      {showClockPickerModal && (
+        <div className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-md w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="px-5 py-4 bg-gradient-to-r from-teal-800 via-teal-900 to-slate-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-white/10 rounded-xl">
+                  <Clock size={18} className="text-teal-200 animate-pulse" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm tracking-tight flex items-center gap-1.5">
+                    <span>Đồng Hồ Chỉnh Khung Giờ</span>
+                    <span className="text-[10px] bg-teal-500/30 text-teal-200 px-2 py-0.5 rounded-full font-bold">
+                      Kéo 2 Đầu
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-teal-100 opacity-80">
+                    Nắm kéo 🟢 Bắt đầu &amp; 🔴 Kết thúc trên mặt đồng hồ
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowClockPickerModal(false)}
+                className="p-1.5 hover:bg-white/10 rounded-xl text-white/80 hover:text-white transition cursor-pointer"
+                title="Đóng popup"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-4 sm:p-5 overflow-y-auto space-y-4">
+              {/* Tabs chọn nắm kéo Bắt đầu hoặc Kết thúc */}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveClockTab('start')}
+                  className={`p-2.5 rounded-2xl border text-left transition flex items-center justify-between cursor-pointer ${
+                    activeClockTab === 'start'
+                      ? 'bg-emerald-50 border-emerald-400 ring-2 ring-emerald-500/20'
+                      : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  <div className="space-y-0.5">
+                    <span className="text-[10px] font-bold text-slate-500 flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                      Giờ Bắt Đầu
+                    </span>
+                    <div className="text-base font-black text-slate-800">
+                      {clockTempStart}{' '}
+                      <span className="text-[10px] font-semibold text-slate-400">
+                        {formatTime12h(clockTempStart).split(' ')[1]}
+                      </span>
+                    </div>
+                  </div>
+                  {activeClockTab === 'start' && (
+                    <span className="text-[10px] bg-emerald-600 text-white px-2 py-0.5 rounded-lg font-bold">
+                      Đang kéo
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveClockTab('end')}
+                  className={`p-2.5 rounded-2xl border text-left transition flex items-center justify-between cursor-pointer ${
+                    activeClockTab === 'end'
+                      ? 'bg-rose-50 border-rose-400 ring-2 ring-rose-500/20'
+                      : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  <div className="space-y-0.5">
+                    <span className="text-[10px] font-bold text-slate-500 flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-rose-500" />
+                      Giờ Kết Thúc
+                    </span>
+                    <div className="text-base font-black text-slate-800">
+                      {clockTempEnd}{' '}
+                      <span className="text-[10px] font-semibold text-slate-400">
+                        {formatTime12h(clockTempEnd).split(' ')[1]}
+                      </span>
+                    </div>
+                  </div>
+                  {activeClockTab === 'end' && (
+                    <span className="text-[10px] bg-rose-600 text-white px-2 py-0.5 rounded-lg font-bold">
+                      Đang kéo
+                    </span>
+                  )}
+                </button>
+              </div>
+
+              {/* Mặt Đồng Hồ 24h Tương Tác Kéo Thả SVG */}
+              <div className="relative flex flex-col items-center justify-center py-2 bg-slate-50/80 rounded-2xl border border-slate-100">
+                <svg
+                  ref={clockSvgRef}
+                  viewBox="0 0 320 320"
+                  className="w-full max-w-[280px] h-[280px] select-none touch-none cursor-pointer"
+                  onPointerDown={(e) => handleClockPointerDown(e)}
+                  onPointerMove={(e) => handleClockPointerMove(e)}
+                  onPointerUp={(e) => handleClockPointerUp(e)}
+                  onPointerCancel={(e) => handleClockPointerUp(e)}
+                >
+                  <defs>
+                    <linearGradient id="clockArcGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#0d9488" />
+                      <stop offset="100%" stopColor="#10b981" />
+                    </linearGradient>
+                    <filter id="handleShadow" x="-50%" y="-50%" width="200%" height="200%">
+                      <feDropShadow dx="0" dy="2" stdDeviation="3" floodOpacity="0.35" />
+                    </filter>
+                    <filter id="hubShadow" x="-20%" y="-20%" width="140%" height="140%">
+                      <feDropShadow dx="0" dy="3" stdDeviation="4" floodOpacity="0.08" />
+                    </filter>
+                  </defs>
+
+                  {/* Vòng nền mặt đồng hồ */}
+                  <circle cx="160" cy="160" r="110" fill="none" stroke="#e2e8f0" strokeWidth="20" strokeLinecap="round" />
+
+                  {/* Vành thời gian ngày/đêm nhẹ */}
+                  {/* Ban ngày 06:00 - 18:00 (90° đến 270°) */}
+                  <path
+                    d={describeArc(160, 160, 110, 90, 270)}
+                    fill="none"
+                    stroke="#fef3c7"
+                    strokeWidth="20"
+                    opacity="0.6"
+                  />
+                  {/* Ban đêm 22:00 - 06:00 (330° đến 90°) */}
+                  <path
+                    d={describeArc(160, 160, 110, 330, 90)}
+                    fill="none"
+                    stroke="#e0e7ff"
+                    strokeWidth="20"
+                    opacity="0.6"
+                  />
+
+                  {/* Vạch giờ & Nhãn xung quanh (24 giờ) */}
+                  {Array.from({ length: 24 }).map((_, i) => {
+                    const angle = i * 15;
+                    const isMajor = i % 6 === 0;
+                    const isMid = i % 3 === 0;
+                    const tickOuter = polarToCartesian(160, 160, 122, angle);
+                    const tickInner = polarToCartesian(160, 160, isMajor ? 98 : isMid ? 100 : 103, angle);
+                    const textCoord = polarToCartesian(160, 160, 138, angle);
+                    const label = isMajor 
+                      ? (i === 0 ? '00h' : i === 6 ? '06h' : i === 12 ? '12h' : '18h')
+                      : isMid 
+                      ? `${String(i).padStart(2, '0')}h`
+                      : null;
+
+                    return (
+                      <g key={i}>
+                        <line
+                          x1={tickInner.x}
+                          y1={tickInner.y}
+                          x2={tickOuter.x}
+                          y2={tickOuter.y}
+                          stroke={isMajor ? '#475569' : isMid ? '#94a3b8' : '#cbd5e1'}
+                          strokeWidth={isMajor ? 2.5 : isMid ? 1.5 : 1}
+                        />
+                        {label && (
+                          <text
+                            x={textCoord.x}
+                            y={textCoord.y}
+                            fill={isMajor ? '#0f172a' : '#64748b'}
+                            fontSize={isMajor ? '11' : '9'}
+                            fontWeight={isMajor ? '800' : '600'}
+                            textAnchor="middle"
+                            dominantBaseline="central"
+                          >
+                            {label}
+                          </text>
+                        )}
+                      </g>
+                    );
+                  })}
+
+                  {/* Vòng cung active (Khoảng thời gian đang chọn) */}
+                  {(() => {
+                    const startM = timeToMinutes(clockTempStart);
+                    const endM = timeToMinutes(clockTempEnd);
+                    const sAngle = (startM / 1440) * 360;
+                    const eAngle = (endM / 1440) * 360;
+                    return (
+                      <path
+                        d={describeArc(160, 160, 110, sAngle, eAngle)}
+                        fill="none"
+                        stroke="url(#clockArcGradient)"
+                        strokeWidth="20"
+                        strokeLinecap="round"
+                      />
+                    );
+                  })()}
+
+                  {/* Nút nắm Bắt Đầu (Emerald Green 🟢) */}
+                  {(() => {
+                    const startM = timeToMinutes(clockTempStart);
+                    const sAngle = (startM / 1440) * 360;
+                    const pos = polarToCartesian(160, 160, 110, sAngle);
+                    return (
+                      <g
+                        transform={`translate(${pos.x}, ${pos.y})`}
+                        className="cursor-grab active:cursor-grabbing"
+                        filter="url(#handleShadow)"
+                        onPointerDown={(e) => {
+                          e.stopPropagation();
+                          handleClockPointerDown(e, 'start');
+                        }}
+                      >
+                        <circle r="15" fill="#059669" stroke="#ffffff" strokeWidth="3" />
+                        <circle r="4.5" fill="#ffffff" />
+                      </g>
+                    );
+                  })()}
+
+                  {/* Nút nắm Kết Thúc (Rose Red 🔴) */}
+                  {(() => {
+                    const endM = timeToMinutes(clockTempEnd);
+                    const eAngle = (endM / 1440) * 360;
+                    const pos = polarToCartesian(160, 160, 110, eAngle);
+                    return (
+                      <g
+                        transform={`translate(${pos.x}, ${pos.y})`}
+                        className="cursor-grab active:cursor-grabbing"
+                        filter="url(#handleShadow)"
+                        onPointerDown={(e) => {
+                          e.stopPropagation();
+                          handleClockPointerDown(e, 'end');
+                        }}
+                      >
+                        <circle r="15" fill="#e11d48" stroke="#ffffff" strokeWidth="3" />
+                        <circle r="4.5" fill="#ffffff" />
+                      </g>
+                    );
+                  })()}
+
+                  {/* Trung tâm mặt đồng hồ (Hub hiển thị kỹ thuật số) */}
+                  <circle
+                    cx="160"
+                    cy="160"
+                    r="68"
+                    fill="#ffffff"
+                    stroke="#e2e8f0"
+                    strokeWidth="1.5"
+                    filter="url(#hubShadow)"
+                  />
+                  <foreignObject x="98" y="98" width="124" height="124" className="pointer-events-none">
+                    <div className="w-full h-full flex flex-col items-center justify-center text-center p-1 select-none">
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
+                        Tổng Thời Gian
+                      </div>
+                      <div className="text-sm font-black text-slate-800 leading-tight">
+                        {clockTempStart} – {clockTempEnd}
+                      </div>
+                      {(() => {
+                        const durMin = Math.max(0, timeToMinutes(clockTempEnd) - timeToMinutes(clockTempStart));
+                        const durHours = (durMin / 60).toFixed(1).replace('.0', '');
+                        const estSlots = Math.floor(durMin / slotDuration);
+                        return (
+                          <>
+                            <div className="text-[11px] font-extrabold text-teal-700 mt-1">
+                              {durHours} tiếng • {estSlots} slots
+                            </div>
+                            <div className="text-[9px] text-slate-400 mt-0.5">
+                              {slotDuration} phút/ca
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </foreignObject>
+                </svg>
+
+                <p className="text-[11px] text-slate-500 font-medium mt-1 flex items-center gap-1">
+                  <span>💡 <strong>Nắm kéo</strong> nút tròn xanh/đỏ hoặc bấm vào giờ bất kỳ</span>
+                </p>
+              </div>
+
+              {/* Nút tinh chỉnh nhanh +/- 15p, 30p */}
+              <div className="space-y-2 pt-1 border-t border-slate-100">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-slate-700 flex items-center gap-1.5">
+                    <SlidersHorizontal size={13} className="text-teal-700" />
+                    <span>Tinh chỉnh nhanh từng mốc 15 - 30 phút:</span>
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {/* Chỉnh giờ bắt đầu */}
+                  <div className="p-2 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
+                    <div className="text-[10px] font-bold text-emerald-700 flex items-center justify-between">
+                      <span>🟢 Giờ Bắt Đầu:</span>
+                      <span className="text-xs font-black text-slate-800">{clockTempStart}</span>
+                    </div>
+                    <div className="grid grid-cols-4 gap-1">
+                      <button
+                        type="button"
+                        onClick={() => adjustClockMinutes('start', -30)}
+                        className="p-1 bg-white hover:bg-emerald-50 rounded border border-slate-200 text-[10px] font-bold text-slate-700 transition cursor-pointer"
+                      >
+                        -30m
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => adjustClockMinutes('start', -15)}
+                        className="p-1 bg-white hover:bg-emerald-50 rounded border border-slate-200 text-[10px] font-bold text-slate-700 transition cursor-pointer"
+                      >
+                        -15m
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => adjustClockMinutes('start', 15)}
+                        className="p-1 bg-white hover:bg-emerald-50 rounded border border-slate-200 text-[10px] font-bold text-slate-700 transition cursor-pointer"
+                      >
+                        +15m
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => adjustClockMinutes('start', 30)}
+                        className="p-1 bg-white hover:bg-emerald-50 rounded border border-slate-200 text-[10px] font-bold text-slate-700 transition cursor-pointer"
+                      >
+                        +30m
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Chỉnh giờ kết thúc */}
+                  <div className="p-2 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
+                    <div className="text-[10px] font-bold text-rose-700 flex items-center justify-between">
+                      <span>🔴 Giờ Kết Thúc:</span>
+                      <span className="text-xs font-black text-slate-800">{clockTempEnd}</span>
+                    </div>
+                    <div className="grid grid-cols-4 gap-1">
+                      <button
+                        type="button"
+                        onClick={() => adjustClockMinutes('end', -30)}
+                        className="p-1 bg-white hover:bg-rose-50 rounded border border-slate-200 text-[10px] font-bold text-slate-700 transition cursor-pointer"
+                      >
+                        -30m
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => adjustClockMinutes('end', -15)}
+                        className="p-1 bg-white hover:bg-rose-50 rounded border border-slate-200 text-[10px] font-bold text-slate-700 transition cursor-pointer"
+                      >
+                        -15m
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => adjustClockMinutes('end', 15)}
+                        className="p-1 bg-white hover:bg-rose-50 rounded border border-slate-200 text-[10px] font-bold text-slate-700 transition cursor-pointer"
+                      >
+                        +15m
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => adjustClockMinutes('end', 30)}
+                        className="p-1 bg-white hover:bg-rose-50 rounded border border-slate-200 text-[10px] font-bold text-slate-700 transition cursor-pointer"
+                      >
+                        +30m
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Các khung giờ chuẩn nhanh */}
+              <div className="space-y-1.5 pt-1 border-t border-slate-100">
+                <span className="text-[11px] font-semibold text-slate-600 block">
+                  Ca chuẩn thông dụng:
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { label: 'Ca Đêm', s: '00:00', e: '08:00', icon: '🌙' },
+                    { label: 'Ca Sáng', s: '08:00', e: '12:00', icon: '☀️' },
+                    { label: 'Ca Chiều', s: '13:30', e: '17:00', icon: '⛅' },
+                    { label: 'Ca Tối', s: '17:00', e: '23:30', icon: '🌙' },
+                    { label: 'Cả Ngày', s: '08:00', e: '17:00', icon: '⭐' },
+                  ].map((p) => {
+                    const isSelected = clockTempStart === p.s && clockTempEnd === p.e;
+                    return (
+                      <button
+                        key={p.label}
+                        type="button"
+                        onClick={() => {
+                          setClockTempStart(p.s);
+                          setClockTempEnd(p.e);
+                        }}
+                        className={`px-2.5 py-1 rounded-xl text-xs font-bold border transition flex items-center gap-1 cursor-pointer ${
+                          isSelected
+                            ? 'bg-teal-700 text-white border-teal-700 shadow-2xs'
+                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span>{p.icon}</span>
+                        <span>{p.label}</span>
+                        <span className="opacity-75 text-[10px]">({p.s}-{p.e})</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => setShowClockPickerModal(false)}
+                className="px-4 py-2.5 text-xs font-bold text-slate-600 hover:text-slate-800 hover:bg-slate-200/60 rounded-xl transition cursor-pointer"
+              >
+                Hủy Bỏ
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  handleStartTimeChange(clockTempStart);
+                  handleEndTimeChange(clockTempEnd);
+                  setShowClockPickerModal(false);
+                }}
+                className="px-5 py-2.5 bg-gradient-to-r from-teal-700 to-emerald-700 hover:from-teal-800 hover:to-emerald-800 text-white text-xs font-extrabold rounded-xl shadow-md hover:shadow-lg transition flex items-center gap-2 cursor-pointer"
+              >
+                <Check size={15} />
+                <span>Áp Dụng Khung Giờ Này ({clockTempStart} - {clockTempEnd})</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
