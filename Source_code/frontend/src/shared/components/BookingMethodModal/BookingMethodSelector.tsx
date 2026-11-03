@@ -3681,13 +3681,18 @@ export default function BookingMethodSelector({
           return;
         }
 
+                const isNegativeOrFollowup = /^(không|khong|ko|k|không có|khong co|chưa|chua|không bị|không thấy)$/i.test(text.trim()) || /không có triệu chứng/i.test(text);
+        const resolvedChiefComplaint = (bookingSupport.symptoms && bookingSupport.symptoms.trim())
+          ? bookingSupport.symptoms.trim()
+          : (!isNegativeOrFollowup ? text : (customNatureInput || activeCategory.label));
+
         setSelectedCategoryKey(targetKey);
-        setSelectedNature(text);
+        setSelectedNature(resolvedChiefComplaint);
         setSelectedDuration('');
-        setSelectedAssociated('');
+        setSelectedAssociated(isNegativeOrFollowup ? 'Không có triệu chứng kèm theo' : '');
         setSelectedFollowup('');
-        setCustomNatureInput(text);
-        setOtherSymptomDetail(bookingSupport.symptoms || text);
+        setCustomNatureInput(resolvedChiefComplaint);
+        setOtherSymptomDetail(resolvedChiefComplaint);
 
         // Sau khi hoàn tất sàng lọc lâm sàng qua AI Chat:
         // Tự động kiểm tra Bác sĩ trực và chuyển THẲNG sang bước Chọn Khung Giờ (SELECT_DOCTOR_SLOT)
@@ -4049,14 +4054,27 @@ export default function BookingMethodSelector({
         return null;
       }
 
-      // 4. Định dạng triệu chứng
+            // 4. Định dạng triệu chứng y khoa sạch sẽ (loại bỏ lời chào, bảng giá và hướng dẫn đặt lịch thừa)
+      const cleanAiSummary = aiClinicalSummary
+        ? aiClinicalSummary
+            .replace(/Chi phí tham khảo:[\s\S]*$/i, '')
+            .replace(/Hỗ trợ đặt lịch MedSched:[\s\S]*$/i, '')
+            .replace(/Bạn có thể bấm[\s\S]*$/i, '')
+            .replace(/Cảm ơn bạn đã cung cấp đủ thông tin\.?/gi, '')
+            .replace(/\*\*/g, '')
+            .replace(/\*/g, '')
+            .trim()
+            .replace(/^[.\s,-]+/, '')
+            .trim()
+        : null;
+
       const symptomsList = [
         customNatureInput || selectedNature || activeCategory.label,
         selectedDuration ? `Thời gian: ${selectedDuration}` : null,
         selectedAssociated ? `Kèm theo: ${selectedAssociated}` : null,
         patientName ? `Bệnh nhân: ${patientName}` : null,
         patientPhone ? `SĐT: ${patientPhone}` : null,
-        aiClinicalSummary ? `[AI Triage]: ${aiClinicalSummary}` : null,
+        cleanAiSummary ? `[AI Triage]: ${cleanAiSummary}` : null,
       ].filter(Boolean);
       const formattedSymptoms = symptomsList.join(' • ') || 'Đặt khám tư vấn qua Trợ Lý Y Tế AI MedSched';
 

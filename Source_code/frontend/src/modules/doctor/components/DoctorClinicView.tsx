@@ -227,6 +227,147 @@ const getDeferredElapsedMinutes = (id: string): number | null => {
   return Math.max(0, Math.floor(elapsedMs / 60000));
 };
 
+export interface ParsedClinicalRecord {
+  chiefComplaint: string;
+  duration?: string;
+  associatedSymptoms?: string;
+  specialty?: string;
+  prepAdvice?: string;
+  aiImpression?: string;
+}
+
+export function parseClinicalPatientSummary(
+  rawSymptoms: string = '',
+  rawAiSummary: string = ''
+): ParsedClinicalRecord {
+  const combined = `${rawSymptoms || ''} \n ${rawAiSummary || ''}`;
+  const cleanCombined = combined.replace(/\*\*/g, '').replace(/\*/g, '');
+
+  let chiefComplaint = '';
+  let duration = '';
+  let associatedSymptoms = '';
+  let specialty = '';
+  let prepAdvice = '';
+  let aiImpression = '';
+
+  // 1. Triệu chứng chính:
+  // Pattern 1: Nhãn rõ ràng "Triệu chứng chính: <value>"
+  const ccMatch = cleanCombined.match(/Triệu\s*chứng\s*chính\s*:\s*([^;•|\n\r]+)/i);
+  if (ccMatch && ccMatch[1]) {
+    const candidate = ccMatch[1].trim();
+    if (!/không\s*có\s*triệu\s*chứng/i.test(candidate)) {
+      chiefComplaint = candidate;
+    }
+  }
+
+  // Pattern 2: Phân tách theo dấu chấm đạn '•' trong rawSymptoms
+  if (!chiefComplaint && rawSymptoms) {
+    const parts = rawSymptoms.split('•').map(p => p.trim());
+    for (const part of parts) {
+      if (!part) continue;
+      if (part.startsWith('[AI Triage]')) continue;
+      if (/^(Bệnh nhân|SĐT|Thời gian|Kèm theo|Địa chỉ|CCCD):/i.test(part)) continue;
+      if (/không\s*có\s*triệu\s*chứng/i.test(part)) {
+        if (!associatedSymptoms) associatedSymptoms = part;
+        continue;
+      }
+      chiefComplaint = part;
+      break;
+    }
+  }
+
+  // Pattern 3: Heuristic từ khóa lâm sàng phổ biến
+  if (!chiefComplaint || /không\s*có\s*triệu\s*chứng/i.test(chiefComplaint)) {
+    const kwMatch = cleanCombined.match(/\b(ngứa(?: da)?|mẩn đỏ|dị ứng|mề đay|mụn(?: nhọt)?|đau đầu|chóng mặt|đau bụng|sốt|ho|viêm họng|đau khớp|đau lưng|tức ngực)\b/i);
+    if (kwMatch) {
+      chiefComplaint = kwMatch[1].trim();
+    }
+  }
+
+  if (chiefComplaint) {
+    chiefComplaint = chiefComplaint.charAt(0).toUpperCase() + chiefComplaint.slice(1);
+  } else {
+    chiefComplaint = 'Chưa ghi nhận triệu chứng cụ thể';
+  }
+
+  // 2. Duration / Diễn tiến:
+  const durMatch = cleanCombined.match(/(?:Thời\s*gian|Mật\s*độ)\s*:\s*([^;•|\n\r]+)/i);
+  if (durMatch && durMatch[1]) {
+    duration = durMatch[1].trim();
+  } else {
+    const rawDurMatch = cleanCombined.match(/\b(Bị\s*\d+[^;•|\n\r]+)/i);
+    if (rawDurMatch && rawDurMatch[1]) {
+      duration = rawDurMatch[1].trim();
+    }
+  }
+
+  // 3. Associated Symptoms / Dấu hiệu kèm theo:
+  const assocMatch = cleanCombined.match(/(?:Kèm\s*theo|Triệu\s*chứng\s*kèm\s*theo)\s*:\s*([^;•|\n\r]+)/i);
+  if (assocMatch && assocMatch[1]) {
+    associatedSymptoms = assocMatch[1].trim();
+  } else if (/không\s*có\s*triệu\s*chứng\s*kèm\s*theo/i.test(cleanCombined)) {
+    associatedSymptoms = 'Không có triệu chứng kèm theo';
+  }
+
+  // 4. Specialty / Chuyên khoa phù hợp:
+  const specMatch1 = cleanCombined.match(/Chuyên\s*khoa\s*phù\s*hợp\s*:\s*([^;•|\n\r]+)/i);
+  const specMatch2 = cleanCombined.match(/(?:Hướng\s*chuyên\s*khoa|Khoa)\s*:\s*([A-Za-z_]+)/i);
+  if (specMatch1 && specMatch1[1]) {
+    specialty = specMatch1[1].trim();
+  } else if (specMatch2 && specMatch2[1]) {
+    const code = specMatch2[1].trim().toUpperCase();
+    if (code === 'DERMATOLOGY') specialty = 'Chuyên khoa Da liễu';
+    else if (code === 'GENERAL_INTERNAL') specialty = 'Khoa Nội Tổng Quát';
+    else if (code === 'CARDIOLOGY') specialty = 'Khoa Tim Mạch';
+    else if (code === 'EAR_NOSE_THROAT') specialty = 'Khoa Tai Mũi Họng';
+    else if (code === 'PEDIATRICS') specialty = 'Khoa Nhi';
+    else if (code === 'ODONTO_STOMATOLOGY') specialty = 'Khoa Răng Hàm Mặt';
+    else if (code === 'OPHTHALMOLOGY') specialty = 'Khoa Mắt';
+    else if (code === 'BONE_JOINT') specialty = 'Khoa Cơ Xương Khớp';
+    else specialty = specMatch2[1].trim();
+  }
+
+  // 5. Preparation Advice / Lưu ý trước khám:
+  const prepMatch = cleanCombined.match(/Chuẩn\s*bị\s*trước\s*khám\s*:\s*([^.\n\r]+(?:\.|\n|$))/i);
+  if (prepMatch && prepMatch[1]) {
+    prepAdvice = prepMatch[1].trim();
+  }
+
+  // 6. AI Clinical Impression / Nhận định lâm sàng:
+  const lowerCC = chiefComplaint.toLowerCase();
+  if (lowerCC.includes('ngứa') || lowerCC.includes('dị ứng') || lowerCC.includes('mẩn đỏ')) {
+    aiImpression = `Bệnh nhân có triệu chứng ${lowerCC}${duration ? ` (${duration.toLowerCase()})` : ''}, phân loại sơ bộ hướng Da liễu. Đề xuất bác sĩ đánh giá tổn thương da bề mặt, tiền sử tiếp xúc và loại trừ viêm da dị ứng / mề đay.`;
+  } else if (lowerCC.includes('sốt') || lowerCC.includes('ho') || lowerCC.includes('viêm họng')) {
+    aiImpression = `Bệnh nhân có triệu chứng đường hô hấp trên (${lowerCC}${duration ? `, ${duration.toLowerCase()}` : ''}). Đề xuất kiểm tra họng, nghe phổi và đo thân nhiệt.`;
+  } else if (lowerCC.includes('đau đầu') || lowerCC.includes('chóng mặt')) {
+    aiImpression = `Bệnh nhân có biểu hiện ${lowerCC}${duration ? ` (${duration.toLowerCase()}` : ''}). Đề xuất đo huyết áp, kiểm tra vận nhãn và phản xạ thần kinh sơ bộ.`;
+  } else if (lowerCC.includes('đau bụng') || lowerCC.includes('dạ dày') || lowerCC.includes('tiêu hóa')) {
+    aiImpression = `Bệnh nhân than phiền ${lowerCC}${duration ? ` (${duration.toLowerCase()}` : ''}). Đề xuất thăm khám bụng, loại trừ đau bụng ngoại khoa trước khi kê đơn.`;
+  } else if (lowerCC.includes('xương') || lowerCC.includes('khớp') || lowerCC.includes('lưng') || lowerCC.includes('gối')) {
+    aiImpression = `Bệnh nhân có dấu hiệu cơ xương khớp (${lowerCC}). Đề xuất kiểm tra tầm vận động và chỉ định chụp X-quang nếu có nghi ngờ tổn thương.`;
+  } else {
+    let cleaned = (rawAiSummary || '')
+      .replace(/\[AI Triage\]:?/gi, '')
+      .replace(/Chi phí tham khảo:[\s\S]*$/gi, '')
+      .replace(/Hỗ trợ đặt lịch[\s\S]*$/gi, '')
+      .replace(/Bạn có thể bấm[\s\S]*$/gi, '')
+      .replace(/Cảm ơn bạn đã cung cấp đủ thông tin\.?/gi, '')
+      .replace(/\*\*/g, '')
+      .trim();
+    if (cleaned.length > 250) cleaned = cleaned.slice(0, 250) + '...';
+    aiImpression = cleaned || 'Hệ thống đã ghi nhận thông tin bệnh nhân đầy đủ. Bác sĩ tiến hành thăm khám lâm sàng trực tiếp.';
+  }
+
+  return {
+    chiefComplaint,
+    duration: duration || undefined,
+    associatedSymptoms: associatedSymptoms || undefined,
+    specialty: specialty || undefined,
+    prepAdvice: prepAdvice || undefined,
+    aiImpression,
+  };
+}
+
 export default function DoctorClinicView() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -751,6 +892,10 @@ export default function DoctorClinicView() {
   }, [isAuthenticated, loadQueue, submittingPrescription]);
 
   const currentPatient = queue[activePatientIndex] || queue[0];
+
+  const clinicalSummary = useMemo(() => {
+    return parseClinicalPatientSummary(currentPatient?.symptoms, currentPatient?.aiSummary);
+  }, [currentPatient?.symptoms, currentPatient?.aiSummary]);
 
   // ── Khóa Buồng Khám An Toàn Khi Bác Sĩ Vắng Mặt (Idle Screen Lock) ──
   useEffect(() => {
@@ -2258,14 +2403,68 @@ export default function DoctorClinicView() {
                 </span>
               </div>
 
-              <div className="bg-white/80 backdrop-blur-xs p-3.5 rounded-xl text-xs text-slate-800 leading-relaxed border border-purple-100/80 shadow-xs">
-                <p className="font-semibold text-purple-950 mb-1">
-                  Triệu chứng bệnh nhân khai báo: &ldquo;{currentPatient.symptoms}&rdquo;
-                </p>
-                <p className="text-slate-600 italic flex items-start gap-1.5">
-                  <Sparkles size={14} className="text-purple-600 shrink-0 mt-0.5" />
-                  <span><strong>AI Đánh Giá:</strong> {currentPatient.aiSummary}</span>
-                </p>
+              {/* Card Tóm Tắt Lâm Sàng Chuẩn Y Khoa */}
+              <div className="bg-white/95 backdrop-blur-xs p-4 rounded-xl text-xs text-slate-800 border border-purple-100/90 shadow-xs space-y-3">
+                {/* 1. Triệu chứng chính & Chuyên khoa */}
+                <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse shrink-0" />
+                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                      Triệu chứng chính / Lý do khám:
+                    </span>
+                    <span className="text-sm font-extrabold text-slate-900 bg-rose-50 border border-rose-200/60 px-2.5 py-0.5 rounded-lg">
+                      {clinicalSummary.chiefComplaint}
+                    </span>
+                  </div>
+                  {clinicalSummary.specialty && (
+                    <span className="text-[11px] font-bold text-purple-700 bg-purple-50 border border-purple-200/70 px-2.5 py-0.5 rounded-md flex items-center gap-1.5">
+                      <Stethoscope size={13} className="text-purple-600" />
+                      <span>{clinicalSummary.specialty}</span>
+                    </span>
+                  )}
+                </div>
+
+                {/* 2. Grid chi tiết: Diễn tiến & Triệu chứng kèm theo */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="flex items-start gap-2 bg-slate-50/80 p-2.5 rounded-lg border border-slate-100">
+                    <Clock size={14} className="text-blue-600 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold text-slate-700 block text-[11px]">Thời gian / Diễn tiến:</span>
+                      <span className="text-slate-800 font-medium">
+                        {clinicalSummary.duration || 'Chưa ghi nhận thời gian cụ thể'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-2 bg-slate-50/80 p-2.5 rounded-lg border border-slate-100">
+                    <AlertCircle size={14} className="text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold text-slate-700 block text-[11px]">Dấu hiệu kèm theo:</span>
+                      <span className="text-slate-800 font-medium">
+                        {clinicalSummary.associatedSymptoms || 'Không có triệu chứng kèm theo'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Lưu ý chuẩn bị trước khám (nếu có) */}
+                {clinicalSummary.prepAdvice && (
+                  <div className="flex items-center gap-2 text-xs bg-indigo-50/60 text-indigo-900 px-3 py-2 rounded-lg border border-indigo-100/70">
+                    <CheckCircle2 size={13} className="text-indigo-600 shrink-0" />
+                    <span><strong>Lưu ý trước khám:</strong> {clinicalSummary.prepAdvice}</span>
+                  </div>
+                )}
+
+                {/* 4. Nhận định lâm sàng AI (Súc tích, không lặp lại thông tin) */}
+                {clinicalSummary.aiImpression && (
+                  <div className="bg-gradient-to-r from-purple-50/70 via-indigo-50/40 to-slate-50 p-2.5 rounded-lg border border-purple-100 flex items-start gap-2">
+                    <Sparkles size={14} className="text-purple-600 shrink-0 mt-0.5" />
+                    <div className="text-slate-700 leading-relaxed">
+                      <span className="font-bold text-purple-950 mr-1.5">Tóm Tắt &amp; Nhận Định AI:</span>
+                      <span className="italic">{clinicalSummary.aiImpression}</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -3131,7 +3330,7 @@ export default function DoctorClinicView() {
         isOpen={showAiModal}
         onClose={() => setShowAiModal(false)}
         defaultRole="DOCTOR"
-        currentContext={currentPatient ? `Mã ca khám: ${currentPatient.bookingCode}, Bệnh nhân: ${currentPatient.patientName}, Triệu chứng: ${currentPatient.symptoms || 'Chưa ghi nhận'}` : ''}
+        currentContext={currentPatient ? `Mã ca khám: ${currentPatient.bookingCode}, Bệnh nhân: ${currentPatient.patientName}, Triệu chứng chính: ${clinicalSummary.chiefComplaint}${clinicalSummary.duration ? ` (${clinicalSummary.duration})` : ''}` : ''}
       />
 
     </div>
