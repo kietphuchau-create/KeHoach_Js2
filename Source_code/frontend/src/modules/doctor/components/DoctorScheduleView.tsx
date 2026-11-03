@@ -105,9 +105,26 @@ export default function DoctorScheduleView() {
   const clockSvgRef = React.useRef<SVGSVGElement | null>(null);
 
   const openClockPicker = (tab: 'start' | 'end' = 'start') => {
-    setClockTempStart(startTime);
-    setClockTempEnd(endTime);
-    setActiveClockTab(tab);
+    const todayStr = getLocalDateString();
+    const isToday = workDate === todayStr;
+    const realMinStart = isToday ? getTodayRealtimeSlot() : '00:00';
+
+    let initialStart = startTime;
+    if (isToday) {
+      if (timeToMinutes(initialStart) < timeToMinutes(realMinStart)) {
+        initialStart = realMinStart;
+      }
+    }
+
+    let initialEnd = endTime;
+    if (timeToMinutes(initialEnd) <= timeToMinutes(initialStart)) {
+      const nextEndMins = Math.min(1410, timeToMinutes(initialStart) + 180);
+      initialEnd = minutesToTime(nextEndMins);
+    }
+
+    setClockTempStart(initialStart);
+    setClockTempEnd(initialEnd);
+    setActiveClockTab(isToday ? 'end' : tab);
     setShowClockPickerModal(true);
   };
 
@@ -532,6 +549,15 @@ export default function DoctorScheduleView() {
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
   };
 
+  // Lấy mốc thời gian thực hiện tại làm tròn lên 15 phút kế tiếp để cố định realtime
+  const getTodayRealtimeSlot = (): string => {
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const roundedMins = Math.ceil(currentMinutes / 15) * 15;
+    const clamped = Math.min(1410, roundedMins);
+    return minutesToTime(clamped);
+  };
+
   const formatTime12h = (timeStr: string): string => {
     if (!timeStr) return '';
     const [hStr, mStr] = timeStr.split(':');
@@ -560,6 +586,11 @@ export default function DoctorScheduleView() {
   };
 
   const updateClockTimeFromAngle = (deg: number, handle: 'start' | 'end') => {
+    const todayStr = getLocalDateString();
+    const isToday = workDate === todayStr;
+    const realMinStart = isToday ? getTodayRealtimeSlot() : '00:00';
+    const minAllowedStartMins = timeToMinutes(realMinStart);
+
     const rawMinutes = (deg / 360) * 1440;
     let snappedMinutes = Math.round(rawMinutes / 15) * 15;
     if (snappedMinutes >= 1440) snappedMinutes = 1440;
@@ -568,11 +599,16 @@ export default function DoctorScheduleView() {
     const endM = timeToMinutes(clockTempEnd);
 
     if (handle === 'start') {
-      const maxStart = Math.max(0, endM - 30);
+      if (isToday) {
+        snappedMinutes = Math.max(minAllowedStartMins, snappedMinutes);
+      }
+      const minS = isToday ? minAllowedStartMins : 0;
+      const maxStart = Math.max(minS, endM - 30);
       const finalStart = Math.min(snappedMinutes, maxStart);
       setClockTempStart(minutesToTime(finalStart));
     } else {
-      const minEnd = Math.min(1439, startM + 30);
+      const effectiveStartM = isToday ? Math.max(minAllowedStartMins, startM) : startM;
+      const minEnd = Math.min(1439, effectiveStartM + 30);
       const finalEnd = Math.max(snappedMinutes, minEnd);
       setClockTempEnd(minutesToTime(finalEnd));
     }
@@ -580,6 +616,9 @@ export default function DoctorScheduleView() {
 
   const handleClockPointerDown = (e: React.PointerEvent<SVGElement>, forceHandle?: 'start' | 'end') => {
     if (!clockSvgRef.current) return;
+    const todayStr = getLocalDateString();
+    const isToday = workDate === todayStr;
+
     const rect = clockSvgRef.current.getBoundingClientRect();
     const x = e.clientX - (rect.left + rect.width / 2);
     const y = e.clientY - (rect.top + rect.height / 2);
@@ -588,13 +627,18 @@ export default function DoctorScheduleView() {
 
     let target = forceHandle;
     if (!target) {
-      const startM = timeToMinutes(clockTempStart);
-      const endM = timeToMinutes(clockTempEnd);
-      const sAngle = (startM / 1440) * 360;
-      const eAngle = (endM / 1440) * 360;
-      const distS = Math.min(Math.abs(deg - sAngle), 360 - Math.abs(deg - sAngle));
-      const distE = Math.min(Math.abs(deg - eAngle), 360 - Math.abs(deg - eAngle));
-      target = distS <= distE ? 'start' : 'end';
+      if (isToday) {
+        // Hôm nay thì ưu tiên kéo giờ kết thúc vì giờ bắt đầu đã cố định realtime
+        target = 'end';
+      } else {
+        const startM = timeToMinutes(clockTempStart);
+        const endM = timeToMinutes(clockTempEnd);
+        const sAngle = (startM / 1440) * 360;
+        const eAngle = (endM / 1440) * 360;
+        const distS = Math.min(Math.abs(deg - sAngle), 360 - Math.abs(deg - sAngle));
+        const distE = Math.min(Math.abs(deg - eAngle), 360 - Math.abs(deg - eAngle));
+        target = distS <= distE ? 'start' : 'end';
+      }
     }
 
     setDraggingClockHandle(target);
@@ -627,10 +671,16 @@ export default function DoctorScheduleView() {
   };
 
   const adjustClockMinutes = (type: 'start' | 'end', delta: number) => {
+    const todayStr = getLocalDateString();
+    const isToday = workDate === todayStr;
+    const realMinStart = isToday ? getTodayRealtimeSlot() : '00:00';
+    const minAllowedStartMins = timeToMinutes(realMinStart);
+
     if (type === 'start') {
       const cur = timeToMinutes(clockTempStart);
       const end = timeToMinutes(clockTempEnd);
-      const next = Math.max(0, Math.min(end - 30, cur + delta));
+      const minS = isToday ? minAllowedStartMins : 0;
+      const next = Math.max(minS, Math.min(end - 30, cur + delta));
       setClockTempStart(minutesToTime(next));
     } else {
       const cur = timeToMinutes(clockTempEnd);
@@ -677,33 +727,13 @@ export default function DoctorScheduleView() {
 
     const todayStr = getLocalDateString();
     if (nextDate === todayStr) {
-      // Nếu mở modal hôm nay: tự động gợi ý ca làm việc hợp lệ gần nhất trong tương lai
-      const now = new Date();
-      const currentMinutes = now.getHours() * 60 + now.getMinutes();
-      if (currentMinutes < 8 * 60 - 30) {
-        setStartTime('08:00');
-        setEndTime('12:00');
-        setActivePreset('MORNING');
-      } else if (currentMinutes < 12 * 60 - 30) {
-        const start = getSmartStartTime(todayStr, '08:00');
-        setStartTime(start);
-        setEndTime('12:00');
-        setActivePreset('MORNING');
-      } else if (currentMinutes < 17 * 60 - 30) {
-        const start = getSmartStartTime(todayStr, '13:30');
-        setStartTime(start);
-        setEndTime('17:00');
-        setActivePreset('AFTERNOON');
-      } else if (currentMinutes < 23 * 60) {
-        const start = getSmartStartTime(todayStr, '17:00');
-        setStartTime(start);
-        setEndTime('23:30');
-        setActivePreset('EVENING');
-      } else {
-        setStartTime('00:00');
-        setEndTime('08:00');
-        setActivePreset('NIGHT');
-      }
+      // Nếu mở modal hôm nay: Cố định giờ bắt đầu theo Realtime hiện tại
+      const realStart = getTodayRealtimeSlot();
+      const realStartM = timeToMinutes(realStart);
+      setStartTime(realStart);
+      const nextEndM = Math.min(1410, Math.max(realStartM + 120, realStartM < 12 * 60 ? 12 * 60 : realStartM < 17 * 60 ? 17 * 60 : 23 * 60 + 30));
+      setEndTime(minutesToTime(nextEndM));
+      setActivePreset(null);
     } else {
       setStartTime('08:00');
       setEndTime('12:00');
@@ -1701,9 +1731,15 @@ export default function DoctorScheduleView() {
                       <div className="flex items-center gap-2">
                         <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
                         <span className="text-sm font-extrabold text-slate-800">{startTime}</span>
-                        <span className="text-[10px] text-slate-400 font-semibold bg-slate-200/60 px-1.5 py-0.5 rounded">
-                          {formatTime12h(startTime).split(' ')[1]}
-                        </span>
+                        {workDate === getLocalDateString() ? (
+                          <span className="text-[10px] text-emerald-700 font-bold bg-emerald-100 px-1.5 py-0.5 rounded flex items-center gap-1">
+                            <span>⚡ Realtime</span>
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-slate-400 font-semibold bg-slate-200/60 px-1.5 py-0.5 rounded">
+                            {formatTime12h(startTime).split(' ')[1]}
+                          </span>
+                        )}
                       </div>
                       <Clock size={15} className="text-slate-400 group-hover:text-emerald-600 transition" />
                     </button>
@@ -1765,6 +1801,15 @@ export default function DoctorScheduleView() {
                       onChange={(e) => {
                         const newDate = e.target.value;
                         setWorkDate(newDate);
+                        const todayStr = getLocalDateString();
+                        if (newDate === todayStr) {
+                          const realStart = getTodayRealtimeSlot();
+                          setStartTime(realStart);
+                          if (timeToMinutes(endTime) <= timeToMinutes(realStart)) {
+                            const nextEndM = Math.min(1410, timeToMinutes(realStart) + 180);
+                            setEndTime(minutesToTime(nextEndM));
+                          }
+                        }
                         const isNightExp = isShiftPresetExpiredToday(newDate, '08:00');
                         const isMorningExp = isShiftPresetExpiredToday(newDate, '12:00');
                         const isAfternoonExp = isShiftPresetExpiredToday(newDate, '17:00');
@@ -2264,6 +2309,18 @@ export default function DoctorScheduleView() {
 
             {/* Modal Body */}
             <div className="p-4 sm:p-5 overflow-y-auto space-y-4">
+              {/* Thông báo cố định Realtime khi chọn ngày hôm nay */}
+              {workDate === getLocalDateString() && (
+                <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-950 flex items-center justify-between shadow-2xs">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span>⚡ Giờ bắt đầu cố định Realtime: <strong>{clockTempStart}</strong></span>
+                  </div>
+                  <span className="text-[10px] bg-emerald-600 text-white px-2 py-0.5 rounded-lg font-bold">
+                    Khóa giờ quá khứ
+                  </span>
+                </div>
+              )}
               {/* Tabs chọn nắm kéo Bắt đầu hoặc Kết thúc */}
               <div className="grid grid-cols-2 gap-2">
                 <button
@@ -2278,7 +2335,7 @@ export default function DoctorScheduleView() {
                   <div className="space-y-0.5">
                     <span className="text-[10px] font-bold text-slate-500 flex items-center gap-1">
                       <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                      Giờ Bắt Đầu
+                      Giờ Bắt Đầu {workDate === getLocalDateString() ? '(⚡ Realtime)' : ''}
                     </span>
                     <div className="text-base font-black text-slate-800">
                       {clockTempStart}{' '}
@@ -2349,6 +2406,25 @@ export default function DoctorScheduleView() {
 
                   {/* Vòng nền mặt đồng hồ */}
                   <circle cx="160" cy="160" r="110" fill="none" stroke="#e2e8f0" strokeWidth="20" strokeLinecap="round" />
+
+                  {/* Vùng thời gian đã qua trong ngày (Quá khứ) - Khóa màu xám */}
+                  {(() => {
+                    const isToday = workDate === getLocalDateString();
+                    if (!isToday) return null;
+                    const realMinM = timeToMinutes(getTodayRealtimeSlot());
+                    if (realMinM <= 0) return null;
+                    const pastAngle = (realMinM / 1440) * 360;
+                    return (
+                      <path
+                        d={describeArc(160, 160, 110, 0, pastAngle)}
+                        fill="none"
+                        stroke="#cbd5e1"
+                        strokeWidth="20"
+                        strokeDasharray="4 3"
+                        opacity="0.9"
+                      />
+                    );
+                  })()}
 
                   {/* Vành thời gian ngày/đêm nhẹ */}
                   {/* Ban ngày 06:00 - 18:00 (90° đến 270°) */}
@@ -2600,37 +2676,53 @@ export default function DoctorScheduleView() {
               {/* Các khung giờ chuẩn nhanh */}
               <div className="space-y-1.5 pt-1 border-t border-slate-100">
                 <span className="text-[11px] font-semibold text-slate-600 block">
-                  Ca chuẩn thông dụng:
+                  Ca chuẩn thông dụng {workDate === getLocalDateString() ? '(Tự đồng bộ Realtime)' : ''}:
                 </span>
                 <div className="flex flex-wrap gap-1.5">
-                  {[
-                    { label: 'Ca Đêm', s: '00:00', e: '08:00', icon: '🌙' },
-                    { label: 'Ca Sáng', s: '08:00', e: '12:00', icon: '☀️' },
-                    { label: 'Ca Chiều', s: '13:30', e: '17:00', icon: '⛅' },
-                    { label: 'Ca Tối', s: '17:00', e: '23:30', icon: '🌙' },
-                    { label: 'Cả Ngày', s: '08:00', e: '17:00', icon: '⭐' },
-                  ].map((p) => {
-                    const isSelected = clockTempStart === p.s && clockTempEnd === p.e;
-                    return (
-                      <button
-                        key={p.label}
-                        type="button"
-                        onClick={() => {
-                          setClockTempStart(p.s);
-                          setClockTempEnd(p.e);
-                        }}
-                        className={`px-2.5 py-1 rounded-xl text-xs font-bold border transition flex items-center gap-1 cursor-pointer ${
-                          isSelected
-                            ? 'bg-teal-700 text-white border-teal-700 shadow-2xs'
-                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                        }`}
-                      >
-                        <span>{p.icon}</span>
-                        <span>{p.label}</span>
-                        <span className="opacity-75 text-[10px]">({p.s}-{p.e})</span>
-                      </button>
-                    );
-                  })}
+                  {(() => {
+                    const isToday = workDate === getLocalDateString();
+                    const realStart = isToday ? getTodayRealtimeSlot() : '00:00';
+                    const realStartM = timeToMinutes(realStart);
+
+                    return [
+                      { label: 'Ca Đêm', s: '00:00', e: '08:00', icon: '🌙' },
+                      { label: 'Ca Sáng', s: '08:00', e: '12:00', icon: '☀️' },
+                      { label: 'Ca Chiều', s: '13:30', e: '17:00', icon: '⛅' },
+                      { label: 'Ca Tối', s: '17:00', e: '23:30', icon: '🌙' },
+                      { label: 'Cả Ngày', s: '08:00', e: '17:00', icon: '⭐' },
+                    ].map((p) => {
+                      const endM = timeToMinutes(p.e);
+                      const isExpired = isToday && (endM <= realStartM);
+                      // Nếu hôm nay và ca vẫn còn, giờ bắt đầu cố định tối thiểu từ realStart
+                      const effectiveStart = isToday ? minutesToTime(Math.max(realStartM, timeToMinutes(p.s))) : p.s;
+                      const isSelected = clockTempStart === effectiveStart && clockTempEnd === p.e;
+
+                      return (
+                        <button
+                          key={p.label}
+                          type="button"
+                          disabled={isExpired}
+                          onClick={() => {
+                            setClockTempStart(effectiveStart);
+                            setClockTempEnd(p.e);
+                          }}
+                          className={`px-2.5 py-1 rounded-xl text-xs font-bold border transition flex items-center gap-1 ${
+                            isExpired
+                              ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-60'
+                              : isSelected
+                              ? 'bg-teal-700 text-white border-teal-700 shadow-2xs cursor-pointer'
+                              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 cursor-pointer'
+                          }`}
+                        >
+                          <span>{p.icon}</span>
+                          <span>{p.label}</span>
+                          <span className="opacity-75 text-[10px]">
+                            {isExpired ? '(Đã qua)' : `(${effectiveStart}-${p.e})`}
+                          </span>
+                        </button>
+                      );
+                    });
+                  })()}
                 </div>
               </div>
             </div>
