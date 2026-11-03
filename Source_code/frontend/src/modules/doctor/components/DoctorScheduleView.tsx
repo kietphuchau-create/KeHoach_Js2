@@ -20,7 +20,8 @@ import {
   Info,
   X,
   DoorOpen,
-  LayoutGrid
+  LayoutGrid,
+  ChevronDown
 } from 'lucide-react';
 import { api, getAuthUser } from '@/shared/lib/api';
 import { getClinicRooms, ClinicRoom } from '@/shared/lib/clinicRooms';
@@ -91,6 +92,7 @@ export default function DoctorScheduleView() {
   const [slotDuration, setSlotDuration] = useState<number>(30);
   const [submitting, setSubmitting] = useState(false);
   const [activePreset, setActivePreset] = useState<'NIGHT' | 'MORNING' | 'AFTERNOON' | 'EVENING' | 'FULL_DAY' | null>('MORNING');
+  const [showPresetModal, setShowPresetModal] = useState<boolean>(false);
 
   // Cửa sổ tiện ích xem và quản lý khung giờ của một ca trực ngay trên ma trận
   const [selectedScheduleForSlots, setSelectedScheduleForSlots] = useState<DoctorScheduleDto | null>(null);
@@ -1426,12 +1428,12 @@ export default function DoctorScheduleView() {
                 </div>
               )}
 
-              {/* 1. Chọn nhanh ca làm việc chuẩn */}
-              <div className="space-y-2">
+              {/* 1. Chọn nhanh ca làm việc chuẩn - Thiết kế nút bấm tinh gọn & mở Popup */}
+              <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <label className="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
                     <Sparkles size={14} className="text-teal-700" />
-                    <span>1. Chọn nhanh ca làm việc chuẩn:</span>
+                    <span>1. Khung giờ ca làm việc:</span>
                   </label>
                   {activePreset ? (
                     <span className="text-[11px] font-bold text-teal-700 flex items-center gap-1">
@@ -1457,142 +1459,56 @@ export default function DoctorScheduleView() {
                   )}
                 </div>
 
-                {(() => {
-                  const isNightExpired = isShiftPresetExpiredToday(workDate, '08:00');
-                  const isMorningExpired = isShiftPresetExpiredToday(workDate, '12:00');
-                  const isAfternoonExpired = isShiftPresetExpiredToday(workDate, '17:00');
-                  const isEveningExpired = isShiftPresetExpiredToday(workDate, '23:30');
-                  const isFullDayExpired = isShiftPresetExpiredToday(workDate, '17:00', true);
-
-                  return (
-                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                      <button
-                        type="button"
-                        disabled={isNightExpired}
-                        onClick={() => applyPresetShift('NIGHT')}
-                        className={`p-2.5 rounded-xl text-xs transition-all duration-150 text-left flex flex-col justify-between gap-1 border ${
-                          isNightExpired
-                            ? 'opacity-40 bg-slate-100 border-dashed border-slate-300 text-slate-400 cursor-not-allowed select-none'
-                            : activePreset === 'NIGHT'
-                            ? 'border-2 border-indigo-600 bg-indigo-50/90 text-indigo-950 ring-2 ring-indigo-400/30 shadow-sm cursor-pointer'
-                            : 'border-slate-200 bg-white hover:border-indigo-400 hover:bg-indigo-50/40 hover:shadow-2xs text-slate-700 cursor-pointer'
-                        }`}
-                        title={isNightExpired ? 'Ca Đêm của ngày hôm nay đã kết thúc' : 'Chọn Ca Đêm'}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className={`font-extrabold ${isNightExpired ? 'text-slate-400' : activePreset === 'NIGHT' ? 'text-indigo-900' : 'text-slate-800'}`}>Ca Đêm</span>
-                          <span className="text-sm">{isNightExpired ? '⏳' : '🌌'}</span>
-                        </div>
-                        <div className={`text-[11px] font-bold ${isNightExpired ? 'text-slate-400 line-through' : activePreset === 'NIGHT' ? 'text-indigo-700' : 'text-slate-600'}`}>00:00 - 08:00</div>
-                        {isNightExpired ? (
-                          <div className="text-[10px] text-rose-500 font-bold">⛔ Đã kết thúc</div>
-                        ) : (
-                          <div className={`text-[10px] ${activePreset === 'NIGHT' ? 'text-indigo-600 font-semibold' : 'text-slate-400 font-medium'}`}>8 tiếng • 16 slots</div>
-                        )}
-                      </button>
-
-                      <button
-                        type="button"
-                        disabled={isMorningExpired}
-                        onClick={() => applyPresetShift('MORNING')}
-                        className={`p-2.5 rounded-xl text-xs transition-all duration-150 text-left flex flex-col justify-between gap-1 border ${
-                          isMorningExpired
-                            ? 'opacity-40 bg-slate-100 border-dashed border-slate-300 text-slate-400 cursor-not-allowed select-none'
-                            : activePreset === 'MORNING'
-                            ? 'border-2 border-teal-600 bg-teal-50/90 text-teal-950 ring-2 ring-teal-400/30 shadow-sm cursor-pointer'
-                            : 'border-slate-200 bg-white hover:border-teal-400 hover:bg-teal-50/40 hover:shadow-2xs text-slate-700 cursor-pointer'
-                        }`}
-                        title={isMorningExpired ? 'Ca Sáng của ngày hôm nay đã kết thúc' : 'Chọn Ca Sáng'}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className={`font-extrabold ${isMorningExpired ? 'text-slate-400' : activePreset === 'MORNING' ? 'text-teal-900' : 'text-slate-800'}`}>Ca Sáng</span>
-                          <span className="text-sm">{isMorningExpired ? '⏳' : '☀️'}</span>
-                        </div>
-                        <div className={`text-[11px] font-bold ${isMorningExpired ? 'text-slate-400 line-through' : activePreset === 'MORNING' ? 'text-teal-700' : 'text-slate-600'}`}>08:00 - 12:00</div>
-                        {isMorningExpired ? (
-                          <div className="text-[10px] text-rose-500 font-bold">⛔ Đã kết thúc</div>
-                        ) : (
-                          <div className={`text-[10px] ${activePreset === 'MORNING' ? 'text-teal-600 font-semibold' : 'text-slate-400 font-medium'}`}>4 tiếng • 8 slots</div>
-                        )}
-                      </button>
-
-                      <button
-                        type="button"
-                        disabled={isAfternoonExpired}
-                        onClick={() => applyPresetShift('AFTERNOON')}
-                        className={`p-2.5 rounded-xl text-xs transition-all duration-150 text-left flex flex-col justify-between gap-1 border ${
-                          isAfternoonExpired
-                            ? 'opacity-40 bg-slate-100 border-dashed border-slate-300 text-slate-400 cursor-not-allowed select-none'
-                            : activePreset === 'AFTERNOON'
-                            ? 'border-2 border-teal-600 bg-teal-50/90 text-teal-950 ring-2 ring-teal-400/30 shadow-sm cursor-pointer'
-                            : 'border-slate-200 bg-white hover:border-teal-400 hover:bg-teal-50/40 hover:shadow-2xs text-slate-700 cursor-pointer'
-                        }`}
-                        title={isAfternoonExpired ? 'Ca Chiều của ngày hôm nay đã kết thúc' : 'Chọn Ca Chiều'}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className={`font-extrabold ${isAfternoonExpired ? 'text-slate-400' : activePreset === 'AFTERNOON' ? 'text-teal-900' : 'text-slate-800'}`}>Ca Chiều</span>
-                          <span className="text-sm">{isAfternoonExpired ? '⏳' : '🌤️'}</span>
-                        </div>
-                        <div className={`text-[11px] font-bold ${isAfternoonExpired ? 'text-slate-400 line-through' : activePreset === 'AFTERNOON' ? 'text-teal-700' : 'text-slate-600'}`}>13:30 - 17:00</div>
-                        {isAfternoonExpired ? (
-                          <div className="text-[10px] text-rose-500 font-bold">⛔ Đã kết thúc</div>
-                        ) : (
-                          <div className={`text-[10px] ${activePreset === 'AFTERNOON' ? 'text-teal-600 font-semibold' : 'text-slate-400 font-medium'}`}>3.5 tiếng • 7 slots</div>
-                        )}
-                      </button>
-
-                      <button
-                        type="button"
-                        disabled={isEveningExpired}
-                        onClick={() => applyPresetShift('EVENING')}
-                        className={`p-2.5 rounded-xl text-xs transition-all duration-150 text-left flex flex-col justify-between gap-1 border ${
-                          isEveningExpired
-                            ? 'opacity-40 bg-slate-100 border-dashed border-slate-300 text-slate-400 cursor-not-allowed select-none'
-                            : activePreset === 'EVENING'
-                            ? 'border-2 border-purple-600 bg-purple-50/90 text-purple-950 ring-2 ring-purple-400/30 shadow-sm cursor-pointer'
-                            : 'border-slate-200 bg-white hover:border-purple-400 hover:bg-purple-50/40 hover:shadow-2xs text-slate-700 cursor-pointer'
-                        }`}
-                        title={isEveningExpired ? 'Ca Tối của ngày hôm nay đã kết thúc' : 'Chọn Ca Tối'}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className={`font-extrabold ${isEveningExpired ? 'text-slate-400' : activePreset === 'EVENING' ? 'text-purple-900' : 'text-slate-800'}`}>Ca Tối</span>
-                          <span className="text-sm">{isEveningExpired ? '⏳' : '🌙'}</span>
-                        </div>
-                        <div className={`text-[11px] font-bold ${isEveningExpired ? 'text-slate-400 line-through' : activePreset === 'EVENING' ? 'text-purple-700' : 'text-slate-600'}`}>17:00 - 23:30</div>
-                        {isEveningExpired ? (
-                          <div className="text-[10px] text-rose-500 font-bold">⛔ Đã kết thúc</div>
-                        ) : (
-                          <div className={`text-[10px] ${activePreset === 'EVENING' ? 'text-purple-600 font-semibold' : 'text-slate-400 font-medium'}`}>6.5 tiếng • 13 slots</div>
-                        )}
-                      </button>
-
-                      <button
-                        type="button"
-                        disabled={isFullDayExpired}
-                        onClick={() => applyPresetShift('FULL_DAY')}
-                        className={`p-2.5 rounded-xl text-xs transition-all duration-150 text-left flex flex-col justify-between gap-1 border ${
-                          isFullDayExpired
-                            ? 'opacity-40 bg-slate-100 border-dashed border-slate-300 text-slate-400 cursor-not-allowed select-none'
-                            : activePreset === 'FULL_DAY'
-                            ? 'border-2 border-teal-600 bg-teal-50/90 text-teal-950 ring-2 ring-teal-400/30 shadow-sm cursor-pointer'
-                            : 'border-slate-200 bg-white hover:border-teal-400 hover:bg-teal-50/40 hover:shadow-2xs text-slate-700 cursor-pointer'
-                        }`}
-                        title={isFullDayExpired ? 'Đã quá nửa ngày, không thể đăng ký ca Cả Ngày' : 'Chọn Cả Ngày'}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className={`font-extrabold ${isFullDayExpired ? 'text-slate-400' : activePreset === 'FULL_DAY' ? 'text-teal-900' : 'text-slate-800'}`}>Cả Ngày</span>
-                          <span className="text-sm">{isFullDayExpired ? '⏳' : '🌕'}</span>
-                        </div>
-                        <div className={`text-[11px] font-bold ${isFullDayExpired ? 'text-slate-400 line-through' : activePreset === 'FULL_DAY' ? 'text-teal-700' : 'text-slate-600'}`}>08:00 - 17:00</div>
-                        {isFullDayExpired ? (
-                          <div className="text-[10px] text-rose-500 font-bold">⛔ Đã quá nửa ngày</div>
-                        ) : (
-                          <div className={`text-[10px] ${activePreset === 'FULL_DAY' ? 'text-teal-600 font-semibold' : 'text-slate-400 font-medium'}`}>Nghỉ trưa • 15 slots</div>
-                        )}
-                      </button>
+                {/* Nút đơn tinh tế thay thế 5 thẻ chật chội */}
+                <button
+                  type="button"
+                  onClick={() => setShowPresetModal(true)}
+                  className="w-full p-3 rounded-2xl border-2 border-teal-600/30 hover:border-teal-600 bg-teal-50/50 hover:bg-teal-50 transition flex items-center justify-between gap-3 shadow-2xs group cursor-pointer"
+                  title="Nhấp để mở danh sách ca làm việc mẫu"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-xl bg-teal-700 text-white flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                      <Clock size={18} />
                     </div>
-                  );
-                })()}
+                    <div className="text-left min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-extrabold text-xs text-slate-900">
+                          {activePreset === 'NIGHT'
+                            ? 'Ca Đêm (24/7)'
+                            : activePreset === 'MORNING'
+                            ? 'Ca Sáng'
+                            : activePreset === 'AFTERNOON'
+                            ? 'Ca Chiều'
+                            : activePreset === 'EVENING'
+                            ? 'Ca Tối'
+                            : activePreset === 'FULL_DAY'
+                            ? 'Cả Ngày'
+                            : 'Khung giờ tùy chỉnh'}
+                        </span>
+                        <span className="text-[11px] font-black px-2 py-0.5 rounded-lg bg-teal-100 text-teal-800">
+                          {startTime} - {endTime}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-slate-500 font-medium block truncate mt-0.5">
+                        {activePreset === 'NIGHT'
+                          ? '00:00 - 08:00 • 8 tiếng • 16 slots khám'
+                          : activePreset === 'MORNING'
+                          ? '08:00 - 12:00 • 4 tiếng • 8 slots khám'
+                          : activePreset === 'AFTERNOON'
+                          ? '13:30 - 17:00 • 3.5 tiếng • 7 slots khám'
+                          : activePreset === 'EVENING'
+                          ? '17:00 - 23:30 • 6.5 tiếng • 13 slots khám'
+                          : activePreset === 'FULL_DAY'
+                          ? '08:00 - 17:00 • Nghỉ trưa • 15 slots khám'
+                          : `${slotDuration} phút/slot • Bấm để đổi ca mẫu`}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-700 text-white text-xs font-bold shrink-0 shadow-2xs group-hover:bg-teal-800 transition">
+                    <span>Chọn Ca Mẫu</span>
+                    <ChevronDown size={14} className="group-hover:translate-y-0.5 transition" />
+                  </div>
+                </button>
               </div>
 
               {/* 2. Tùy chỉnh chi tiết thời gian ca */}
@@ -2106,6 +2022,159 @@ export default function DoctorScheduleView() {
                 </div>
               );
             })()}
+          </div>
+        </div>
+      )}
+
+      {/* ── Popup Chọn Ca Làm Việc Chuẩn (Hiện ra khi nhấn nút Khung giờ) ── */}
+      {showPresetModal && (
+        <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-md w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="px-5 py-4 bg-gradient-to-r from-teal-800 to-teal-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-white/10 rounded-xl">
+                  <Clock size={18} className="text-teal-200" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm tracking-tight">Chọn Khung Giờ Ca Chuẩn</h3>
+                  <p className="text-[11px] text-teal-100 opacity-80">
+                    Áp dụng cho ngày <strong>{workDate}</strong>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPresetModal(false)}
+                className="p-1.5 hover:bg-white/10 rounded-xl text-white/80 hover:text-white transition cursor-pointer"
+                title="Đóng popup"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-4 sm:p-5 overflow-y-auto space-y-2.5">
+              <p className="text-xs text-slate-500 font-medium">
+                Vui lòng chọn 1 ca làm việc tiêu chuẩn bên dưới để hệ thống tự động điền khung giờ phù hợp:
+              </p>
+              {(() => {
+                const isNightExpired = isShiftPresetExpiredToday(workDate, '08:00');
+                const isMorningExpired = isShiftPresetExpiredToday(workDate, '12:00');
+                const isAfternoonExpired = isShiftPresetExpiredToday(workDate, '17:00');
+                const isEveningExpired = isShiftPresetExpiredToday(workDate, '23:30');
+                const isFullDayExpired = isShiftPresetExpiredToday(workDate, '17:00', true);
+
+                const presets = [
+                  {
+                    id: 'NIGHT' as const,
+                    name: 'Ca Đêm (24/7)',
+                    icon: '🌌',
+                    time: '00:00 - 08:00',
+                    desc: '8 tiếng • 16 slots khám',
+                    expired: isNightExpired,
+                  },
+                  {
+                    id: 'MORNING' as const,
+                    name: 'Ca Sáng',
+                    icon: '☀️',
+                    time: '08:00 - 12:00',
+                    desc: '4 tiếng • 8 slots khám',
+                    expired: isMorningExpired,
+                  },
+                  {
+                    id: 'AFTERNOON' as const,
+                    name: 'Ca Chiều',
+                    icon: '🌤️',
+                    time: '13:30 - 17:00',
+                    desc: '3.5 tiếng • 7 slots khám',
+                    expired: isAfternoonExpired,
+                  },
+                  {
+                    id: 'EVENING' as const,
+                    name: 'Ca Tối',
+                    icon: '🌙',
+                    time: '17:00 - 23:30',
+                    desc: '6.5 tiếng • 13 slots khám',
+                    expired: isEveningExpired,
+                  },
+                  {
+                    id: 'FULL_DAY' as const,
+                    name: 'Cả Ngày',
+                    icon: '🌕',
+                    time: '08:00 - 17:00',
+                    desc: 'Nghỉ trưa 12h-13h30 • 15 slots khám',
+                    expired: isFullDayExpired,
+                  },
+                ];
+
+                return (
+                  <div className="space-y-2">
+                    {presets.map((p) => {
+                      const isSelected = activePreset === p.id;
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          disabled={p.expired}
+                          onClick={() => {
+                            applyPresetShift(p.id);
+                            setShowPresetModal(false);
+                          }}
+                          className={`w-full p-3.5 rounded-2xl border text-left transition-all duration-150 flex items-center justify-between gap-3 ${
+                            p.expired
+                              ? 'opacity-40 bg-slate-100 border-dashed border-slate-300 text-slate-400 cursor-not-allowed select-none'
+                              : isSelected
+                              ? 'border-2 border-teal-600 bg-teal-50/90 text-teal-950 shadow-sm ring-2 ring-teal-500/20 cursor-pointer'
+                              : 'border-slate-200 bg-white hover:border-teal-400 hover:bg-teal-50/40 text-slate-700 cursor-pointer shadow-2xs'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="text-2xl p-2 rounded-xl bg-slate-100/80">{p.icon}</span>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className={`font-extrabold text-xs ${p.expired ? 'text-slate-400' : 'text-slate-900'}`}>
+                                  {p.name}
+                                </span>
+                                {isSelected && (
+                                  <span className="px-2 py-0.5 rounded-md bg-teal-600 text-white font-bold text-[9.5px]">
+                                    Đang chọn
+                                  </span>
+                                )}
+                              </div>
+                              <div className={`text-xs font-black mt-0.5 ${p.expired ? 'text-slate-400 line-through' : isSelected ? 'text-teal-700' : 'text-slate-700'}`}>
+                                {p.time}
+                              </div>
+                              <div className="text-[11px] text-slate-400 mt-0.5">
+                                {p.expired ? '⛔ Khung giờ này của hôm nay đã kết thúc' : p.desc}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="shrink-0">
+                            {isSelected ? (
+                              <CheckCircle2 size={20} className="text-teal-600" />
+                            ) : (
+                              <ChevronRight size={18} className="text-slate-400" />
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Footer */}
+            <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowPresetModal(false)}
+                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
           </div>
         </div>
       )}
