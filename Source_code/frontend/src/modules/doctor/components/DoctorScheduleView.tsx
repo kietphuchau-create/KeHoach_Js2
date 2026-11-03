@@ -502,11 +502,9 @@ export default function DoctorScheduleView() {
 
   // Kiểm tra ca trực mẫu đã trôi qua trong ngày hôm nay chưa
   const isShiftPresetExpiredToday = (targetDate: string, shiftEndTime: string, isFullDay: boolean = false) => {
-    // ĐÃ LÀ CHẾ ĐỘ DEVELOP 24/7 THÌ KHÔNG ĐƯỢC KHÓA BẤT KỲ KHUNG GIỜ NÀO
-    if (clinicConfig.devMode247) return false;
-
     const todayStr = getLocalDateString();
-    if (targetDate !== todayStr) return false;
+    if (targetDate < todayStr) return true;
+    if (targetDate > todayStr) return false;
 
     const now = new Date();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
@@ -629,8 +627,8 @@ export default function DoctorScheduleView() {
     }
     const todayStr = getLocalDateString();
 
-    // Kiểm tra giờ kết thúc không được nằm trong quá khứ của ngày hôm nay (Bỏ qua khi bật Chế Độ Develop 24/7)
-    if (!clinicConfig.devMode247 && workDate === todayStr) {
+    // Kiểm tra giờ kết thúc không được nằm trong quá khứ của ngày hôm nay
+    if (workDate === todayStr) {
       const now = new Date();
       const currentMinutes = now.getHours() * 60 + now.getMinutes();
       const [endH, endM] = endTime.split(':').map(Number);
@@ -1462,7 +1460,28 @@ export default function DoctorScheduleView() {
                 {/* Nút đơn tinh tế thay thế 5 thẻ chật chội */}
                 <button
                   type="button"
-                  onClick={() => setShowPresetModal(true)}
+                  onClick={() => {
+                    // Tự động chuyển khỏi ca đã hết hạn nếu đang chọn ca trong quá khứ
+                    const isNightExp = isShiftPresetExpiredToday(workDate, '08:00');
+                    const isMorningExp = isShiftPresetExpiredToday(workDate, '12:00');
+                    const isAfternoonExp = isShiftPresetExpiredToday(workDate, '17:00');
+                    const isEveningExp = isShiftPresetExpiredToday(workDate, '23:30');
+
+                    if (activePreset === 'NIGHT' && isNightExp) {
+                      if (!isMorningExp) applyPresetShift('MORNING');
+                      else if (!isAfternoonExp) applyPresetShift('AFTERNOON');
+                      else if (!isEveningExp) applyPresetShift('EVENING');
+                    } else if (activePreset === 'MORNING' && isMorningExp) {
+                      if (!isAfternoonExp) applyPresetShift('AFTERNOON');
+                      else if (!isEveningExp) applyPresetShift('EVENING');
+                    } else if (activePreset === 'FULL_DAY' && isShiftPresetExpiredToday(workDate, '17:00', true)) {
+                      if (!isAfternoonExp) applyPresetShift('AFTERNOON');
+                      else if (!isEveningExp) applyPresetShift('EVENING');
+                    } else if (activePreset === 'AFTERNOON' && isAfternoonExp) {
+                      if (!isEveningExp) applyPresetShift('EVENING');
+                    }
+                    setShowPresetModal(true);
+                  }}
                   className="w-full p-3 rounded-2xl border-2 border-teal-600/30 hover:border-teal-600 bg-teal-50/50 hover:bg-teal-50 transition flex items-center justify-between gap-3 shadow-2xs group cursor-pointer"
                   title="Nhấp để mở danh sách ca làm việc mẫu"
                 >
@@ -1572,7 +1591,28 @@ export default function DoctorScheduleView() {
                       min={clinicConfig.devMode247 ? getLocalDateString() : getNextValidWorkingDate()}
                       required
                       value={workDate}
-                      onChange={(e) => setWorkDate(e.target.value)}
+                      onChange={(e) => {
+                        const newDate = e.target.value;
+                        setWorkDate(newDate);
+                        const isNightExp = isShiftPresetExpiredToday(newDate, '08:00');
+                        const isMorningExp = isShiftPresetExpiredToday(newDate, '12:00');
+                        const isAfternoonExp = isShiftPresetExpiredToday(newDate, '17:00');
+                        const isEveningExp = isShiftPresetExpiredToday(newDate, '23:30');
+
+                        if (activePreset === 'NIGHT' && isNightExp) {
+                          if (!isMorningExp) applyPresetShift('MORNING');
+                          else if (!isAfternoonExp) applyPresetShift('AFTERNOON');
+                          else if (!isEveningExp) applyPresetShift('EVENING');
+                        } else if (activePreset === 'MORNING' && isMorningExp) {
+                          if (!isAfternoonExp) applyPresetShift('AFTERNOON');
+                          else if (!isEveningExp) applyPresetShift('EVENING');
+                        } else if (activePreset === 'FULL_DAY' && isShiftPresetExpiredToday(newDate, '17:00', true)) {
+                          if (!isAfternoonExp) applyPresetShift('AFTERNOON');
+                          else if (!isEveningExp) applyPresetShift('EVENING');
+                        } else if (activePreset === 'AFTERNOON' && isAfternoonExp) {
+                          if (!isEveningExp) applyPresetShift('EVENING');
+                        }
+                      }}
                       className="w-full p-2.5 border border-slate-200 rounded-xl text-xs bg-slate-50 text-slate-800 outline-none focus:ring-2 focus:ring-teal-700/20 font-bold"
                     />
                   </div>
@@ -1965,9 +2005,8 @@ export default function DoctorScheduleView() {
               const isDayAlreadyRegistered = (dailyHoursSummary?.dailyHours?.[workDate] || 0) > 0;
               const blockedPriorDate = (!isDayAlreadyRegistered && dailyHoursSummary?.incompleteDates ? dailyHoursSummary.incompleteDates.find((d) => d < workDate) : null) || null;
 
-              // Kiểm tra giờ kết thúc có trôi qua trong quá khứ của hôm nay chưa (Bỏ qua khi bật Chế Độ Develop 24/7)
-              const isDev247Mode = Boolean(clinicConfig.devMode247 || getClinicScheduleConfig().devMode247);
-              const isEndTimePassedToday = !isDev247Mode && workDate === todayStr && (() => {
+              // Kiểm tra giờ kết thúc có trôi qua trong quá khứ của hôm nay chưa
+              const isEndTimePassedToday = workDate === todayStr && (() => {
                 const now = new Date();
                 const currentMinutes = now.getHours() * 60 + now.getMinutes();
                 const [endH, endM] = endTime.split(':').map(Number);
@@ -2111,7 +2150,7 @@ export default function DoctorScheduleView() {
                 return (
                   <div className="space-y-2">
                     {presets.map((p) => {
-                      const isSelected = activePreset === p.id;
+                      const isSelected = activePreset === p.id && !p.expired;
                       return (
                         <button
                           key={p.id}
@@ -2123,7 +2162,7 @@ export default function DoctorScheduleView() {
                           }}
                           className={`w-full p-3.5 rounded-2xl border text-left transition-all duration-150 flex items-center justify-between gap-3 ${
                             p.expired
-                              ? 'opacity-40 bg-slate-100 border-dashed border-slate-300 text-slate-400 cursor-not-allowed select-none'
+                              ? 'opacity-40 bg-slate-100 border-dashed border-slate-300 text-slate-400 cursor-not-allowed select-none pointer-events-none'
                               : isSelected
                               ? 'border-2 border-teal-600 bg-teal-50/90 text-teal-950 shadow-sm ring-2 ring-teal-500/20 cursor-pointer'
                               : 'border-slate-200 bg-white hover:border-teal-400 hover:bg-teal-50/40 text-slate-700 cursor-pointer shadow-2xs'
