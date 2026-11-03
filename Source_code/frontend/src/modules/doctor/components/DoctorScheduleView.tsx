@@ -89,11 +89,11 @@ export default function DoctorScheduleView() {
   // Modal tạo ca trực mới (mặc định chọn ngày làm việc hợp lệ tiếp theo từ ngày mai)
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [workDate, setWorkDate] = useState<string>(() => getNextValidWorkingDate(clinicConfig.devMode247));
-  const [startTime, setStartTime] = useState<string>('08:00');
-  const [endTime, setEndTime] = useState<string>('12:00');
+  const [startTime, setStartTime] = useState<string>('');
+  const [endTime, setEndTime] = useState<string>('');
   const [slotDuration, setSlotDuration] = useState<number>(30);
   const [submitting, setSubmitting] = useState(false);
-  const [activePreset, setActivePreset] = useState<'NIGHT' | 'MORNING' | 'AFTERNOON' | 'EVENING' | 'FULL_DAY' | null>('MORNING');
+  const [activePreset, setActivePreset] = useState<'NIGHT' | 'MORNING' | 'AFTERNOON' | 'EVENING' | 'FULL_DAY' | null>(null);
   const [showPresetModal, setShowPresetModal] = useState<boolean>(false);
 
   // Đồng hồ kéo chọn khung giờ ca trực trực quan
@@ -725,20 +725,9 @@ export default function DoctorScheduleView() {
       'P.101';
     setSelectedRoom(validInitialRoom);
 
-    const todayStr = getLocalDateString();
-    if (nextDate === todayStr) {
-      // Nếu mở modal hôm nay: Cố định giờ bắt đầu theo Realtime hiện tại
-      const realStart = getTodayRealtimeSlot();
-      const realStartM = timeToMinutes(realStart);
-      setStartTime(realStart);
-      const nextEndM = Math.min(1410, Math.max(realStartM + 120, realStartM < 12 * 60 ? 12 * 60 : realStartM < 17 * 60 ? 17 * 60 : 23 * 60 + 30));
-      setEndTime(minutesToTime(nextEndM));
-      setActivePreset(null);
-    } else {
-      setStartTime('08:00');
-      setEndTime('12:00');
-      setActivePreset('MORNING');
-    }
+    setStartTime('');
+    setEndTime('');
+    setActivePreset(null);
 
     setShowCreateModal(true);
   };
@@ -1269,9 +1258,9 @@ export default function DoctorScheduleView() {
                             type="button"
                             onClick={() => {
                               setWorkDate(day.dateStr);
-                              setStartTime('08:00');
-                              setEndTime('12:00');
-                              setActivePreset('MORNING');
+                              setStartTime('');
+                              setEndTime('');
+                              setActivePreset(null);
                               setSelectedRoom(currentUser?.roomNumber || 'P.208');
                               setShowCreateModal(true);
                             }}
@@ -1354,9 +1343,9 @@ export default function DoctorScheduleView() {
                                 type="button"
                                 onClick={() => {
                                   setWorkDate(day.dateStr);
-                                  setStartTime('08:00');
-                                  setEndTime('12:00');
-                                  setActivePreset('MORNING');
+                                  setStartTime('');
+                                  setEndTime('');
+                                  setActivePreset(null);
                                   setSelectedRoom(currentUser?.roomNumber || 'P.208');
                                   setShowCreateModal(true);
                                 }}
@@ -1719,23 +1708,22 @@ export default function DoctorScheduleView() {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                   <div className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-semibold text-slate-600">Giờ bắt đầu:</span>
-                      <span className="text-[10px] text-emerald-600 font-bold">Bấm kéo đồng hồ</span>
-                    </div>
+                    <span className="text-[11px] font-semibold text-slate-600">Giờ bắt đầu:</span>
                     <button
                       type="button"
                       onClick={() => openClockPicker('start')}
-                      className="w-full p-2.5 border border-slate-200 hover:border-emerald-400 rounded-xl text-xs bg-slate-50 hover:bg-emerald-50/40 text-slate-800 flex items-center justify-between font-bold transition group cursor-pointer text-left shadow-2xs"
+                      className={`w-full p-2.5 border rounded-xl text-xs flex items-center justify-between font-bold transition group cursor-pointer text-left shadow-2xs ${
+                        startTime
+                          ? 'border-slate-200 hover:border-emerald-400 bg-slate-50 hover:bg-emerald-50/40 text-slate-800'
+                          : 'border-dashed border-slate-300 hover:border-teal-400 bg-slate-50/60 hover:bg-teal-50/30 text-slate-400'
+                      }`}
                     >
                       <div className="flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
-                        <span className="text-sm font-extrabold text-slate-800">{startTime}</span>
-                        {workDate === getLocalDateString() ? (
-                          <span className="text-[10px] text-emerald-700 font-bold bg-emerald-100 px-1.5 py-0.5 rounded flex items-center gap-1">
-                            <span>⚡ Realtime</span>
-                          </span>
-                        ) : (
+                        <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${startTime ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                        <span className={`text-sm ${startTime ? 'font-extrabold text-slate-800' : 'font-semibold text-slate-400'}`}>
+                          {startTime || '-- : --'}
+                        </span>
+                        {startTime && (
                           <span className="text-[10px] text-slate-400 font-semibold bg-slate-200/60 px-1.5 py-0.5 rounded">
                             {formatTime12h(startTime).split(' ')[1]}
                           </span>
@@ -1746,21 +1734,26 @@ export default function DoctorScheduleView() {
                   </div>
 
                   <div className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-semibold text-slate-600">Giờ kết thúc:</span>
-                      <span className="text-[10px] text-rose-600 font-bold">Bấm kéo đồng hồ</span>
-                    </div>
+                    <span className="text-[11px] font-semibold text-slate-600">Giờ kết thúc:</span>
                     <button
                       type="button"
                       onClick={() => openClockPicker('end')}
-                      className="w-full p-2.5 border border-slate-200 hover:border-rose-400 rounded-xl text-xs bg-slate-50 hover:bg-rose-50/40 text-slate-800 flex items-center justify-between font-bold transition group cursor-pointer text-left shadow-2xs"
+                      className={`w-full p-2.5 border rounded-xl text-xs flex items-center justify-between font-bold transition group cursor-pointer text-left shadow-2xs ${
+                        endTime
+                          ? 'border-slate-200 hover:border-rose-400 bg-slate-50 hover:bg-rose-50/40 text-slate-800'
+                          : 'border-dashed border-slate-300 hover:border-teal-400 bg-slate-50/60 hover:bg-teal-50/30 text-slate-400'
+                      }`}
                     >
                       <div className="flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />
-                        <span className="text-sm font-extrabold text-slate-800">{endTime}</span>
-                        <span className="text-[10px] text-slate-400 font-semibold bg-slate-200/60 px-1.5 py-0.5 rounded">
-                          {formatTime12h(endTime).split(' ')[1]}
+                        <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${endTime ? 'bg-rose-500' : 'bg-slate-300'}`} />
+                        <span className={`text-sm ${endTime ? 'font-extrabold text-slate-800' : 'font-semibold text-slate-400'}`}>
+                          {endTime || '-- : --'}
                         </span>
+                        {endTime && (
+                          <span className="text-[10px] text-slate-400 font-semibold bg-slate-200/60 px-1.5 py-0.5 rounded">
+                            {formatTime12h(endTime).split(' ')[1]}
+                          </span>
+                        )}
                       </div>
                       <Clock size={15} className="text-slate-400 group-hover:text-rose-600 transition" />
                     </button>
