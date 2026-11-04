@@ -144,6 +144,118 @@ public class EmailService {
         }
     }
 
+    /**
+     * Gửi email nhắc lịch khám trước 24 giờ (REQ-NOTI-02 trong SRS Chương 5) bất đồng bộ.
+     */
+    @Async
+    public void sendAppointmentReminderEmail(String toEmail, String recipientName, String bookingCode,
+                                            String doctorName, String specialtyName, String appointmentTime,
+                                            String medicalCenterName, String address) {
+        String safeName = (recipientName == null || recipientName.isBlank()) ? "Quý khách" : recipientName.trim();
+        String subject = "[MedSched] Nhắc hẹn: Bạn có lịch khám bệnh vào ngày mai (" + appointmentTime + ")";
+        String htmlContent = buildAppointmentReminderHtmlTemplate(safeName, bookingCode, doctorName, specialtyName,
+                appointmentTime, medicalCenterName, address);
+
+        if (brevoApiKey != null && !brevoApiKey.isBlank()) {
+            boolean brevoSuccess = sendViaBrevoHttpApi(toEmail, safeName, subject, htmlContent, bookingCode);
+            if (brevoSuccess) {
+                return;
+            }
+            log.warn("⚠️ [EmailService] Gửi email nhắc hẹn qua Brevo thất bại, chuyển sang Gmail SMTP...");
+        }
+
+        sendViaSmtp(toEmail, subject, htmlContent, bookingCode);
+    }
+
+    private String buildAppointmentReminderHtmlTemplate(String recipientName, String bookingCode,
+                                                        String doctorName, String specialtyName,
+                                                        String appointmentTime, String medicalCenterName,
+                                                        String address) {
+        String safeName = (recipientName == null || recipientName.isBlank()) ? "Quý khách" : recipientName.trim();
+        String safeDoctor = (doctorName == null || doctorName.isBlank()) ? "Bác sĩ chuyên khoa" : doctorName.trim();
+        String safeSpecialty = (specialtyName == null || specialtyName.isBlank()) ? "Đa khoa" : specialtyName.trim();
+        String safeCenter = (medicalCenterName == null || medicalCenterName.isBlank()) ? "Phòng khám MedSched" : medicalCenterName.trim();
+        String safeAddress = (address == null || address.isBlank()) ? "TP. Hồ Chí Minh" : address.trim();
+
+        return """
+                <!DOCTYPE html>
+                <html lang="vi">
+                <head>
+                  <meta charset="utf-8">
+                  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                  <title>Nhắc hẹn lịch khám bệnh - MedSched</title>
+                </head>
+                <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 24px; color: #1e293b;">
+                  <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%%" style="max-width: 580px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.06); border: 1px solid #e2e8f0;">
+                    <!-- Header -->
+                    <tr>
+                      <td style="background: linear-gradient(135deg, #0284c7 0%%, #0369a1 100%%); padding: 32px 24px; text-align: center; color: #ffffff;">
+                        <div style="font-size: 26px; font-weight: 800; letter-spacing: -0.5px; margin: 0;">MedSched Smart Healthcare</div>
+                        <div style="font-size: 14px; opacity: 0.92; margin-top: 6px;">Thông Báo Nhắc Hẹn Lịch Khám Bệnh Tự Động</div>
+                      </td>
+                    </tr>
+                    
+                    <!-- Content -->
+                    <tr>
+                      <td style="padding: 32px 28px;">
+                        <p style="font-size: 16px; font-weight: 600; color: #0f172a; margin: 0 0 12px 0;">Xin chào %s,</p>
+                        <p style="font-size: 14px; color: #475569; line-height: 1.6; margin: 0 0 20px 0;">
+                          Hệ thống xin trân trọng thông báo bạn có một lịch hẹn khám bệnh sắp diễn ra vào <strong>ngày mai</strong>. Dưới đây là thông tin chi tiết ca khám:
+                        </p>
+                        
+                        <!-- Appointment Card -->
+                        <div style="background-color: #f0f9ff; border: 1px solid #bae6fd; border-radius: 12px; padding: 20px; margin: 20px 0;">
+                          <table width="100%%" cellpadding="6" cellspacing="0" style="font-size: 14px; color: #1e293b;">
+                            <tr>
+                              <td width="35%%" style="color: #64748b; font-weight: 600;">Mã lịch hẹn:</td>
+                              <td style="font-weight: 800; color: #0284c7; font-size: 16px; font-family: monospace;">%s</td>
+                            </tr>
+                            <tr>
+                              <td style="color: #64748b; font-weight: 600;">Thời gian khám:</td>
+                              <td style="font-weight: 700; color: #0f172a;">%s</td>
+                            </tr>
+                            <tr>
+                              <td style="color: #64748b; font-weight: 600;">Bác sĩ phụ trách:</td>
+                              <td style="font-weight: 600;">%s (%s)</td>
+                            </tr>
+                            <tr>
+                              <td style="color: #64748b; font-weight: 600;">Cơ sở khám:</td>
+                              <td style="font-weight: 600;">%s</td>
+                            </tr>
+                            <tr>
+                              <td style="color: #64748b; font-weight: 600;">Địa chỉ:</td>
+                              <td style="color: #475569;">%s</td>
+                            </tr>
+                          </table>
+                        </div>
+                        
+                        <!-- Important Guidelines -->
+                        <div style="background-color: #fffbeb; border-left: 4px solid #f59e0b; border-radius: 6px; padding: 14px 16px; margin: 20px 0; font-size: 13px; color: #78350f; line-height: 1.6;">
+                          📌 <strong>Lưu ý quan trọng cho bệnh nhân:</strong><br>
+                          • Vui lòng có mặt tại <strong>Quầy tiếp đón trước 15 phút</strong> so với giờ hẹn.<br>
+                          • Chuẩn bị sẵn <strong>Mã lịch hẹn</strong> hoặc mã QR để quét Check-in nhanh.<br>
+                          • Nếu cần đổi hoặc hủy lịch, vui lòng thao tác trên ứng dụng trước giờ hẹn tối thiểu 2 giờ.
+                        </div>
+                        
+                        <p style="font-size: 13px; color: #64748b; line-height: 1.5; margin: 20px 0 0 0;">
+                          Chúc bạn có một buổi thăm khám thuận lợi và nhiều sức khỏe!
+                        </p>
+                      </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                      <td style="background-color: #f8fafc; border-top: 1px solid #e2e8f0; padding: 20px 24px; text-align: center; font-size: 12px; color: #94a3b8; line-height: 1.6;">
+                        © 2026 <strong>MedSched Smart Healthcare</strong>. Hệ thống hỗ trợ y tế thông minh.<br>
+                        Email này được gửi tự động bởi tính năng nhắc hẹn định kỳ (REQ-NOTI-02).
+                      </td>
+                    </tr>
+                  </table>
+                </body>
+                </html>
+                """.formatted(safeName, bookingCode, appointmentTime, safeDoctor, safeSpecialty, safeCenter, safeAddress);
+    }
+
     private String buildOtpHtmlTemplate(String recipientName, String otpCode) {
         String safeName = (recipientName == null || recipientName.isBlank()) ? "Quý khách" : recipientName.trim();
         return """
