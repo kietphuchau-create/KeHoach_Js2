@@ -133,7 +133,7 @@ public class SecurityConfig {
                                                                 "/api/ai/**",
                                                                 "/api/v1/ai/**",
                                                                 "/api/payments/**",
-                                                                "/api/v1/payments/**")
+                                                                "/api/v1/payments/**", "/api/files/**", "/api/v1/files/**")
                                                 .permitAll()
 
                                                 // 5. Phân quyền theo vai trò cụ thể
