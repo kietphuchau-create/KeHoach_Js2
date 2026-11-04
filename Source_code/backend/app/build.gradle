@@ -54,3 +54,9 @@ tasks.named('bootRun') {
         "-Dsun.stderr.encoding=UTF-8"
     ]
 }
+
+test {
+    testLogging {
+        showStandardStreams = true
+    }
+}
