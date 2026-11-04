@@ -273,18 +273,26 @@ export const api = {
     formData.append("folder", folder);
 
     const rootApiUrl = API_BASE_URL.replace(/\/v1\/?$/, "");
-    const targetUrl = `${rootApiUrl}/api/files/upload`;
+    let targetUrl = `${rootApiUrl}/files/upload`;
 
     const headers: Record<string, string> = {};
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
     }
 
-    const response = await fetch(targetUrl, {
+    let response = await fetch(targetUrl, {
       method: "POST",
       headers,
       body: formData,
     });
+
+    if (response.status === 404 && targetUrl !== `${API_BASE_URL}/files/upload`) {
+      response = await fetch(`${API_BASE_URL}/files/upload`, {
+        method: "POST",
+        headers,
+        body: formData,
+      });
+    }
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
