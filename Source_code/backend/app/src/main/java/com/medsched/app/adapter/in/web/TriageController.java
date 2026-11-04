@@ -392,7 +392,7 @@ public class TriageController {
         if (family == null || "GENERAL".equals(family)) {
             String storyLower = normalizeForMatching(story);
             if (Pattern.compile("\\b(ho|sot|cum|cam)\\b").matcher(storyLower).find()
-                    || containsAny(storyLower, "dau hong", "rat hong", "rat co", "kho tho", "co", "hong")) {
+                    || containsAny(storyLower, "dau hong", "rat hong", "rat co", "kho tho", "co hong")) {
                 family = "RESPIRATORY";
             } else if (containsAny(storyLower, "dau dau", "nhuc dau", "chong mat", "hoa mat", "sau gay", "thai duong")) {
                 family = "HEADACHE";
@@ -458,7 +458,7 @@ public class TriageController {
         if (positive.contains("dau nguc") || positive.contains("tuc nguc")) return "CHEST";
         if (positive.contains("dau rang") || positive.contains("nhuc rang") || positive.contains("buot rang")) return "DENTAL";
         if (containsAny(positive, "ngua da", "noi man", "phat ban", "me day", "di ung")) return "SKIN";
-        if (containsAny(positive, "ho khan", "ho co dom", "kho tho", "dau hong", "rat hong", "rat co", "sot", "viem hong", "cam cum", "hong", "co hong", "amidan", "viem amidan", "khan tieng", "so mui", "nghet mui")
+        if (containsAny(positive, "ho khan", "ho co dom", "kho tho", "dau hong", "rat hong", "rat co", "sot", "viem hong", "cam cum", "co hong", "amidan", "viem amidan", "khan tieng", "so mui", "nghet mui")
                 || Pattern.compile("\\b(ho|sot|cum|cam|hong)\\b").matcher(positive).find()) return "RESPIRATORY";
         return null;
     }
@@ -522,7 +522,7 @@ public class TriageController {
 
     private boolean hasQuality(String lower, String family) {
         boolean genericQuality = containsAny(lower, "giật", "nhói", "âm ỉ", "siết", "quặn", "buốt", "nóng rát",
-                "bóp nghẹt", "đè nặng", "đau khi nhai", "đau rát", "rát", "ngứa", "châm chích", "co thắt", "đau");
+                "bóp nghẹt", "đè nặng", "đau khi nhai", "đau rát", "rát", "ngứa", "châm chích", "co thắt");
         if (genericQuality) return true;
         return switch (family) {
             case "SKIN" -> containsAny(lower, "mụn nước", "mảng đỏ", "sưng", "bong tróc", "mề đay", "ngứa", "rát");
