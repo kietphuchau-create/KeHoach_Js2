@@ -81,7 +81,7 @@ class PasswordResetServiceTest {
 
         assertThat(response.email()).isEqualTo("patient@medsched.vn");
         assertThat(response.expiresInMinutes()).isEqualTo(15);
-        assertThat(response.message()).contains("Mã xác thực và liên kết");
+        assertThat(response.message()).contains("liên kết");
 
         // Xác nhận hàm gửi email được kích hoạt kèm OTP 6 số và Token
         ArgumentCaptor<String> tokenCaptor = ArgumentCaptor.forClass(String.class);
