@@ -321,12 +321,12 @@ public class EmailService {
     @Async
     public void sendPasswordResetEmail(String toEmail, String recipientName, String resetToken, String otpCode) {
         String safeName = (recipientName == null || recipientName.isBlank()) ? "Quý khách" : recipientName.trim();
-        String subject = "[MedSched] Mã xác thực đặt lại mật khẩu của bạn là: " + otpCode;
-        String htmlContent = buildPasswordResetHtmlTemplate(safeName, resetToken, otpCode);
+        String subject = "[MedSched] Yêu cầu đặt lại mật khẩu tài khoản của bạn";
+        String htmlContent = buildPasswordResetHtmlTemplate(safeName, resetToken);
 
         // 1. Gửi qua Brevo HTTP API
         if (brevoApiKey != null && !brevoApiKey.isBlank()) {
-            boolean brevoSuccess = sendViaBrevoHttpApi(toEmail, safeName, subject, htmlContent, otpCode);
+            boolean brevoSuccess = sendViaBrevoHttpApi(toEmail, safeName, subject, htmlContent, "MAGIC_LINK");
             if (brevoSuccess) {
                 return;
             }
@@ -334,10 +334,10 @@ public class EmailService {
         }
 
         // 2. Fallback: Gửi qua JavaMailSender (SMTP)
-        sendViaSmtp(toEmail, subject, htmlContent, otpCode);
+        sendViaSmtp(toEmail, subject, htmlContent, "MAGIC_LINK");
     }
 
-    private String buildPasswordResetHtmlTemplate(String recipientName, String resetToken, String otpCode) {
+    private String buildPasswordResetHtmlTemplate(String recipientName, String resetToken) {
         String safeName = (recipientName == null || recipientName.isBlank()) ? "Quý khách" : recipientName.trim();
         String resetUrl = "https://medsched-lyart.vercel.app/reset-password?token=" + resetToken;
 
@@ -363,23 +363,21 @@ public class EmailService {
                     <tr>
                       <td style="padding: 32px 28px;">
                         <p style="font-size: 16px; font-weight: 600; color: #0f172a; margin: 0 0 12px 0;">Xin chào %s,</p>
-                        <p style="font-size: 14px; color: #475569; line-height: 1.6; margin: 0 0 20px 0;">
-                          Chúng tôi đã nhận được yêu cầu khôi phục mật khẩu cho tài khoản liên kết với email này. Bạn có thể sử dụng <strong>Mã xác thực OTP 6 số</strong> dưới đây hoặc bấm trực tiếp vào nút đặt lại mật khẩu:
+                        <p style="font-size: 14px; color: #475569; line-height: 1.6; margin: 0 0 24px 0;">
+                          Chúng tôi đã nhận được yêu cầu đặt lại mật khẩu cho tài khoản liên kết với email này. Vui lòng bấm vào nút bên dưới để tiến hành thiết lập mật khẩu mới (liên kết bảo mật có thời hạn trong <strong>15 phút</strong>):
                         </p>
-                        
-                        <!-- OTP Box -->
-                        <div style="background-color: #eff6ff; border: 2px dashed #3b82f6; border-radius: 12px; padding: 20px; text-align: center; margin: 20px 0;">
-                          <div style="font-size: 12px; font-weight: 700; color: #2563eb; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px;">MÃ XÁC THỰC OTP ĐẶT LẠI MẬT KHẨU</div>
-                          <div style="font-size: 38px; font-weight: 900; letter-spacing: 8px; color: #1e40af; font-family: 'Consolas', 'Courier New', monospace; padding-left: 8px;">%s</div>
-                          <div style="font-size: 12px; color: #64748b; margin-top: 8px;">Hiệu lực trong vòng <strong>15 phút</strong></div>
-                        </div>
                         
                         <!-- Action Button -->
                         <div style="text-align: center; margin: 28px 0;">
-                          <a href="%s" style="background-color: #2563eb; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-size: 15px; font-weight: 700; display: inline-block; box-shadow: 0 4px 12px rgba(37,99,235,0.3);">
+                          <a href="%s" style="background-color: #2563eb; color: #ffffff; text-decoration: none; padding: 14px 36px; border-radius: 8px; font-size: 15px; font-weight: 700; display: inline-block; box-shadow: 0 4px 12px rgba(37,99,235,0.3);">
                             ĐẶT LẠI MẬT KHẨU NGAY
                           </a>
                         </div>
+
+                        <p style="font-size: 13px; color: #64748b; line-height: 1.5; margin: 0 0 20px 0; text-align: center;">
+                          Nếu nút bấm trên không hoạt động, bạn có thể sao chép và dán liên kết sau vào trình duyệt:<br>
+                          <a href="%s" style="color: #2563eb; word-break: break-all; font-size: 12px;">%s</a>
+                        </p>
                         
                         <div style="background-color: #f8fafc; border-radius: 8px; padding: 14px 16px; font-size: 13px; color: #64748b; line-height: 1.5;">
                           🔒 <strong>Bảo mật tài khoản:</strong> Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email. Mật khẩu hiện tại của bạn vẫn được giữ an toàn tuyệt đối.
@@ -397,6 +395,6 @@ public class EmailService {
                   </table>
                 </body>
                 </html>
-                """.formatted(safeName, otpCode, resetUrl);
+                """.formatted(safeName, resetUrl, resetUrl, resetUrl);
     }
 }

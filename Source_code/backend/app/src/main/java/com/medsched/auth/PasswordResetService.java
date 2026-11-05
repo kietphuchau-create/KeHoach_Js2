@@ -109,7 +109,7 @@ public class PasswordResetService {
         }
 
         return new PasswordResetDtos.ForgotPasswordResponse(
-                "Mã xác thực và liên kết đặt lại mật khẩu đã được gửi đến email của bạn.",
+                "Liên kết đặt lại mật khẩu đã được gửi đến email của bạn.",
                 user.getEmail(),
                 EXPIRATION_MINUTES
         );
