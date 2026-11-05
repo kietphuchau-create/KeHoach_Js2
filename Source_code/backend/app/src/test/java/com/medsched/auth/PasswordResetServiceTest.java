@@ -106,7 +106,7 @@ class PasswordResetServiceTest {
     @DisplayName("BƯỚC 1: Từ chối tự khôi phục mật khẩu khi người dùng là Bác sĩ (ROLE_DOCTOR)")
     void forgotPassword_Rejected_ForDoctor() {
         when(users.findByEmail("doctor@medsched.vn")).thenReturn(Optional.of(testDoctor));
-        var doctorRole = new UserMedicalCenterRoleEntity("r1", "doctor-456", "mc-1", UserRole.ROLE_DOCTOR, true, Instant.now());
+        var doctorRole = new UserMedicalCenterRoleEntity("r1", "doctor-456", "mc-1", UserRole.ROLE_DOCTOR, Instant.now(), Instant.now());
         when(centerRoles.findByUserIdAndActiveTrue("doctor-456")).thenReturn(List.of(doctorRole));
 
         var request = new PasswordResetDtos.ForgotPasswordRequest("doctor@medsched.vn");
@@ -123,7 +123,7 @@ class PasswordResetServiceTest {
     @DisplayName("BƯỚC 1: Từ chối tự khôi phục mật khẩu khi người dùng là Nhân viên quầy / Lễ tân (ROLE_STAFF)")
     void forgotPassword_Rejected_ForStaff() {
         when(users.findByEmail("staff@medsched.vn")).thenReturn(Optional.of(testDoctor));
-        var staffRole = new UserMedicalCenterRoleEntity("r2", "doctor-456", "mc-1", UserRole.ROLE_STAFF, true, Instant.now());
+        var staffRole = new UserMedicalCenterRoleEntity("r2", "doctor-456", "mc-1", UserRole.ROLE_STAFF, Instant.now(), Instant.now());
         when(centerRoles.findByUserIdAndActiveTrue("doctor-456")).thenReturn(List.of(staffRole));
 
         var request = new PasswordResetDtos.ForgotPasswordRequest("staff@medsched.vn");
