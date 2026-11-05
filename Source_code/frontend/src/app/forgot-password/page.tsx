@@ -9,11 +9,13 @@ export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [staffNotice, setStaffNotice] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
+    setStaffNotice(null);
     setSuccessMessage('');
     setLoading(true);
 
@@ -21,7 +23,18 @@ export default function ForgotPasswordPage() {
       const res = await api.forgotPassword(email);
       setSuccessMessage(res.message || 'Nếu email tồn tại trong hệ thống, hướng dẫn đặt lại mật khẩu đã được gửi đến hộp thư của bạn.');
     } catch (err: any) {
-      setErrorMessage(err.message || 'Không thể xử lý yêu cầu lúc này. Vui lòng thử lại sau.');
+      const msg = err.message || 'Không thể xử lý yêu cầu lúc này. Vui lòng thử lại sau.';
+      // Nếu là tài khoản Bác sĩ / Nhân viên y tế / Cán bộ nội bộ
+      if (
+        msg.includes('Bác sĩ') ||
+        msg.includes('Nhân viên y tế') ||
+        msg.includes('chỉ áp dụng cho Bệnh nhân') ||
+        msg.includes('Admin')
+      ) {
+        setStaffNotice(msg);
+      } else {
+        setErrorMessage(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -48,17 +61,19 @@ export default function ForgotPasswordPage() {
           </p>
         </div>
 
-        {/* Quy định cấp lại mật khẩu y tế */}
-        <div className="mb-5 p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-start gap-2.5">
-          <ShieldAlert size={18} className="text-amber-600 shrink-0 mt-0.5" />
-          <div className="leading-relaxed">
-            <span className="font-bold text-amber-950">Quy định cấp lại mật khẩu:</span>
-            <div className="mt-1 text-[11px] text-amber-800 space-y-1">
-              <div>• <strong>Bệnh nhân:</strong> Nhập email đã đăng ký để nhận mã OTP 6 số và đường dẫn khôi phục.</div>
-              <div>• <strong>Bác sĩ & Nhân viên y tế:</strong> Vui lòng liên hệ trực tiếp <strong>Quản trị viên (Admin)</strong> để được cấp lại mật khẩu tập trung nhằm bảo vệ an toàn hồ sơ bệnh án.</div>
+        {/* Quy định cấp lại mật khẩu - Chỉ hiển thị khi người dùng nhập email của Bác sĩ / Nhân viên y tế */}
+        {staffNotice && (
+          <div className="mb-5 p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-start gap-2.5">
+            <ShieldAlert size={18} className="text-amber-600 shrink-0 mt-0.5" />
+            <div className="leading-relaxed">
+              <span className="font-bold text-amber-950">Quy định cấp lại mật khẩu:</span>
+              <div className="mt-1 text-[11px] text-amber-800 space-y-1">
+                <div>• Tài khoản của bạn là <strong>Bác sĩ / Nhân viên y tế</strong>. Tính năng tự khôi phục mật khẩu chỉ áp dụng cho Bệnh nhân.</div>
+                <div>• Vui lòng liên hệ trực tiếp <strong>Quản trị viên (Admin)</strong> để được cấp lại mật khẩu tập trung nhằm bảo vệ an toàn hồ sơ bệnh án.</div>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Thông báo lỗi */}
         {errorMessage && (
@@ -103,7 +118,11 @@ export default function ForgotPasswordPage() {
                   type="email"
                   required
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (errorMessage) setErrorMessage('');
+                    if (staffNotice) setStaffNotice(null);
+                  }}
                   placeholder="example@medsched.vn"
                   className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition"
                 />
