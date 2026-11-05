@@ -97,7 +97,9 @@ public class SecurityConfig {
                                                                 "/api/v1/admin/promotions/**",
                                                                 "/api/admin/promotions/**",
                                                                 "/api/v1/promotions/**",
-                                                                "/api/promotions/**")
+                                                                "/api/promotions/**",
+                                                                "/api/v1/prescriptions/**",
+                                                                "/api/prescriptions/**")
                                                 .permitAll()
 
                                                 // 3. Khách xem danh sách slot giờ khám, tra cứu lịch trực bác sĩ và tra

@@ -37,6 +37,24 @@ export default function DoctorHistoryView() {
   const [prescriptionDetail, setPrescriptionDetail] = useState<PrescriptionDetail | null>(null);
   const [loadingPrescription, setLoadingPrescription] = useState(false);
   const [errorPrescription, setErrorPrescription] = useState<string | null>(null);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+
+  const handleDownloadPdf = async () => {
+    if (!prescriptionDetail) return;
+    try {
+      const identifier = prescriptionDetail.prescriptionId || prescriptionDetail.appointmentId;
+      if (!identifier) {
+        alert('Không tìm thấy mã đơn thuốc để xuất file.');
+        return;
+      }
+      setDownloadingPdf(true);
+      await api.downloadPrescriptionPdf(identifier);
+    } catch (err: any) {
+      alert(err?.message || 'Không thể tải file PDF đơn thuốc.');
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
 
   useEffect(() => {
     const user = getAuthUser();
@@ -490,14 +508,26 @@ export default function DoctorHistoryView() {
               </button>
 
               {prescriptionDetail && (
-                <button
-                  type="button"
-                  onClick={handlePrint}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-teal-700 hover:bg-teal-800 text-white transition shadow-xs cursor-pointer"
-                >
-                  <Printer size={15} />
-                  <span>In Đơn Thuốc</span>
-                </button>
+                <>
+                  <button
+                    type="button"
+                    disabled={downloadingPdf}
+                    onClick={handleDownloadPdf}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-teal-600 hover:bg-teal-700 text-white transition shadow-xs cursor-pointer disabled:opacity-50"
+                    title="Tải đơn thuốc PDF lưu hành EMR"
+                  >
+                    <Download size={15} />
+                    <span>{downloadingPdf ? 'Đang xuất PDF...' : 'Tải Đơn Thuốc PDF'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handlePrint}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition shadow-xs cursor-pointer border border-slate-200"
+                  >
+                    <Printer size={15} />
+                    <span>In Đơn Thuốc</span>
+                  </button>
+                </>
               )}
             </div>
           </div>
