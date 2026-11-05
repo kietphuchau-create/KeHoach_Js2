@@ -939,6 +939,29 @@ export const api = {
     return request<PrescriptionDetail>(`/doctor/appointments/${appointmentId}/prescription`);
   },
 
+  async downloadPrescriptionPdf(identifier: string) {
+    const token = getAuthToken();
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    const response = await fetch(`${API_BASE_URL}/prescriptions/${identifier}/pdf`, {
+      headers,
+    });
+    if (!response.ok) {
+      throw new Error('Không thể tải file PDF đơn thuốc. Vui lòng thử lại sau.');
+    }
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `don-thuoc-${identifier}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  },
+
   async getDoctorConsultationHistory(params?: {
     doctorId?: string;
     q?: string;

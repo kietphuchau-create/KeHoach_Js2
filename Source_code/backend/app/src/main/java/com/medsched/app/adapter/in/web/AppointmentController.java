@@ -14,6 +14,10 @@ import java.util.List;
 
 import com.medsched.doctor.DoctorPrescriptionDtos;
 import com.medsched.doctor.DoctorPrescriptionService;
+import com.medsched.doctor.PrescriptionPdfService;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.beans.factory.annotation.Autowired;
 import com.medsched.persistence.entity.AppointmentEntity;
 import com.medsched.persistence.entity.TimeSlotEntity;
 import com.medsched.persistence.enums.AppointmentStatus;
@@ -62,6 +66,9 @@ public class AppointmentController {
     private final DoctorJpaRepository doctors;
     private final MedicalCenterJpaRepository medicalCenters;
     private final DoctorPrescriptionService doctorPrescriptionService;
+    @Autowired(required = false)
+    private PrescriptionPdfService prescriptionPdfService;
+
     private final AppointmentJpaRepository appointmentJpaRepository;
     private final TimeSlotJpaRepository timeSlotJpaRepository;
     private final DoctorScheduleJpaRepository doctorScheduleJpaRepository;
@@ -846,5 +853,18 @@ public class AppointmentController {
     public ResponseEntity<DoctorPrescriptionDtos.PrescriptionDetailDto> getAppointmentPrescription(
             @PathVariable String id) {
         return ResponseEntity.ok(doctorPrescriptionService.getPrescriptionDetailsByAppointmentId(id));
+    }
+
+    @GetMapping(value = "/{id}/prescription/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+    public ResponseEntity<byte[]> getAppointmentPrescriptionPdf(@PathVariable String id) {
+        if (prescriptionPdfService == null) {
+            return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).build();
+        }
+        byte[] pdfBytes = prescriptionPdfService.generatePrescriptionPdf(id);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_PDF);
+        headers.setContentDispositionFormData("inline", "don-thuoc-" + id + ".pdf");
+        headers.setContentLength(pdfBytes.length);
+        return ResponseEntity.ok().headers(headers).body(pdfBytes);
     }
 }

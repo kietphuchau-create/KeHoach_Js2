@@ -8,7 +8,8 @@ import {
   Clock, 
   Search, 
   QrCode, 
-  Printer, 
+  Printer,
+  Download, 
   Copy, 
   Check, 
   Sparkles, 
@@ -153,6 +154,24 @@ export default function MyAppointmentsView() {
   const [viewingPrescriptionApt, setViewingPrescriptionApt] = useState<AppointmentResponse | null>(null);
   const [prescriptionDetail, setPrescriptionDetail] = useState<PrescriptionDetail | null>(null);
   const [loadingPrescription, setLoadingPrescription] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+
+  const handleDownloadPdf = async () => {
+    if (!viewingPrescriptionApt) return;
+    try {
+      const identifier = prescriptionDetail?.prescriptionId || viewingPrescriptionApt.id || viewingPrescriptionApt.bookingCode;
+      if (!identifier) {
+        alert('Không tìm thấy mã đơn thuốc để xuất file.');
+        return;
+      }
+      setDownloadingPdf(true);
+      await api.downloadPrescriptionPdf(identifier);
+    } catch (err: any) {
+      alert(err?.message || 'Không thể tải file PDF đơn thuốc.');
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
 
   const handleOpenPrescription = async (apt: AppointmentResponse) => {
     setViewingPrescriptionApt(apt);
@@ -1373,8 +1392,18 @@ export default function MyAppointmentsView() {
               </button>
               <button
                 type="button"
+                disabled={downloadingPdf}
+                onClick={handleDownloadPdf}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 transition shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                title="Tải đơn thuốc định dạng PDF chuẩn Bộ Y Tế"
+              >
+                <Download size={15} />
+                <span>{downloadingPdf ? 'Đang xuất PDF...' : 'Tải Đơn Thuốc PDF'}</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => window.print()}
-                className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-pine-teal hover:bg-pine-teal-hover transition shadow-sm flex items-center gap-1.5 cursor-pointer"
+                className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition shadow-sm flex items-center gap-1.5 cursor-pointer border border-slate-200"
               >
                 <Printer size={15} />
                 <span>In Đơn Thuốc (A5)</span>

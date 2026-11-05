@@ -14,6 +14,9 @@ dependencies {
     // Email (Gmail SMTP for OTP Verification)
     implementation 'org.springframework.boot:spring-boot-starter-mail'
 
+    // PDF Generation (OpenPDF for REQ-RX-02)
+    implementation 'com.github.librepdf:openpdf:1.3.39'
+
     // Cloud Storage (Cloudinary SDK for REQ-FILE-01)
     implementation 'com.cloudinary:cloudinary-http44:1.38.0'
 
