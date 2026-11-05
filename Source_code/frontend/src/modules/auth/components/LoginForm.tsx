@@ -184,13 +184,12 @@ export default function LoginForm() {
         </div>
 
         <div className="flex items-center justify-end">
-          <button
-            type="button"
-            onClick={() => setShowForgotModal(true)}
+          <Link
+            href="/forgot-password"
             className="text-[11px] text-teal-600 hover:text-pine-teal font-medium hover:underline cursor-pointer"
           >
             Quên mật khẩu?
-          </button>
+          </Link>
         </div>
 
         <button
