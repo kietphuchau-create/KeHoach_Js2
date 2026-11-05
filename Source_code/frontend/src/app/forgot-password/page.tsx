@@ -48,6 +48,18 @@ export default function ForgotPasswordPage() {
           </p>
         </div>
 
+        {/* Quy định cấp lại mật khẩu y tế */}
+        <div className="mb-5 p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-start gap-2.5">
+          <ShieldAlert size={18} className="text-amber-600 shrink-0 mt-0.5" />
+          <div className="leading-relaxed">
+            <span className="font-bold text-amber-950">Quy định cấp lại mật khẩu:</span>
+            <div className="mt-1 text-[11px] text-amber-800 space-y-1">
+              <div>• <strong>Bệnh nhân:</strong> Nhập email đã đăng ký để nhận mã OTP 6 số và đường dẫn khôi phục.</div>
+              <div>• <strong>Bác sĩ & Nhân viên y tế:</strong> Vui lòng liên hệ trực tiếp <strong>Quản trị viên (Admin)</strong> để được cấp lại mật khẩu tập trung nhằm bảo vệ an toàn hồ sơ bệnh án.</div>
+            </div>
+          </div>
+        </div>
+
         {/* Thông báo lỗi */}
         {errorMessage && (
           <div className="mb-4 p-3 bg-red-50 border-l-4 border-red-500 flex items-center gap-2 text-red-700 text-sm rounded">

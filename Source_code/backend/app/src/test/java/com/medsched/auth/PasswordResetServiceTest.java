@@ -3,7 +3,10 @@ package com.medsched.auth;
 import com.medsched.common.AppExceptions;
 import com.medsched.mail.EmailService;
 import com.medsched.persistence.entity.UserEntity;
+import com.medsched.persistence.entity.UserMedicalCenterRoleEntity;
+import com.medsched.persistence.enums.UserRole;
 import com.medsched.persistence.repository.UserJpaRepository;
+import com.medsched.persistence.repository.UserMedicalCenterRoleJpaRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -12,6 +15,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -21,26 +25,29 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
-@DisplayName("Kiểm thử TDD cho Dịch vụ Khôi phục Mật khẩu (REQ-AUTH-05)")
+@DisplayName("Kiểm thử TDD cho Dịch vụ Khôi phục Mật khẩu (REQ-AUTH-05 - Chỉ áp dụng cho Bệnh nhân)")
 class PasswordResetServiceTest {
 
     private UserJpaRepository users;
+    private UserMedicalCenterRoleJpaRepository centerRoles;
     private PasswordEncoder passwordEncoder;
     private EmailService emailService;
     private PasswordResetService passwordResetService;
 
-    private UserEntity testUser;
+    private UserEntity testPatient;
+    private UserEntity testDoctor;
 
     @BeforeEach
     void setUp() {
         users = mock(UserJpaRepository.class);
+        centerRoles = mock(UserMedicalCenterRoleJpaRepository.class);
         passwordEncoder = new BCryptPasswordEncoder();
         emailService = mock(EmailService.class);
 
-        passwordResetService = new PasswordResetService(users, passwordEncoder, emailService);
+        passwordResetService = new PasswordResetService(users, centerRoles, passwordEncoder, emailService);
 
-        testUser = new UserEntity(
-                "user-123",
+        testPatient = new UserEntity(
+                "patient-123",
                 "patient@medsched.vn",
                 passwordEncoder.encode("OldPassword123@"),
                 "Nguyễn Văn Bệnh Nhân",
@@ -49,13 +56,25 @@ class PasswordResetServiceTest {
                 Instant.now(),
                 Instant.now()
         );
-        testUser.setCurrentSessionId("old-session-uuid");
+        testPatient.setCurrentSessionId("old-session-uuid");
+
+        testDoctor = new UserEntity(
+                "doctor-456",
+                "doctor@medsched.vn",
+                passwordEncoder.encode("DoctorPass123@"),
+                "BS. Trần Văn Bác Sĩ",
+                "0912345678",
+                true,
+                Instant.now(),
+                Instant.now()
+        );
     }
 
     @Test
-    @DisplayName("BƯỚC 1: Quên mật khẩu thành công - Sinh mã OTP 6 số và gửi email")
-    void forgotPassword_Success() {
-        when(users.findByEmail("patient@medsched.vn")).thenReturn(Optional.of(testUser));
+    @DisplayName("BƯỚC 1: Bệnh nhân quên mật khẩu thành công - Sinh mã OTP 6 số và gửi email")
+    void forgotPassword_Success_ForPatient() {
+        when(users.findByEmail("patient@medsched.vn")).thenReturn(Optional.of(testPatient));
+        when(centerRoles.findByUserIdAndActiveTrue("patient-123")).thenReturn(List.of()); // Không mang role nhân viên
 
         var request = new PasswordResetDtos.ForgotPasswordRequest("patient@medsched.vn");
         var response = passwordResetService.processForgotPassword(request);
@@ -79,9 +98,41 @@ class PasswordResetServiceTest {
         assertThat(capturedToken).isNotBlank();
         assertThat(capturedOtp).hasSize(6).containsOnlyDigits();
 
-        // Cả Token và OTP đều có thể dùng để tra cứu session
         assertThat(passwordResetService.hasActiveSession(capturedToken)).isTrue();
         assertThat(passwordResetService.hasActiveSession(capturedOtp)).isTrue();
+    }
+
+    @Test
+    @DisplayName("BƯỚC 1: Từ chối tự khôi phục mật khẩu khi người dùng là Bác sĩ (ROLE_DOCTOR)")
+    void forgotPassword_Rejected_ForDoctor() {
+        when(users.findByEmail("doctor@medsched.vn")).thenReturn(Optional.of(testDoctor));
+        var doctorRole = new UserMedicalCenterRoleEntity("r1", "doctor-456", "mc-1", UserRole.ROLE_DOCTOR, Instant.now(), Instant.now());
+        when(centerRoles.findByUserIdAndActiveTrue("doctor-456")).thenReturn(List.of(doctorRole));
+
+        var request = new PasswordResetDtos.ForgotPasswordRequest("doctor@medsched.vn");
+
+        assertThatThrownBy(() -> passwordResetService.processForgotPassword(request))
+                .isInstanceOf(AppExceptions.BadRequestException.class)
+                .hasMessageContaining("chỉ áp dụng cho Bệnh nhân")
+                .hasMessageContaining("liên hệ Quản trị viên (Admin)");
+
+        verify(emailService, never()).sendPasswordResetEmail(anyString(), anyString(), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("BƯỚC 1: Từ chối tự khôi phục mật khẩu khi người dùng là Nhân viên quầy / Lễ tân (ROLE_STAFF)")
+    void forgotPassword_Rejected_ForStaff() {
+        when(users.findByEmail("staff@medsched.vn")).thenReturn(Optional.of(testDoctor));
+        var staffRole = new UserMedicalCenterRoleEntity("r2", "doctor-456", "mc-1", UserRole.ROLE_STAFF, Instant.now(), Instant.now());
+        when(centerRoles.findByUserIdAndActiveTrue("doctor-456")).thenReturn(List.of(staffRole));
+
+        var request = new PasswordResetDtos.ForgotPasswordRequest("staff@medsched.vn");
+
+        assertThatThrownBy(() -> passwordResetService.processForgotPassword(request))
+                .isInstanceOf(AppExceptions.BadRequestException.class)
+                .hasMessageContaining("chỉ áp dụng cho Bệnh nhân");
+
+        verify(emailService, never()).sendPasswordResetEmail(anyString(), anyString(), anyString(), anyString());
     }
 
     @Test
@@ -101,8 +152,9 @@ class PasswordResetServiceTest {
     @Test
     @DisplayName("BƯỚC 2: Đặt lại mật khẩu thành công khi dùng Token từ URL")
     void resetPassword_Success_UsingToken() {
-        when(users.findByEmail("patient@medsched.vn")).thenReturn(Optional.of(testUser));
-        when(users.findById("user-123")).thenReturn(Optional.of(testUser));
+        when(users.findByEmail("patient@medsched.vn")).thenReturn(Optional.of(testPatient));
+        when(users.findById("patient-123")).thenReturn(Optional.of(testPatient));
+        when(centerRoles.findByUserIdAndActiveTrue("patient-123")).thenReturn(List.of());
 
         // 1. Tạo session
         var forgotReq = new PasswordResetDtos.ForgotPasswordRequest("patient@medsched.vn");
@@ -117,25 +169,19 @@ class PasswordResetServiceTest {
         var resetRes = passwordResetService.processResetPassword(resetReq);
 
         assertThat(resetRes.message()).contains("Đặt lại mật khẩu thành công");
-
-        // Kiểm tra mật khẩu mới đã được băm BCrypt chính xác
-        assertThat(passwordEncoder.matches("NewPassword456@", testUser.getPasswordHash())).isTrue();
-
-        // Kiểm tra session cũ bị hủy (đổi sessionId để kickout đăng nhập cũ)
-        assertThat(testUser.getCurrentSessionId()).isNotEqualTo("old-session-uuid");
-        verify(users, times(1)).save(testUser);
-
-        // Token và OTP không thể tái sử dụng lần 2
+        assertThat(passwordEncoder.matches("NewPassword456@", testPatient.getPasswordHash())).isTrue();
+        assertThat(testPatient.getCurrentSessionId()).isNotEqualTo("old-session-uuid");
+        verify(users, times(1)).save(testPatient);
         assertThat(passwordResetService.hasActiveSession(token)).isFalse();
     }
 
     @Test
     @DisplayName("BƯỚC 2: Đặt lại mật khẩu thành công khi nhập trực tiếp mã OTP 6 số")
     void resetPassword_Success_UsingOtpCode() {
-        when(users.findByEmail("patient@medsched.vn")).thenReturn(Optional.of(testUser));
-        when(users.findById("user-123")).thenReturn(Optional.of(testUser));
+        when(users.findByEmail("patient@medsched.vn")).thenReturn(Optional.of(testPatient));
+        when(users.findById("patient-123")).thenReturn(Optional.of(testPatient));
+        when(centerRoles.findByUserIdAndActiveTrue("patient-123")).thenReturn(List.of());
 
-        // 1. Tạo session
         var forgotReq = new PasswordResetDtos.ForgotPasswordRequest("patient@medsched.vn");
         passwordResetService.processForgotPassword(forgotReq);
 
@@ -143,13 +189,12 @@ class PasswordResetServiceTest {
         verify(emailService).sendPasswordResetEmail(anyString(), anyString(), anyString(), otpCaptor.capture());
         String otpCode = otpCaptor.getValue();
 
-        // 2. Đặt lại mật khẩu với mã OTP 6 số
         var resetReq = new PasswordResetDtos.ResetPasswordRequest(otpCode, "BrandNewPassword789@");
         var resetRes = passwordResetService.processResetPassword(resetReq);
 
         assertThat(resetRes.message()).contains("Đặt lại mật khẩu thành công");
-        assertThat(passwordEncoder.matches("BrandNewPassword789@", testUser.getPasswordHash())).isTrue();
-        verify(users, times(1)).save(testUser);
+        assertThat(passwordEncoder.matches("BrandNewPassword789@", testPatient.getPasswordHash())).isTrue();
+        verify(users, times(1)).save(testPatient);
     }
 
     @Test
@@ -164,4 +209,3 @@ class PasswordResetServiceTest {
         verify(users, never()).save(any());
     }
 }
-

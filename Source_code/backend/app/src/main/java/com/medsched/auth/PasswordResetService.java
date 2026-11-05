@@ -3,7 +3,9 @@ package com.medsched.auth;
 import com.medsched.common.AppExceptions;
 import com.medsched.mail.EmailService;
 import com.medsched.persistence.entity.UserEntity;
+import com.medsched.persistence.enums.UserRole;
 import com.medsched.persistence.repository.UserJpaRepository;
+import com.medsched.persistence.repository.UserMedicalCenterRoleJpaRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -21,6 +23,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Xử lý nghiệp vụ Khôi phục mật khẩu qua Email OTP / Secure Token (REQ-AUTH-05 - SRS Chương 5 & 10).
+ * Lưu ý nghiệp vụ: Chỉ áp dụng cho tài khoản Bệnh nhân. Cán bộ nhân viên (Bác sĩ, Lễ tân, Admin)
+ * bắt buộc phải liên hệ Quản trị viên (Admin) để được cấp lại mật khẩu tập trung nhằm bảo vệ hồ sơ bệnh án.
  */
 @Service
 public class PasswordResetService {
@@ -29,6 +33,7 @@ public class PasswordResetService {
     public static final int EXPIRATION_MINUTES = 15;
 
     private final UserJpaRepository users;
+    private final UserMedicalCenterRoleJpaRepository centerRoles;
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
     private final SecureRandom secureRandom = new SecureRandom();
@@ -49,21 +54,39 @@ public class PasswordResetService {
     }
 
     public PasswordResetService(UserJpaRepository users,
+                                UserMedicalCenterRoleJpaRepository centerRoles,
                                 PasswordEncoder passwordEncoder,
                                 @Qualifier("otpEmailService") EmailService emailService) {
         this.users = users;
+        this.centerRoles = centerRoles;
         this.passwordEncoder = passwordEncoder;
         this.emailService = emailService;
     }
 
     /**
      * BƯỚC 1: Tiếp nhận yêu cầu quên mật khẩu, sinh OTP 6 số và Token bảo mật, gửi email.
+     * Chặn Bác sĩ / Lễ tân / Admin và chỉ cho phép Bệnh nhân.
      */
     @Transactional(readOnly = true)
     public PasswordResetDtos.ForgotPasswordResponse processForgotPassword(PasswordResetDtos.ForgotPasswordRequest request) {
         String normalizedEmail = request.email() != null ? request.email().trim().toLowerCase() : "";
         UserEntity user = users.findByEmail(normalizedEmail)
                 .orElseThrow(() -> new AppExceptions.NotFoundException("Không tìm thấy tài khoản với email: " + request.email()));
+
+        // Kiểm tra phân quyền: Quên mật khẩu tự động chỉ áp dụng cho Bệnh nhân (Customer)
+        // Cán bộ nhân viên (Bác sĩ, Lễ tân, Quản trị viên) bắt buộc phải liên hệ Admin để đổi nhằm bảo vệ hồ sơ bệnh án
+        boolean isStaffOrDoctorOrAdmin = centerRoles.findByUserIdAndActiveTrue(user.getId()).stream()
+                .anyMatch(r -> r.getRole() == UserRole.ROLE_DOCTOR
+                            || r.getRole() == UserRole.ROLE_STAFF
+                            || r.getRole() == UserRole.ROLE_ADMIN);
+
+        if (isStaffOrDoctorOrAdmin) {
+            log.warn("⛔ [PasswordReset] Từ chối khôi phục mật khẩu tự động cho nhân sự nội bộ: {}", user.getEmail());
+            throw new AppExceptions.BadRequestException(
+                    "Tính năng tự khôi phục mật khẩu qua Email chỉ áp dụng cho Bệnh nhân. " +
+                    "Bác sĩ và Nhân viên y tế vui lòng liên hệ Quản trị viên (Admin) để được cấp lại mật khẩu theo quy trình bảo mật hồ sơ bệnh án."
+            );
+        }
 
         // Sinh token ngẫu nhiên và mã OTP 6 số bảo mật
         String token = UUID.randomUUID().toString().replace("-", "");
@@ -75,7 +98,7 @@ public class PasswordResetService {
         sessionCache.put(token, session);
         sessionCache.put(otpCode, session);
 
-        log.info("🔑 [PasswordReset] Đã tạo mã khôi phục cho email {}: OTP={}, Token={} (Hết hạn lúc {})",
+        log.info("🔑 [PasswordReset] Đã tạo mã khôi phục cho email Bệnh nhân {}: OTP={}, Token={} (Hết hạn lúc {})",
                 user.getEmail(), otpCode, token, expiresAt);
 
         // Gửi email chứa liên kết và OTP
@@ -144,4 +167,3 @@ public class PasswordResetService {
         return s != null && !s.isExpired();
     }
 }
-
