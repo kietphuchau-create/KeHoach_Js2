@@ -213,4 +213,43 @@ class AuthServiceTest {
         Claims claims = jwtService.parse(res.accessToken());
         assertThat(claims.get(JwtService.CLAIM_SESSION_ID, String.class)).isEqualTo(u.getCurrentSessionId());
     }
+
+    @Test
+    @DisplayName("REQ-AUTH-02: Khóa tài khoản sau 5 lần nhập sai mật khẩu liên tiếp")
+    void loginLocksAccountAfter5FailedAttempts() {
+        UserEntity u = user("user-lock", "lock@gmail.com", "Nguyen Van B");
+        when(users.findByEmail("lock@gmail.com")).thenReturn(Optional.of(u));
+        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
+                .thenThrow(new BadCredentialsException("Bad credentials"));
+
+        // 4 lần đầu ném BadCredentialsException kèm số lần còn lại
+        for (int i = 1; i <= 4; i++) {
+            assertThatThrownBy(() -> authService.login(new AuthDtos.LoginRequest("lock@gmail.com", "wrong-pwd")))
+                    .isInstanceOf(BadCredentialsException.class)
+                    .hasMessageContaining("Bạn còn " + (5 - i) + " lần thử");
+        }
+
+        // Lần thứ 5 ném AccountLockedException
+        assertThatThrownBy(() -> authService.login(new AuthDtos.LoginRequest("lock@gmail.com", "wrong-pwd")))
+                .isInstanceOf(AppExceptions.AccountLockedException.class)
+                .hasMessageContaining("bị tạm khóa do nhập sai mật khẩu 5 lần");
+
+        // Đảm bảo user đã bị set active = false
+        assertThat(u.isActive()).isFalse();
+        verify(users).save(u);
+    }
+
+    @Test
+    @DisplayName("REQ-AUTH-02: Từ chối đăng nhập ngay khi tài khoản đang ở trạng thái bị khóa")
+    void loginRejectsAlreadyLockedAccount() {
+        UserEntity u = user("user-locked", "locked@gmail.com", "Nguyen Van C");
+        u.setActive(false);
+        when(users.findByEmail("locked@gmail.com")).thenReturn(Optional.of(u));
+
+        assertThatThrownBy(() -> authService.login(new AuthDtos.LoginRequest("locked@gmail.com", "any-pwd")))
+                .isInstanceOf(AppExceptions.AccountLockedException.class)
+                .hasMessageContaining("Tài khoản của bạn đã bị khóa");
+
+        verify(authenticationManager, never()).authenticate(any());
+    }
 }

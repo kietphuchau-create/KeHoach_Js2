@@ -20,9 +20,25 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import org.springframework.security.authentication.BadCredentialsException;
 
 @Service
 public class AuthService {
+
+    public static final int MAX_FAILED_ATTEMPTS = 5;
+    private final ConcurrentMap<String, Integer> failedAttempts = new ConcurrentHashMap<>();
+
+    public void clearFailedAttempts(String identifier) {
+        if (identifier != null) {
+            failedAttempts.remove(identifier.trim().toLowerCase());
+        }
+    }
+
+    public int getFailedAttempts(String identifier) {
+        return identifier != null ? failedAttempts.getOrDefault(identifier.trim().toLowerCase(), 0) : 0;
+    }
 
     private final UserJpaRepository users;
     private final PatientProfileJpaRepository patientProfiles;
@@ -88,9 +104,6 @@ public class AuthService {
     /** One login flow shared by Customer / Doctor / Staff / Admin. */
     @Transactional
     public AuthDtos.AuthResponse login(AuthDtos.LoginRequest request) {
-        // Wrong email/password -> BadCredentialsException; locked account ->
-        // DisabledException. GlobalExceptionHandler turns both into the proper
-        // user-facing message.
         String rawIdentifier = request.email() != null ? request.email().trim() : "";
         String normalizedIdentifier = rawIdentifier;
         if (!rawIdentifier.contains("@")) {
@@ -104,8 +117,50 @@ public class AuthService {
             normalizedIdentifier = normalizeEmail(rawIdentifier);
         }
 
-        var authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(normalizedIdentifier, request.password()));
+        final String finalIdentifier = normalizedIdentifier;
+        String lookupKey = finalIdentifier.toLowerCase();
+
+        // 1. REQ-AUTH-02: Kiểm tra nếu tài khoản đã bị khóa trước đó
+        var existingUserOpt = users.findByEmail(finalIdentifier)
+                .or(() -> users.findByPhone(finalIdentifier));
+
+        if (existingUserOpt.isPresent() && !existingUserOpt.get().isActive()) {
+            throw new AppExceptions.AccountLockedException(
+                    "Tài khoản của bạn đã bị khóa do nhập sai mật khẩu quá 5 lần liên tiếp. Vui lòng liên hệ Quản trị viên (Admin) hoặc dùng chức năng Quên mật khẩu để khôi phục.");
+        }
+
+        if (failedAttempts.getOrDefault(lookupKey, 0) >= MAX_FAILED_ATTEMPTS) {
+            existingUserOpt.ifPresent(u -> {
+                u.setActive(false);
+                users.save(u);
+            });
+            throw new AppExceptions.AccountLockedException(
+                    "Tài khoản của bạn đã bị tạm khóa do nhập sai mật khẩu 5 lần liên tiếp (HTTP 423 Locked). Vui lòng sử dụng chức năng Quên mật khẩu để đặt lại.");
+        }
+
+        // 2. Xác thực thông tin đăng nhập
+        org.springframework.security.core.Authentication authentication;
+        try {
+            authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(normalizedIdentifier, request.password()));
+        } catch (BadCredentialsException ex) {
+            int currentFailures = failedAttempts.merge(lookupKey, 1, Integer::sum);
+            if (currentFailures >= MAX_FAILED_ATTEMPTS) {
+                existingUserOpt.ifPresent(u -> {
+                    u.setActive(false);
+                    users.save(u);
+                });
+                throw new AppExceptions.AccountLockedException(
+                        "Tài khoản của bạn đã bị tạm khóa do nhập sai mật khẩu 5 lần liên tiếp (HTTP 423 Locked). Vui lòng liên hệ Quản trị viên hoặc sử dụng Quên mật khẩu để khôi phục.");
+            }
+            int remaining = MAX_FAILED_ATTEMPTS - currentFailures;
+            throw new BadCredentialsException(
+                    "Email hoặc mật khẩu không đúng. Bạn còn " + remaining + " lần thử trước khi tài khoản bị khóa.");
+        }
+
+        // 3. Đăng nhập thành công -> Xóa bộ đếm sai
+        failedAttempts.remove(lookupKey);
+
         AppUserDetails principal = (AppUserDetails) authentication.getPrincipal();
         UserEntity user = users.findById(principal.getUserId())
                 .orElseThrow(() -> new AppExceptions.NotFoundException("Không tìm thấy tài khoản"));
