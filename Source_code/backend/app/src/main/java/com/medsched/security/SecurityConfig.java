@@ -73,6 +73,7 @@ public class SecurityConfig {
                                                                 "/actuator/**", // <-- Mở đường dẫn cho Prometheus cào số liệu
                                                                 "/error",
                                                                 "/api/v1/auth/**",
+                                                                "/api/auth/**",
                                                                 "/v3/api-docs/**",
                                                                 "/swagger-ui/**",
                                                                 "/swagger-ui.html")

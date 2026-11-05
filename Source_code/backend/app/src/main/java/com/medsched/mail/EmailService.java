@@ -314,4 +314,89 @@ public class EmailService {
                 </html>
                 """.formatted(safeName, otpCode);
     }
+
+    /**
+     * Gửi email mã OTP / Token khôi phục mật khẩu (REQ-AUTH-05 trong SRS Chương 5) bất đồng bộ.
+     */
+    @Async
+    public void sendPasswordResetEmail(String toEmail, String recipientName, String resetToken, String otpCode) {
+        String safeName = (recipientName == null || recipientName.isBlank()) ? "Quý khách" : recipientName.trim();
+        String subject = "[MedSched] Mã xác thực đặt lại mật khẩu của bạn là: " + otpCode;
+        String htmlContent = buildPasswordResetHtmlTemplate(safeName, resetToken, otpCode);
+
+        // 1. Gửi qua Brevo HTTP API
+        if (brevoApiKey != null && !brevoApiKey.isBlank()) {
+            boolean brevoSuccess = sendViaBrevoHttpApi(toEmail, safeName, subject, htmlContent, otpCode);
+            if (brevoSuccess) {
+                return;
+            }
+            log.warn("⚠️ [EmailService] Gửi qua Brevo HTTP API thất bại, chuyển sang thử Gmail SMTP...");
+        }
+
+        // 2. Fallback: Gửi qua JavaMailSender (SMTP)
+        sendViaSmtp(toEmail, subject, htmlContent, otpCode);
+    }
+
+    private String buildPasswordResetHtmlTemplate(String recipientName, String resetToken, String otpCode) {
+        String safeName = (recipientName == null || recipientName.isBlank()) ? "Quý khách" : recipientName.trim();
+        String resetUrl = "https://medsched-lyart.vercel.app/reset-password?token=" + resetToken;
+
+        return """
+                <!DOCTYPE html>
+                <html lang="vi">
+                <head>
+                  <meta charset="utf-8">
+                  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                  <title>Đặt lại mật khẩu MedSched</title>
+                </head>
+                <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 24px; color: #1e293b;">
+                  <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%%" style="max-width: 560px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.06); border: 1px solid #e2e8f0;">
+                    <!-- Header -->
+                    <tr>
+                      <td style="background: linear-gradient(135deg, #2563eb 0%%, #1d4ed8 100%%); padding: 32px 24px; text-align: center; color: #ffffff;">
+                        <div style="font-size: 26px; font-weight: 800; letter-spacing: -0.5px; margin: 0;">MedSched Smart Healthcare</div>
+                        <div style="font-size: 14px; opacity: 0.92; margin-top: 6px;">Yêu Cầu Đặt Lại Mật Khẩu Tài Khoản</div>
+                      </td>
+                    </tr>
+                    
+                    <!-- Content -->
+                    <tr>
+                      <td style="padding: 32px 28px;">
+                        <p style="font-size: 16px; font-weight: 600; color: #0f172a; margin: 0 0 12px 0;">Xin chào %s,</p>
+                        <p style="font-size: 14px; color: #475569; line-height: 1.6; margin: 0 0 20px 0;">
+                          Chúng tôi đã nhận được yêu cầu khôi phục mật khẩu cho tài khoản liên kết với email này. Bạn có thể sử dụng <strong>Mã xác thực OTP 6 số</strong> dưới đây hoặc bấm trực tiếp vào nút đặt lại mật khẩu:
+                        </p>
+                        
+                        <!-- OTP Box -->
+                        <div style="background-color: #eff6ff; border: 2px dashed #3b82f6; border-radius: 12px; padding: 20px; text-align: center; margin: 20px 0;">
+                          <div style="font-size: 12px; font-weight: 700; color: #2563eb; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px;">MÃ XÁC THỰC OTP ĐẶT LẠI MẬT KHẨU</div>
+                          <div style="font-size: 38px; font-weight: 900; letter-spacing: 8px; color: #1e40af; font-family: 'Consolas', 'Courier New', monospace; padding-left: 8px;">%s</div>
+                          <div style="font-size: 12px; color: #64748b; margin-top: 8px;">Hiệu lực trong vòng <strong>15 phút</strong></div>
+                        </div>
+                        
+                        <!-- Action Button -->
+                        <div style="text-align: center; margin: 28px 0;">
+                          <a href="%s" style="background-color: #2563eb; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-size: 15px; font-weight: 700; display: inline-block; box-shadow: 0 4px 12px rgba(37,99,235,0.3);">
+                            ĐẶT LẠI MẬT KHẨU NGAY
+                          </a>
+                        </div>
+                        
+                        <div style="background-color: #f8fafc; border-radius: 8px; padding: 14px 16px; font-size: 13px; color: #64748b; line-height: 1.5;">
+                          🔒 <strong>Bảo mật tài khoản:</strong> Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email. Mật khẩu hiện tại của bạn vẫn được giữ an toàn tuyệt đối.
+                        </div>
+                      </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                      <td style="background-color: #f8fafc; border-top: 1px solid #e2e8f0; padding: 20px 24px; text-align: center; font-size: 12px; color: #94a3b8; line-height: 1.6;">
+                        © 2026 <strong>MedSched Smart Healthcare</strong>. All rights reserved.<br>
+                        Email này được gửi tự động bởi hệ thống khôi phục tài khoản (REQ-AUTH-05).
+                      </td>
+                    </tr>
+                  </table>
+                </body>
+                </html>
+                """.formatted(safeName, otpCode, resetUrl);
+    }
 }
