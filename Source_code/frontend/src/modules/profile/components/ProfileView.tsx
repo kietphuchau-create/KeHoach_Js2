@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { User, Mail, Phone, Save, KeyRound, Stethoscope, LogOut, ArrowLeft } from 'lucide-react';
+import { User, Mail, Phone, Save, KeyRound, Stethoscope, LogOut, ArrowLeft, Camera, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { api, clearAuthSession, getAuthToken } from '@/shared/lib/api';
@@ -33,6 +33,10 @@ export default function ProfileView() {
     newPassword: '',
     confirmPassword: '',
   });
+
+  // Avatar State
+  const [avatarUrl, setAvatarUrl] = useState<string>('');
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   // Doctor Form
   const [doctorForm, setDoctorForm] = useState({
@@ -76,6 +80,9 @@ export default function ProfileView() {
             academicTitle: data.doctorProfile.academicTitle || 'BS.CKI',
             bio: data.doctorProfile.bio || '',
           });
+          if (data.doctorProfile.avatarUrl) {
+            setAvatarUrl(data.doctorProfile.avatarUrl);
+          }
         }
 
         if (data.patientProfile) {
@@ -123,6 +130,46 @@ export default function ProfileView() {
       window.removeEventListener('medsched:switch_profile_tab', handleScrollTarget);
     };
   }, []);
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Kích thước ảnh không được vượt quá 5MB theo quy định.');
+      return;
+    }
+
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      setError('Định dạng ảnh không được hỗ trợ. Vui lòng chọn ảnh JPG, PNG hoặc WEBP.');
+      return;
+    }
+
+    setUploadingAvatar(true);
+    setError(null);
+    setMessage(null);
+
+    try {
+      const uploadRes = await api.uploadFile(file, 'avatars');
+      const cdnUrl = uploadRes.url;
+      setAvatarUrl(cdnUrl);
+
+      // Nếu là Bác sĩ, tự động cập nhật avatarUrl vào hồ sơ Bác sĩ
+      if (profile.doctorProfile) {
+        await api.updateDoctorProfile({
+          ...doctorForm,
+          avatarUrl: cdnUrl,
+        });
+      }
+
+      setMessage('Đã tải và cập nhật ảnh đại diện lên Cloudinary thành công!');
+    } catch (err: any) {
+      setError(err.message || 'Lỗi khi tải ảnh đại diện lên máy chủ đám mây.');
+    } finally {
+      setUploadingAvatar(false);
+      e.target.value = '';
+    }
+  };
 
   const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -265,8 +312,35 @@ export default function ProfileView() {
       {/* Banner Tóm tắt người dùng - Compact Horizontal */}
       <div className="bg-gradient-to-r from-pine-teal to-teal-primary px-5 py-3 rounded-2xl text-white shadow-sm flex items-center justify-between gap-4">
         <div className="flex items-center gap-3.5 min-w-0">
-          <div className="w-11 h-11 rounded-xl bg-white/15 backdrop-blur-xs flex items-center justify-center text-lg font-black border border-white/30 shadow-xs shrink-0 text-white">
-            {(profile.fullName || 'U').charAt(0).toUpperCase()}
+          <div className="relative group shrink-0">
+            <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-xs flex items-center justify-center text-lg font-black border border-white/30 shadow-xs text-white overflow-hidden">
+              {avatarUrl ? (
+                <img src={avatarUrl} alt={profile.fullName} className="w-full h-full object-cover" />
+              ) : (
+                (profile.fullName || 'U').charAt(0).toUpperCase()
+              )}
+            </div>
+
+            {/* Nút bấm tải ảnh lên Cloudinary */}
+            <label
+              htmlFor="avatar-upload-input"
+              className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-full flex items-center justify-center cursor-pointer shadow-md border border-white transition-all transform hover:scale-110 active:scale-95"
+              title="Bấm để tải ảnh đại diện lên Cloudinary"
+            >
+              {uploadingAvatar ? (
+                <Loader2 size={10} className="animate-spin text-white" />
+              ) : (
+                <Camera size={10} className="text-white" />
+              )}
+              <input
+                id="avatar-upload-input"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={handleAvatarUpload}
+                disabled={uploadingAvatar}
+              />
+            </label>
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2.5 flex-wrap">
