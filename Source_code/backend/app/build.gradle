@@ -14,6 +14,9 @@ dependencies {
     // Email (Gmail SMTP for OTP Verification)
     implementation 'org.springframework.boot:spring-boot-starter-mail'
 
+    // Cloud Storage (Cloudinary SDK for REQ-FILE-01)
+    implementation 'com.cloudinary:cloudinary-http44:1.38.0'
+
     // Monitoring & Observability (Actuator + Prometheus Metrics)
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'io.micrometer:micrometer-registry-prometheus'

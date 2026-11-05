@@ -512,17 +512,22 @@ public class AppointmentController {
                         new LocalTime[]{LocalTime.of(23, 0), LocalTime.of(23, 30)}
                 ));
             }
+            LocalDate today = LocalDate.now(vnZone);
+            LocalTime nowTime = LocalTime.now(vnZone);
+            boolean isToday = targetDate.equals(today);
+            boolean isPastDate = targetDate.isBefore(today);
             List<TimeSlotEntity> created = new ArrayList<>();
             for (LocalTime[] pair : standardTimes) {
                 Instant slotStart = targetDate.atTime(pair[0]).atZone(vnZone).toInstant();
                 Instant slotEnd = targetDate.atTime(pair[1]).atZone(vnZone).toInstant();
+                boolean isPast = isPastDate || (isToday && !pair[0].isAfter(nowTime));
                 TimeSlotEntity slot = new TimeSlotEntity(
                         UUID.randomUUID().toString(),
                         scheduleId,
                         doctorId,
                         slotStart,
                         slotEnd,
-                        SlotStatus.AVAILABLE,
+                        isPast ? SlotStatus.LOCKED : SlotStatus.AVAILABLE,
                         now,
                         now
                 );
@@ -540,7 +545,7 @@ public class AppointmentController {
             String timeStr = timeFormatter.format(s.getStartTime()) + " - " + timeFormatter.format(s.getEndTime());
             int startMinutes = startLt.getHour() * 60 + startLt.getMinute();
 
-            boolean isPast = isToday && startLt.isBefore(nowTime);
+            boolean isPast = targetDate.isBefore(LocalDate.now(vnZone)) || (isToday && !startLt.isAfter(nowTime));
             String status;
             String label;
             boolean disabled;

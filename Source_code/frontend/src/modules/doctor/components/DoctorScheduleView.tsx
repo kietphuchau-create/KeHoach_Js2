@@ -20,7 +20,10 @@ import {
   Info,
   X,
   DoorOpen,
-  LayoutGrid
+  LayoutGrid,
+  ChevronDown,
+  SlidersHorizontal,
+  Check
 } from 'lucide-react';
 import { api, getAuthUser } from '@/shared/lib/api';
 import { getClinicRooms, ClinicRoom } from '@/shared/lib/clinicRooms';
@@ -86,11 +89,44 @@ export default function DoctorScheduleView() {
   // Modal tạo ca trực mới (mặc định chọn ngày làm việc hợp lệ tiếp theo từ ngày mai)
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [workDate, setWorkDate] = useState<string>(() => getNextValidWorkingDate(clinicConfig.devMode247));
-  const [startTime, setStartTime] = useState<string>('08:00');
-  const [endTime, setEndTime] = useState<string>('12:00');
+  const [startTime, setStartTime] = useState<string>('');
+  const [endTime, setEndTime] = useState<string>('');
   const [slotDuration, setSlotDuration] = useState<number>(30);
   const [submitting, setSubmitting] = useState(false);
-  const [activePreset, setActivePreset] = useState<'NIGHT' | 'MORNING' | 'AFTERNOON' | 'EVENING' | 'FULL_DAY' | null>('MORNING');
+  const [activePreset, setActivePreset] = useState<'NIGHT' | 'MORNING' | 'AFTERNOON' | 'EVENING' | 'FULL_DAY' | null>(null);
+  const [showPresetModal, setShowPresetModal] = useState<boolean>(false);
+
+  // Đồng hồ kéo chọn khung giờ ca trực trực quan
+  const [showClockPickerModal, setShowClockPickerModal] = useState<boolean>(false);
+  const [clockTempStart, setClockTempStart] = useState<string>('08:00');
+  const [clockTempEnd, setClockTempEnd] = useState<string>('12:00');
+  const [activeClockTab, setActiveClockTab] = useState<'start' | 'end'>('start');
+  const [draggingClockHandle, setDraggingClockHandle] = useState<'start' | 'end' | null>(null);
+  const clockSvgRef = React.useRef<SVGSVGElement | null>(null);
+
+  const openClockPicker = (tab: 'start' | 'end' = 'start') => {
+    const todayStr = getLocalDateString();
+    const isToday = workDate === todayStr;
+    const realMinStart = isToday ? getTodayRealtimeSlot() : '00:00';
+
+    let initialStart = startTime;
+    if (isToday) {
+      if (timeToMinutes(initialStart) < timeToMinutes(realMinStart)) {
+        initialStart = realMinStart;
+      }
+    }
+
+    let initialEnd = endTime;
+    if (timeToMinutes(initialEnd) <= timeToMinutes(initialStart)) {
+      const nextEndMins = Math.min(1410, timeToMinutes(initialStart) + 180);
+      initialEnd = minutesToTime(nextEndMins);
+    }
+
+    setClockTempStart(initialStart);
+    setClockTempEnd(initialEnd);
+    setActiveClockTab(isToday ? 'end' : tab);
+    setShowClockPickerModal(true);
+  };
 
   // Cửa sổ tiện ích xem và quản lý khung giờ của một ca trực ngay trên ma trận
   const [selectedScheduleForSlots, setSelectedScheduleForSlots] = useState<DoctorScheduleDto | null>(null);
@@ -305,6 +341,9 @@ export default function DoctorScheduleView() {
 
   // Tính toán khung giờ bắt đầu thông minh theo thời gian thực (làm tròn lên mốc 30 phút kế tiếp nếu là hôm nay)
   const getSmartStartTime = (targetDate: string, defaultStart: string) => {
+    // ĐÃ LÀ CHẾ ĐỘ DEVELOP 24/7: Bác sĩ được tự do chọn mọi khung giờ mà không bị ép giờ
+    if (clinicConfig.devMode247) return defaultStart;
+
     const todayStr = getLocalDateString();
     if (targetDate !== todayStr) return defaultStart;
 
@@ -495,10 +534,167 @@ export default function DoctorScheduleView() {
     }
   }, [categorizedRooms, currentRoomNumber, selectedRoom]);
 
+  // Các hàm tiện ích cho đồng hồ tương tác và xử lý thời gian
+  const timeToMinutes = (timeStr: string): number => {
+    if (!timeStr) return 0;
+    const [h, m] = timeStr.split(':').map(Number);
+    return (h || 0) * 60 + (m || 0);
+  };
+
+  const minutesToTime = (minutes: number): string => {
+    if (minutes >= 1439) return '23:59';
+    const norm = Math.max(0, Math.min(1439, Math.round(minutes)));
+    const h = Math.floor(norm / 60);
+    const m = norm % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  };
+
+  // Lấy mốc thời gian thực hiện tại làm tròn lên 15 phút kế tiếp để cố định realtime
+  const getTodayRealtimeSlot = (): string => {
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const roundedMins = Math.ceil(currentMinutes / 15) * 15;
+    const clamped = Math.min(1410, roundedMins);
+    return minutesToTime(clamped);
+  };
+
+  const formatTime12h = (timeStr: string): string => {
+    if (!timeStr) return '';
+    const [hStr, mStr] = timeStr.split(':');
+    const h = Number(hStr) || 0;
+    const m = mStr || '00';
+    const period = h < 12 ? 'AM' : 'PM';
+    const displayH = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    return `${String(displayH).padStart(2, '0')}:${m} ${period}`;
+  };
+
+  const polarToCartesian = (cx: number, cy: number, r: number, angleDeg: number) => {
+    const rad = ((angleDeg - 90) * Math.PI) / 180.0;
+    return {
+      x: cx + r * Math.cos(rad),
+      y: cy + r * Math.sin(rad),
+    };
+  };
+
+  const describeArc = (cx: number, cy: number, r: number, startAngle: number, endAngle: number) => {
+    const start = polarToCartesian(cx, cy, r, startAngle);
+    const end = polarToCartesian(cx, cy, r, endAngle);
+    let diff = endAngle - startAngle;
+    if (diff < 0) diff += 360;
+    const largeArcFlag = diff > 180 ? 1 : 0;
+    return `M ${start.x} ${start.y} A ${r} ${r} 0 ${largeArcFlag} 1 ${end.x} ${end.y}`;
+  };
+
+  const updateClockTimeFromAngle = (deg: number, handle: 'start' | 'end') => {
+    const todayStr = getLocalDateString();
+    const isToday = workDate === todayStr;
+    const realMinStart = isToday ? getTodayRealtimeSlot() : '00:00';
+    const minAllowedStartMins = timeToMinutes(realMinStart);
+
+    const rawMinutes = (deg / 360) * 1440;
+    let snappedMinutes = Math.round(rawMinutes / 15) * 15;
+    if (snappedMinutes >= 1440) snappedMinutes = 1440;
+
+    const startM = timeToMinutes(clockTempStart);
+    const endM = timeToMinutes(clockTempEnd);
+
+    if (handle === 'start') {
+      if (isToday) {
+        snappedMinutes = Math.max(minAllowedStartMins, snappedMinutes);
+      }
+      const minS = isToday ? minAllowedStartMins : 0;
+      const maxStart = Math.max(minS, endM - 30);
+      const finalStart = Math.min(snappedMinutes, maxStart);
+      setClockTempStart(minutesToTime(finalStart));
+    } else {
+      const effectiveStartM = isToday ? Math.max(minAllowedStartMins, startM) : startM;
+      const minEnd = Math.min(1439, effectiveStartM + 30);
+      const finalEnd = Math.max(snappedMinutes, minEnd);
+      setClockTempEnd(minutesToTime(finalEnd));
+    }
+  };
+
+  const handleClockPointerDown = (e: React.PointerEvent<SVGElement>, forceHandle?: 'start' | 'end') => {
+    if (!clockSvgRef.current) return;
+    const todayStr = getLocalDateString();
+    const isToday = workDate === todayStr;
+
+    const rect = clockSvgRef.current.getBoundingClientRect();
+    const x = e.clientX - (rect.left + rect.width / 2);
+    const y = e.clientY - (rect.top + rect.height / 2);
+    let deg = (Math.atan2(y, x) * 180 / Math.PI) + 90;
+    if (deg < 0) deg += 360;
+
+    let target = forceHandle;
+    if (!target) {
+      if (isToday) {
+        // Hôm nay thì ưu tiên kéo giờ kết thúc vì giờ bắt đầu đã cố định realtime
+        target = 'end';
+      } else {
+        const startM = timeToMinutes(clockTempStart);
+        const endM = timeToMinutes(clockTempEnd);
+        const sAngle = (startM / 1440) * 360;
+        const eAngle = (endM / 1440) * 360;
+        const distS = Math.min(Math.abs(deg - sAngle), 360 - Math.abs(deg - sAngle));
+        const distE = Math.min(Math.abs(deg - eAngle), 360 - Math.abs(deg - eAngle));
+        target = distS <= distE ? 'start' : 'end';
+      }
+    }
+
+    setDraggingClockHandle(target);
+    setActiveClockTab(target);
+    try {
+      clockSvgRef.current.setPointerCapture(e.pointerId);
+    } catch {}
+
+    updateClockTimeFromAngle(deg, target);
+  };
+
+  const handleClockPointerMove = (e: React.PointerEvent<SVGElement>) => {
+    if (!draggingClockHandle || !clockSvgRef.current) return;
+    const rect = clockSvgRef.current.getBoundingClientRect();
+    const x = e.clientX - (rect.left + rect.width / 2);
+    const y = e.clientY - (rect.top + rect.height / 2);
+    let deg = (Math.atan2(y, x) * 180 / Math.PI) + 90;
+    if (deg < 0) deg += 360;
+
+    updateClockTimeFromAngle(deg, draggingClockHandle);
+  };
+
+  const handleClockPointerUp = (e: React.PointerEvent<SVGElement>) => {
+    if (clockSvgRef.current && draggingClockHandle) {
+      try {
+        clockSvgRef.current.releasePointerCapture(e.pointerId);
+      } catch {}
+    }
+    setDraggingClockHandle(null);
+  };
+
+  const adjustClockMinutes = (type: 'start' | 'end', delta: number) => {
+    const todayStr = getLocalDateString();
+    const isToday = workDate === todayStr;
+    const realMinStart = isToday ? getTodayRealtimeSlot() : '00:00';
+    const minAllowedStartMins = timeToMinutes(realMinStart);
+
+    if (type === 'start') {
+      const cur = timeToMinutes(clockTempStart);
+      const end = timeToMinutes(clockTempEnd);
+      const minS = isToday ? minAllowedStartMins : 0;
+      const next = Math.max(minS, Math.min(end - 30, cur + delta));
+      setClockTempStart(minutesToTime(next));
+    } else {
+      const cur = timeToMinutes(clockTempEnd);
+      const start = timeToMinutes(clockTempStart);
+      const next = Math.min(1410, Math.max(start + 30, cur + delta));
+      setClockTempEnd(minutesToTime(next));
+    }
+  };
+
   // Kiểm tra ca trực mẫu đã trôi qua trong ngày hôm nay chưa
   const isShiftPresetExpiredToday = (targetDate: string, shiftEndTime: string, isFullDay: boolean = false) => {
     const todayStr = getLocalDateString();
-    if (targetDate !== todayStr) return false;
+    if (targetDate < todayStr) return true;
+    if (targetDate > todayStr) return false;
 
     const now = new Date();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
@@ -529,40 +725,9 @@ export default function DoctorScheduleView() {
       'P.101';
     setSelectedRoom(validInitialRoom);
 
-    const todayStr = getLocalDateString();
-    if (nextDate === todayStr) {
-      // Nếu mở modal hôm nay: tự động gợi ý ca làm việc hợp lệ gần nhất trong tương lai
-      const now = new Date();
-      const currentMinutes = now.getHours() * 60 + now.getMinutes();
-      if (currentMinutes < 8 * 60 - 30) {
-        setStartTime('08:00');
-        setEndTime('12:00');
-        setActivePreset('MORNING');
-      } else if (currentMinutes < 12 * 60 - 30) {
-        const start = getSmartStartTime(todayStr, '08:00');
-        setStartTime(start);
-        setEndTime('12:00');
-        setActivePreset('MORNING');
-      } else if (currentMinutes < 17 * 60 - 30) {
-        const start = getSmartStartTime(todayStr, '13:30');
-        setStartTime(start);
-        setEndTime('17:00');
-        setActivePreset('AFTERNOON');
-      } else if (currentMinutes < 23 * 60) {
-        const start = getSmartStartTime(todayStr, '17:00');
-        setStartTime(start);
-        setEndTime('23:30');
-        setActivePreset('EVENING');
-      } else {
-        setStartTime('00:00');
-        setEndTime('08:00');
-        setActivePreset('NIGHT');
-      }
-    } else {
-      setStartTime('08:00');
-      setEndTime('12:00');
-      setActivePreset('MORNING');
-    }
+    setStartTime('');
+    setEndTime('');
+    setActivePreset(null);
 
     setShowCreateModal(true);
   };
@@ -691,6 +856,17 @@ export default function DoctorScheduleView() {
       alert('Khung giờ này đã có bệnh nhân đặt lịch hẹn, không thể khóa.');
       return;
     }
+    const todayStr = getLocalDateString();
+    const isPastSchedule = activeScheduleForSlots?.workDate ? activeScheduleForSlots.workDate < todayStr : false;
+    const isToday = activeScheduleForSlots?.workDate === todayStr;
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const [startH, startM] = slot.startTime.split(':').map(Number);
+    const slotStartMinutes = (startH || 0) * 60 + (startM || 0);
+    if (isPastSchedule || (isToday && slotStartMinutes <= currentMinutes)) {
+      alert('Khung giờ này đã trôi qua trong quá khứ, không thể mở hoặc thao tác.');
+      return;
+    }
     try {
       setActionLoadingId(slot.id);
       await api.toggleDoctorSlotLock(slot.id);
@@ -710,7 +886,7 @@ export default function DoctorScheduleView() {
   // CLAB-113: Đổi buồng khám phân công (Chỉ cho phép trước 1 ngày / trước 00:00:00)
   const handleOpenChangeRoomModal = (sch: DoctorScheduleDto) => {
     const todayStr = getLocalDateString();
-    if (sch.workDate <= todayStr) {
+    if (!clinicConfig.devMode247 && sch.workDate <= todayStr) {
       alert(`🔒 Quy định phòng khám:\nBuồng khám cho ca trực ngày ${sch.workDate} đã chốt cố định và đồng bộ với phiếu số thứ tự và màn hình LCD tiếp đón.\nBác sĩ chỉ được phép đổi buồng khám trước tối thiểu 1 ngày (trước 00:00:00).`);
       return;
     }
@@ -725,7 +901,7 @@ export default function DoctorScheduleView() {
     e.preventDefault();
     if (!scheduleToChangeRoom) return;
     const todayStr = getLocalDateString();
-    if (scheduleToChangeRoom.workDate <= todayStr) {
+    if (!clinicConfig.devMode247 && scheduleToChangeRoom.workDate <= todayStr) {
       setError(`Theo quy định phòng khám, Bác sĩ chỉ được đổi buồng khám trước tối thiểu 1 ngày (trước 00:00:00). Khi bước sang ngày mới, buồng khám đã chốt cố định.`);
       return;
     }
@@ -1082,9 +1258,9 @@ export default function DoctorScheduleView() {
                             type="button"
                             onClick={() => {
                               setWorkDate(day.dateStr);
-                              setStartTime('08:00');
-                              setEndTime('12:00');
-                              setActivePreset('MORNING');
+                              setStartTime('');
+                              setEndTime('');
+                              setActivePreset(null);
                               setSelectedRoom(currentUser?.roomNumber || 'P.208');
                               setShowCreateModal(true);
                             }}
@@ -1167,9 +1343,9 @@ export default function DoctorScheduleView() {
                                 type="button"
                                 onClick={() => {
                                   setWorkDate(day.dateStr);
-                                  setStartTime('08:00');
-                                  setEndTime('12:00');
-                                  setActivePreset('MORNING');
+                                  setStartTime('');
+                                  setEndTime('');
+                                  setActivePreset(null);
                                   setSelectedRoom(currentUser?.roomNumber || 'P.208');
                                   setShowCreateModal(true);
                                 }}
@@ -1313,19 +1489,17 @@ export default function DoctorScheduleView() {
                                       <button
                                         type="button"
                                         onClick={() => handleDeleteSchedule(sch)}
-                                        disabled={actionLoadingId === sch.id || sch.bookedSlots > 0 || isToday || isPast}
-                                        className="text-rose-600 hover:text-rose-800 disabled:opacity-30 cursor-pointer p-0.5"
+                                        disabled={actionLoadingId === sch.id || isPast}
+                                        className="text-rose-600 hover:text-rose-800 disabled:opacity-30 cursor-pointer p-0.5 hover:scale-110 transition"
                                         title={
                                           isPast
                                             ? 'Ca trực trong quá khứ đã kết thúc'
-                                            : isToday
-                                            ? 'Ca trực hôm nay đã chốt cố định, không thể xóa tùy tiện'
                                             : sch.bookedSlots > 0
-                                            ? 'Đã có người đặt, không thể hủy'
+                                            ? `Ca có ${sch.bookedSlots} bệnh nhân đặt - Bấm để mở Hủy Khẩn Cấp`
                                             : 'Hủy ca trực này'
                                         }
                                       >
-                                        <Trash2 size={12} />
+                                        <Trash2 size={13} />
                                       </button>
                                     </div>
                                   </>
@@ -1409,12 +1583,12 @@ export default function DoctorScheduleView() {
                 </div>
               )}
 
-              {/* 1. Chọn nhanh ca làm việc chuẩn */}
-              <div className="space-y-2">
+              {/* 1. Chọn nhanh ca làm việc chuẩn - Thiết kế nút bấm tinh gọn & mở Popup */}
+              <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <label className="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
                     <Sparkles size={14} className="text-teal-700" />
-                    <span>1. Chọn nhanh ca làm việc chuẩn:</span>
+                    <span>1. Khung giờ ca làm việc:</span>
                   </label>
                   {activePreset ? (
                     <span className="text-[11px] font-bold text-teal-700 flex items-center gap-1">
@@ -1440,171 +1614,147 @@ export default function DoctorScheduleView() {
                   )}
                 </div>
 
-                {(() => {
-                  const isNightExpired = isShiftPresetExpiredToday(workDate, '08:00');
-                  const isMorningExpired = isShiftPresetExpiredToday(workDate, '12:00');
-                  const isAfternoonExpired = isShiftPresetExpiredToday(workDate, '17:00');
-                  const isEveningExpired = isShiftPresetExpiredToday(workDate, '23:30');
-                  const isFullDayExpired = isShiftPresetExpiredToday(workDate, '17:00', true);
+                {/* Nút đơn tinh tế thay thế 5 thẻ chật chội */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Tự động chuyển khỏi ca đã hết hạn nếu đang chọn ca trong quá khứ
+                    const isNightExp = isShiftPresetExpiredToday(workDate, '08:00');
+                    const isMorningExp = isShiftPresetExpiredToday(workDate, '12:00');
+                    const isAfternoonExp = isShiftPresetExpiredToday(workDate, '17:00');
+                    const isEveningExp = isShiftPresetExpiredToday(workDate, '23:30');
 
-                  return (
-                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                      <button
-                        type="button"
-                        disabled={isNightExpired}
-                        onClick={() => applyPresetShift('NIGHT')}
-                        className={`p-2.5 rounded-xl text-xs transition-all duration-150 text-left flex flex-col justify-between gap-1 border ${
-                          isNightExpired
-                            ? 'opacity-40 bg-slate-100 border-dashed border-slate-300 text-slate-400 cursor-not-allowed select-none'
-                            : activePreset === 'NIGHT'
-                            ? 'border-2 border-indigo-600 bg-indigo-50/90 text-indigo-950 ring-2 ring-indigo-400/30 shadow-sm cursor-pointer'
-                            : 'border-slate-200 bg-white hover:border-indigo-400 hover:bg-indigo-50/40 hover:shadow-2xs text-slate-700 cursor-pointer'
-                        }`}
-                        title={isNightExpired ? 'Ca Đêm của ngày hôm nay đã kết thúc' : 'Chọn Ca Đêm'}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className={`font-extrabold ${isNightExpired ? 'text-slate-400' : activePreset === 'NIGHT' ? 'text-indigo-900' : 'text-slate-800'}`}>Ca Đêm</span>
-                          <span className="text-sm">{isNightExpired ? '⏳' : '🌌'}</span>
-                        </div>
-                        <div className={`text-[11px] font-bold ${isNightExpired ? 'text-slate-400 line-through' : activePreset === 'NIGHT' ? 'text-indigo-700' : 'text-slate-600'}`}>00:00 - 08:00</div>
-                        {isNightExpired ? (
-                          <div className="text-[10px] text-rose-500 font-bold">⛔ Đã kết thúc</div>
-                        ) : (
-                          <div className={`text-[10px] ${activePreset === 'NIGHT' ? 'text-indigo-600 font-semibold' : 'text-slate-400 font-medium'}`}>8 tiếng • 16 slots</div>
-                        )}
-                      </button>
-
-                      <button
-                        type="button"
-                        disabled={isMorningExpired}
-                        onClick={() => applyPresetShift('MORNING')}
-                        className={`p-2.5 rounded-xl text-xs transition-all duration-150 text-left flex flex-col justify-between gap-1 border ${
-                          isMorningExpired
-                            ? 'opacity-40 bg-slate-100 border-dashed border-slate-300 text-slate-400 cursor-not-allowed select-none'
-                            : activePreset === 'MORNING'
-                            ? 'border-2 border-teal-600 bg-teal-50/90 text-teal-950 ring-2 ring-teal-400/30 shadow-sm cursor-pointer'
-                            : 'border-slate-200 bg-white hover:border-teal-400 hover:bg-teal-50/40 hover:shadow-2xs text-slate-700 cursor-pointer'
-                        }`}
-                        title={isMorningExpired ? 'Ca Sáng của ngày hôm nay đã kết thúc' : 'Chọn Ca Sáng'}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className={`font-extrabold ${isMorningExpired ? 'text-slate-400' : activePreset === 'MORNING' ? 'text-teal-900' : 'text-slate-800'}`}>Ca Sáng</span>
-                          <span className="text-sm">{isMorningExpired ? '⏳' : '☀️'}</span>
-                        </div>
-                        <div className={`text-[11px] font-bold ${isMorningExpired ? 'text-slate-400 line-through' : activePreset === 'MORNING' ? 'text-teal-700' : 'text-slate-600'}`}>08:00 - 12:00</div>
-                        {isMorningExpired ? (
-                          <div className="text-[10px] text-rose-500 font-bold">⛔ Đã kết thúc</div>
-                        ) : (
-                          <div className={`text-[10px] ${activePreset === 'MORNING' ? 'text-teal-600 font-semibold' : 'text-slate-400 font-medium'}`}>4 tiếng • 8 slots</div>
-                        )}
-                      </button>
-
-                      <button
-                        type="button"
-                        disabled={isAfternoonExpired}
-                        onClick={() => applyPresetShift('AFTERNOON')}
-                        className={`p-2.5 rounded-xl text-xs transition-all duration-150 text-left flex flex-col justify-between gap-1 border ${
-                          isAfternoonExpired
-                            ? 'opacity-40 bg-slate-100 border-dashed border-slate-300 text-slate-400 cursor-not-allowed select-none'
-                            : activePreset === 'AFTERNOON'
-                            ? 'border-2 border-teal-600 bg-teal-50/90 text-teal-950 ring-2 ring-teal-400/30 shadow-sm cursor-pointer'
-                            : 'border-slate-200 bg-white hover:border-teal-400 hover:bg-teal-50/40 hover:shadow-2xs text-slate-700 cursor-pointer'
-                        }`}
-                        title={isAfternoonExpired ? 'Ca Chiều của ngày hôm nay đã kết thúc' : 'Chọn Ca Chiều'}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className={`font-extrabold ${isAfternoonExpired ? 'text-slate-400' : activePreset === 'AFTERNOON' ? 'text-teal-900' : 'text-slate-800'}`}>Ca Chiều</span>
-                          <span className="text-sm">{isAfternoonExpired ? '⏳' : '🌤️'}</span>
-                        </div>
-                        <div className={`text-[11px] font-bold ${isAfternoonExpired ? 'text-slate-400 line-through' : activePreset === 'AFTERNOON' ? 'text-teal-700' : 'text-slate-600'}`}>13:30 - 17:00</div>
-                        {isAfternoonExpired ? (
-                          <div className="text-[10px] text-rose-500 font-bold">⛔ Đã kết thúc</div>
-                        ) : (
-                          <div className={`text-[10px] ${activePreset === 'AFTERNOON' ? 'text-teal-600 font-semibold' : 'text-slate-400 font-medium'}`}>3.5 tiếng • 7 slots</div>
-                        )}
-                      </button>
-
-                      <button
-                        type="button"
-                        disabled={isEveningExpired}
-                        onClick={() => applyPresetShift('EVENING')}
-                        className={`p-2.5 rounded-xl text-xs transition-all duration-150 text-left flex flex-col justify-between gap-1 border ${
-                          isEveningExpired
-                            ? 'opacity-40 bg-slate-100 border-dashed border-slate-300 text-slate-400 cursor-not-allowed select-none'
-                            : activePreset === 'EVENING'
-                            ? 'border-2 border-purple-600 bg-purple-50/90 text-purple-950 ring-2 ring-purple-400/30 shadow-sm cursor-pointer'
-                            : 'border-slate-200 bg-white hover:border-purple-400 hover:bg-purple-50/40 hover:shadow-2xs text-slate-700 cursor-pointer'
-                        }`}
-                        title={isEveningExpired ? 'Ca Tối của ngày hôm nay đã kết thúc' : 'Chọn Ca Tối'}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className={`font-extrabold ${isEveningExpired ? 'text-slate-400' : activePreset === 'EVENING' ? 'text-purple-900' : 'text-slate-800'}`}>Ca Tối</span>
-                          <span className="text-sm">{isEveningExpired ? '⏳' : '🌙'}</span>
-                        </div>
-                        <div className={`text-[11px] font-bold ${isEveningExpired ? 'text-slate-400 line-through' : activePreset === 'EVENING' ? 'text-purple-700' : 'text-slate-600'}`}>17:00 - 23:30</div>
-                        {isEveningExpired ? (
-                          <div className="text-[10px] text-rose-500 font-bold">⛔ Đã kết thúc</div>
-                        ) : (
-                          <div className={`text-[10px] ${activePreset === 'EVENING' ? 'text-purple-600 font-semibold' : 'text-slate-400 font-medium'}`}>6.5 tiếng • 13 slots</div>
-                        )}
-                      </button>
-
-                      <button
-                        type="button"
-                        disabled={isFullDayExpired}
-                        onClick={() => applyPresetShift('FULL_DAY')}
-                        className={`p-2.5 rounded-xl text-xs transition-all duration-150 text-left flex flex-col justify-between gap-1 border ${
-                          isFullDayExpired
-                            ? 'opacity-40 bg-slate-100 border-dashed border-slate-300 text-slate-400 cursor-not-allowed select-none'
-                            : activePreset === 'FULL_DAY'
-                            ? 'border-2 border-teal-600 bg-teal-50/90 text-teal-950 ring-2 ring-teal-400/30 shadow-sm cursor-pointer'
-                            : 'border-slate-200 bg-white hover:border-teal-400 hover:bg-teal-50/40 hover:shadow-2xs text-slate-700 cursor-pointer'
-                        }`}
-                        title={isFullDayExpired ? 'Đã quá nửa ngày, không thể đăng ký ca Cả Ngày' : 'Chọn Cả Ngày'}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className={`font-extrabold ${isFullDayExpired ? 'text-slate-400' : activePreset === 'FULL_DAY' ? 'text-teal-900' : 'text-slate-800'}`}>Cả Ngày</span>
-                          <span className="text-sm">{isFullDayExpired ? '⏳' : '🌕'}</span>
-                        </div>
-                        <div className={`text-[11px] font-bold ${isFullDayExpired ? 'text-slate-400 line-through' : activePreset === 'FULL_DAY' ? 'text-teal-700' : 'text-slate-600'}`}>08:00 - 17:00</div>
-                        {isFullDayExpired ? (
-                          <div className="text-[10px] text-rose-500 font-bold">⛔ Đã quá nửa ngày</div>
-                        ) : (
-                          <div className={`text-[10px] ${activePreset === 'FULL_DAY' ? 'text-teal-600 font-semibold' : 'text-slate-400 font-medium'}`}>Nghỉ trưa • 15 slots</div>
-                        )}
-                      </button>
+                    if (activePreset === 'NIGHT' && isNightExp) {
+                      if (!isMorningExp) applyPresetShift('MORNING');
+                      else if (!isAfternoonExp) applyPresetShift('AFTERNOON');
+                      else if (!isEveningExp) applyPresetShift('EVENING');
+                    } else if (activePreset === 'MORNING' && isMorningExp) {
+                      if (!isAfternoonExp) applyPresetShift('AFTERNOON');
+                      else if (!isEveningExp) applyPresetShift('EVENING');
+                    } else if (activePreset === 'FULL_DAY' && isShiftPresetExpiredToday(workDate, '17:00', true)) {
+                      if (!isAfternoonExp) applyPresetShift('AFTERNOON');
+                      else if (!isEveningExp) applyPresetShift('EVENING');
+                    } else if (activePreset === 'AFTERNOON' && isAfternoonExp) {
+                      if (!isEveningExp) applyPresetShift('EVENING');
+                    }
+                    setShowPresetModal(true);
+                  }}
+                  className="w-full p-3 rounded-2xl border-2 border-teal-600/30 hover:border-teal-600 bg-teal-50/50 hover:bg-teal-50 transition flex items-center justify-between gap-3 shadow-2xs group cursor-pointer"
+                  title="Nhấp để mở danh sách ca làm việc mẫu"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-xl bg-teal-700 text-white flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                      <Clock size={18} />
                     </div>
-                  );
-                })()}
+                    <div className="text-left min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-extrabold text-xs text-slate-900">
+                          {activePreset === 'NIGHT'
+                            ? 'Ca Đêm (24/7)'
+                            : activePreset === 'MORNING'
+                            ? 'Ca Sáng'
+                            : activePreset === 'AFTERNOON'
+                            ? 'Ca Chiều'
+                            : activePreset === 'EVENING'
+                            ? 'Ca Tối'
+                            : activePreset === 'FULL_DAY'
+                            ? 'Cả Ngày'
+                            : 'Khung giờ tùy chỉnh'}
+                        </span>
+                        <span className="text-[11px] font-black px-2 py-0.5 rounded-lg bg-teal-100 text-teal-800">
+                          {startTime} - {endTime}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-slate-500 font-medium block truncate mt-0.5">
+                        {activePreset === 'NIGHT'
+                          ? '00:00 - 08:00 • 8 tiếng • 16 slots khám'
+                          : activePreset === 'MORNING'
+                          ? '08:00 - 12:00 • 4 tiếng • 8 slots khám'
+                          : activePreset === 'AFTERNOON'
+                          ? '13:30 - 17:00 • 3.5 tiếng • 7 slots khám'
+                          : activePreset === 'EVENING'
+                          ? '17:00 - 23:30 • 6.5 tiếng • 13 slots khám'
+                          : activePreset === 'FULL_DAY'
+                          ? '08:00 - 17:00 • Nghỉ trưa • 15 slots khám'
+                          : `${slotDuration} phút/slot • Bấm để đổi ca mẫu`}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-700 text-white text-xs font-bold shrink-0 shadow-2xs group-hover:bg-teal-800 transition">
+                    <span>Chọn Ca Mẫu</span>
+                    <ChevronDown size={14} className="group-hover:translate-y-0.5 transition" />
+                  </div>
+                </button>
               </div>
 
-              {/* 2. Tùy chỉnh chi tiết thời gian ca */}
+              {/* 2. Tùy chỉnh chi tiết thời gian ca - Bấm vào mở đồng hồ kéo 2 đầu */}
               <div className="space-y-2 pt-1 border-t border-slate-100">
-                <label className="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                  <Clock size={14} className="text-teal-700" />
-                  <span>2. Tùy chỉnh chi tiết thời gian từng ca:</span>
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                    <Clock size={14} className="text-teal-700" />
+                    <span>2. Tùy chỉnh chi tiết thời gian từng ca:</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => openClockPicker('start')}
+                    className="inline-flex items-center gap-1.5 text-[11px] font-bold text-teal-700 hover:text-teal-800 bg-teal-50 hover:bg-teal-100/80 px-2.5 py-1 rounded-xl border border-teal-200 transition cursor-pointer shadow-2xs group"
+                    title="Mở đồng hồ để nắm kéo thời gian bắt đầu và kết thúc"
+                  >
+                    <Clock size={13} className="group-hover:rotate-45 transition-transform" />
+                    <span>Kéo Đồng Hồ 🕒</span>
+                  </button>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                   <div className="space-y-1">
                     <span className="text-[11px] font-semibold text-slate-600">Giờ bắt đầu:</span>
-                    <input
-                      type="time"
-                      required
-                      value={startTime}
-                      onChange={(e) => handleStartTimeChange(e.target.value)}
-                      className="w-full p-2.5 border border-slate-200 rounded-xl text-xs bg-slate-50 text-slate-800 outline-none focus:ring-2 focus:ring-teal-700/20 font-bold"
-                    />
+                    <button
+                      type="button"
+                      onClick={() => openClockPicker('start')}
+                      className={`w-full p-2.5 border rounded-xl text-xs flex items-center justify-between font-bold transition group cursor-pointer text-left shadow-2xs ${
+                        startTime
+                          ? 'border-slate-200 hover:border-emerald-400 bg-slate-50 hover:bg-emerald-50/40 text-slate-800'
+                          : 'border-dashed border-slate-300 hover:border-teal-400 bg-slate-50/60 hover:bg-teal-50/30 text-slate-400'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${startTime ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                        <span className={`text-sm ${startTime ? 'font-extrabold text-slate-800' : 'font-semibold text-slate-400'}`}>
+                          {startTime || '-- : --'}
+                        </span>
+                        {startTime && (
+                          <span className="text-[10px] text-slate-400 font-semibold bg-slate-200/60 px-1.5 py-0.5 rounded">
+                            {formatTime12h(startTime).split(' ')[1]}
+                          </span>
+                        )}
+                      </div>
+                      <Clock size={15} className="text-slate-400 group-hover:text-emerald-600 transition" />
+                    </button>
                   </div>
 
                   <div className="space-y-1">
                     <span className="text-[11px] font-semibold text-slate-600">Giờ kết thúc:</span>
-                    <input
-                      type="time"
-                      required
-                      value={endTime}
-                      onChange={(e) => handleEndTimeChange(e.target.value)}
-                      className="w-full p-2.5 border border-slate-200 rounded-xl text-xs bg-slate-50 text-slate-800 outline-none focus:ring-2 focus:ring-teal-700/20 font-bold"
-                    />
+                    <button
+                      type="button"
+                      onClick={() => openClockPicker('end')}
+                      className={`w-full p-2.5 border rounded-xl text-xs flex items-center justify-between font-bold transition group cursor-pointer text-left shadow-2xs ${
+                        endTime
+                          ? 'border-slate-200 hover:border-rose-400 bg-slate-50 hover:bg-rose-50/40 text-slate-800'
+                          : 'border-dashed border-slate-300 hover:border-teal-400 bg-slate-50/60 hover:bg-teal-50/30 text-slate-400'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${endTime ? 'bg-rose-500' : 'bg-slate-300'}`} />
+                        <span className={`text-sm ${endTime ? 'font-extrabold text-slate-800' : 'font-semibold text-slate-400'}`}>
+                          {endTime || '-- : --'}
+                        </span>
+                        {endTime && (
+                          <span className="text-[10px] text-slate-400 font-semibold bg-slate-200/60 px-1.5 py-0.5 rounded">
+                            {formatTime12h(endTime).split(' ')[1]}
+                          </span>
+                        )}
+                      </div>
+                      <Clock size={15} className="text-slate-400 group-hover:text-rose-600 transition" />
+                    </button>
                   </div>
 
                   <div className="space-y-1">
@@ -1639,7 +1789,37 @@ export default function DoctorScheduleView() {
                       min={clinicConfig.devMode247 ? getLocalDateString() : getNextValidWorkingDate()}
                       required
                       value={workDate}
-                      onChange={(e) => setWorkDate(e.target.value)}
+                      onChange={(e) => {
+                        const newDate = e.target.value;
+                        setWorkDate(newDate);
+                        const todayStr = getLocalDateString();
+                        if (newDate === todayStr) {
+                          const realStart = getTodayRealtimeSlot();
+                          setStartTime(realStart);
+                          if (timeToMinutes(endTime) <= timeToMinutes(realStart)) {
+                            const nextEndM = Math.min(1410, timeToMinutes(realStart) + 180);
+                            setEndTime(minutesToTime(nextEndM));
+                          }
+                        }
+                        const isNightExp = isShiftPresetExpiredToday(newDate, '08:00');
+                        const isMorningExp = isShiftPresetExpiredToday(newDate, '12:00');
+                        const isAfternoonExp = isShiftPresetExpiredToday(newDate, '17:00');
+                        const isEveningExp = isShiftPresetExpiredToday(newDate, '23:30');
+
+                        if (activePreset === 'NIGHT' && isNightExp) {
+                          if (!isMorningExp) applyPresetShift('MORNING');
+                          else if (!isAfternoonExp) applyPresetShift('AFTERNOON');
+                          else if (!isEveningExp) applyPresetShift('EVENING');
+                        } else if (activePreset === 'MORNING' && isMorningExp) {
+                          if (!isAfternoonExp) applyPresetShift('AFTERNOON');
+                          else if (!isEveningExp) applyPresetShift('EVENING');
+                        } else if (activePreset === 'FULL_DAY' && isShiftPresetExpiredToday(newDate, '17:00', true)) {
+                          if (!isAfternoonExp) applyPresetShift('AFTERNOON');
+                          else if (!isEveningExp) applyPresetShift('EVENING');
+                        } else if (activePreset === 'AFTERNOON' && isAfternoonExp) {
+                          if (!isEveningExp) applyPresetShift('EVENING');
+                        }
+                      }}
                       className="w-full p-2.5 border border-slate-200 rounded-xl text-xs bg-slate-50 text-slate-800 outline-none focus:ring-2 focus:ring-teal-700/20 font-bold"
                     />
                   </div>
@@ -1647,14 +1827,8 @@ export default function DoctorScheduleView() {
                   {/* Buồng khám */}
                   <div className="space-y-1">
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-semibold text-slate-600 flex items-center gap-1.5 flex-wrap">
-                        <span>Buồng khám:</span>
-                        {currentSpecialtyName && (
-                          <span className="px-1.5 py-0.5 rounded bg-teal-50 text-teal-800 font-extrabold text-[10px] border border-teal-200">
-                            Khoa {currentSpecialtyName}
-                          </span>
-                        )}
-                        {myExistingShiftOnDate && <span className="text-teal-700 font-bold">(Gợi ý: {myExistingShiftOnDate.roomNumber})</span>}
+                      <span className="text-[11px] font-semibold text-slate-600">
+                        Buồng khám:
                       </span>
                       {checkingRooms && <RefreshCw size={11} className="animate-spin text-teal-600" />}
                     </div>
@@ -2092,6 +2266,637 @@ export default function DoctorScheduleView() {
         </div>
       )}
 
+      {/* ── Popup Đồng Hồ Kéo Khung Giờ Ca Trực ── */}
+      {showClockPickerModal && (
+        <div className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-md w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="px-5 py-4 bg-gradient-to-r from-teal-800 via-teal-900 to-slate-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-white/10 rounded-xl">
+                  <Clock size={18} className="text-teal-200 animate-pulse" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm tracking-tight flex items-center gap-1.5">
+                    <span>Đồng Hồ Chỉnh Khung Giờ</span>
+                    <span className="text-[10px] bg-teal-500/30 text-teal-200 px-2 py-0.5 rounded-full font-bold">
+                      Kéo 2 Đầu
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-teal-100 opacity-80">
+                    Nắm kéo 🟢 Bắt đầu &amp; 🔴 Kết thúc trên mặt đồng hồ
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowClockPickerModal(false)}
+                className="p-1.5 hover:bg-white/10 rounded-xl text-white/80 hover:text-white transition cursor-pointer"
+                title="Đóng popup"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-4 sm:p-5 overflow-y-auto space-y-4">
+              {/* Thông báo cố định Realtime khi chọn ngày hôm nay */}
+              {workDate === getLocalDateString() && (
+                <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-950 flex items-center justify-between shadow-2xs">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span>⚡ Giờ bắt đầu cố định Realtime: <strong>{clockTempStart}</strong></span>
+                  </div>
+                  <span className="text-[10px] bg-emerald-600 text-white px-2 py-0.5 rounded-lg font-bold">
+                    Khóa giờ quá khứ
+                  </span>
+                </div>
+              )}
+              {/* Tabs chọn nắm kéo Bắt đầu hoặc Kết thúc */}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveClockTab('start')}
+                  className={`p-2.5 rounded-2xl border text-left transition flex items-center justify-between cursor-pointer ${
+                    activeClockTab === 'start'
+                      ? 'bg-emerald-50 border-emerald-400 ring-2 ring-emerald-500/20'
+                      : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  <div className="space-y-0.5">
+                    <span className="text-[10px] font-bold text-slate-500 flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                      Giờ Bắt Đầu {workDate === getLocalDateString() ? '(⚡ Realtime)' : ''}
+                    </span>
+                    <div className="text-base font-black text-slate-800">
+                      {clockTempStart}{' '}
+                      <span className="text-[10px] font-semibold text-slate-400">
+                        {formatTime12h(clockTempStart).split(' ')[1]}
+                      </span>
+                    </div>
+                  </div>
+                  {activeClockTab === 'start' && (
+                    <span className="text-[10px] bg-emerald-600 text-white px-2 py-0.5 rounded-lg font-bold">
+                      Đang kéo
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveClockTab('end')}
+                  className={`p-2.5 rounded-2xl border text-left transition flex items-center justify-between cursor-pointer ${
+                    activeClockTab === 'end'
+                      ? 'bg-rose-50 border-rose-400 ring-2 ring-rose-500/20'
+                      : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  <div className="space-y-0.5">
+                    <span className="text-[10px] font-bold text-slate-500 flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-rose-500" />
+                      Giờ Kết Thúc
+                    </span>
+                    <div className="text-base font-black text-slate-800">
+                      {clockTempEnd}{' '}
+                      <span className="text-[10px] font-semibold text-slate-400">
+                        {formatTime12h(clockTempEnd).split(' ')[1]}
+                      </span>
+                    </div>
+                  </div>
+                  {activeClockTab === 'end' && (
+                    <span className="text-[10px] bg-rose-600 text-white px-2 py-0.5 rounded-lg font-bold">
+                      Đang kéo
+                    </span>
+                  )}
+                </button>
+              </div>
+
+              {/* Mặt Đồng Hồ 24h Tương Tác Kéo Thả SVG */}
+              <div className="relative flex flex-col items-center justify-center py-2 bg-slate-50/80 rounded-2xl border border-slate-100">
+                <svg
+                  ref={clockSvgRef}
+                  viewBox="0 0 320 320"
+                  className="w-full max-w-[280px] h-[280px] select-none touch-none cursor-pointer"
+                  onPointerDown={(e) => handleClockPointerDown(e)}
+                  onPointerMove={(e) => handleClockPointerMove(e)}
+                  onPointerUp={(e) => handleClockPointerUp(e)}
+                  onPointerCancel={(e) => handleClockPointerUp(e)}
+                >
+                  <defs>
+                    <linearGradient id="clockArcGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#0d9488" />
+                      <stop offset="100%" stopColor="#10b981" />
+                    </linearGradient>
+                    <filter id="handleShadow" x="-50%" y="-50%" width="200%" height="200%">
+                      <feDropShadow dx="0" dy="2" stdDeviation="3" floodOpacity="0.35" />
+                    </filter>
+                    <filter id="hubShadow" x="-20%" y="-20%" width="140%" height="140%">
+                      <feDropShadow dx="0" dy="3" stdDeviation="4" floodOpacity="0.08" />
+                    </filter>
+                  </defs>
+
+                  {/* Vòng nền mặt đồng hồ */}
+                  <circle cx="160" cy="160" r="110" fill="none" stroke="#e2e8f0" strokeWidth="20" strokeLinecap="round" />
+
+                  {/* Vùng thời gian đã qua trong ngày (Quá khứ) - Khóa màu xám */}
+                  {(() => {
+                    const isToday = workDate === getLocalDateString();
+                    if (!isToday) return null;
+                    const realMinM = timeToMinutes(getTodayRealtimeSlot());
+                    if (realMinM <= 0) return null;
+                    const pastAngle = (realMinM / 1440) * 360;
+                    return (
+                      <path
+                        d={describeArc(160, 160, 110, 0, pastAngle)}
+                        fill="none"
+                        stroke="#cbd5e1"
+                        strokeWidth="20"
+                        strokeDasharray="4 3"
+                        opacity="0.9"
+                      />
+                    );
+                  })()}
+
+                  {/* Vành thời gian ngày/đêm nhẹ */}
+                  {/* Ban ngày 06:00 - 18:00 (90° đến 270°) */}
+                  <path
+                    d={describeArc(160, 160, 110, 90, 270)}
+                    fill="none"
+                    stroke="#fef3c7"
+                    strokeWidth="20"
+                    opacity="0.6"
+                  />
+                  {/* Ban đêm 22:00 - 06:00 (330° đến 90°) */}
+                  <path
+                    d={describeArc(160, 160, 110, 330, 90)}
+                    fill="none"
+                    stroke="#e0e7ff"
+                    strokeWidth="20"
+                    opacity="0.6"
+                  />
+
+                  {/* Vạch giờ & Nhãn xung quanh (24 giờ) */}
+                  {Array.from({ length: 24 }).map((_, i) => {
+                    const angle = i * 15;
+                    const isMajor = i % 6 === 0;
+                    const isMid = i % 3 === 0;
+                    const tickOuter = polarToCartesian(160, 160, 122, angle);
+                    const tickInner = polarToCartesian(160, 160, isMajor ? 98 : isMid ? 100 : 103, angle);
+                    const textCoord = polarToCartesian(160, 160, 138, angle);
+                    const label = isMajor 
+                      ? (i === 0 ? '00h' : i === 6 ? '06h' : i === 12 ? '12h' : '18h')
+                      : isMid 
+                      ? `${String(i).padStart(2, '0')}h`
+                      : null;
+
+                    return (
+                      <g key={i}>
+                        <line
+                          x1={tickInner.x}
+                          y1={tickInner.y}
+                          x2={tickOuter.x}
+                          y2={tickOuter.y}
+                          stroke={isMajor ? '#475569' : isMid ? '#94a3b8' : '#cbd5e1'}
+                          strokeWidth={isMajor ? 2.5 : isMid ? 1.5 : 1}
+                        />
+                        {label && (
+                          <text
+                            x={textCoord.x}
+                            y={textCoord.y}
+                            fill={isMajor ? '#0f172a' : '#64748b'}
+                            fontSize={isMajor ? '11' : '9'}
+                            fontWeight={isMajor ? '800' : '600'}
+                            textAnchor="middle"
+                            dominantBaseline="central"
+                          >
+                            {label}
+                          </text>
+                        )}
+                      </g>
+                    );
+                  })}
+
+                  {/* Vòng cung active (Khoảng thời gian đang chọn) */}
+                  {(() => {
+                    const startM = timeToMinutes(clockTempStart);
+                    const endM = timeToMinutes(clockTempEnd);
+                    const sAngle = (startM / 1440) * 360;
+                    const eAngle = (endM / 1440) * 360;
+                    return (
+                      <path
+                        d={describeArc(160, 160, 110, sAngle, eAngle)}
+                        fill="none"
+                        stroke="url(#clockArcGradient)"
+                        strokeWidth="20"
+                        strokeLinecap="round"
+                      />
+                    );
+                  })()}
+
+                  {/* Nút nắm Bắt Đầu (Emerald Green 🟢) */}
+                  {(() => {
+                    const startM = timeToMinutes(clockTempStart);
+                    const sAngle = (startM / 1440) * 360;
+                    const pos = polarToCartesian(160, 160, 110, sAngle);
+                    return (
+                      <g
+                        transform={`translate(${pos.x}, ${pos.y})`}
+                        className="cursor-grab active:cursor-grabbing"
+                        filter="url(#handleShadow)"
+                        onPointerDown={(e) => {
+                          e.stopPropagation();
+                          handleClockPointerDown(e, 'start');
+                        }}
+                      >
+                        <circle r="15" fill="#059669" stroke="#ffffff" strokeWidth="3" />
+                        <circle r="4.5" fill="#ffffff" />
+                      </g>
+                    );
+                  })()}
+
+                  {/* Nút nắm Kết Thúc (Rose Red 🔴) */}
+                  {(() => {
+                    const endM = timeToMinutes(clockTempEnd);
+                    const eAngle = (endM / 1440) * 360;
+                    const pos = polarToCartesian(160, 160, 110, eAngle);
+                    return (
+                      <g
+                        transform={`translate(${pos.x}, ${pos.y})`}
+                        className="cursor-grab active:cursor-grabbing"
+                        filter="url(#handleShadow)"
+                        onPointerDown={(e) => {
+                          e.stopPropagation();
+                          handleClockPointerDown(e, 'end');
+                        }}
+                      >
+                        <circle r="15" fill="#e11d48" stroke="#ffffff" strokeWidth="3" />
+                        <circle r="4.5" fill="#ffffff" />
+                      </g>
+                    );
+                  })()}
+
+                  {/* Trung tâm mặt đồng hồ (Hub hiển thị kỹ thuật số) */}
+                  <circle
+                    cx="160"
+                    cy="160"
+                    r="68"
+                    fill="#ffffff"
+                    stroke="#e2e8f0"
+                    strokeWidth="1.5"
+                    filter="url(#hubShadow)"
+                  />
+                  <foreignObject x="98" y="98" width="124" height="124" className="pointer-events-none">
+                    <div className="w-full h-full flex flex-col items-center justify-center text-center p-1 select-none">
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
+                        Tổng Thời Gian
+                      </div>
+                      <div className="text-sm font-black text-slate-800 leading-tight">
+                        {clockTempStart} – {clockTempEnd}
+                      </div>
+                      {(() => {
+                        const durMin = Math.max(0, timeToMinutes(clockTempEnd) - timeToMinutes(clockTempStart));
+                        const durHours = (durMin / 60).toFixed(1).replace('.0', '');
+                        const estSlots = Math.floor(durMin / slotDuration);
+                        return (
+                          <>
+                            <div className="text-[11px] font-extrabold text-teal-700 mt-1">
+                              {durHours} tiếng • {estSlots} slots
+                            </div>
+                            <div className="text-[9px] text-slate-400 mt-0.5">
+                              {slotDuration} phút/ca
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </foreignObject>
+                </svg>
+
+                <p className="text-[11px] text-slate-500 font-medium mt-1 flex items-center gap-1">
+                  <span>💡 <strong>Nắm kéo</strong> nút tròn xanh/đỏ hoặc bấm vào giờ bất kỳ</span>
+                </p>
+              </div>
+
+              {/* Nút tinh chỉnh nhanh +/- 15p, 30p */}
+              <div className="space-y-2 pt-1 border-t border-slate-100">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-slate-700 flex items-center gap-1.5">
+                    <SlidersHorizontal size={13} className="text-teal-700" />
+                    <span>Tinh chỉnh nhanh từng mốc 15 - 30 phút:</span>
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {/* Chỉnh giờ bắt đầu */}
+                  <div className="p-2 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
+                    <div className="text-[10px] font-bold text-emerald-700 flex items-center justify-between">
+                      <span>🟢 Giờ Bắt Đầu:</span>
+                      <span className="text-xs font-black text-slate-800">{clockTempStart}</span>
+                    </div>
+                    <div className="grid grid-cols-4 gap-1">
+                      <button
+                        type="button"
+                        onClick={() => adjustClockMinutes('start', -30)}
+                        className="p-1 bg-white hover:bg-emerald-50 rounded border border-slate-200 text-[10px] font-bold text-slate-700 transition cursor-pointer"
+                      >
+                        -30m
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => adjustClockMinutes('start', -15)}
+                        className="p-1 bg-white hover:bg-emerald-50 rounded border border-slate-200 text-[10px] font-bold text-slate-700 transition cursor-pointer"
+                      >
+                        -15m
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => adjustClockMinutes('start', 15)}
+                        className="p-1 bg-white hover:bg-emerald-50 rounded border border-slate-200 text-[10px] font-bold text-slate-700 transition cursor-pointer"
+                      >
+                        +15m
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => adjustClockMinutes('start', 30)}
+                        className="p-1 bg-white hover:bg-emerald-50 rounded border border-slate-200 text-[10px] font-bold text-slate-700 transition cursor-pointer"
+                      >
+                        +30m
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Chỉnh giờ kết thúc */}
+                  <div className="p-2 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
+                    <div className="text-[10px] font-bold text-rose-700 flex items-center justify-between">
+                      <span>🔴 Giờ Kết Thúc:</span>
+                      <span className="text-xs font-black text-slate-800">{clockTempEnd}</span>
+                    </div>
+                    <div className="grid grid-cols-4 gap-1">
+                      <button
+                        type="button"
+                        onClick={() => adjustClockMinutes('end', -30)}
+                        className="p-1 bg-white hover:bg-rose-50 rounded border border-slate-200 text-[10px] font-bold text-slate-700 transition cursor-pointer"
+                      >
+                        -30m
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => adjustClockMinutes('end', -15)}
+                        className="p-1 bg-white hover:bg-rose-50 rounded border border-slate-200 text-[10px] font-bold text-slate-700 transition cursor-pointer"
+                      >
+                        -15m
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => adjustClockMinutes('end', 15)}
+                        className="p-1 bg-white hover:bg-rose-50 rounded border border-slate-200 text-[10px] font-bold text-slate-700 transition cursor-pointer"
+                      >
+                        +15m
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => adjustClockMinutes('end', 30)}
+                        className="p-1 bg-white hover:bg-rose-50 rounded border border-slate-200 text-[10px] font-bold text-slate-700 transition cursor-pointer"
+                      >
+                        +30m
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Các khung giờ chuẩn nhanh */}
+              <div className="space-y-1.5 pt-1 border-t border-slate-100">
+                <span className="text-[11px] font-semibold text-slate-600 block">
+                  Ca chuẩn thông dụng {workDate === getLocalDateString() ? '(Tự đồng bộ Realtime)' : ''}:
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {(() => {
+                    const isToday = workDate === getLocalDateString();
+                    const realStart = isToday ? getTodayRealtimeSlot() : '00:00';
+                    const realStartM = timeToMinutes(realStart);
+
+                    return [
+                      { label: 'Ca Đêm', s: '00:00', e: '08:00', icon: '🌙' },
+                      { label: 'Ca Sáng', s: '08:00', e: '12:00', icon: '☀️' },
+                      { label: 'Ca Chiều', s: '13:30', e: '17:00', icon: '⛅' },
+                      { label: 'Ca Tối', s: '17:00', e: '23:30', icon: '🌙' },
+                      { label: 'Cả Ngày', s: '08:00', e: '17:00', icon: '⭐' },
+                    ].map((p) => {
+                      const endM = timeToMinutes(p.e);
+                      const isExpired = isToday && (endM <= realStartM);
+                      // Nếu hôm nay và ca vẫn còn, giờ bắt đầu cố định tối thiểu từ realStart
+                      const effectiveStart = isToday ? minutesToTime(Math.max(realStartM, timeToMinutes(p.s))) : p.s;
+                      const isSelected = clockTempStart === effectiveStart && clockTempEnd === p.e;
+
+                      return (
+                        <button
+                          key={p.label}
+                          type="button"
+                          disabled={isExpired}
+                          onClick={() => {
+                            setClockTempStart(effectiveStart);
+                            setClockTempEnd(p.e);
+                          }}
+                          className={`px-2.5 py-1 rounded-xl text-xs font-bold border transition flex items-center gap-1 ${
+                            isExpired
+                              ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-60'
+                              : isSelected
+                              ? 'bg-teal-700 text-white border-teal-700 shadow-2xs cursor-pointer'
+                              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 cursor-pointer'
+                          }`}
+                        >
+                          <span>{p.icon}</span>
+                          <span>{p.label}</span>
+                          <span className="opacity-75 text-[10px]">
+                            {isExpired ? '(Đã qua)' : `(${effectiveStart}-${p.e})`}
+                          </span>
+                        </button>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => setShowClockPickerModal(false)}
+                className="px-4 py-2.5 text-xs font-bold text-slate-600 hover:text-slate-800 hover:bg-slate-200/60 rounded-xl transition cursor-pointer"
+              >
+                Hủy Bỏ
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  handleStartTimeChange(clockTempStart);
+                  handleEndTimeChange(clockTempEnd);
+                  setShowClockPickerModal(false);
+                }}
+                className="px-5 py-2.5 bg-gradient-to-r from-teal-700 to-emerald-700 hover:from-teal-800 hover:to-emerald-800 text-white text-xs font-extrabold rounded-xl shadow-md hover:shadow-lg transition flex items-center gap-2 cursor-pointer"
+              >
+                <Check size={15} />
+                <span>Áp Dụng Khung Giờ Này ({clockTempStart} - {clockTempEnd})</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Popup Chọn Ca Làm Việc Chuẩn (Hiện ra khi nhấn nút Khung giờ) ── */}
+      {showPresetModal && (
+        <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-md w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="px-5 py-4 bg-gradient-to-r from-teal-800 to-teal-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-white/10 rounded-xl">
+                  <Clock size={18} className="text-teal-200" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm tracking-tight">Chọn Khung Giờ Ca Chuẩn</h3>
+                  <p className="text-[11px] text-teal-100 opacity-80">
+                    Áp dụng cho ngày <strong>{workDate}</strong>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPresetModal(false)}
+                className="p-1.5 hover:bg-white/10 rounded-xl text-white/80 hover:text-white transition cursor-pointer"
+                title="Đóng popup"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-4 sm:p-5 overflow-y-auto space-y-2.5">
+              <p className="text-xs text-slate-500 font-medium">
+                Vui lòng chọn 1 ca làm việc tiêu chuẩn bên dưới để hệ thống tự động điền khung giờ phù hợp:
+              </p>
+              {(() => {
+                const isNightExpired = isShiftPresetExpiredToday(workDate, '08:00');
+                const isMorningExpired = isShiftPresetExpiredToday(workDate, '12:00');
+                const isAfternoonExpired = isShiftPresetExpiredToday(workDate, '17:00');
+                const isEveningExpired = isShiftPresetExpiredToday(workDate, '23:30');
+                const isFullDayExpired = isShiftPresetExpiredToday(workDate, '17:00', true);
+
+                const presets = [
+                  {
+                    id: 'NIGHT' as const,
+                    name: 'Ca Đêm (24/7)',
+                    icon: '🌌',
+                    time: '00:00 - 08:00',
+                    desc: '8 tiếng • 16 slots khám',
+                    expired: isNightExpired,
+                  },
+                  {
+                    id: 'MORNING' as const,
+                    name: 'Ca Sáng',
+                    icon: '☀️',
+                    time: '08:00 - 12:00',
+                    desc: '4 tiếng • 8 slots khám',
+                    expired: isMorningExpired,
+                  },
+                  {
+                    id: 'AFTERNOON' as const,
+                    name: 'Ca Chiều',
+                    icon: '🌤️',
+                    time: '13:30 - 17:00',
+                    desc: '3.5 tiếng • 7 slots khám',
+                    expired: isAfternoonExpired,
+                  },
+                  {
+                    id: 'EVENING' as const,
+                    name: 'Ca Tối',
+                    icon: '🌙',
+                    time: '17:00 - 23:30',
+                    desc: '6.5 tiếng • 13 slots khám',
+                    expired: isEveningExpired,
+                  },
+                  {
+                    id: 'FULL_DAY' as const,
+                    name: 'Cả Ngày',
+                    icon: '🌕',
+                    time: '08:00 - 17:00',
+                    desc: 'Nghỉ trưa 12h-13h30 • 15 slots khám',
+                    expired: isFullDayExpired,
+                  },
+                ];
+
+                return (
+                  <div className="space-y-2">
+                    {presets.map((p) => {
+                      const isSelected = activePreset === p.id && !p.expired;
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          disabled={p.expired}
+                          onClick={() => {
+                            applyPresetShift(p.id);
+                            setShowPresetModal(false);
+                          }}
+                          className={`w-full p-3.5 rounded-2xl border text-left transition-all duration-150 flex items-center justify-between gap-3 ${
+                            p.expired
+                              ? 'opacity-40 bg-slate-100 border-dashed border-slate-300 text-slate-400 cursor-not-allowed select-none pointer-events-none'
+                              : isSelected
+                              ? 'border-2 border-teal-600 bg-teal-50/90 text-teal-950 shadow-sm ring-2 ring-teal-500/20 cursor-pointer'
+                              : 'border-slate-200 bg-white hover:border-teal-400 hover:bg-teal-50/40 text-slate-700 cursor-pointer shadow-2xs'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="text-2xl p-2 rounded-xl bg-slate-100/80">{p.icon}</span>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className={`font-extrabold text-xs ${p.expired ? 'text-slate-400' : 'text-slate-900'}`}>
+                                  {p.name}
+                                </span>
+                                {isSelected && (
+                                  <span className="px-2 py-0.5 rounded-md bg-teal-600 text-white font-bold text-[9.5px]">
+                                    Đang chọn
+                                  </span>
+                                )}
+                              </div>
+                              <div className={`text-xs font-black mt-0.5 ${p.expired ? 'text-slate-400 line-through' : isSelected ? 'text-teal-700' : 'text-slate-700'}`}>
+                                {p.time}
+                              </div>
+                              <div className="text-[11px] text-slate-400 mt-0.5">
+                                {p.expired ? '⛔ Khung giờ này của hôm nay đã kết thúc' : p.desc}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="shrink-0">
+                            {isSelected ? (
+                              <CheckCircle2 size={20} className="text-teal-600" />
+                            ) : (
+                              <ChevronRight size={18} className="text-slate-400" />
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Footer */}
+            <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowPresetModal(false)}
+                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Cửa Sổ Tiện Ích Quản Lý Khung Giờ Ca Trực (In-Place Slots Modal) ── */}
       {activeScheduleForSlots && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4 animate-in fade-in duration-200">
@@ -2127,81 +2932,135 @@ export default function DoctorScheduleView() {
             </div>
 
             {/* Thống kê nhanh các slot */}
-            <div className="p-3 sm:p-4 bg-slate-50/70 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
-              <div className="flex items-center gap-2">
-                <span className="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 font-bold text-[11px] flex items-center gap-1">
-                  <Unlock size={12} />
-                  <span>Trống: {activeScheduleForSlots.slots.filter(s => s.status === 'AVAILABLE').length}</span>
-                </span>
-                <span className="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 font-bold text-[11px] flex items-center gap-1">
-                  <Lock size={12} />
-                  <span>Tạm khóa: {activeScheduleForSlots.slots.filter(s => s.status === 'LOCKED').length}</span>
-                </span>
-                <span className="px-2.5 py-1 rounded-lg bg-blue-100 text-blue-800 font-bold text-[11px] flex items-center gap-1">
-                  <UserCheck size={12} />
-                  <span>Đã đặt: {activeScheduleForSlots.slots.filter(s => s.status === 'BOOKED').length}</span>
-                </span>
-              </div>
-              <span className="text-[11px] text-slate-500 italic">
-                * Nhấp vào slot trống/khóa để đóng hoặc mở
-              </span>
-            </div>
+            {(() => {
+              const todayStr = getLocalDateString();
+              const isToday = activeScheduleForSlots.workDate === todayStr;
+              const isPastSchedule = activeScheduleForSlots.workDate < todayStr;
+              const now = new Date();
+              const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+              let availableCount = 0;
+              let lockedCount = 0;
+              let bookedCount = 0;
+              let expiredCount = 0;
+
+              activeScheduleForSlots.slots.forEach((s) => {
+                const [h, m] = s.startTime.split(':').map(Number);
+                const startMin = (h || 0) * 60 + (m || 0);
+                const isPast = isPastSchedule || (isToday && startMin <= currentMinutes);
+
+                if (s.status === 'BOOKED') {
+                  bookedCount++;
+                } else if (isPast) {
+                  expiredCount++;
+                } else if (s.status === 'LOCKED') {
+                  lockedCount++;
+                } else {
+                  availableCount++;
+                }
+              });
+
+              return (
+                <div className="p-3 sm:p-4 bg-slate-50/70 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 font-bold text-[11px] flex items-center gap-1">
+                      <Unlock size={12} />
+                      <span>Trống: {availableCount}</span>
+                    </span>
+                    <span className="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 font-bold text-[11px] flex items-center gap-1">
+                      <Lock size={12} />
+                      <span>Tạm khóa: {lockedCount}</span>
+                    </span>
+                    <span className="px-2.5 py-1 rounded-lg bg-blue-100 text-blue-800 font-bold text-[11px] flex items-center gap-1">
+                      <UserCheck size={12} />
+                      <span>Đã đặt: {bookedCount}</span>
+                    </span>
+                    {expiredCount > 0 && (
+                      <span className="px-2.5 py-1 rounded-lg bg-slate-200 text-slate-700 font-bold text-[11px] flex items-center gap-1" title="Các khung giờ đã trôi qua trong quá khứ">
+                        <Clock size={12} />
+                        <span>Đã qua: {expiredCount}</span>
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[11px] text-slate-500 italic">
+                    * Nhấp vào slot trống/khóa để đóng hoặc mở
+                  </span>
+                </div>
+              );
+            })()}
 
             {/* Danh sách lưới các slot */}
             <div className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-3">
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                {activeScheduleForSlots.slots.map((slot) => {
-                  const isLocked = slot.status === 'LOCKED';
-                  const isBooked = slot.status === 'BOOKED';
+                {(() => {
+                  const todayStr = getLocalDateString();
+                  const isToday = activeScheduleForSlots.workDate === todayStr;
+                  const isPastSchedule = activeScheduleForSlots.workDate < todayStr;
+                  const now = new Date();
+                  const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
-                  return (
-                    <button
-                      key={slot.id}
-                      type="button"
-                      disabled={isBooked || actionLoadingId === slot.id}
-                      onClick={() => handleToggleSlot(slot)}
-                      className={`p-3 rounded-xl border text-left transition flex flex-col justify-between gap-1.5 relative ${
-                        isBooked
-                          ? 'bg-blue-50 border-blue-200 text-blue-900 cursor-not-allowed'
-                          : isLocked
-                          ? 'bg-amber-50 border-amber-300 text-amber-900 hover:bg-amber-100 cursor-pointer shadow-2xs'
-                          : 'bg-emerald-50 border-emerald-300 text-emerald-900 hover:bg-emerald-100 cursor-pointer shadow-2xs'
-                      }`}
-                      title={
-                        isBooked
-                          ? 'Đã có người bệnh đặt hẹn'
-                          : isLocked
-                          ? 'Nhấp để mở lại khung giờ cho bệnh nhân đặt'
-                          : 'Nhấp để tạm khóa khung giờ (nghỉ giữa giờ / hội chẩn)'
-                      }
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-extrabold text-xs">
-                          {slot.startTime} - {slot.endTime}
-                        </span>
-                        {actionLoadingId === slot.id ? (
-                          <RefreshCw size={13} className="animate-spin text-slate-500" />
-                        ) : isBooked ? (
-                          <UserCheck size={13} className="text-blue-600" />
-                        ) : isLocked ? (
-                          <Lock size={13} className="text-amber-700" />
-                        ) : (
-                          <Unlock size={13} className="text-emerald-700" />
-                        )}
-                      </div>
-                      <div className="text-[10px] font-bold flex items-center justify-between">
-                        <span>
-                          {isBooked ? 'Đã đặt' : isLocked ? 'Tạm khóa' : 'Sẵn sàng'}
-                        </span>
-                        {!isBooked && (
-                          <span className="text-[9px] underline opacity-70">
-                            {isLocked ? 'Mở lại' : 'Khóa slot'}
+                  return activeScheduleForSlots.slots.map((slot) => {
+                    const [h, m] = slot.startTime.split(':').map(Number);
+                    const startMin = (h || 0) * 60 + (m || 0);
+                    const isPast = isPastSchedule || (isToday && startMin <= currentMinutes);
+                    const isLocked = slot.status === 'LOCKED';
+                    const isBooked = slot.status === 'BOOKED';
+
+                    return (
+                      <button
+                        key={slot.id}
+                        type="button"
+                        disabled={isBooked || isPast || actionLoadingId === slot.id}
+                        onClick={() => handleToggleSlot(slot)}
+                        className={`p-3 rounded-xl border text-left transition flex flex-col justify-between gap-1.5 relative ${
+                          isBooked
+                            ? 'bg-blue-50 border-blue-200 text-blue-900 cursor-not-allowed'
+                            : isPast
+                            ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-75'
+                            : isLocked
+                            ? 'bg-amber-50 border-amber-300 text-amber-900 hover:bg-amber-100 cursor-pointer shadow-2xs'
+                            : 'bg-emerald-50 border-emerald-300 text-emerald-900 hover:bg-emerald-100 cursor-pointer shadow-2xs'
+                        }`}
+                        title={
+                          isBooked
+                            ? 'Đã có người bệnh đặt hẹn'
+                            : isPast
+                            ? 'Khung giờ đã trôi qua trong quá khứ (Hệ thống tự động khóa)'
+                            : isLocked
+                            ? 'Nhấp để mở lại khung giờ cho bệnh nhân đặt'
+                            : 'Nhấp để tạm khóa khung giờ (nghỉ giữa giờ / hội chẩn)'
+                        }
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-extrabold text-xs">
+                            {slot.startTime} - {slot.endTime}
                           </span>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
+                          {actionLoadingId === slot.id ? (
+                            <RefreshCw size={13} className="animate-spin text-slate-500" />
+                          ) : isBooked ? (
+                            <UserCheck size={13} className="text-blue-600" />
+                          ) : isPast ? (
+                            <Clock size={13} className="text-slate-400" />
+                          ) : isLocked ? (
+                            <Lock size={13} className="text-amber-700" />
+                          ) : (
+                            <Unlock size={13} className="text-emerald-700" />
+                          )}
+                        </div>
+                        <div className="text-[10px] font-bold flex items-center justify-between">
+                          <span>
+                            {isBooked ? 'Đã đặt' : isPast ? 'Đã qua giờ' : isLocked ? 'Tạm khóa' : 'Sẵn sàng'}
+                          </span>
+                          {!isBooked && !isPast && (
+                            <span className="text-[9px] underline opacity-70">
+                              {isLocked ? 'Mở lại' : 'Khóa slot'}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  });
+                })()}
               </div>
             </div>
 
@@ -2210,13 +3069,30 @@ export default function DoctorScheduleView() {
               <span className="text-xs text-slate-500">
                 Thao tác trực tiếp trên giao diện ma trận tuần
               </span>
-              <button
-                type="button"
-                onClick={() => setSelectedScheduleForSlots(null)}
-                className="px-4 py-2 bg-teal-800 hover:bg-teal-900 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-sm"
-              >
-                Đóng Tiện Ích
-              </button>
+              <div className="flex items-center gap-2">
+                {activeScheduleForSlots.workDate >= getLocalDateString() && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const sch = activeScheduleForSlots;
+                      setSelectedScheduleForSlots(null);
+                      handleDeleteSchedule(sch);
+                    }}
+                    className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                    title={activeScheduleForSlots.bookedSlots > 0 ? "Hủy ca khẩn cấp" : "Hủy và xóa toàn bộ ca trực này"}
+                  >
+                    <Trash2 size={13} />
+                    <span>{activeScheduleForSlots.bookedSlots > 0 ? "Hủy Ca Khẩn Cấp" : "Hủy Ca Trực Này"}</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setSelectedScheduleForSlots(null)}
+                  className="px-4 py-2 bg-teal-800 hover:bg-teal-900 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-sm"
+                >
+                  Đóng Tiện Ích
+                </button>
+              </div>
             </div>
           </div>
         </div>

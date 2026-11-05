@@ -62,6 +62,25 @@ const normalizeQueueNumber = (num?: string, isWalkin = false): string => {
   return isWalkin ? `W-${str}` : `A-${str}`;
 };
 
+const getPaidInvoiceCodes = (): Set<string> => {
+  if (typeof window === 'undefined') return new Set();
+  try {
+    const raw = localStorage.getItem('medsched_paid_invoices');
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch {
+    return new Set();
+  }
+};
+
+const markInvoiceCodePaid = (codeOrId: string) => {
+  if (!codeOrId || typeof window === 'undefined') return;
+  try {
+    const current = getPaidInvoiceCodes();
+    current.add(codeOrId);
+    localStorage.setItem('medsched_paid_invoices', JSON.stringify(Array.from(current)));
+  } catch {}
+};
+
 export default function ReceptionView() {
   const router = useRouter();
   const { isBlocked, handleTakeOver } = useSingleTabLock({
@@ -80,7 +99,7 @@ export default function ReceptionView() {
 
   // Live feed state of checked-in patients
   const [history, setHistory] = useState<any[]>([]);
-  const [filterStatus, setFilterStatus] = useState<'ALL' | 'ĐÃ TIẾP ĐÓN' | 'ĐANG KHÁM' | 'ĐÃ KHÁM'>('ALL');
+  const [filterStatus, setFilterStatus] = useState<'ALL' | 'ĐÃ TIẾP ĐÓN' | 'ĐANG KHÁM' | 'ĐÃ KHÁM' | 'CHỜ THANH TOÁN' | 'ĐÃ THANH TOÁN'>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
 
   // Ngày đang xem trên Live Feed: 'TODAY' hoặc 'YESTERDAY' (Tránh hiểu lầm khi bước qua 00:00)
@@ -520,8 +539,14 @@ export default function ReceptionView() {
       discountAmount: appliedBillingPromo?.discountAmount,
       originalTotal: originalTotal,
     });
-    if (billingAppointmentId) paidInvoiceSetRef.current.add(billingAppointmentId);
-    if (billingData.bookingCode) paidInvoiceSetRef.current.add(billingData.bookingCode);
+    if (billingAppointmentId) {
+      paidInvoiceSetRef.current.add(billingAppointmentId);
+      markInvoiceCodePaid(billingAppointmentId);
+    }
+    if (billingData.bookingCode) {
+      paidInvoiceSetRef.current.add(billingData.bookingCode);
+      markInvoiceCodePaid(billingData.bookingCode);
+    }
 
     if (billingAppointmentId || billingData.bookingCode) {
       setHistory((prev) =>
@@ -617,7 +642,14 @@ export default function ReceptionView() {
               room: roomTitle,
               checkInTime: timeStr,
               status: item.status === 'COMPLETED' ? 'ĐÃ KHÁM' : item.status === 'IN_CONSULTATION' ? 'ĐANG KHÁM' : 'ĐÃ TIẾP ĐÓN',
-              invoiceStatus: (item.invoiceStatus === 'PAID' || paidInvoiceSetRef.current.has(item.id) || (item.bookingCode && paidInvoiceSetRef.current.has(item.bookingCode))) ? 'PAID' : (item.invoiceStatus || 'UNPAID'),
+              invoiceStatus: (() => {
+                const paidCodes = getPaidInvoiceCodes();
+                const isPaid = paidInvoiceSetRef.current.has(item.id) ||
+                  (item.bookingCode && paidInvoiceSetRef.current.has(item.bookingCode)) ||
+                  paidCodes.has(item.id) ||
+                  (item.bookingCode && paidCodes.has(item.bookingCode));
+                return isPaid ? 'PAID' : 'UNPAID';
+              })(),
             };
           });
         if (mapped.length > 0) {
@@ -894,12 +926,23 @@ export default function ReceptionView() {
       waiting: uniqueHistory.filter(item => item.status === 'ĐÃ TIẾP ĐÓN').length,
       inConsultation: uniqueHistory.filter(item => item.status === 'ĐANG KHÁM').length,
       completed: uniqueHistory.filter(item => item.status === 'ĐÃ KHÁM').length,
+      pendingPayment: uniqueHistory.filter(item => item.status === 'ĐÃ KHÁM' && item.invoiceStatus !== 'PAID').length,
+      paid: uniqueHistory.filter(item => item.invoiceStatus === 'PAID').length,
     };
   }, [history]);
 
   const filteredHistory = useMemo(() => {
     const list = history.filter(item => {
-      const matchStatus = filterStatus === 'ALL' || item.status === filterStatus;
+      let matchStatus = false;
+      if (filterStatus === 'ALL') {
+        matchStatus = true;
+      } else if (filterStatus === 'CHỜ THANH TOÁN') {
+        matchStatus = item.status === 'ĐÃ KHÁM' && item.invoiceStatus !== 'PAID';
+      } else if (filterStatus === 'ĐÃ THANH TOÁN') {
+        matchStatus = item.invoiceStatus === 'PAID';
+      } else {
+        matchStatus = item.status === filterStatus;
+      }
       const term = searchTerm.trim().toLowerCase();
       const matchSearch = !term || 
         (item.patientName && item.patientName.toLowerCase().includes(term)) ||
@@ -1357,6 +1400,42 @@ export default function ReceptionView() {
                     filterStatus === 'ĐÃ KHÁM' ? 'bg-white/20 text-white' : 'bg-emerald-200 text-emerald-800'
                   }`}>
                     {statusCounts.completed}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setFilterStatus('CHỜ THANH TOÁN')}
+                  className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap ${
+                    filterStatus === 'CHỜ THANH TOÁN'
+                      ? 'bg-orange-600 text-white shadow-xs shadow-orange-600/20'
+                      : 'bg-orange-50 text-orange-700 hover:bg-orange-100 border border-orange-200/60'
+                  }`}
+                >
+                  <CreditCard size={12} />
+                  <span>Chờ thanh toán</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                    filterStatus === 'CHỜ THANH TOÁN' ? 'bg-white/20 text-white' : 'bg-orange-200 text-orange-800'
+                  }`}>
+                    {statusCounts.pendingPayment}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setFilterStatus('ĐÃ THANH TOÁN')}
+                  className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap ${
+                    filterStatus === 'ĐÃ THANH TOÁN'
+                      ? 'bg-teal-600 text-white shadow-xs shadow-teal-600/20'
+                      : 'bg-teal-50 text-teal-700 hover:bg-teal-100 border border-teal-200/60'
+                  }`}
+                >
+                  <Check size={12} className="stroke-[2.5]" />
+                  <span>Đã thanh toán</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                    filterStatus === 'ĐÃ THANH TOÁN' ? 'bg-white/20 text-white' : 'bg-teal-200 text-teal-800'
+                  }`}>
+                    {statusCounts.paid}
                   </span>
                 </button>
               </div>
@@ -2522,10 +2601,15 @@ export default function ReceptionView() {
                             <CreditCard size={14} className="text-blue-600" />
                             <span>Quẹt thẻ máy POS</span>
                           </>
-                        ) : (
+                        ) : billingSuccessData.paymentMethod === 'PROMO_FREE' ? (
                           <>
                             <Gift size={14} className="text-emerald-600" />
                             <span>Tài trợ miễn phí 100%</span>
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 size={14} className="text-emerald-600" />
+                            <span>Đã tất toán viện phí</span>
                           </>
                         )}
                       </strong>
@@ -2579,8 +2663,14 @@ export default function ReceptionView() {
                         if (billingAppointmentId || billingData?.bookingCode) {
                           const targetAppId = billingAppointmentId;
                           const targetCode = billingData?.bookingCode;
-                          if (targetAppId) paidInvoiceSetRef.current.add(targetAppId);
-                          if (targetCode) paidInvoiceSetRef.current.add(targetCode);
+                          if (targetAppId) {
+                            paidInvoiceSetRef.current.add(targetAppId);
+                            markInvoiceCodePaid(targetAppId);
+                          }
+                          if (targetCode) {
+                            paidInvoiceSetRef.current.add(targetCode);
+                            markInvoiceCodePaid(targetCode);
+                          }
                           setHistory((prev) =>
                             prev.map((h) =>
                               (targetAppId && h.appointmentId === targetAppId) ||

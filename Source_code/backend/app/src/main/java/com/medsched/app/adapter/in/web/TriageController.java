@@ -392,7 +392,7 @@ public class TriageController {
         if (family == null || "GENERAL".equals(family)) {
             String storyLower = normalizeForMatching(story);
             if (Pattern.compile("\\b(ho|sot|cum|cam)\\b").matcher(storyLower).find()
-                    || containsAny(storyLower, "dau hong", "rat hong", "rat co", "kho tho", "co", "hong")) {
+                    || containsAny(storyLower, "dau hong", "rat hong", "rat co", "kho tho", "co hong")) {
                 family = "RESPIRATORY";
             } else if (containsAny(storyLower, "dau dau", "nhuc dau", "chong mat", "hoa mat", "sau gay", "thai duong")) {
                 family = "HEADACHE";
@@ -458,7 +458,7 @@ public class TriageController {
         if (positive.contains("dau nguc") || positive.contains("tuc nguc")) return "CHEST";
         if (positive.contains("dau rang") || positive.contains("nhuc rang") || positive.contains("buot rang")) return "DENTAL";
         if (containsAny(positive, "ngua da", "noi man", "phat ban", "me day", "di ung")) return "SKIN";
-        if (containsAny(positive, "ho khan", "ho co dom", "kho tho", "dau hong", "rat hong", "rat co", "sot", "viem hong", "cam cum", "hong", "co hong", "amidan", "viem amidan", "khan tieng", "so mui", "nghet mui")
+        if (containsAny(positive, "ho khan", "ho co dom", "kho tho", "dau hong", "rat hong", "rat co", "sot", "viem hong", "cam cum", "co hong", "amidan", "viem amidan", "khan tieng", "so mui", "nghet mui")
                 || Pattern.compile("\\b(ho|sot|cum|cam|hong)\\b").matcher(positive).find()) return "RESPIRATORY";
         return null;
     }
@@ -522,7 +522,7 @@ public class TriageController {
 
     private boolean hasQuality(String lower, String family) {
         boolean genericQuality = containsAny(lower, "giật", "nhói", "âm ỉ", "siết", "quặn", "buốt", "nóng rát",
-                "bóp nghẹt", "đè nặng", "đau khi nhai", "đau rát", "rát", "ngứa", "châm chích", "co thắt", "đau");
+                "bóp nghẹt", "đè nặng", "đau khi nhai", "đau rát", "rát", "ngứa", "châm chích", "co thắt");
         if (genericQuality) return true;
         return switch (family) {
             case "SKIN" -> containsAny(lower, "mụn nước", "mảng đỏ", "sưng", "bong tróc", "mề đay", "ngứa", "rát");
@@ -701,19 +701,10 @@ public class TriageController {
         List<PatientBookingRecommendationService.DoctorOption> availableDocs = booking.doctors().stream()
                 .filter(d -> d.availableSlots() != null && !d.availableSlots().isEmpty())
                 .toList();
-        List<PatientBookingRecommendationService.DoctorOption> unavailableDocs = booking.doctors().stream()
-                .filter(d -> d.availableSlots() == null || d.availableSlots().isEmpty())
-                .toList();
 
         if (availableDocs.isEmpty()) {
-            String docNames = unavailableDocs.stream()
-                    .map(this::doctorDisplayName)
-                    .reduce((a, b) -> a + ", " + b)
-                    .orElse("Bác sĩ chuyên khoa");
-            reply.append("• Bác sĩ **").append(docNames)
-                    .append("** tại phòng khám có thể điều trị những triệu chứng mà bạn nêu, nhưng hiện tại chưa có ca khám sẵn sàng. Bạn vui lòng quay lại sau hoặc chọn ngày khám khác nhé!\n\n")
-                    .append("📞 Hoặc bạn có thể liên hệ hotline 1900 1234 để được nhân viên tiếp đón hỗ trợ xếp ca khám ưu tiên.");
-            return reply.toString();
+            return reply.append("• Hiện tại chuyên khoa này chưa có bác sĩ nào mở ca trực / khung giờ khám trên hệ thống tiếp đón. Bạn vui lòng quay lại sau hoặc liên hệ hotline **1900 1234** để được nhân viên tiếp đón hỗ trợ nhé!")
+                    .toString();
         }
 
         reply.append("• Bác sĩ chuyên môn đang có ca khám sẵn sàng:");
@@ -727,14 +718,7 @@ public class TriageController {
             }
             reply.append(". Lịch gần nhất: **").append(doctor.availableSlots().get(0).displayTime()).append("**");
         }
-        if (!unavailableDocs.isEmpty()) {
-            String unavailNames = unavailableDocs.stream()
-                    .map(this::doctorDisplayName)
-                    .reduce((a, b) -> a + ", " + b)
-                    .orElse("");
-            reply.append("\n\n*(Lưu ý: Bác sĩ ").append(unavailNames)
-                    .append(" cũng chuyên về lĩnh vực này nhưng hiện tại chưa có ca khám mở sẵn trong ngày.)*");
-        }
+
         reply.append("\n\nBạn có thể bấm “Đặt lịch khám” bên dưới; hệ thống sẽ điền sẵn chuyên khoa, bác sĩ gợi ý và triệu chứng đã cung cấp.");
         return reply.toString();
     }
@@ -749,6 +733,9 @@ public class TriageController {
         data.put("symptoms", symptoms);
         data.put("bookingPath", "/booking");
         data.put("doctors", booking.doctors());
+        boolean hasAvailableDoctors = booking.doctors() != null && booking.doctors().stream()
+                .anyMatch(d -> d.availableSlots() != null && !d.availableSlots().isEmpty());
+        data.put("hasAvailableDoctors", hasAvailableDoctors);
         return data;
     }
 

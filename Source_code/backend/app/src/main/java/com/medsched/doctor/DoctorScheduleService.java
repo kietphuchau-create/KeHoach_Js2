@@ -600,6 +600,8 @@ public class DoctorScheduleService {
             }
 
             LocalTime cursor = start;
+            LocalDate today = LocalDate.now(VN_ZONE);
+            LocalTime nowTime = LocalTime.now(VN_ZONE);
             List<TimeSlotEntity> createdSlots = new ArrayList<>();
             while (cursor.isBefore(end)) {
                 LocalTime next = cursor.plusMinutes(duration);
@@ -609,13 +611,17 @@ public class DoctorScheduleService {
                 Instant slotStart = targetDate.atTime(cursor).atZone(VN_ZONE).toInstant();
                 Instant slotEnd = targetDate.atTime(next).atZone(VN_ZONE).toInstant();
 
+                boolean isPast = targetDate.isBefore(today)
+                        || (targetDate.equals(today) && !cursor.isAfter(nowTime));
+                SlotStatus initialStatus = isPast ? SlotStatus.LOCKED : SlotStatus.AVAILABLE;
+
                 TimeSlotEntity slot = new TimeSlotEntity(
                         UUID.randomUUID().toString(),
                         schedule.getId(),
                         doctorId,
                         slotStart,
                         slotEnd,
-                        SlotStatus.AVAILABLE,
+                        initialStatus,
                         now,
                         now
                 );
@@ -646,7 +652,7 @@ public class DoctorScheduleService {
         }
 
         // Bổ sung kiểm soát thời gian thực khi đăng ký ca trực trong ngày hôm nay:
-        if (request.workDate().equals(today) && !isAdmin) {
+        if (request.workDate().equals(today) && !isAdmin && !devMode247) {
             LocalTime nowTime = LocalTime.now(VN_ZONE);
             if (!request.endTime().isAfter(nowTime)) {
                 throw new IllegalArgumentException(String.format(
@@ -843,13 +849,17 @@ public class DoctorScheduleService {
                 Instant slotEnd = request.workDate().atTime(next).atZone(VN_ZONE).toInstant();
 
                 if (slotEnd.isAfter(now) || isAdmin || devMode247) {
+                    boolean isPast = request.workDate().isBefore(today)
+                            || (request.workDate().equals(today) && !cursor.isAfter(LocalTime.now(VN_ZONE)));
+                    SlotStatus initialStatus = isPast ? SlotStatus.LOCKED : SlotStatus.AVAILABLE;
+
                     TimeSlotEntity slot = new TimeSlotEntity(
                             UUID.randomUUID().toString(),
                             schedule.getId(),
                             targetDoctorId,
                             slotStart,
                             slotEnd,
-                            SlotStatus.AVAILABLE,
+                            initialStatus,
                             now,
                             now
                     );
@@ -1353,6 +1363,27 @@ public class DoctorScheduleService {
                 slots = generateSlotsForSchedule(schedule);
             }
         }
+
+        Instant nowInstant = Instant.now();
+        LocalDate today = LocalDate.now(VN_ZONE);
+        LocalTime nowTime = LocalTime.now(VN_ZONE);
+        boolean isToday = schedule.getWorkDate().equals(today);
+        boolean isPastSchedule = schedule.getWorkDate().isBefore(today);
+
+        List<TimeSlotEntity> slotsToLock = new ArrayList<>();
+        for (TimeSlotEntity s : slots) {
+            LocalTime slotStartLt = s.getStartTime().atZone(VN_ZONE).toLocalTime();
+            boolean isSlotPast = isPastSchedule || (isToday && !slotStartLt.isAfter(nowTime));
+            if (isSlotPast && s.getStatus() == SlotStatus.AVAILABLE) {
+                s.setStatus(SlotStatus.LOCKED);
+                s.setUpdatedAt(nowInstant);
+                slotsToLock.add(s);
+            }
+        }
+        if (!slotsToLock.isEmpty()) {
+            timeSlotRepository.saveAll(slotsToLock);
+        }
+
         int total = slots.size();
         int available = (int) slots.stream().filter(s -> s.getStatus() == SlotStatus.AVAILABLE).count();
         int booked = (int) slots.stream().filter(s -> s.getStatus() == SlotStatus.BOOKED).count();
@@ -1443,6 +1474,10 @@ public class DoctorScheduleService {
         LocalDate workDate = schedule.getWorkDate();
 
         List<TimeSlotEntity> createdSlots = new ArrayList<>();
+        LocalDate today = LocalDate.now(VN_ZONE);
+        LocalTime nowTime = LocalTime.now(VN_ZONE);
+        boolean isToday = workDate.equals(today);
+        boolean isPastDate = workDate.isBefore(today);
 
         // Nếu ca kéo dài qua giờ trưa (ví dụ 08:00 - 17:00), chia thành ca sáng và chiều (nghỉ trưa 12:00 - 13:30)
         if (start.isBefore(LocalTime.of(12, 0)) && end.isAfter(LocalTime.of(13, 0))) {
@@ -1456,13 +1491,15 @@ public class DoctorScheduleService {
                 }
                 Instant slotStart = workDate.atTime(cursor).atZone(VN_ZONE).toInstant();
                 Instant slotEnd = workDate.atTime(next).atZone(VN_ZONE).toInstant();
+                boolean isPast = isPastDate || (isToday && !cursor.isAfter(nowTime));
+                SlotStatus slotStatus = isPast ? SlotStatus.LOCKED : SlotStatus.AVAILABLE;
                 createdSlots.add(new TimeSlotEntity(
                         UUID.randomUUID().toString(),
                         schedule.getId(),
                         schedule.getDoctorId(),
                         slotStart,
                         slotEnd,
-                        SlotStatus.AVAILABLE,
+                        slotStatus,
                         now,
                         now
                 ));
@@ -1478,13 +1515,15 @@ public class DoctorScheduleService {
                 }
                 Instant slotStart = workDate.atTime(cursor).atZone(VN_ZONE).toInstant();
                 Instant slotEnd = workDate.atTime(next).atZone(VN_ZONE).toInstant();
+                boolean isPast = isPastDate || (isToday && !cursor.isAfter(nowTime));
+                SlotStatus slotStatus = isPast ? SlotStatus.LOCKED : SlotStatus.AVAILABLE;
                 createdSlots.add(new TimeSlotEntity(
                         UUID.randomUUID().toString(),
                         schedule.getId(),
                         schedule.getDoctorId(),
                         slotStart,
                         slotEnd,
-                        SlotStatus.AVAILABLE,
+                        slotStatus,
                         now,
                         now
                 ));
@@ -1500,13 +1539,15 @@ public class DoctorScheduleService {
                 }
                 Instant slotStart = workDate.atTime(cursor).atZone(VN_ZONE).toInstant();
                 Instant slotEnd = workDate.atTime(next).atZone(VN_ZONE).toInstant();
+                boolean isPast = isPastDate || (isToday && !cursor.isAfter(nowTime));
+                SlotStatus slotStatus = isPast ? SlotStatus.LOCKED : SlotStatus.AVAILABLE;
                 createdSlots.add(new TimeSlotEntity(
                         UUID.randomUUID().toString(),
                         schedule.getId(),
                         schedule.getDoctorId(),
                         slotStart,
                         slotEnd,
-                        SlotStatus.AVAILABLE,
+                        slotStatus,
                         now,
                         now
                 ));

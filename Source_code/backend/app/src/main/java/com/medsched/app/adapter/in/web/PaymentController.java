@@ -451,8 +451,8 @@ public class PaymentController {
                 for (PaymentEntity p : payments) {
                     if (p.getStatus() == PaymentStatus.PENDING && p.getTransactionRef() != null && p.getTransactionRef().matches("\\d+")) {
                         try {
-                            long orderCode = Long.parseLong(p.getTransactionRef());
-                            var infoOpt = payOsService.getPaymentInfo(orderCode);
+                            long pOrderCode = Long.parseLong(p.getTransactionRef());
+                            var infoOpt = payOsService.getPaymentInfo(pOrderCode);
                             if (infoOpt.isPresent() && "PAID".equalsIgnoreCase(infoOpt.get().status())) {
                                 p.setStatus(PaymentStatus.SUCCEEDED);
                                 p.setPaidAt(Instant.now());
@@ -515,8 +515,8 @@ public class PaymentController {
                 PaymentEntity p = payOpt.get();
                 if (p.getStatus() == PaymentStatus.PENDING && p.getTransactionRef() != null && p.getTransactionRef().matches("\\d+") && payOsService != null) {
                     try {
-                        long orderCode = Long.parseLong(p.getTransactionRef());
-                        var infoOpt = payOsService.getPaymentInfo(orderCode);
+                        long refOrderCode = Long.parseLong(p.getTransactionRef());
+                        var infoOpt = payOsService.getPaymentInfo(refOrderCode);
                         if (infoOpt.isPresent() && "PAID".equalsIgnoreCase(infoOpt.get().status())) {
                             p.setStatus(PaymentStatus.SUCCEEDED);
                             p.setPaidAt(Instant.now());

@@ -73,6 +73,7 @@ public class SecurityConfig {
                                                                 "/actuator/**", // <-- Mở đường dẫn cho Prometheus cào số liệu
                                                                 "/error",
                                                                 "/api/v1/auth/**",
+                                                                "/api/auth/**",
                                                                 "/v3/api-docs/**",
                                                                 "/swagger-ui/**",
                                                                 "/swagger-ui.html")
@@ -133,7 +134,7 @@ public class SecurityConfig {
                                                                 "/api/ai/**",
                                                                 "/api/v1/ai/**",
                                                                 "/api/payments/**",
-                                                                "/api/v1/payments/**")
+                                                                "/api/v1/payments/**", "/api/files/**", "/api/v1/files/**")
                                                 .permitAll()
 
                                                 // 5. Phân quyền theo vai trò cụ thể
