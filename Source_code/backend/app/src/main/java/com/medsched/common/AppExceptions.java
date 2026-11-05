@@ -30,4 +30,11 @@ public final class AppExceptions {
         }
     }
 
+    /** REQ-AUTH-02: Account locked after 5 consecutive failed logins -> HTTP 423 Locked. */
+    public static class AccountLockedException extends RuntimeException {
+        public AccountLockedException(String message) {
+            super(message);
+        }
+    }
+
 }

@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -57,13 +58,26 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ApiError> handleBadCredentials(BadCredentialsException ex, HttpServletRequest req) {
-        // Same message for "unknown email" and "wrong password" so neither can be probed.
-        return build(HttpStatus.UNAUTHORIZED, "Email hoặc mật khẩu không đúng", req);
+        String msg = (ex.getMessage() != null && !ex.getMessage().isBlank() && !ex.getMessage().equalsIgnoreCase("Bad credentials"))
+                ? ex.getMessage()
+                : "Email hoặc mật khẩu không đúng";
+        return build(HttpStatus.UNAUTHORIZED, msg, req);
+    }
+
+    /**
+     * REQ-AUTH-02: Sai thông tin 5 lần liên tiếp -> khóa tài khoản, trả về HTTP 423 Locked.
+     */
+    @ExceptionHandler({AppExceptions.AccountLockedException.class, LockedException.class})
+    public ResponseEntity<ApiError> handleAccountLocked(Exception ex, HttpServletRequest req) {
+        String msg = (ex.getMessage() != null && !ex.getMessage().isBlank())
+                ? ex.getMessage()
+                : "Tài khoản của bạn đã bị khóa do nhập sai mật khẩu 5 lần liên tiếp. Vui lòng liên hệ Quản trị viên hoặc dùng chức năng Quên mật khẩu để khôi phục.";
+        return build(HttpStatus.LOCKED, msg, req);
     }
 
     @ExceptionHandler(DisabledException.class)
     public ResponseEntity<ApiError> handleDisabled(DisabledException ex, HttpServletRequest req) {
-        return build(HttpStatus.FORBIDDEN, "Tài khoản đã bị khóa, vui lòng liên hệ quản trị viên", req);
+        return build(HttpStatus.FORBIDDEN, "Tài khoản đã bị vô hiệu hóa, vui lòng liên hệ quản trị viên", req);
     }
 
     @ExceptionHandler(AccessDeniedException.class)

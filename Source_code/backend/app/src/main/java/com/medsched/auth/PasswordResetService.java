@@ -134,8 +134,9 @@ public class PasswordResetService {
         UserEntity user = users.findById(session.userId())
                 .orElseThrow(() -> new AppExceptions.NotFoundException("Không tìm thấy tài khoản người dùng"));
 
-        // Cập nhật mật khẩu mới băm BCrypt
+        // Cập nhật mật khẩu mới băm BCrypt & mở khóa tài khoản nếu đang bị khóa (REQ-AUTH-02)
         user.setPasswordHash(passwordEncoder.encode(request.newPassword().trim()));
+        user.setActive(true);
         user.setUpdatedAt(Instant.now());
 
         // Đổi session ID để vô hiệu hóa toàn bộ phiên đăng nhập cũ trên mọi thiết bị
