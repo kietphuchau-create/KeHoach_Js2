@@ -49,7 +49,7 @@ import { QrCodeImage } from '@/shared/components/QrCodeImage';
 import { VietQrModal } from '@/shared/components/VietQrModal';
 import QRCode from 'qrcode';
 import { validatePromotion } from '@/shared/lib/promotions';
-import { getClinicScheduleConfig } from '@/shared/lib/scheduleConfig';
+import { getClinicScheduleConfig, saveClinicScheduleConfig, SCHEDULE_CONFIG_UPDATED_EVENT } from '@/shared/lib/scheduleConfig';
 
 // Trích xuất chữ cái đại diện chuẩn cho Avatar Bác sĩ (Ưu tiên chữ cái đầu tên chính, viết hoa)
 const getDoctorInitials = (name?: string): string => {
@@ -211,6 +211,35 @@ export default function BookingForm() {
   const [doctors, setDoctors] = useState<any[]>([]);
   const [selectedDoctor, setSelectedDoctor] = useState<any>(null);
   const [schedules, setSchedules] = useState<any[]>([]);
+  const [isDev247, setIsDev247] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return Boolean(getClinicScheduleConfig()?.devMode247);
+  });
+
+  // Đồng bộ chế độ Develop 24/7 từ Database API và localStorage
+  useEffect(() => {
+    const localCfg = getClinicScheduleConfig();
+    if (localCfg?.devMode247) {
+      setIsDev247(true);
+    }
+    api.getDevMode()
+      .then((res) => {
+        if (typeof res?.enabled === 'boolean') {
+          setIsDev247(res.enabled);
+          if (res.enabled !== localCfg?.devMode247) {
+            saveClinicScheduleConfig({ devMode247: res.enabled });
+          }
+        }
+      })
+      .catch(() => {});
+
+    const handleSync = () => {
+      const cfg = getClinicScheduleConfig();
+      setIsDev247(Boolean(cfg?.devMode247));
+    };
+    window.addEventListener(SCHEDULE_CONFIG_UPDATED_EVENT, handleSync);
+    return () => window.removeEventListener(SCHEDULE_CONFIG_UPDATED_EVENT, handleSync);
+  }, []);
 
   const refreshSchedules = useCallback(async () => {
     try {
@@ -251,25 +280,29 @@ export default function BookingForm() {
 
   // Kiểm tra ngày hôm nay có còn ca trực hoặc khung giờ nào khả dụng không (Hỗ trợ ca ngoài giờ / 24/7)
   const isPastAllTodaySlots = useCallback((docToCheck?: any) => {
+    const clinicConfig = getClinicScheduleConfig();
+    const active247 = isDev247 || Boolean(clinicConfig?.devMode247);
+
+    // 1. Chế độ Develop 24/7: Hệ thống hoạt động 24/24 cho toàn viện - Ngày hôm nay LUÔN LUÔN KHẢ DỤNG!
+    if (active247) {
+      return false;
+    }
+
     const now = new Date();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
     const todayIso = getTodayISODate();
-    const clinicConfig = getClinicScheduleConfig();
-    const isDev247 = Boolean(clinicConfig?.devMode247);
 
-    // Giờ kết thúc tiếp nhận ca tối/đêm (23:30 nếu 24/7, hoặc theo cấu hình ca tối, hoặc 16:30 ca hành chính)
+    // Giờ kết thúc tiếp nhận ca tối/đêm nếu bật ca tối (23:30), hoặc 16:30 ca hành chính
     let closingMinutes = 16 * 60 + 30;
-    if (isDev247) {
-      closingMinutes = 23 * 60 + 30; // Chế độ 24/7 mở tiếp nhận đến 23:30
-    } else if (clinicConfig?.eveningShift?.enabled) {
-      const [eh, em] = (clinicConfig.eveningShift.endTime || '20:30').split(':').map(Number);
+    if (clinicConfig?.eveningShift?.enabled) {
+      const [eh, em] = (clinicConfig.eveningShift.endTime || '23:30').split(':').map(Number);
       closingMinutes = eh * 60 + (em || 0);
     } else if (clinicConfig?.afternoonShift?.enabled) {
       const [ah, am] = (clinicConfig.afternoonShift.endTime || '17:00').split(':').map(Number);
       closingMinutes = ah * 60 + (am || 0);
     }
 
-    // 1. Nếu chỉ định hoặc có bác sĩ đang chọn: kiểm tra ca trực của bác sĩ đó hôm nay
+    // 2. Nếu chỉ định hoặc có bác sĩ đang chọn: kiểm tra ca trực của bác sĩ đó hôm nay
     const targetDoctor = docToCheck || selectedDoctor;
     if (targetDoctor && schedules.length > 0) {
       const todaySchedules = schedules.filter(
@@ -288,7 +321,7 @@ export default function BookingForm() {
       }
     }
 
-    // 2. Nếu đang kiểm tra lịch chung cho ngày hôm nay (Calendar / DatePicker):
+    // 3. Nếu đang kiểm tra lịch chung cho ngày hôm nay (Calendar / DatePicker):
     // Chỉ coi hôm nay đã hết giờ nếu TẤT CẢ bác sĩ đều không còn ca trực nào sau giờ hiện tại
     if (!docToCheck && schedules.length > 0) {
       const anyDoctorHasUpcoming = schedules.some((sch) => {
@@ -303,23 +336,18 @@ export default function BookingForm() {
       }
     }
 
-    // 3. Nếu đang ở chế độ 24/7 và hiện tại chưa quá giờ ca đêm (23:30)
-    if (isDev247 && currentMinutes < closingMinutes) {
-      return false;
-    }
-
     return currentMinutes >= closingMinutes;
-  }, [selectedDoctor, schedules]);
+  }, [selectedDoctor, schedules, isDev247]);
 
   // Tìm ngày làm việc hợp lệ tiếp theo (ưu tiên ngày có ca trực của bác sĩ, không chặn cuối tuần nếu bác sĩ có ca trực hoặc chế độ 24/7)
   const getNextAvailableWeekday = useCallback((baseDate?: Date): string => {
     const clinicConfig = getClinicScheduleConfig();
-    const isDev247 = Boolean(clinicConfig?.devMode247);
+    const active247 = isDev247 || Boolean(clinicConfig?.devMode247);
     const d = baseDate ? new Date(baseDate) : new Date();
     const today = new Date();
     const isToday = !baseDate || (d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate());
 
-    if (isToday && !isPastAllTodaySlots()) {
+    if (isToday && (active247 || !isPastAllTodaySlots())) {
       return getTodayISODate();
     }
 
@@ -343,14 +371,14 @@ export default function BookingForm() {
       const anyShift = schedules.some(
         (sch) => sch.workDate === iso && String(sch.status).toUpperCase() === 'ACTIVE'
       );
-      if (!isWeekend || isDev247 || isWeekendConfigOpen || hasShift || anyShift) {
+      if (!isWeekend || active247 || isWeekendConfigOpen || hasShift || anyShift) {
         return iso;
       }
       d.setDate(d.getDate() + 1);
     }
 
     return getTodayISODate();
-  }, [isPastAllTodaySlots, selectedDoctor, schedules]);
+  }, [isPastAllTodaySlots, selectedDoctor, schedules, isDev247]);
 
   const formatVietnameseFullDate = (iso: string) => {
     if (!iso) return '';
@@ -422,10 +450,12 @@ export default function BookingForm() {
     aiPrefillRef.current?.slotId && /^\d{4}-\d{2}-\d{2}$/.test(aiPrefillRef.current?.bookingDate || '')
   ));
 
-  // Tự động chuyển ngày khám sang ngày làm việc tiếp theo nếu ngày đang chọn là hôm nay mà đã hết giờ
+  // Tự động chuyển ngày khám sang ngày làm việc tiếp theo nếu ngày đang chọn là hôm nay mà đã hết giờ (chỉ áp dụng giờ hành chính)
   useEffect(() => {
     const todayIso = getTodayISODate();
-    if (bookingDate === todayIso && isPastAllTodaySlots()) {
+    const clinicConfig = getClinicScheduleConfig();
+    const active247 = isDev247 || Boolean(clinicConfig?.devMode247);
+    if (!active247 && bookingDate === todayIso && isPastAllTodaySlots()) {
       const nextDate = getNextAvailableWeekday();
       setBookingDate(nextDate);
       if (hasSelectedDate) {
@@ -435,19 +465,21 @@ export default function BookingForm() {
         }));
       }
     }
-  }, [bookingDate, hasSelectedDate, isPastAllTodaySlots, getNextAvailableWeekday]);
+  }, [bookingDate, hasSelectedDate, isPastAllTodaySlots, getNextAvailableWeekday, isDev247]);
 
   // Khi chọn bác sĩ hoặc nạp lịch trực: tự động ưu tiên ngày có ca trực khả dụng của bác sĩ
   useEffect(() => {
     if (selectedDoctor && schedules.length > 0) {
       const todayIso = getTodayISODate();
+      const clinicConfig = getClinicScheduleConfig();
+      const active247 = isDev247 || Boolean(clinicConfig?.devMode247);
       const docSchedules = schedules.filter(
         (sch) => isDoctorActiveOnSchedule(selectedDoctor, sch)
       );
       if (docSchedules.length > 0) {
-        // Kiểm tra xem hôm nay bác sĩ có ca và chưa hết giờ không
+        // Kiểm tra xem hôm nay bác sĩ có ca và chưa hết giờ không (trong 24/7 luôn ưu tiên hôm nay)
         const todaySched = docSchedules.find((sch) => sch.workDate === todayIso);
-        if (todaySched && !isPastAllTodaySlots(selectedDoctor)) {
+        if (todaySched && (active247 || !isPastAllTodaySlots(selectedDoctor))) {
           setBookingDate(todayIso);
           setSelectedSlot((prev) => ({
             ...prev,
@@ -552,7 +584,7 @@ export default function BookingForm() {
 
     const isToday = dateObj.getTime() === today.getTime();
     const clinicConfig = getClinicScheduleConfig();
-    const isDev247 = Boolean(clinicConfig?.devMode247);
+    const active247 = isDev247 || Boolean(clinicConfig?.devMode247);
     const isWeekendConfigOpen =
       (dayOfWeek === 6 && Boolean(clinicConfig?.operatingDays?.saturday)) ||
       (dayOfWeek === 0 && Boolean(clinicConfig?.operatingDays?.sunday));
@@ -565,12 +597,12 @@ export default function BookingForm() {
     );
 
     // Thứ 7 (6) hoặc Chủ Nhật (0) chỉ chặn khi không ở chế độ 24/7 và phòng khám không mở cuối tuần và không có ca trực
-    if ((dayOfWeek === 0 || dayOfWeek === 6) && !isDev247 && !isWeekendConfigOpen && !hasDoctorShiftOnDate && !anyDoctorHasShiftOnDate) {
+    if ((dayOfWeek === 0 || dayOfWeek === 6) && !active247 && !isWeekendConfigOpen && !hasDoctorShiftOnDate && !anyDoctorHasShiftOnDate) {
       return;
     }
 
-    // Chặn ngày hôm nay nếu đã hết giờ tiếp nhận khám
-    if (isToday && isPastAllTodaySlots()) {
+    // Chặn ngày hôm nay nếu đã hết giờ tiếp nhận khám (không áp dụng trong chế độ 24/7)
+    if (isToday && !active247 && isPastAllTodaySlots()) {
       return;
     }
     // Nếu user chọn ngày khác với ngày AI đề xuất → xóa AI slotId để tránh conflict
@@ -2253,10 +2285,10 @@ export default function BookingForm() {
                                     ).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                                     const isSelected = isoString === bookingDate;
                                     const isCurrentDay = currentDate.getTime() === todayDateOnly.getTime();
-                                    const isTodayExpired = isCurrentDay && isPastAllTodaySlots();
-
                                     const clinicConfig = getClinicScheduleConfig();
-                                    const isDev247 = Boolean(clinicConfig?.devMode247);
+                                    const active247 = isDev247 || Boolean(clinicConfig?.devMode247);
+                                    const isTodayExpired = isCurrentDay && !active247 && isPastAllTodaySlots();
+
                                     const isWeekendConfigOpen =
                                       (dayOfWeek === 6 && Boolean(clinicConfig?.operatingDays?.saturday)) ||
                                       (dayOfWeek === 0 && Boolean(clinicConfig?.operatingDays?.sunday));
@@ -2271,7 +2303,7 @@ export default function BookingForm() {
                                     );
 
                                     // Thứ 7 & CN: Chỉ khóa nếu phòng khám không mở cuối tuần và không có bác sĩ nào có ca trực
-                                    if (isWeekend && !isDev247 && !isWeekendConfigOpen && !hasDoctorShift && !anyDoctorHasShift) {
+                                    if (isWeekend && !active247 && !isWeekendConfigOpen && !hasDoctorShift && !anyDoctorHasShift) {
                                       return (
                                         <button
                                           key={day}
@@ -2333,7 +2365,7 @@ export default function BookingForm() {
                                       Tiếp nhận đặt khám theo ca trực thực tế của Bác sĩ (Bao gồm ca trực 24/7 &amp; Cuối tuần nếu bác sĩ mở ca trực).
                                     </span>
                                   </div>
-                                  {isPastAllTodaySlots() && (
+                                  {!(isDev247 || Boolean(getClinicScheduleConfig()?.devMode247)) && isPastAllTodaySlots() && (
                                     <span className="text-[10px] text-rose-600 font-bold pl-5">
                                       • Hôm nay đã hết ca trực tiếp nhận khám, vui lòng chọn ngày tiếp theo có ca trực.
                                     </span>
