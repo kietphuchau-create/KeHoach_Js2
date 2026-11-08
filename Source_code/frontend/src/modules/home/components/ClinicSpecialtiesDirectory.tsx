@@ -341,32 +341,6 @@ export default function ClinicSpecialtiesDirectory() {
               onMouseEnter={() => setIsHovered3D(true)}
               onMouseLeave={() => setIsHovered3D(false)}
             >
-              {/* Header điều hướng tinh gọn */}
-              <div className="flex items-center justify-between mb-2 px-1">
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-primary/10 text-pine-teal text-xs font-bold uppercase tracking-wider border border-teal-primary/20">
-                  <Stethoscope size={14} className="text-teal-600" />
-                  <span>Bác Sĩ Tiêu Biểu ({carouselIndex + 1}/{totalCarouselItems})</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={handlePrev3D}
-                    className="w-8 h-8 rounded-xl bg-white border border-slate-200 hover:border-pine-teal text-slate-700 flex items-center justify-center transition shadow-2xs hover:bg-slate-50 cursor-pointer"
-                    title="Bác sĩ trước"
-                  >
-                    <ChevronLeft size={16} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleNext3D}
-                    className="w-8 h-8 rounded-xl bg-white border border-slate-200 hover:border-pine-teal text-slate-700 flex items-center justify-center transition shadow-2xs hover:bg-slate-50 cursor-pointer"
-                    title="Bác sĩ tiếp theo"
-                  >
-                    <ChevronRight size={16} />
-                  </button>
-                </div>
-              </div>
-
               {/* VÙNG KHÔNG GIAN 3D (ĐÃ ẨN MẶT SAU BACKFACE-HIDDEN ĐỂ KHÔNG BỊ ĐÈ CHỮ) */}
               <div 
                 className="h-[350px] sm:h-[370px] flex items-center justify-center relative select-none"
@@ -456,21 +430,41 @@ export default function ClinicSpecialtiesDirectory() {
                 </div>
               </div>
 
-              {/* Dấu chấm chỉ mục điều hướng */}
-              <div className="flex items-center justify-center gap-1.5 pt-2">
-                {carouselDoctors.map((_, dotIdx) => (
-                  <button
-                    key={dotIdx}
-                    type="button"
-                    onClick={() => setCarouselIndex(dotIdx)}
-                    className={`h-1.5 rounded-full transition-all cursor-pointer ${
-                      dotIdx === carouselIndex 
-                        ? 'w-7 bg-pine-teal' 
-                        : 'w-2 bg-slate-300 hover:bg-slate-400'
-                    }`}
-                    title={`Xem bác sĩ số ${dotIdx + 1}`}
-                  />
-                ))}
+              {/* Điều hướng chuyển bác sĩ ở đáy sân khấu 3D (Rõ ràng, không bao giờ bị che) */}
+              <div className="flex items-center justify-center gap-3 pt-3">
+                <button
+                  type="button"
+                  onClick={handlePrev3D}
+                  className="w-7 h-7 rounded-full bg-white border border-slate-200 hover:border-pine-teal text-slate-600 flex items-center justify-center transition shadow-2xs hover:bg-slate-50 cursor-pointer"
+                  title="Bác sĩ trước"
+                >
+                  <ChevronLeft size={15} />
+                </button>
+
+                <div className="flex items-center gap-1.5">
+                  {carouselDoctors.map((_, dotIdx) => (
+                    <button
+                      key={dotIdx}
+                      type="button"
+                      onClick={() => setCarouselIndex(dotIdx)}
+                      className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                        dotIdx === carouselIndex 
+                          ? 'w-7 bg-pine-teal' 
+                          : 'w-2 bg-slate-300 hover:bg-slate-400'
+                      }`}
+                      title={`Xem bác sĩ số ${dotIdx + 1}`}
+                    />
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleNext3D}
+                  className="w-7 h-7 rounded-full bg-white border border-slate-200 hover:border-pine-teal text-slate-600 flex items-center justify-center transition shadow-2xs hover:bg-slate-50 cursor-pointer"
+                  title="Bác sĩ tiếp theo"
+                >
+                  <ChevronRight size={15} />
+                </button>
               </div>
             </div>
           </div>
