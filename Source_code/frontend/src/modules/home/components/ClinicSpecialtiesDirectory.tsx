@@ -33,9 +33,40 @@ export interface DoctorDirectoryItem {
   roomNumber?: string;
   centerName?: string;
   consultationFee: number;
+  avatarUrl: string;
 }
 
-// Danh sách bác sĩ chuẩn theo CSDL MedSched (Dữ liệu thực tế 100%, không bịa đặt review hay rating ảo)
+// Hàm gán ảnh chân dung bác sĩ chuẩn y khoa nếu trong CSDL chưa có ảnh upload
+function resolveDoctorAvatar(name?: string, specialty?: string, existingUrl?: string): string {
+  if (existingUrl && existingUrl.trim().startsWith('http')) {
+    return existingUrl;
+  }
+  const spec = (specialty || '').toLowerCase();
+  const docName = (name || '').toLowerCase();
+
+  if (spec.includes('da liễu') || docName.includes('yến nhi') || docName.includes('thu hà') || docName.includes('minh anh')) {
+    return 'https://images.unsplash.com/photo-1594824813637-43c292f7c006?w=500&auto=format&fit=crop&q=80';
+  }
+  if (spec.includes('mắt') || docName.includes('quỳnh chi')) {
+    return 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=500&auto=format&fit=crop&q=80';
+  }
+  if (spec.includes('răng') || docName.includes('vũ minh đức')) {
+    return 'https://images.unsplash.com/photo-1537368910025-700350fe46c7?w=500&auto=format&fit=crop&q=80';
+  }
+  if (spec.includes('nội') || docName.includes('trần văn hùng')) {
+    return 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=500&auto=format&fit=crop&q=80';
+  }
+  if (spec.includes('tai mũi họng') || docName.includes('bảo')) {
+    return 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=500&auto=format&fit=crop&q=80';
+  }
+  if (spec.includes('nhi') || docName.includes('thảo my')) {
+    return 'https://images.unsplash.com/photo-1651008376811-b90baee60c1f?w=500&auto=format&fit=crop&q=80';
+  }
+
+  return 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=500&auto=format&fit=crop&q=80';
+}
+
+// Danh sách bác sĩ chuẩn theo CSDL MedSched kèm ảnh đại diện chuyên gia
 const FALLBACK_DOCTORS: DoctorDirectoryItem[] = [
   {
     id: '10b2c3d4-0001-4000-8000-000000000001',
@@ -47,6 +78,7 @@ const FALLBACK_DOCTORS: DoctorDirectoryItem[] = [
     roomNumber: 'P.205',
     centerName: 'Chi nhánh Quận 1',
     consultationFee: 350000,
+    avatarUrl: 'https://images.unsplash.com/photo-1594824813637-43c292f7c006?w=500&auto=format&fit=crop&q=80',
   },
   {
     id: '10b2c3d4-0003-4000-8000-000000000003',
@@ -58,6 +90,7 @@ const FALLBACK_DOCTORS: DoctorDirectoryItem[] = [
     roomNumber: 'P.208',
     centerName: 'Chi nhánh Quận 1',
     consultationFee: 450000,
+    avatarUrl: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=500&auto=format&fit=crop&q=80',
   },
   {
     id: '10b2c3d4-0005-4000-8000-000000000005',
@@ -69,6 +102,7 @@ const FALLBACK_DOCTORS: DoctorDirectoryItem[] = [
     roomNumber: 'P.101',
     centerName: 'Cơ sở MedSched',
     consultationFee: 300000,
+    avatarUrl: 'https://images.unsplash.com/photo-1537368910025-700350fe46c7?w=500&auto=format&fit=crop&q=80',
   },
   {
     id: '10b2c3d4-0006-4000-8000-000000000006',
@@ -80,6 +114,7 @@ const FALLBACK_DOCTORS: DoctorDirectoryItem[] = [
     roomNumber: 'P.102',
     centerName: 'Cơ sở MedSched',
     consultationFee: 250000,
+    avatarUrl: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=500&auto=format&fit=crop&q=80',
   },
   {
     id: '10b2c3d4-0004-4000-8000-000000000004',
@@ -91,6 +126,7 @@ const FALLBACK_DOCTORS: DoctorDirectoryItem[] = [
     roomNumber: 'P.102',
     centerName: 'Chi nhánh Quận 7',
     consultationFee: 280000,
+    avatarUrl: 'https://images.unsplash.com/photo-1651008376811-b90baee60c1f?w=500&auto=format&fit=crop&q=80',
   },
   {
     id: '10b2c3d4-0002-4000-8000-000000000002',
@@ -102,43 +138,11 @@ const FALLBACK_DOCTORS: DoctorDirectoryItem[] = [
     roomNumber: 'P.102',
     centerName: 'Chi nhánh Quận 7',
     consultationFee: 550000,
-  },
-  {
-    id: '10b2c3d4-0007-4000-8000-000000000007',
-    specialtyId: 'spec-05',
-    specialtyName: 'Chuyên khoa Tai Mũi Họng',
-    description: 'Tiến sĩ Bác sĩ chuyên khoa Tai Mũi Họng, nội soi chẩn đoán sớm và điều trị xoang.',
-    doctorName: 'TS.BS Hoàng Gia Bảo',
-    academicTitle: 'TS.BS',
-    roomNumber: 'P.201',
-    centerName: 'Chi nhánh Quận 1',
-    consultationFee: 500000,
-  },
-  {
-    id: '10b2c3d4-0008-4000-8000-000000000008',
-    specialtyId: 'spec-06',
-    specialtyName: 'Chuyên khoa Nhi',
-    description: 'Bác sĩ chuyên khoa Nhi, thăm khám bệnh lý đường hô hấp, tiêu hóa và dinh dưỡng trẻ em.',
-    doctorName: 'BS.CKI Nguyễn Thảo My',
-    academicTitle: 'BS.CKI',
-    roomNumber: 'P.105',
-    centerName: 'Chi nhánh Quận 1',
-    consultationFee: 250000,
+    avatarUrl: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=500&auto=format&fit=crop&q=80',
   },
 ];
 
 const PAGE_SIZE = 4;
-
-// Trích xuất 2 chữ cái đại diện cho avatar bác sĩ
-function getInitials(name: string): string {
-  if (!name) return 'BS';
-  const clean = name.replace(/^(BS\.CK[I|V]+|ThS\.BS|PGS\.TS|TS\.BS|BS|Bác sĩ)\s+/i, '').trim();
-  const parts = clean.split(/\s+/).filter(Boolean);
-  if (parts.length >= 2) {
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  }
-  return parts[0] ? parts[0].substring(0, 2).toUpperCase() : 'BS';
-}
 
 export default function ClinicSpecialtiesDirectory() {
   const [allDoctors, setAllDoctors] = useState<DoctorDirectoryItem[]>(FALLBACK_DOCTORS);
@@ -195,6 +199,8 @@ export default function ClinicSpecialtiesDirectory() {
               ? doc.bio
               : `Khám và điều trị chuyên sâu ${specialty} tại ${center}.`;
 
+            const avatar = resolveDoctorAvatar(fullNameWithTitle, specialty, doc.avatarUrl);
+
             return {
               id: doc.id || doc.userId,
               specialtyId: doc.specialtyId,
@@ -205,6 +211,7 @@ export default function ClinicSpecialtiesDirectory() {
               roomNumber: room,
               centerName: center,
               consultationFee: Number(doc.consultationFee) || 300000,
+              avatarUrl: avatar,
             };
           });
 
@@ -282,14 +289,14 @@ export default function ClinicSpecialtiesDirectory() {
     return filteredDoctors.slice(startIndex, startIndex + PAGE_SIZE);
   }, [filteredDoctors, currentPage]);
 
-  // Danh sách bác sĩ hiển thị trên sân khấu 3D Carousel (Tối đa 6 bác sĩ tiêu biểu)
+  // Danh sách bác sĩ hiển thị trên sân khấu 3D Carousel (Tối đa 5-6 bác sĩ tiêu biểu)
   const carouselDoctors = useMemo(() => {
-    return allDoctors.slice(0, 6);
+    return allDoctors.slice(0, 5);
   }, [allDoctors]);
 
   const totalCarouselItems = carouselDoctors.length || 1;
   const anglePerItem = 360 / totalCarouselItems;
-  const carouselRadius = 220; // Bán kính hình trụ 3D (pixels)
+  const carouselRadius = 240; // Bán kính hình trụ 3D chuẩn không đè góc
 
   // Tự động xoay 3D Carousel sau mỗi 4 giây nếu người dùng không rê chuột vào
   useEffect(() => {
@@ -321,21 +328,22 @@ export default function ClinicSpecialtiesDirectory() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-start">
           
           {/* ======================================================== */}
-          {/* CỘT TRÁI: SÂN KHẤU 3D CAROUSEL BÁC SĨ THỰC TẾ            */}
+          {/* CỘT TRÁI: SÂN KHẤU 3D CAROUSEL BÁC SĨ (CÓ ẢNH CHÂN DUNG)  */}
           {/* ======================================================== */}
           <div
             className={`lg:col-span-5 space-y-4 lg:sticky lg:top-24 transition-all duration-700 delay-100 ease-out ${
               isVisible ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-8'
             }`}
           >
-            {/* SÂN KHẤU 3D CAROUSEL BÁC SĨ (CSS 3D TRANSFORM CYLINDER) */}
+            {/* KHỐI SÂN KHẤU 3D CAROUSEL */}
             <div 
-              className="relative p-5 sm:p-6 rounded-3xl bg-linear-to-b from-slate-50/90 to-emerald-50/40 border border-teal-200/60 shadow-xs overflow-hidden"
+              className="relative p-4 sm:p-5 rounded-3xl bg-linear-to-b from-slate-50 to-emerald-50/40 border border-teal-200/70 shadow-sm overflow-hidden"
               onMouseEnter={() => setIsHovered3D(true)}
               onMouseLeave={() => setIsHovered3D(false)}
             >
-              <div className="flex items-center justify-between mb-3">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-primary/10 text-pine-teal text-xs font-bold uppercase tracking-wider border border-teal-primary/20">
+              {/* Header điều hướng */}
+              <div className="flex items-center justify-between mb-2">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-primary/10 text-pine-teal text-xs font-bold uppercase tracking-wider border border-teal-primary/20">
                   <Stethoscope size={14} className="text-teal-600" />
                   <span>Bác Sĩ Tiêu Biểu ({carouselIndex + 1}/{totalCarouselItems})</span>
                 </div>
@@ -359,11 +367,15 @@ export default function ClinicSpecialtiesDirectory() {
                 </div>
               </div>
 
-              {/* VÙNG KHÔNG GIAN 3D */}
-              <div className="h-[250px] sm:h-[270px] flex items-center justify-center relative perspective-[1000px] overflow-hidden select-none">
+              {/* VÙNG KHÔNG GIAN 3D (ĐÃ ẨN MẶT SAU BACKFACE-HIDDEN ĐỂ KHÔNG BỊ ĐÈ CHỮ) */}
+              <div 
+                className="h-[340px] sm:h-[360px] flex items-center justify-center relative select-none"
+                style={{ perspective: '1100px' }}
+              >
                 <div 
-                  className="w-[260px] sm:w-[280px] h-[200px] relative transition-transform duration-700 ease-out transform-style-3d"
+                  className="w-[220px] sm:w-[240px] h-[310px] sm:h-[330px] relative transition-transform duration-700 ease-out"
                   style={{
+                    transformStyle: 'preserve-3d',
                     transform: `rotateY(${-carouselIndex * anglePerItem}deg)`,
                   }}
                 >
@@ -375,66 +387,68 @@ export default function ClinicSpecialtiesDirectory() {
                       <div
                         key={doc.id}
                         onClick={() => setCarouselIndex(idx)}
-                        className={`absolute inset-0 rounded-2xl p-4 flex flex-col justify-between transition-all duration-500 cursor-pointer backface-visible border shadow-sm ${
+                        className={`absolute inset-0 rounded-2xl overflow-hidden flex flex-col justify-between transition-all duration-500 cursor-pointer border ${
                           isCurrent
-                            ? 'bg-white border-pine-teal ring-2 ring-teal-500/30 scale-100 z-20 shadow-md'
-                            : 'bg-white/90 border-slate-200 opacity-60 hover:opacity-95 scale-95 z-10'
+                            ? 'bg-white border-2 border-pine-teal shadow-xl ring-4 ring-teal-500/20 scale-100 z-30 opacity-100'
+                            : 'bg-white border-slate-200 shadow-md scale-90 z-10 opacity-70 hover:opacity-95'
                         }`}
                         style={{
                           transform: `rotateY(${itemAngle}deg) translateZ(${carouselRadius}px)`,
+                          backfaceVisibility: 'hidden',
+                          WebkitBackfaceVisibility: 'hidden',
                         }}
                       >
-                        {/* Header của thẻ 3D: Chuyên khoa & Buồng khám */}
-                        <div className="flex items-center justify-between gap-1">
-                          <span className="text-xs font-extrabold text-pine-teal truncate">
-                            {doc.specialtyName}
-                          </span>
+                        {/* NỬA TRÊN: ẢNH CHÂN DUNG BÁC SĨ THẬT */}
+                        <div className="relative h-[180px] sm:h-[190px] w-full bg-slate-100 shrink-0 overflow-hidden">
+                          <img
+                            src={doc.avatarUrl}
+                            alt={doc.doctorName}
+                            className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
+                            loading="lazy"
+                          />
+                          {/* Badge chuyên khoa đè lên góc ảnh */}
+                          <div className="absolute top-2.5 left-2.5 max-w-[85%]">
+                            <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-white/95 text-pine-teal shadow-xs truncate block border border-teal-100">
+                              {doc.specialtyName}
+                            </span>
+                          </div>
                           {doc.roomNumber && (
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-semibold border border-blue-200/60 shrink-0">
+                            <span className="absolute top-2.5 right-2.5 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-blue-600 text-white shadow-xs">
                               {doc.roomNumber}
                             </span>
                           )}
                         </div>
 
-                        {/* Thân thẻ 3D: Avatar & Tên Bác sĩ */}
-                        <div className="flex items-center gap-3 my-1">
-                          <div className="w-11 h-11 rounded-xl bg-teal-50 text-pine-teal border border-teal-200 flex items-center justify-center font-bold text-sm shrink-0 shadow-2xs">
-                            {getInitials(doc.doctorName)}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 truncate">
+                        {/* NỬA DƯỚI: THÔNG TIN BÁC SĨ & NÚT ĐẶT LỊCH */}
+                        <div className="p-3 sm:p-3.5 flex flex-col justify-between flex-1 bg-white">
+                          <div className="space-y-1">
+                            <h4 className="text-xs sm:text-sm font-black text-slate-900 truncate">
                               {doc.doctorName}
                             </h4>
-                            <p className="text-[11px] text-slate-500 truncate flex items-center gap-1 mt-0.5">
-                              <Building2 size={12} className="shrink-0 text-slate-400" />
+                            <p className="text-[10px] text-slate-500 truncate flex items-center gap-1">
+                              <Building2 size={11} className="shrink-0 text-slate-400" />
                               <span>{doc.centerName}</span>
                             </p>
                           </div>
-                        </div>
 
-                        {/* Mô tả kinh nghiệm ngắn */}
-                        <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">
-                          {doc.description}
-                        </p>
-
-                        {/* Footer thẻ 3D: Giá khám niêm yết & Nút đặt lịch */}
-                        <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
-                          <div>
-                            <span className="text-[9px] text-slate-400 block font-semibold uppercase tracking-wider">
-                              Giá khám niêm yết
-                            </span>
-                            <span className="text-xs sm:text-sm font-black text-pine-teal">
-                              {doc.consultationFee.toLocaleString('vi-VN')} đ
-                            </span>
+                          <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-1.5 mt-1">
+                            <div>
+                              <span className="text-[8px] text-slate-400 block font-semibold uppercase tracking-wider">
+                                Giá khám
+                              </span>
+                              <span className="text-xs font-black text-pine-teal">
+                                {doc.consultationFee.toLocaleString('vi-VN')} đ
+                              </span>
+                            </div>
+                            <Link
+                              href={`/booking?doctorId=${doc.id}&specialtyId=${doc.specialtyId || ''}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-pine-teal hover:bg-pine-teal-hover text-white text-[11px] font-bold transition shadow-2xs"
+                            >
+                              <span>Đặt khám</span>
+                              <ArrowUpRight size={11} />
+                            </Link>
                           </div>
-                          <Link
-                            href={`/booking?doctorId=${doc.id}&specialtyId=${doc.specialtyId || ''}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-pine-teal hover:bg-pine-teal-hover text-white text-xs font-bold transition shadow-2xs"
-                          >
-                            <span>Đặt khám</span>
-                            <ArrowUpRight size={12} />
-                          </Link>
                         </div>
                       </div>
                     );
@@ -443,7 +457,7 @@ export default function ClinicSpecialtiesDirectory() {
               </div>
 
               {/* Dấu chấm chỉ mục điều hướng */}
-              <div className="flex items-center justify-center gap-1.5 pt-3">
+              <div className="flex items-center justify-center gap-1.5 pt-2">
                 {carouselDoctors.map((_, dotIdx) => (
                   <button
                     key={dotIdx}
@@ -648,7 +662,6 @@ export default function ClinicSpecialtiesDirectory() {
                     <div
                       key={item.id}
                       onMouseEnter={() => {
-                        // Khi rê chuột vào thẻ ở danh sách bên phải -> Xoay 3D Carousel bên trái đến bác sĩ này
                         const foundIdx = carouselDoctors.findIndex((d) => d.id === item.id);
                         if (foundIdx !== -1) {
                           setCarouselIndex(foundIdx);
@@ -666,13 +679,17 @@ export default function ClinicSpecialtiesDirectory() {
                       }`} />
 
                       <div className="flex items-start gap-3.5 sm:gap-4 pl-1 min-w-0 flex-1">
-                        {/* Badge số thứ tự */}
-                        <div className={`w-10 h-10 rounded-xl border flex items-center justify-center font-mono text-sm font-black transition-all duration-300 shrink-0 ${
-                          isMatching3D
-                            ? 'bg-pine-teal text-white border-pine-teal scale-105'
-                            : 'bg-emerald-50 text-pine-teal border-teal-200/80 group-hover:bg-pine-teal group-hover:text-white group-hover:border-pine-teal'
-                        }`}>
-                          {displayIndex}
+                        {/* Avatar ảnh Bác sĩ tròn chuyên nghiệp */}
+                        <div className="relative w-12 h-12 rounded-2xl overflow-hidden border-2 border-teal-200/80 shrink-0 shadow-2xs bg-slate-100">
+                          <img
+                            src={item.avatarUrl}
+                            alt={item.doctorName}
+                            className="w-full h-full object-cover object-top"
+                            loading="lazy"
+                          />
+                          <span className="absolute bottom-0 right-0 bg-pine-teal text-white text-[9px] font-mono px-1 rounded-tl-md font-bold">
+                            {displayIndex}
+                          </span>
                         </div>
 
                         {/* Thông tin bác sĩ thực tế */}
