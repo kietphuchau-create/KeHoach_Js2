@@ -28,6 +28,7 @@ import {
   Trash2,
   FileText,
   HeartPulse,
+  Search,
   Phone,
   Info,
   CalendarDays,
@@ -210,6 +211,13 @@ export default function BookingForm() {
   const [doctors, setDoctors] = useState<any[]>([]);
   const [selectedDoctor, setSelectedDoctor] = useState<any>(null);
   const [schedules, setSchedules] = useState<any[]>([]);
+
+  // REQ-SEARCH-01 & REQ-SEARCH-02: Bộ lọc & Tìm kiếm Bác sĩ nâng cao
+  const [doctorSearchKeyword, setDoctorSearchKeyword] = useState<string>('');
+  const [doctorPriceFilter, setDoctorPriceFilter] = useState<string>('all');
+  const [doctorSortBy, setDoctorSortBy] = useState<string>('default');
+  const [doctorPage, setDoctorPage] = useState<number>(1);
+  const DOCTOR_PAGE_SIZE = 4;
 
   const refreshSchedules = useCallback(async () => {
     try {
@@ -718,14 +726,60 @@ export default function BookingForm() {
     }
   }, [filteredSpecialties, selectedSpecialty, doctors, selectedCenter]);
 
-  // Lọc bác sĩ theo chi nhánh và chuyên khoa đã chọn
+  // Lọc bác sĩ theo chi nhánh, chuyên khoa, từ khóa (REQ-SEARCH-01), khoảng giá & sắp xếp (REQ-SEARCH-02)
   const filteredDoctors = useMemo(() => {
-    return doctors.filter((doc) => {
+    let result = doctors.filter((doc) => {
       const matchCenter = !selectedCenter || !doc.centerId || doc.centerId === selectedCenter;
       const matchSpec = !selectedSpecialty || !doc.specialtyId || doc.specialtyId === selectedSpecialty;
-      return matchCenter && matchSpec;
+
+      // REQ-SEARCH-01: Lọc theo từ khóa tên bác sĩ / học vị
+      let matchKeyword = true;
+      if (doctorSearchKeyword.trim()) {
+        const kw = doctorSearchKeyword.trim().toLowerCase();
+        const name = (doc.fullName || '').toLowerCase();
+        const title = (doc.academicTitle || '').toLowerCase();
+        matchKeyword = name.includes(kw) || title.includes(kw);
+      }
+
+      // REQ-SEARCH-02: Lọc theo khoảng giá khám [min_price, max_price]
+      let matchPrice = true;
+      const fee = Number(doc.consultationFee || 0);
+      if (doctorPriceFilter === 'under300') {
+        matchPrice = fee < 300000;
+      } else if (doctorPriceFilter === '300to500') {
+        matchPrice = fee >= 300000 && fee <= 500000;
+      } else if (doctorPriceFilter === 'above500') {
+        matchPrice = fee > 500000;
+      }
+
+      return matchCenter && matchSpec && matchKeyword && matchPrice;
     });
-  }, [doctors, selectedCenter, selectedSpecialty]);
+
+    // REQ-SEARCH-02: Sắp xếp theo giá khám hoặc đánh giá hoặc tên
+    if (doctorSortBy === 'price-asc') {
+      result = [...result].sort((a, b) => Number(a.consultationFee || 0) - Number(b.consultationFee || 0));
+    } else if (doctorSortBy === 'price-desc') {
+      result = [...result].sort((a, b) => Number(b.consultationFee || 0) - Number(a.consultationFee || 0));
+    } else if (doctorSortBy === 'rating-desc') {
+      result = [...result].sort((a, b) => Number(b.rating || 5) - Number(a.rating || 5));
+    } else if (doctorSortBy === 'name-asc') {
+      result = [...result].sort((a, b) => (a.fullName || '').localeCompare(b.fullName || ''));
+    }
+
+    return result;
+  }, [doctors, selectedCenter, selectedSpecialty, doctorSearchKeyword, doctorPriceFilter, doctorSortBy]);
+
+  // Phân trang danh sách bác sĩ (REQ-SEARCH-01)
+  const totalDoctorPages = Math.max(1, Math.ceil(filteredDoctors.length / DOCTOR_PAGE_SIZE));
+  const paginatedDoctors = useMemo(() => {
+    const start = (doctorPage - 1) * DOCTOR_PAGE_SIZE;
+    return filteredDoctors.slice(start, start + DOCTOR_PAGE_SIZE);
+  }, [filteredDoctors, doctorPage]);
+
+  // Reset trang về 1 khi từ khóa hoặc bộ lọc thay đổi
+  useEffect(() => {
+    setDoctorPage(1);
+  }, [doctorSearchKeyword, doctorPriceFilter, doctorSortBy]);
 
   // Khi danh sách bác sĩ thay đổi: nếu bác sĩ đã chọn không còn khả dụng thì ưu tiên chọn bác sĩ có ca trực
   useEffect(() => {
@@ -1864,11 +1918,62 @@ export default function BookingForm() {
                   {/* Danh sách bác sĩ: Hiển thị để bệnh nhân tự bấm chọn bác sĩ phụ trách */}
                   {filteredDoctors.length > 0 && (
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 uppercase mb-2">
-                        1. Chọn Bác Sĩ Phụ Trách:
-                      </label>
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                        <label className="block text-xs font-bold text-slate-700 uppercase">
+                          1. Chọn Bác Sĩ Phụ Trách ({filteredDoctors.length} bác sĩ):
+                        </label>
+                      </div>
+
+                      {/* REQ-SEARCH-01 & REQ-SEARCH-02: Thanh tìm kiếm từ khóa, lọc khoảng giá và sắp xếp */}
+                      <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-2.5 mb-3 space-y-2">
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={doctorSearchKeyword}
+                            onChange={(e) => setDoctorSearchKeyword(e.target.value)}
+                            placeholder="Tìm kiếm bác sĩ theo tên hoặc học vị..."
+                            className="w-full pl-8 pr-7 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-sky-500 placeholder-slate-400"
+                          />
+                          <Search className="absolute left-2.5 top-2 text-slate-400" size={13} />
+                          {doctorSearchKeyword && (
+                            <button
+                              type="button"
+                              onClick={() => setDoctorSearchKeyword('')}
+                              className="absolute right-2.5 top-1.5 text-slate-400 hover:text-slate-600 text-xs"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <select
+                            value={doctorPriceFilter}
+                            onChange={(e) => setDoctorPriceFilter(e.target.value)}
+                            className="text-[11px] bg-white border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-hidden focus:ring-1 focus:ring-sky-500 text-slate-700 font-medium"
+                          >
+                            <option value="all">Khoảng giá: Tất cả</option>
+                            <option value="under300">Dưới 300.000đ</option>
+                            <option value="300to500">300.000đ - 500.000đ</option>
+                            <option value="above500">Trên 500.000đ</option>
+                          </select>
+
+                          <select
+                            value={doctorSortBy}
+                            onChange={(e) => setDoctorSortBy(e.target.value)}
+                            className="text-[11px] bg-white border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-hidden focus:ring-1 focus:ring-sky-500 text-slate-700 font-medium"
+                          >
+                            <option value="default">Sắp xếp: Mặc định</option>
+                            <option value="price-asc">Giá: Thấp đến cao</option>
+                            <option value="price-desc">Giá: Cao đến thấp</option>
+                            <option value="rating-desc">Đánh giá cao nhất</option>
+                            <option value="name-asc">Tên: A → Z</option>
+                          </select>
+                        </div>
+                      </div>
+
                       <div className="space-y-2.5">
-                        {filteredDoctors.map((doc) => {
+                        {paginatedDoctors.map((doc) => {
                           const isSelected = selectedDoctor?.id === doc.id;
                           const details = getDoctorFullDetails(doc, activeSpecialtyObj?.name, activeCenterObj?.name);
                           const docSchedules = schedules.filter((sch) => isDoctorActiveOnSchedule(doc, sch));
@@ -1957,6 +2062,36 @@ export default function BookingForm() {
                           );
                         })}
                       </div>
+
+                      {/* Phân trang bác sĩ (REQ-SEARCH-01) */}
+                      {totalDoctorPages > 1 && (
+                        <div className="flex items-center justify-between pt-2.5 mt-2.5 border-t border-slate-100 text-xs">
+                          <span className="text-slate-500 text-[11px]">
+                            Hiển thị {(doctorPage - 1) * DOCTOR_PAGE_SIZE + 1} - {Math.min(doctorPage * DOCTOR_PAGE_SIZE, filteredDoctors.length)} / {filteredDoctors.length} bác sĩ
+                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              disabled={doctorPage <= 1}
+                              onClick={() => setDoctorPage((p) => Math.max(1, p - 1))}
+                              className="px-2 py-0.5 border border-slate-200 rounded-md bg-white disabled:opacity-40 hover:bg-slate-50 text-[11px] font-medium transition cursor-pointer"
+                            >
+                              Trước
+                            </button>
+                            <span className="px-1.5 font-bold text-slate-700 text-[11px]">
+                              {doctorPage} / {totalDoctorPages}
+                            </span>
+                            <button
+                              type="button"
+                              disabled={doctorPage >= totalDoctorPages}
+                              onClick={() => setDoctorPage((p) => Math.min(totalDoctorPages, p + 1))}
+                              className="px-2 py-0.5 border border-slate-200 rounded-md bg-white disabled:opacity-40 hover:bg-slate-50 text-[11px] font-medium transition cursor-pointer"
+                            >
+                              Sau
+                            </button>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Thông báo lỗi khi chưa chọn bác sĩ */}
                       {step2Errors.doctor && (
