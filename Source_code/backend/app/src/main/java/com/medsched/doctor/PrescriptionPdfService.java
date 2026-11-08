@@ -43,6 +43,7 @@ import java.util.List;
 @Slf4j
 public class PrescriptionPdfService {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(PrescriptionPdfService.class);
     private static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final DecimalFormat CURRENCY_FORMAT = new DecimalFormat("#,###");
 

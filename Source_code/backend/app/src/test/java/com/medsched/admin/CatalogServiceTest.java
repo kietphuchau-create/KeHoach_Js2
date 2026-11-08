@@ -34,12 +34,14 @@ class CatalogServiceTest {
     private DoctorJpaRepository doctors;
     @Mock
     private UserJpaRepository users;
+    @Mock
+    private DoctorReviewJpaRepository doctorReviews;
 
     private CatalogService catalogService;
 
     @BeforeEach
     void setUp() {
-        catalogService = new CatalogService(medicalCenters, specialties, services, doctors, users);
+        catalogService = new CatalogService(medicalCenters, specialties, services, doctors, users, doctorReviews);
     }
 
     @Test
@@ -79,5 +81,42 @@ class CatalogServiceTest {
         var srvs = catalogService.listServices("sp-1");
         assertThat(srvs).hasSize(1);
         assertThat(srvs.get(0).name()).isEqualTo("Sieu am tim");
+    }
+
+    @Test
+    @DisplayName("REQ-SEARCH-01 & REQ-SEARCH-02: Tìm kiếm bác sĩ phân trang & sắp xếp")
+    void givenSearchCriteria_whenSearchDoctors_thenReturnsPagedResult() {
+        com.medsched.persistence.entity.DoctorEntity doc1 = new com.medsched.persistence.entity.DoctorEntity(
+                "doc-1", "user-1", "sp-1", "BSCKI", BigDecimal.valueOf(350000), "P.101", "Bio 1", null, Instant.now(), Instant.now()
+        );
+        com.medsched.persistence.entity.UserEntity user1 = new com.medsched.persistence.entity.UserEntity(
+                "user-1", "dr.nguyen@medsched.com", "hash", "BS. Nguyễn Văn A", "0901234567", true, Instant.now(), Instant.now()
+        );
+        SpecialtyEntity spec = new SpecialtyEntity("sp-1", "c-1", "Khoa Tim Mach", "CARDIO", "Khoa tim", null, Instant.now(), Instant.now());
+        MedicalCenterEntity center = new MedicalCenterEntity("c-1", "MC01", "BV A", "HN", "024", true, Instant.now(), Instant.now());
+
+        org.springframework.data.domain.Page<com.medsched.persistence.entity.DoctorEntity> paged =
+                new org.springframework.data.domain.PageImpl<>(List.of(doc1), org.springframework.data.domain.PageRequest.of(0, 10), 1);
+
+        given(doctors.findAll(any(org.springframework.data.jpa.domain.Specification.class), any(org.springframework.data.domain.Pageable.class)))
+                .willReturn(paged);
+        given(specialties.findById("sp-1")).willReturn(Optional.of(spec));
+        given(users.findById("user-1")).willReturn(Optional.of(user1));
+        given(medicalCenters.findById("c-1")).willReturn(Optional.of(center));
+        given(doctorReviews.getAverageRatingByDoctorId("doc-1")).willReturn(4.9);
+        given(doctorReviews.countByDoctorId("doc-1")).willReturn(15L);
+
+        var result = catalogService.searchDoctors(
+                "Nguyễn", "sp-1", "c-1", null, BigDecimal.valueOf(300000), BigDecimal.valueOf(500000), "price", "ASC", 0, 10
+        );
+
+        assertThat(result).isNotNull();
+        assertThat(result.totalElements()).isEqualTo(1);
+        assertThat(result.content()).hasSize(1);
+        var item = result.content().get(0);
+        assertThat(item.fullName()).isEqualTo("BS. Nguyễn Văn A");
+        assertThat(item.consultationFee()).isEqualByComparingTo(BigDecimal.valueOf(350000));
+        assertThat(item.rating()).isEqualTo(4.9);
+        assertThat(item.totalReviews()).isEqualTo(15);
     }
 }
