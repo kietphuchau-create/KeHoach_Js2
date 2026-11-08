@@ -121,9 +121,16 @@ const isDoctorActiveOnSchedule = (doc: any, sch: any): boolean => {
   const isMatchDoctor =
     sch.doctorId === doc.id ||
     (doc.userId && sch.doctorId === doc.userId) ||
-    (sch.doctorName && doc.rawName && sch.doctorName.toLowerCase().includes(doc.rawName.toLowerCase()));
+    (sch.doctorName && doc.rawName && (sch.doctorName.toLowerCase().includes(doc.rawName.toLowerCase()) || doc.rawName.toLowerCase().includes(sch.doctorName.toLowerCase()))) ||
+    (sch.doctorName && doc.name && (sch.doctorName.toLowerCase().includes(doc.name.toLowerCase()) || doc.name.toLowerCase().includes(sch.doctorName.toLowerCase())));
   const isActive = String(sch.status).toUpperCase() === 'ACTIVE';
   return Boolean(isMatchDoctor && isActive);
+};
+
+// So khớp an toàn ngày trực chuẩn YYYY-MM-DD
+const isScheduleOnDate = (sch: any, dateIso: string): boolean => {
+  if (!sch || !sch.workDate || !dateIso) return false;
+  return String(sch.workDate).slice(0, 10) === String(dateIso).slice(0, 10);
 };
 
 export default function BookingForm() {
@@ -252,6 +259,21 @@ export default function BookingForm() {
     }
   }, []);
 
+  // Tự động làm mới lịch trực khi quay lại tab đặt khám
+  useEffect(() => {
+    const handleFocusOrVisible = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        refreshSchedules();
+      }
+    };
+    window.addEventListener('focus', handleFocusOrVisible);
+    document.addEventListener('visibilitychange', handleFocusOrVisible);
+    return () => {
+      window.removeEventListener('focus', handleFocusOrVisible);
+      document.removeEventListener('visibilitychange', handleFocusOrVisible);
+    };
+  }, [refreshSchedules]);
+
   // Patient Profile Mode (Self vs Relative - Chuẩn YouMed)
   const [bookingFor, setBookingFor] = useState<'self' | 'relative'>('self');
   const [relativeInfo, setRelativeInfo] = useState({
@@ -306,7 +328,7 @@ export default function BookingForm() {
     const targetDoctor = docToCheck || selectedDoctor;
     if (targetDoctor && schedules.length > 0) {
       const todaySchedules = schedules.filter(
-        (sch) => isDoctorActiveOnSchedule(targetDoctor, sch) && sch.workDate === todayIso
+        (sch) => isDoctorActiveOnSchedule(targetDoctor, sch) && isScheduleOnDate(sch, todayIso)
       );
       if (todaySchedules.length > 0) {
         // Tìm xem có ca trực nào kết thúc sau giờ hiện tại không
@@ -325,7 +347,7 @@ export default function BookingForm() {
     // Chỉ coi hôm nay đã hết giờ nếu TẤT CẢ bác sĩ đều không còn ca trực nào sau giờ hiện tại
     if (!docToCheck && schedules.length > 0) {
       const anyDoctorHasUpcoming = schedules.some((sch) => {
-        if (sch.workDate !== todayIso || !sch.endTime) return false;
+        if (!isScheduleOnDate(sch, todayIso) || !sch.endTime) return false;
         const isActive = String(sch.status).toUpperCase() === 'ACTIVE';
         if (!isActive) return false;
         const [h, m] = sch.endTime.split(':').map(Number);
@@ -366,10 +388,10 @@ export default function BookingForm() {
         (dayOfWeek === 6 && Boolean(clinicConfig?.operatingDays?.saturday)) ||
         (dayOfWeek === 0 && Boolean(clinicConfig?.operatingDays?.sunday));
       const hasShift = selectedDoctor && schedules.some(
-        (sch) => isDoctorActiveOnSchedule(selectedDoctor, sch) && sch.workDate === iso
+        (sch) => isDoctorActiveOnSchedule(selectedDoctor, sch) && isScheduleOnDate(sch, iso)
       );
       const anyShift = schedules.some(
-        (sch) => sch.workDate === iso && String(sch.status).toUpperCase() === 'ACTIVE'
+        (sch) => isScheduleOnDate(sch, iso) && String(sch.status).toUpperCase() === 'ACTIVE'
       );
       if (!isWeekend || active247 || isWeekendConfigOpen || hasShift || anyShift) {
         return iso;
@@ -478,7 +500,7 @@ export default function BookingForm() {
       );
       if (docSchedules.length > 0) {
         // Kiểm tra xem hôm nay bác sĩ có ca và chưa hết giờ không (trong 24/7 luôn ưu tiên hôm nay)
-        const todaySched = docSchedules.find((sch) => sch.workDate === todayIso);
+        const todaySched = docSchedules.find((sch) => isScheduleOnDate(sch, todayIso));
         if (todaySched && (active247 || !isPastAllTodaySlots(selectedDoctor))) {
           setBookingDate(todayIso);
           setSelectedSlot((prev) => ({
@@ -490,14 +512,15 @@ export default function BookingForm() {
 
         // Nếu hôm nay không có ca hoặc đã hết giờ, tìm ngày tương lai gần nhất mà bác sĩ có ca trực
         const futureSched = docSchedules
-          .filter((sch) => sch.workDate >= todayIso)
-          .sort((a, b) => a.workDate.localeCompare(b.workDate))[0];
+          .filter((sch) => String(sch.workDate || '').slice(0, 10) >= todayIso)
+          .sort((a, b) => String(a.workDate).localeCompare(String(b.workDate)))[0];
 
         if (futureSched) {
-          setBookingDate(futureSched.workDate);
+          const futureIso = String(futureSched.workDate).slice(0, 10);
+          setBookingDate(futureIso);
           setSelectedSlot((prev) => ({
             ...prev,
-            date: formatISODateToVN(futureSched.workDate),
+            date: formatISODateToVN(futureIso),
           }));
         }
       }
@@ -589,12 +612,13 @@ export default function BookingForm() {
       (dayOfWeek === 6 && Boolean(clinicConfig?.operatingDays?.saturday)) ||
       (dayOfWeek === 0 && Boolean(clinicConfig?.operatingDays?.sunday));
 
-    const hasDoctorShiftOnDate = selectedDoctor && schedules.some(
-      (sch) => isDoctorActiveOnSchedule(selectedDoctor, sch) && sch.workDate === isoString
+    const hasDoctorShiftOnDate = selectedDoctor && (
+      schedules.some((sch) => isDoctorActiveOnSchedule(selectedDoctor, sch) && isScheduleOnDate(sch, isoString)) ||
+      (isoString === bookingDate && dynamicSlots.length > 0)
     );
     const anyDoctorHasShiftOnDate = schedules.some(
-      (sch) => sch.workDate === isoString && String(sch.status).toUpperCase() === 'ACTIVE'
-    );
+      (sch) => isScheduleOnDate(sch, isoString) && String(sch.status).toUpperCase() === 'ACTIVE'
+    ) || Boolean(hasDoctorShiftOnDate);
 
     // Thứ 7 (6) hoặc Chủ Nhật (0) chỉ chặn khi không ở chế độ 24/7 và phòng khám không mở cuối tuần và không có ca trực
     if ((dayOfWeek === 0 || dayOfWeek === 6) && !active247 && !isWeekendConfigOpen && !hasDoctorShiftOnDate && !anyDoctorHasShiftOnDate) {
@@ -786,10 +810,10 @@ export default function BookingForm() {
     loadCategories();
   }, []);
 
-  // Tự động làm mới danh sách ca trực khi đổi chi nhánh
+  // Tự động làm mới danh sách ca trực khi đổi chi nhánh hoặc ngày khám
   useEffect(() => {
     refreshSchedules();
-  }, [selectedCenter, refreshSchedules]);
+  }, [selectedCenter, bookingDate, refreshSchedules]);
 
   // Lọc chuyên khoa theo chi nhánh đã chọn
   const filteredSpecialties = useMemo(() => {
@@ -830,7 +854,7 @@ export default function BookingForm() {
       // 1. Ưu tiên bác sĩ có ca trực ngày đang chọn (targetDate) và còn giờ khả dụng
       const docOnDateActive = docs.find((d) =>
         schedules.some((sch) => {
-          if (!isDoctorActiveOnSchedule(d, sch) || sch.workDate !== targetDate) return false;
+          if (!isDoctorActiveOnSchedule(d, sch) || !isScheduleOnDate(sch, targetDate)) return false;
           if (targetDate === todayIso && sch.endTime) {
             const [h, m] = sch.endTime.split(':').map(Number);
             return (h * 60 + (m || 0)) > currentMins;
@@ -842,7 +866,7 @@ export default function BookingForm() {
 
       // 2. Tiếp theo ưu tiên bác sĩ có ca trực bất kỳ trên targetDate
       const docOnDate = docs.find((d) =>
-        schedules.some((sch) => isDoctorActiveOnSchedule(d, sch) && sch.workDate === targetDate)
+        schedules.some((sch) => isDoctorActiveOnSchedule(d, sch) && isScheduleOnDate(sch, targetDate))
       );
       if (docOnDate) return docOnDate;
 
@@ -1378,6 +1402,13 @@ export default function BookingForm() {
       return hour >= 12;
     });
   }, [timeSlots]);
+
+  const hasEarlyNightSlots = useMemo(() => {
+    return morningSlots.some((s) => {
+      const hour = parseInt(s.time.split(':')[0], 10) || 0;
+      return hour < 7;
+    });
+  }, [morningSlots]);
 
   const hasEveningOrNightSlots = useMemo(() => {
     return afternoonSlots.some((s) => {
@@ -2000,8 +2031,10 @@ export default function BookingForm() {
                           const isSelected = selectedDoctor?.id === doc.id;
                           const details = getDoctorFullDetails(doc, activeSpecialtyObj?.name, activeCenterObj?.name);
                           const docSchedules = schedules.filter((sch) => isDoctorActiveOnSchedule(doc, sch));
-                          const hasScheduleOnBookingDate = docSchedules.some((sch) => sch.workDate === bookingDate);
-                          const hasAnySchedule = docSchedules.length > 0;
+                          const hasScheduleOnBookingDate =
+                            docSchedules.some((sch) => isScheduleOnDate(sch, bookingDate)) ||
+                            (isSelected && dynamicSlots.length > 0);
+                          const hasAnySchedule = docSchedules.length > 0 || hasScheduleOnBookingDate;
 
                           return (
                             <div
@@ -2294,13 +2327,15 @@ export default function BookingForm() {
                                       (dayOfWeek === 0 && Boolean(clinicConfig?.operatingDays?.sunday));
 
                                     // Bác sĩ đang chọn có ca trực ngày này hay không
-                                    const hasDoctorShift = selectedDoctor && schedules.some(
-                                      (sch) => isDoctorActiveOnSchedule(selectedDoctor, sch) && sch.workDate === isoString
+                                    const hasDoctorShift = selectedDoctor && (
+                                      schedules.some(
+                                        (sch) => isDoctorActiveOnSchedule(selectedDoctor, sch) && isScheduleOnDate(sch, isoString)
+                                      ) || (isoString === bookingDate && dynamicSlots.length > 0)
                                     );
                                     // Bất kỳ bác sĩ nào trong cơ sở có ca trực ngày này
                                     const anyDoctorHasShift = schedules.some(
-                                      (sch) => sch.workDate === isoString && String(sch.status).toUpperCase() === 'ACTIVE'
-                                    );
+                                      (sch) => isScheduleOnDate(sch, isoString) && String(sch.status).toUpperCase() === 'ACTIVE'
+                                    ) || Boolean(hasDoctorShift);
 
                                     // Thứ 7 & CN: Chỉ khóa nếu phòng khám không mở cuối tuần và không có bác sĩ nào có ca trực
                                     if (isWeekend && !active247 && !isWeekendConfigOpen && !hasDoctorShift && !anyDoctorHasShift) {
@@ -2432,7 +2467,7 @@ export default function BookingForm() {
                               {(() => {
                                 const otherDoctorWithShift = filteredDoctors.find((d) =>
                                   d.id !== selectedDoctor?.id &&
-                                  schedules.some((sch) => isDoctorActiveOnSchedule(d, sch) && sch.workDate === bookingDate)
+                                  schedules.some((sch) => isDoctorActiveOnSchedule(d, sch) && isScheduleOnDate(sch, bookingDate))
                                 );
                                 if (otherDoctorWithShift) {
                                   return (
@@ -2475,7 +2510,9 @@ export default function BookingForm() {
                                   <span className="text-[10px] text-slate-400 block font-normal leading-tight">Buổi khám:</span>
                                   <span className="font-bold text-slate-900 block leading-tight truncate">
                                     {selectedSession === 'morning'
-                                      ? 'Buổi Sáng (07:30 - 12:00)'
+                                      ? hasEarlyNightSlots
+                                        ? 'Ca Đêm & Sáng (00:00 - 12:00)'
+                                        : 'Buổi Sáng (07:30 - 12:00)'
                                       : hasEveningOrNightSlots
                                       ? 'Buổi Chiều & Tối (13:00 - 23:30)'
                                       : 'Buổi Chiều (13:30 - 17:30)'}
@@ -2595,8 +2632,12 @@ export default function BookingForm() {
                                     )}
                                   </div>
                                   <div>
-                                    <h4 className="font-extrabold text-slate-800 text-sm">Buổi Sáng</h4>
-                                    <p className="text-xs text-slate-500 mt-0.5">07:30 - 12:00</p>
+                                    <h4 className="font-extrabold text-slate-800 text-sm">
+                                      {hasEarlyNightSlots ? 'Ca Đêm & Sáng' : 'Buổi Sáng'}
+                                    </h4>
+                                    <p className="text-xs text-slate-500 mt-0.5">
+                                      {hasEarlyNightSlots ? '00:00 - 12:00' : '07:30 - 12:00'}
+                                    </p>
                                   </div>
                                   <div className="pt-2 border-t border-slate-100/80 flex items-center justify-between">
                                     <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg">
@@ -2705,7 +2746,9 @@ export default function BookingForm() {
                                   }`}
                                 >
                                   <Sun size={15} className={selectedSession === 'morning' ? 'text-amber-500' : 'text-slate-400'} />
-                                  <span>Buổi Sáng ({morningSlots.filter((s) => !s.disabled).length} trống)</span>
+                                  <span>
+                                    {hasEarlyNightSlots ? 'Ca Đêm & Sáng' : 'Buổi Sáng'} ({morningSlots.filter((s) => !s.disabled).length} trống)
+                                  </span>
                                 </button>
 
                                 <button
