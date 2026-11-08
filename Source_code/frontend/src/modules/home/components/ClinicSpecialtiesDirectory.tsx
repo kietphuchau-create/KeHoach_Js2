@@ -298,7 +298,7 @@ export default function ClinicSpecialtiesDirectory() {
   const anglePerItem = 360 / totalCarouselItems;
   const carouselRadius = 240; // Bán kính hình trụ 3D chuẩn không đè góc
 
-  // Tự động xoay 3D Carousel sau mỗi 4 giây nếu người dùng không rê chuột vào
+  // Tự động xoay 3D Carousel sau mỗi 4 giây nếu người dùng không tương tác
   useEffect(() => {
     if (isHovered3D || totalCarouselItems <= 1) return;
     const timer = setInterval(() => {
@@ -314,6 +314,75 @@ export default function ClinicSpecialtiesDirectory() {
   const handleNext3D = useCallback(() => {
     setCarouselIndex((prev) => (prev + 1) % totalCarouselItems);
   }, [totalCarouselItems]);
+
+  // Nắm kéo trên điện thoại (Touch) & Lăn chuột / Kéo chuột trên Laptop (Mouse)
+  const [dragOffset, setDragOffset] = useState<number>(0);
+  const isDraggingRef = useRef<boolean>(false);
+  const startXRef = useRef<number>(0);
+  const lastWheelTimeRef = useRef<number>(0);
+
+  // Xử lý Lăn Chuột trên Laptop / Trackpad
+  const handleWheel3D = useCallback((e: React.WheelEvent) => {
+    const now = Date.now();
+    if (now - lastWheelTimeRef.current < 280) return;
+    if (Math.abs(e.deltaY) > 10 || Math.abs(e.deltaX) > 10) {
+      lastWheelTimeRef.current = now;
+      if (e.deltaY > 0 || e.deltaX > 0) {
+        setCarouselIndex((prev) => (prev + 1) % totalCarouselItems);
+      } else {
+        setCarouselIndex((prev) => (prev - 1 + totalCarouselItems) % totalCarouselItems);
+      }
+    }
+  }, [totalCarouselItems]);
+
+  // Xử lý Vuốt chạm / Kéo trên Điện Thoại (Touch)
+  const handleTouchStart = (e: React.TouchEvent) => {
+    isDraggingRef.current = true;
+    startXRef.current = e.touches[0].clientX;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isDraggingRef.current) return;
+    const currentX = e.touches[0].clientX;
+    const diff = currentX - startXRef.current;
+    const angleDiff = Math.max(-35, Math.min(35, (diff / 220) * anglePerItem));
+    setDragOffset(angleDiff);
+  };
+
+  const handleTouchEnd = () => {
+    if (!isDraggingRef.current) return;
+    isDraggingRef.current = false;
+    if (dragOffset < -8) {
+      setCarouselIndex((prev) => (prev + 1) % totalCarouselItems);
+    } else if (dragOffset > 8) {
+      setCarouselIndex((prev) => (prev - 1 + totalCarouselItems) % totalCarouselItems);
+    }
+    setDragOffset(0);
+  };
+
+  // Xử lý Nắm Kéo Chuột trên Máy tính (Mouse Drag)
+  const handleMouseDown = (e: React.MouseEvent) => {
+    isDraggingRef.current = true;
+    startXRef.current = e.clientX;
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDraggingRef.current) return;
+    const diff = e.clientX - startXRef.current;
+    const angleDiff = Math.max(-35, Math.min(35, (diff / 220) * anglePerItem));
+    setDragOffset(angleDiff);
+  };
+
+  const handleMouseUp = () => {
+    if (!isDraggingRef.current) return;
+    isDraggingRef.current = false;
+    if (dragOffset < -8) {
+      setCarouselIndex((prev) => (prev + 1) % totalCarouselItems);
+    } else if (dragOffset > 8) {
+      setCarouselIndex((prev) => (prev - 1 + totalCarouselItems) % totalCarouselItems);
+    }
+    setDragOffset(0);
+  };
 
   // Bác sĩ đang ở vị trí trung tâm của 3D Carousel
   const active3DDoctor = carouselDoctors[carouselIndex];
@@ -335,11 +404,21 @@ export default function ClinicSpecialtiesDirectory() {
               isVisible ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-8'
             }`}
           >
-            {/* SÂN KHẤU 3D CAROUSEL KHÔNG CÒN KHUNG VIỀN GÒ BÓ */}
+            {/* SÂN KHẤU 3D CAROUSEL: HỖ TRỢ VUỐT TRÊN ĐIỆN THOẠI & LĂN CHUỘT / KÉO CHUỘT TRÊN LAPTOP */}
             <div 
-              className="relative select-none"
+              className="relative select-none cursor-grab active:cursor-grabbing touch-pan-y"
               onMouseEnter={() => setIsHovered3D(true)}
-              onMouseLeave={() => setIsHovered3D(false)}
+              onMouseLeave={() => {
+                setIsHovered3D(false);
+                if (isDraggingRef.current) handleMouseUp();
+              }}
+              onWheel={handleWheel3D}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
             >
               {/* VÙNG KHÔNG GIAN 3D (ĐÃ ẨN MẶT SAU BACKFACE-HIDDEN ĐỂ KHÔNG BỊ ĐÈ CHỮ) */}
               <div 
@@ -347,10 +426,10 @@ export default function ClinicSpecialtiesDirectory() {
                 style={{ perspective: '1100px' }}
               >
                 <div 
-                  className="w-[220px] sm:w-[240px] h-[310px] sm:h-[330px] relative transition-transform duration-700 ease-out"
+                  className="w-[220px] sm:w-[240px] h-[310px] sm:h-[330px] relative transition-transform duration-500 ease-out"
                   style={{
                     transformStyle: 'preserve-3d',
-                    transform: `rotateY(${-carouselIndex * anglePerItem}deg)`,
+                    transform: `rotateY(${-carouselIndex * anglePerItem + dragOffset}deg)`,
                   }}
                 >
                   {carouselDoctors.map((doc, idx) => {
@@ -428,43 +507,6 @@ export default function ClinicSpecialtiesDirectory() {
                     );
                   })}
                 </div>
-              </div>
-
-              {/* Điều hướng chuyển bác sĩ ở đáy sân khấu 3D (Rõ ràng, không bao giờ bị che) */}
-              <div className="flex items-center justify-center gap-3 pt-3">
-                <button
-                  type="button"
-                  onClick={handlePrev3D}
-                  className="w-7 h-7 rounded-full bg-white border border-slate-200 hover:border-pine-teal text-slate-600 flex items-center justify-center transition shadow-2xs hover:bg-slate-50 cursor-pointer"
-                  title="Bác sĩ trước"
-                >
-                  <ChevronLeft size={15} />
-                </button>
-
-                <div className="flex items-center gap-1.5">
-                  {carouselDoctors.map((_, dotIdx) => (
-                    <button
-                      key={dotIdx}
-                      type="button"
-                      onClick={() => setCarouselIndex(dotIdx)}
-                      className={`h-1.5 rounded-full transition-all cursor-pointer ${
-                        dotIdx === carouselIndex 
-                          ? 'w-7 bg-pine-teal' 
-                          : 'w-2 bg-slate-300 hover:bg-slate-400'
-                      }`}
-                      title={`Xem bác sĩ số ${dotIdx + 1}`}
-                    />
-                  ))}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleNext3D}
-                  className="w-7 h-7 rounded-full bg-white border border-slate-200 hover:border-pine-teal text-slate-600 flex items-center justify-center transition shadow-2xs hover:bg-slate-50 cursor-pointer"
-                  title="Bác sĩ tiếp theo"
-                >
-                  <ChevronRight size={15} />
-                </button>
               </div>
             </div>
           </div>
