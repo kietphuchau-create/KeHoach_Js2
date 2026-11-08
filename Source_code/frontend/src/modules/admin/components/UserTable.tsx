@@ -51,6 +51,42 @@ export interface UserItem {
   specialtyName?: string;
   academicTitle?: string;
   roomNumber?: string;
+  avatarUrl?: string;
+}
+
+// Hàm gán ảnh chân dung bác sĩ chuẩn y khoa nếu chưa có ảnh upload
+function resolveDoctorAvatar(name?: string, specialty?: string, existingUrl?: string): string {
+  if (
+    existingUrl && 
+    existingUrl.trim().startsWith('http') && 
+    !existingUrl.includes('svg') && 
+    !existingUrl.includes('data:')
+  ) {
+    return existingUrl;
+  }
+  const spec = (specialty || '').toLowerCase();
+  const docName = (name || '').toLowerCase();
+
+  if (spec.includes('da liễu') || docName.includes('yến nhi') || docName.includes('thu hà') || docName.includes('minh anh')) {
+    return 'https://images.unsplash.com/photo-1651008376811-b90baee60c1f?w=500&auto=format&fit=crop&q=80';
+  }
+  if (spec.includes('mắt') || docName.includes('quỳnh chi')) {
+    return 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=500&auto=format&fit=crop&q=80';
+  }
+  if (spec.includes('răng') || docName.includes('vũ minh đức')) {
+    return 'https://images.unsplash.com/photo-1537368910025-700350fe46c7?w=500&auto=format&fit=crop&q=80';
+  }
+  if (spec.includes('nội') || docName.includes('trần văn hùng')) {
+    return 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=500&auto=format&fit=crop&q=80';
+  }
+  if (spec.includes('tai mũi họng') || docName.includes('bảo')) {
+    return 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=500&auto=format&fit=crop&q=80';
+  }
+  if (spec.includes('nhi') || docName.includes('thảo my')) {
+    return 'https://images.unsplash.com/photo-1651008376811-b90baee60c1f?w=500&auto=format&fit=crop&q=80';
+  }
+
+  return 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=500&auto=format&fit=crop&q=80';
 }
 
 export default function UserTable() {
@@ -190,11 +226,28 @@ export default function UserTable() {
     }
     try {
       const isLockedTab = role === 'LOCKED';
-      const res = await api.getAdminUsers({
-        role: (role === 'ALL' || isLockedTab) ? undefined : role,
-        q: query.trim() || undefined,
-        page: isLockedTab ? 0 : page,
-        size: isLockedTab ? 100 : pageSize,
+      
+      // Tải song song danh sách người dùng và danh sách bác sĩ từ CSDL để lấy ảnh đại diện
+      const [res, docRes] = await Promise.all([
+        api.getAdminUsers({
+          role: (role === 'ALL' || isLockedTab) ? undefined : role,
+          q: query.trim() || undefined,
+          page: isLockedTab ? 0 : page,
+          size: isLockedTab ? 100 : pageSize,
+        }),
+        api.getDoctors().catch(() => [])
+      ]);
+
+      const doctorsList: any[] = Array.isArray(docRes) ? docRes : [];
+      const docMapById: Record<string, any> = {};
+      const docMapByEmail: Record<string, any> = {};
+      const docMapByName: Record<string, any> = {};
+
+      doctorsList.forEach((d: any) => {
+        if (d.userId) docMapById[d.userId] = d;
+        if (d.id) docMapById[d.id] = d;
+        if (d.email) docMapByEmail[d.email.toLowerCase()] = d;
+        if (d.fullName) docMapByName[d.fullName.toLowerCase()] = d;
       });
 
       const rawList = res?.items || res?.content || (Array.isArray(res) ? res : []);
@@ -203,6 +256,18 @@ export default function UserTable() {
           const roleStrings: string[] = Array.isArray(u.roles)
             ? u.roles.map((r: any) => (typeof r === 'string' ? r : r.role))
             : [];
+          const isDoc = roleStrings.includes('ROLE_DOCTOR');
+          const docMatch = isDoc
+            ? (docMapById[u.userId || u.id] ||
+               (u.email ? docMapByEmail[u.email.toLowerCase()] : null) ||
+               (u.fullName ? docMapByName[u.fullName.toLowerCase()] : null))
+            : null;
+
+          const rawAvatar = docMatch?.avatarUrl || u.avatarUrl || null;
+          const finalAvatar = isDoc
+            ? resolveDoctorAvatar(u.fullName, u.specialtyName || docMatch?.specialtyName, rawAvatar)
+            : rawAvatar;
+
           return {
             id: u.userId || u.id,
             email: u.email,
@@ -213,10 +278,11 @@ export default function UserTable() {
             roles: roleStrings,
             active: u.active ?? true,
             createdAt: u.createdAt,
-            medicalCenterName: u.roles?.[0]?.medicalCenterName || u.medicalCenterName,
-            specialtyName: u.specialtyName,
-            academicTitle: u.academicTitle,
-            roomNumber: u.roomNumber,
+            medicalCenterName: u.roles?.[0]?.medicalCenterName || u.medicalCenterName || docMatch?.centerName || docMatch?.medicalCenterName,
+            specialtyName: u.specialtyName || docMatch?.specialtyName,
+            academicTitle: u.academicTitle || docMatch?.academicTitle,
+            roomNumber: u.roomNumber || docMatch?.roomNumber,
+            avatarUrl: finalAvatar || undefined,
           };
         });
 
@@ -541,8 +607,19 @@ export default function UserTable() {
                         className="flex items-center gap-2.5 cursor-pointer group"
                         title="Bấm để xem đầy đủ thông tin chi tiết"
                       >
-                        <div className="w-8 h-8 rounded-full bg-mint-light text-pine-teal border border-teal-primary/30 flex items-center justify-center font-bold text-xs group-hover:scale-105 group-hover:bg-teal-primary group-hover:text-white transition shadow-xs shrink-0">
-                          {user.fullName ? user.fullName.charAt(0).toUpperCase() : 'U'}
+                        <div className="w-8 h-8 rounded-full bg-mint-light text-pine-teal border border-teal-primary/30 flex items-center justify-center font-bold text-xs group-hover:scale-105 group-hover:bg-teal-primary group-hover:text-white transition shadow-xs shrink-0 overflow-hidden">
+                          {user.avatarUrl ? (
+                            <img
+                              src={user.avatarUrl}
+                              alt={user.fullName}
+                              className="w-full h-full object-cover object-top"
+                              onError={(e) => {
+                                (e.target as HTMLElement).style.display = 'none';
+                              }}
+                            />
+                          ) : (
+                            <span>{user.fullName ? user.fullName.charAt(0).toUpperCase() : 'U'}</span>
+                          )}
                         </div>
                         <div>
                           <span className="font-semibold group-hover:text-pine-teal group-hover:underline underline-offset-2 transition">
@@ -939,8 +1016,19 @@ export default function UserTable() {
               </button>
 
               <div className="flex items-center gap-3 pr-8">
-                <div className="w-11 h-11 rounded-xl bg-white/20 backdrop-blur-xs text-white border border-white/30 flex items-center justify-center font-extrabold text-lg shadow-inner shrink-0">
-                  {detailUser.fullName ? detailUser.fullName.charAt(0).toUpperCase() : 'U'}
+                <div className="w-11 h-11 rounded-xl bg-white/20 backdrop-blur-xs text-white border border-white/30 flex items-center justify-center font-extrabold text-lg shadow-inner shrink-0 overflow-hidden">
+                  {detailUser.avatarUrl ? (
+                    <img
+                      src={detailUser.avatarUrl}
+                      alt={detailUser.fullName}
+                      className="w-full h-full object-cover object-top"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    <span>{detailUser.fullName ? detailUser.fullName.charAt(0).toUpperCase() : 'U'}</span>
+                  )}
                 </div>
                 <div className="min-w-0">
                   <h3 className="font-extrabold text-base text-white leading-tight truncate">
@@ -1157,8 +1245,19 @@ export default function UserTable() {
             <form onSubmit={handleAssignRoom} className="p-4 sm:p-5 space-y-3.5 overflow-y-auto flex-1">
               {/* Doctor Info Card */}
               <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200/80 text-xs flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-700 font-bold flex items-center justify-center text-sm shrink-0 border border-purple-200">
-                  {assignModalUser.fullName ? assignModalUser.fullName.charAt(0).toUpperCase() : 'B'}
+                <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-700 font-bold flex items-center justify-center text-sm shrink-0 border border-purple-200 overflow-hidden">
+                  {assignModalUser.avatarUrl ? (
+                    <img
+                      src={assignModalUser.avatarUrl}
+                      alt={assignModalUser.fullName}
+                      className="w-full h-full object-cover object-top"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    <span>{assignModalUser.fullName ? assignModalUser.fullName.charAt(0).toUpperCase() : 'B'}</span>
+                  )}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Bác sĩ thực hiện:</div>
