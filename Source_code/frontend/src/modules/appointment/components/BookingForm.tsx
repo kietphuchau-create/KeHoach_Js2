@@ -181,26 +181,23 @@ export default function BookingForm() {
   const [step1Errors, setStep1Errors] = useState<{ center?: string; specialty?: string }>({});
   const [step2Errors, setStep2Errors] = useState<{ doctor?: string; date?: string; slot?: string }>({});
 
-  // Authentication & Role Check
+  // Authentication & Role Check: Cho phép khách vãng lai xem và tìm kiếm bác sĩ ở Bước 1 & 2
   useEffect(() => {
     const token = getAuthToken();
-    if (!token) {
-      router.push('/login?redirect=/booking&reason=auth_required');
-      return;
-    }
-
-    const user = getAuthUser();
-    setCurrentUser(user);
-    const roles: string[] = user?.roles || [];
-    if (roles.includes('ROLE_ADMIN')) {
-      router.push('/admin');
-      return;
-    } else if (roles.includes('ROLE_DOCTOR')) {
-      router.push('/doctor');
-      return;
-    } else if (roles.includes('ROLE_STAFF')) {
-      router.push('/reception');
-      return;
+    if (token) {
+      const user = getAuthUser();
+      setCurrentUser(user);
+      const roles: string[] = user?.roles || [];
+      if (roles.includes('ROLE_ADMIN')) {
+        router.push('/admin');
+        return;
+      } else if (roles.includes('ROLE_DOCTOR')) {
+        router.push('/doctor');
+        return;
+      } else if (roles.includes('ROLE_STAFF')) {
+        router.push('/reception');
+        return;
+      }
     }
     setAuthChecking(false);
   }, [router]);
@@ -611,6 +608,12 @@ export default function BookingForm() {
     setStep2Errors(errors);
 
     if (Object.keys(errors).length === 0) {
+      // Yêu cầu đăng nhập khi chuyển sang Bước 3 (Điền hồ sơ & xác nhận đặt khám)
+      const token = getAuthToken();
+      if (!token) {
+        router.push('/login?redirect=/booking&reason=auth_required');
+        return;
+      }
       setStep(3);
     }
   };
