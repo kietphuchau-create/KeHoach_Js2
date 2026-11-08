@@ -331,18 +331,18 @@ export default function ClinicSpecialtiesDirectory() {
           {/* CỘT TRÁI: SÂN KHẤU 3D CAROUSEL BÁC SĨ (CÓ ẢNH CHÂN DUNG)  */}
           {/* ======================================================== */}
           <div
-            className={`lg:col-span-5 space-y-4 lg:sticky lg:top-24 transition-all duration-700 delay-100 ease-out ${
+            className={`lg:col-span-5 space-y-3 lg:sticky lg:top-24 transition-all duration-700 delay-100 ease-out ${
               isVisible ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-8'
             }`}
           >
-            {/* KHỐI SÂN KHẤU 3D CAROUSEL */}
+            {/* SÂN KHẤU 3D CAROUSEL KHÔNG CÒN KHUNG VIỀN GÒ BÓ */}
             <div 
-              className="relative p-4 sm:p-5 rounded-3xl bg-linear-to-b from-slate-50 to-emerald-50/40 border border-teal-200/70 shadow-sm overflow-hidden"
+              className="relative select-none"
               onMouseEnter={() => setIsHovered3D(true)}
               onMouseLeave={() => setIsHovered3D(false)}
             >
-              {/* Header điều hướng */}
-              <div className="flex items-center justify-between mb-2">
+              {/* Header điều hướng tinh gọn */}
+              <div className="flex items-center justify-between mb-2 px-1">
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-primary/10 text-pine-teal text-xs font-bold uppercase tracking-wider border border-teal-primary/20">
                   <Stethoscope size={14} className="text-teal-600" />
                   <span>Bác Sĩ Tiêu Biểu ({carouselIndex + 1}/{totalCarouselItems})</span>
@@ -369,7 +369,7 @@ export default function ClinicSpecialtiesDirectory() {
 
               {/* VÙNG KHÔNG GIAN 3D (ĐÃ ẨN MẶT SAU BACKFACE-HIDDEN ĐỂ KHÔNG BỊ ĐÈ CHỮ) */}
               <div 
-                className="h-[340px] sm:h-[360px] flex items-center justify-center relative select-none"
+                className="h-[350px] sm:h-[370px] flex items-center justify-center relative select-none"
                 style={{ perspective: '1100px' }}
               >
                 <div 
@@ -473,16 +473,6 @@ export default function ClinicSpecialtiesDirectory() {
                 ))}
               </div>
             </div>
-
-            {/* Nút Đặt Lịch Khám Toàn Hệ Thống */}
-            <Link
-              href="/booking"
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-pine-teal text-white text-xs font-bold hover:bg-pine-teal-hover transition shadow-sm w-full justify-center cursor-pointer group"
-            >
-              <Calendar size={15} />
-              <span>Đặt Lịch Khám Toàn Hệ Thống</span>
-              <ArrowUpRight size={14} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-            </Link>
           </div>
 
           {/* ======================================================== */}
