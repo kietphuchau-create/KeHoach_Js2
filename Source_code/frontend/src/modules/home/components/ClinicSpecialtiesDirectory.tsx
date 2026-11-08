@@ -38,7 +38,13 @@ export interface DoctorDirectoryItem {
 
 // Hàm gán ảnh chân dung bác sĩ chuẩn y khoa nếu trong CSDL chưa có ảnh upload
 function resolveDoctorAvatar(name?: string, specialty?: string, existingUrl?: string): string {
-  if (existingUrl && existingUrl.trim().startsWith('http')) {
+  // Nếu existingUrl là URL ảnh thật (http/https) và không phải là SVG text/placeholder tự sinh
+  if (
+    existingUrl && 
+    existingUrl.trim().startsWith('http') && 
+    !existingUrl.includes('svg') && 
+    !existingUrl.includes('data:')
+  ) {
     return existingUrl;
   }
   const spec = (specialty || '').toLowerCase();
@@ -66,18 +72,18 @@ function resolveDoctorAvatar(name?: string, specialty?: string, existingUrl?: st
   return 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=500&auto=format&fit=crop&q=80';
 }
 
-// Danh sách bác sĩ chuẩn theo CSDL MedSched kèm ảnh đại diện chuyên gia
+// Danh sách bác sĩ chuẩn theo 2 Chi Nhánh thực tế trong CSDL MedSched
 const FALLBACK_DOCTORS: DoctorDirectoryItem[] = [
   {
     id: '10b2c3d4-0001-4000-8000-000000000001',
     specialtyId: 'spec-01',
     specialtyName: 'Chuyên khoa Da liễu',
-    description: 'Chuyên gia đầu ngành Da liễu với hơn 15 năm kinh nghiệm điều trị bệnh lý ngoài da và chăm sóc da.',
+    description: 'Chuyên gia đầu ngành Da liễu với hơn 15 năm kinh nghiệm điều trị bệnh lý ngoài da và phục hồi da.',
     doctorName: 'BS.CKII Nguyễn Minh Anh',
     academicTitle: 'BS.CKII',
     roomNumber: 'P.205',
-    centerName: 'Chi nhánh Quận 1',
-    consultationFee: 350000,
+    centerName: 'Chi Nhánh Trần Đại Nghĩa',
+    consultationFee: 300000,
     avatarUrl: 'https://images.unsplash.com/photo-1594824813637-43c292f7c006?w=500&auto=format&fit=crop&q=80',
   },
   {
@@ -88,8 +94,8 @@ const FALLBACK_DOCTORS: DoctorDirectoryItem[] = [
     doctorName: 'PGS.TS Trần Văn Hùng',
     academicTitle: 'PGS.TS',
     roomNumber: 'P.208',
-    centerName: 'Chi nhánh Quận 1',
-    consultationFee: 450000,
+    centerName: 'Chi Nhánh Trịnh Đình Thảo (ITC)',
+    consultationFee: 350000,
     avatarUrl: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=500&auto=format&fit=crop&q=80',
   },
   {
@@ -100,8 +106,8 @@ const FALLBACK_DOCTORS: DoctorDirectoryItem[] = [
     doctorName: 'ThS.BS Vũ Minh Đức',
     academicTitle: 'ThS.BS',
     roomNumber: 'P.101',
-    centerName: 'Cơ sở MedSched',
-    consultationFee: 300000,
+    centerName: 'Chi Nhánh Trần Đại Nghĩa',
+    consultationFee: 250000,
     avatarUrl: 'https://images.unsplash.com/photo-1537368910025-700350fe46c7?w=500&auto=format&fit=crop&q=80',
   },
   {
@@ -112,7 +118,7 @@ const FALLBACK_DOCTORS: DoctorDirectoryItem[] = [
     doctorName: 'BS.CKII Phạm Quỳnh Chi',
     academicTitle: 'BS.CKII',
     roomNumber: 'P.102',
-    centerName: 'Cơ sở MedSched',
+    centerName: 'Chi Nhánh Trịnh Đình Thảo (ITC)',
     consultationFee: 250000,
     avatarUrl: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=500&auto=format&fit=crop&q=80',
   },
@@ -120,11 +126,11 @@ const FALLBACK_DOCTORS: DoctorDirectoryItem[] = [
     id: '10b2c3d4-0004-4000-8000-000000000004',
     specialtyId: 'spec-01',
     specialtyName: 'Chuyên khoa Da liễu',
-    description: 'Bác sĩ chuyên khoa điều trị bệnh lý ngoài da và phục hồi da tại Chi nhánh Quận 7.',
+    description: 'Bác sĩ chuyên khoa điều trị bệnh lý ngoài da và phục hồi da.',
     doctorName: 'ThS.BS Lê Thị Thu Hà',
     academicTitle: 'ThS.BS',
     roomNumber: 'P.102',
-    centerName: 'Chi nhánh Quận 7',
+    centerName: 'Chi Nhánh Trần Đại Nghĩa',
     consultationFee: 280000,
     avatarUrl: 'https://images.unsplash.com/photo-1651008376811-b90baee60c1f?w=500&auto=format&fit=crop&q=80',
   },
@@ -132,11 +138,11 @@ const FALLBACK_DOCTORS: DoctorDirectoryItem[] = [
     id: '10b2c3d4-0002-4000-8000-000000000002',
     specialtyId: 'spec-01',
     specialtyName: 'Chuyên khoa Da liễu & Thẩm mỹ',
-    description: 'Chuyên gia Da liễu & Thẩm mỹ da công nghệ cao tại Chi nhánh Quận 7.',
+    description: 'Chuyên gia Da liễu & Thẩm mỹ da công nghệ cao.',
     doctorName: 'ThS.BS Đỗ Quang Vinh',
     academicTitle: 'ThS.BS',
     roomNumber: 'P.102',
-    centerName: 'Chi nhánh Quận 7',
+    centerName: 'Chi Nhánh Trịnh Đình Thảo (ITC)',
     consultationFee: 550000,
     avatarUrl: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=500&auto=format&fit=crop&q=80',
   },
@@ -191,7 +197,18 @@ export default function ClinicSpecialtiesDirectory() {
               doc.fullName || doc.name || 'Bác sĩ'
             );
             const specialty = doc.specialtyName || 'Chuyên khoa Khám';
-            const center = doc.centerName || 'Cơ sở MedSched';
+            // Đọc tên chi nhánh thật từ CSDL: doc.medicalCenterName hoặc doc.centerName
+            const rawCenter = doc.medicalCenterName || doc.centerName || '';
+            let center = 'Chi Nhánh Trần Đại Nghĩa';
+            if (rawCenter.includes('Trịnh Đình Thảo') || rawCenter.includes('ITC') || rawCenter.includes('CN2')) {
+              center = 'Chi Nhánh Trịnh Đình Thảo (ITC)';
+            } else if (rawCenter.includes('Trần Đại Nghĩa') || rawCenter.includes('CN1')) {
+              center = 'Chi Nhánh Trần Đại Nghĩa';
+            } else if (rawCenter) {
+              center = rawCenter.replace(/^Phòng Khám Đa Khoa MedSched\s*-\s*/i, '');
+            } else {
+              center = index % 2 === 0 ? 'Chi Nhánh Trần Đại Nghĩa' : 'Chi Nhánh Trịnh Đình Thảo (ITC)';
+            }
             const room = doc.roomNumber
               ? (doc.roomNumber.startsWith('P.') ? doc.roomNumber : `Phòng ${doc.roomNumber}`)
               : `P.${101 + index}`;
@@ -400,7 +417,7 @@ export default function ClinicSpecialtiesDirectory() {
           {/* CỘT TRÁI: SÂN KHẤU 3D CAROUSEL BÁC SĨ (CÓ ẢNH CHÂN DUNG)  */}
           {/* ======================================================== */}
           <div
-            className={`lg:col-span-5 space-y-3 lg:sticky lg:top-24 transition-all duration-700 delay-100 ease-out ${
+            className={`lg:col-span-5 space-y-3 lg:self-center transition-all duration-700 delay-100 ease-out ${
               isVisible ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-8'
             }`}
           >
@@ -458,6 +475,9 @@ export default function ClinicSpecialtiesDirectory() {
                             alt={doc.doctorName}
                             className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
                             loading="lazy"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1594824813637-43c292f7c006?w=500&auto=format&fit=crop&q=80';
+                            }}
                           />
                           {/* Badge chuyên khoa đè lên góc ảnh */}
                           <div className="absolute top-2.5 left-2.5 max-w-[85%]">
@@ -712,6 +732,9 @@ export default function ClinicSpecialtiesDirectory() {
                             alt={item.doctorName}
                             className="w-full h-full object-cover object-top"
                             loading="lazy"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1594824813637-43c292f7c006?w=500&auto=format&fit=crop&q=80';
+                            }}
                           />
                           <span className="absolute bottom-0 right-0 bg-pine-teal text-white text-[9px] font-mono px-1 rounded-tl-md font-bold">
                             {displayIndex}
