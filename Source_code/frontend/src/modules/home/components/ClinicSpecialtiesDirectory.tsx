@@ -321,75 +321,48 @@ export default function ClinicSpecialtiesDirectory() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-start">
           
           {/* ======================================================== */}
-          {/* CỘT TRÁI: TIÊU ĐỀ & SÂN KHẤU 3D CAROUSEL BÁC SĨ THỰC TẾ   */}
+          {/* CỘT TRÁI: SÂN KHẤU 3D CAROUSEL BÁC SĨ THỰC TẾ            */}
           {/* ======================================================== */}
           <div
             className={`lg:col-span-5 space-y-4 lg:sticky lg:top-24 transition-all duration-700 delay-100 ease-out ${
               isVisible ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-8'
             }`}
           >
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-teal-primary/10 text-pine-teal text-xs font-bold uppercase tracking-wider border border-teal-primary/20">
-              <Sparkles size={14} className="text-teal-600" />
-              <span>Đội Ngũ Chuyên Khoa Đang Trực</span>
-            </div>
-
-            <h3 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-tight">
-              CÁC BÁC SĨ CHUYÊN KHOA <br />
-              <span className="text-pine-teal">ĐANG PHỤC VỤ KHÁCH HÀNG</span>
-            </h3>
-
-            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-              Dữ liệu bác sĩ và chuyên khoa được đồng bộ trực tiếp từ hệ thống phòng khám MedSched. 
-              Mỗi chuyên khoa có bác sĩ trực tiếp phụ trách tại buồng khám cố định ở từng chi nhánh.
-            </p>
-
-            {/* Thông tin xác thực phòng khám thực tế */}
-            <div className="grid grid-cols-2 gap-2.5 pt-0.5">
-              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center gap-2">
-                <ShieldCheck size={16} className="text-emerald-600 shrink-0" />
-                <span className="text-xs font-bold text-slate-700">100% BS Chuyên Khoa</span>
-              </div>
-              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center gap-2">
-                <MapPin size={16} className="text-pine-teal shrink-0" />
-                <span className="text-xs font-bold text-slate-700">Cơ sở: Q.1 & Q.7</span>
-              </div>
-            </div>
-
             {/* SÂN KHẤU 3D CAROUSEL BÁC SĨ (CSS 3D TRANSFORM CYLINDER) */}
             <div 
-              className="relative p-4 rounded-3xl bg-linear-to-b from-slate-50/90 to-emerald-50/40 border border-teal-200/60 shadow-xs overflow-hidden"
+              className="relative p-5 sm:p-6 rounded-3xl bg-linear-to-b from-slate-50/90 to-emerald-50/40 border border-teal-200/60 shadow-xs overflow-hidden"
               onMouseEnter={() => setIsHovered3D(true)}
               onMouseLeave={() => setIsHovered3D(false)}
             >
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-pine-teal uppercase tracking-wide">
-                  <Stethoscope size={15} />
+              <div className="flex items-center justify-between mb-3">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-primary/10 text-pine-teal text-xs font-bold uppercase tracking-wider border border-teal-primary/20">
+                  <Stethoscope size={14} className="text-teal-600" />
                   <span>Bác Sĩ Tiêu Biểu ({carouselIndex + 1}/{totalCarouselItems})</span>
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1.5">
                   <button
                     type="button"
                     onClick={handlePrev3D}
-                    className="w-7 h-7 rounded-lg bg-white border border-slate-200 hover:border-pine-teal text-slate-700 flex items-center justify-center transition shadow-2xs hover:bg-slate-50 cursor-pointer"
+                    className="w-8 h-8 rounded-xl bg-white border border-slate-200 hover:border-pine-teal text-slate-700 flex items-center justify-center transition shadow-2xs hover:bg-slate-50 cursor-pointer"
                     title="Bác sĩ trước"
                   >
-                    <ChevronLeft size={14} />
+                    <ChevronLeft size={16} />
                   </button>
                   <button
                     type="button"
                     onClick={handleNext3D}
-                    className="w-7 h-7 rounded-lg bg-white border border-slate-200 hover:border-pine-teal text-slate-700 flex items-center justify-center transition shadow-2xs hover:bg-slate-50 cursor-pointer"
+                    className="w-8 h-8 rounded-xl bg-white border border-slate-200 hover:border-pine-teal text-slate-700 flex items-center justify-center transition shadow-2xs hover:bg-slate-50 cursor-pointer"
                     title="Bác sĩ tiếp theo"
                   >
-                    <ChevronRight size={14} />
+                    <ChevronRight size={16} />
                   </button>
                 </div>
               </div>
 
               {/* VÙNG KHÔNG GIAN 3D */}
-              <div className="h-[210px] sm:h-[220px] flex items-center justify-center relative perspective-[1000px] overflow-hidden select-none">
+              <div className="h-[250px] sm:h-[270px] flex items-center justify-center relative perspective-[1000px] overflow-hidden select-none">
                 <div 
-                  className="w-[240px] sm:w-[260px] h-[175px] relative transition-transform duration-700 ease-out transform-style-3d"
+                  className="w-[260px] sm:w-[280px] h-[200px] relative transition-transform duration-700 ease-out transform-style-3d"
                   style={{
                     transform: `rotateY(${-carouselIndex * anglePerItem}deg)`,
                   }}
@@ -402,10 +375,10 @@ export default function ClinicSpecialtiesDirectory() {
                       <div
                         key={doc.id}
                         onClick={() => setCarouselIndex(idx)}
-                        className={`absolute inset-0 rounded-2xl p-3.5 flex flex-col justify-between transition-all duration-500 cursor-pointer backface-visible border shadow-sm ${
+                        className={`absolute inset-0 rounded-2xl p-4 flex flex-col justify-between transition-all duration-500 cursor-pointer backface-visible border shadow-sm ${
                           isCurrent
-                            ? 'bg-white border-pine-teal ring-2 ring-teal-500/30 scale-100 z-20'
-                            : 'bg-white/85 border-slate-200 opacity-60 hover:opacity-90 scale-95 z-10'
+                            ? 'bg-white border-pine-teal ring-2 ring-teal-500/30 scale-100 z-20 shadow-md'
+                            : 'bg-white/90 border-slate-200 opacity-60 hover:opacity-95 scale-95 z-10'
                         }`}
                         style={{
                           transform: `rotateY(${itemAngle}deg) translateZ(${carouselRadius}px)`,
@@ -413,49 +386,54 @@ export default function ClinicSpecialtiesDirectory() {
                       >
                         {/* Header của thẻ 3D: Chuyên khoa & Buồng khám */}
                         <div className="flex items-center justify-between gap-1">
-                          <span className="text-[11px] font-bold text-pine-teal truncate">
+                          <span className="text-xs font-extrabold text-pine-teal truncate">
                             {doc.specialtyName}
                           </span>
                           {doc.roomNumber && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-700 font-semibold border border-blue-200/60 shrink-0">
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-semibold border border-blue-200/60 shrink-0">
                               {doc.roomNumber}
                             </span>
                           )}
                         </div>
 
                         {/* Thân thẻ 3D: Avatar & Tên Bác sĩ */}
-                        <div className="flex items-center gap-2.5 my-1">
-                          <div className="w-10 h-10 rounded-xl bg-teal-50 text-pine-teal border border-teal-200 flex items-center justify-center font-bold text-xs shrink-0">
+                        <div className="flex items-center gap-3 my-1">
+                          <div className="w-11 h-11 rounded-xl bg-teal-50 text-pine-teal border border-teal-200 flex items-center justify-center font-bold text-sm shrink-0 shadow-2xs">
                             {getInitials(doc.doctorName)}
                           </div>
                           <div className="min-w-0 flex-1">
                             <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 truncate">
                               {doc.doctorName}
                             </h4>
-                            <p className="text-[11px] text-slate-500 truncate flex items-center gap-1">
-                              <Building2 size={11} className="shrink-0" />
+                            <p className="text-[11px] text-slate-500 truncate flex items-center gap-1 mt-0.5">
+                              <Building2 size={12} className="shrink-0 text-slate-400" />
                               <span>{doc.centerName}</span>
                             </p>
                           </div>
                         </div>
 
+                        {/* Mô tả kinh nghiệm ngắn */}
+                        <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">
+                          {doc.description}
+                        </p>
+
                         {/* Footer thẻ 3D: Giá khám niêm yết & Nút đặt lịch */}
-                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                        <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
                           <div>
-                            <span className="text-[9px] text-slate-400 block font-medium uppercase">
+                            <span className="text-[9px] text-slate-400 block font-semibold uppercase tracking-wider">
                               Giá khám niêm yết
                             </span>
-                            <span className="text-xs font-black text-pine-teal">
+                            <span className="text-xs sm:text-sm font-black text-pine-teal">
                               {doc.consultationFee.toLocaleString('vi-VN')} đ
                             </span>
                           </div>
                           <Link
                             href={`/booking?doctorId=${doc.id}&specialtyId=${doc.specialtyId || ''}`}
                             onClick={(e) => e.stopPropagation()}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-pine-teal hover:bg-pine-teal-hover text-white text-[11px] font-bold transition shadow-2xs"
+                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-pine-teal hover:bg-pine-teal-hover text-white text-xs font-bold transition shadow-2xs"
                           >
                             <span>Đặt khám</span>
-                            <ArrowUpRight size={11} />
+                            <ArrowUpRight size={12} />
                           </Link>
                         </div>
                       </div>
@@ -465,7 +443,7 @@ export default function ClinicSpecialtiesDirectory() {
               </div>
 
               {/* Dấu chấm chỉ mục điều hướng */}
-              <div className="flex items-center justify-center gap-1.5 pt-2">
+              <div className="flex items-center justify-center gap-1.5 pt-3">
                 {carouselDoctors.map((_, dotIdx) => (
                   <button
                     key={dotIdx}
@@ -473,8 +451,8 @@ export default function ClinicSpecialtiesDirectory() {
                     onClick={() => setCarouselIndex(dotIdx)}
                     className={`h-1.5 rounded-full transition-all cursor-pointer ${
                       dotIdx === carouselIndex 
-                        ? 'w-6 bg-pine-teal' 
-                        : 'w-1.5 bg-slate-300 hover:bg-slate-400'
+                        ? 'w-7 bg-pine-teal' 
+                        : 'w-2 bg-slate-300 hover:bg-slate-400'
                     }`}
                     title={`Xem bác sĩ số ${dotIdx + 1}`}
                   />
