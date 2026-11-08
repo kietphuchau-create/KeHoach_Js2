@@ -51,7 +51,7 @@ function resolveDoctorAvatar(name?: string, specialty?: string, existingUrl?: st
   const docName = (name || '').toLowerCase();
 
   if (spec.includes('da liễu') || docName.includes('yến nhi') || docName.includes('thu hà') || docName.includes('minh anh')) {
-    return 'https://images.unsplash.com/photo-1594824813637-43c292f7c006?w=500&auto=format&fit=crop&q=80';
+    return 'https://images.unsplash.com/photo-1651008376811-b90baee60c1f?w=500&auto=format&fit=crop&q=80';
   }
   if (spec.includes('mắt') || docName.includes('quỳnh chi')) {
     return 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=500&auto=format&fit=crop&q=80';
@@ -84,7 +84,7 @@ const FALLBACK_DOCTORS: DoctorDirectoryItem[] = [
     roomNumber: 'P.205',
     centerName: 'Chi Nhánh Trần Đại Nghĩa',
     consultationFee: 300000,
-    avatarUrl: 'https://images.unsplash.com/photo-1594824813637-43c292f7c006?w=500&auto=format&fit=crop&q=80',
+    avatarUrl: 'https://images.unsplash.com/photo-1651008376811-b90baee60c1f?w=500&auto=format&fit=crop&q=80',
   },
   {
     id: '10b2c3d4-0003-4000-8000-000000000003',
@@ -476,7 +476,7 @@ export default function ClinicSpecialtiesDirectory() {
                             className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
                             loading="lazy"
                             onError={(e) => {
-                              (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1594824813637-43c292f7c006?w=500&auto=format&fit=crop&q=80';
+                              (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1651008376811-b90baee60c1f?w=500&auto=format&fit=crop&q=80';
                             }}
                           />
                           {/* Badge chuyên khoa đè lên góc ảnh */}
@@ -539,37 +539,36 @@ export default function ClinicSpecialtiesDirectory() {
               isVisible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-8'
             }`}
           >
-            {/* THANH TÌM KIẾM & BỘ LỌC ĐA TIÊU CHÍ */}
-            <div className="bg-slate-50/80 rounded-2xl p-4 border border-slate-200/90 shadow-2xs space-y-3">
-              {/* Ô tìm kiếm từ khóa */}
-              <div className="relative">
-                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  value={keyword}
-                  onChange={(e) => setKeyword(e.target.value)}
-                  placeholder="Tìm kiếm bác sĩ theo tên (Hùng, Anh...), học vị (PGS, TS...), chuyên khoa..."
-                  className="w-full pl-10 pr-9 py-2.5 text-xs sm:text-sm bg-white border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-teal-primary/40 focus:border-pine-teal placeholder-slate-400 transition"
-                />
-                {keyword && (
-                  <button
-                    type="button"
-                    onClick={() => setKeyword('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-600 flex items-center justify-center text-xs transition cursor-pointer"
-                  >
-                    <X size={12} />
-                  </button>
-                )}
-              </div>
+            {/* THANH TÌM KIẾM & BỘ LỌC ĐA TIÊU CHÍ (GỌN 1 DÒNG) */}
+            <div className="bg-slate-50/90 rounded-2xl p-2.5 sm:p-3 border border-slate-200/90 shadow-2xs">
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 text-xs">
+                {/* Ô tìm kiếm từ khóa */}
+                <div className="relative sm:col-span-5">
+                  <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={keyword}
+                    onChange={(e) => setKeyword(e.target.value)}
+                    placeholder="Tìm tên bác sĩ, học vị, chuyên khoa..."
+                    className="w-full pl-9 pr-8 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-teal-primary/40 focus:border-pine-teal placeholder-slate-400 transition"
+                  />
+                  {keyword && (
+                    <button
+                      type="button"
+                      onClick={() => setKeyword('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-600 flex items-center justify-center text-[10px] transition cursor-pointer"
+                    >
+                      <X size={10} />
+                    </button>
+                  )}
+                </div>
 
-              {/* Bộ 3 Dropdown Lọc Chuyên Khoa - Lọc Khoảng Giá - Sắp Xếp */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
                 {/* 1. Lọc Chuyên Khoa */}
-                <div>
+                <div className="sm:col-span-3">
                   <select
                     value={selectedSpecialty}
                     onChange={(e) => setSelectedSpecialty(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-700 font-medium focus:outline-hidden focus:ring-2 focus:ring-teal-primary/40 focus:border-pine-teal transition cursor-pointer"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-2 text-xs text-slate-700 font-medium focus:outline-hidden focus:ring-2 focus:ring-teal-primary/40 focus:border-pine-teal transition cursor-pointer truncate"
                   >
                     <option value="all">🏥 Tất cả chuyên khoa</option>
                     {specialtyOptions.map((spec) => (
@@ -580,100 +579,38 @@ export default function ClinicSpecialtiesDirectory() {
                   </select>
                 </div>
 
-                {/* 2. Lọc Khoảng Giá (REQ-SEARCH-02) */}
-                <div>
+                {/* 2. Lọc Khoảng Giá */}
+                <div className="sm:col-span-2">
                   <select
                     value={priceFilter}
                     onChange={(e) => setPriceFilter(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-700 font-medium focus:outline-hidden focus:ring-2 focus:ring-teal-primary/40 focus:border-pine-teal transition cursor-pointer"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-2 text-xs text-slate-700 font-medium focus:outline-hidden focus:ring-2 focus:ring-teal-primary/40 focus:border-pine-teal transition cursor-pointer truncate"
                   >
-                    <option value="all">💰 Khoảng giá: Tất cả</option>
-                    <option value="under300">Dưới 300.000 đ</option>
-                    <option value="300to500">300.000 đ - 500.000 đ</option>
-                    <option value="above500">Trên 500.000 đ</option>
+                    <option value="all">💰 Khoảng giá</option>
+                    <option value="under300">&lt; 300k</option>
+                    <option value="300to500">300k - 500k</option>
+                    <option value="above500">&gt; 500k</option>
                   </select>
                 </div>
 
-                {/* 3. Sắp Xếp Thực Tế (REQ-SEARCH-02) */}
-                <div>
+                {/* 3. Sắp Xếp */}
+                <div className="sm:col-span-2">
                   <select
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-700 font-medium focus:outline-hidden focus:ring-2 focus:ring-teal-primary/40 focus:border-pine-teal transition cursor-pointer"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-2 text-xs text-slate-700 font-medium focus:outline-hidden focus:ring-2 focus:ring-teal-primary/40 focus:border-pine-teal transition cursor-pointer truncate"
                   >
-                    <option value="default">📋 Sắp xếp: Mặc định</option>
-                    <option value="price-asc">💵 Giá: Thấp đến cao</option>
-                    <option value="price-desc">💎 Giá: Cao đến thấp</option>
+                    <option value="default">📋 Mặc định</option>
+                    <option value="price-asc">💵 Giá: Thấp → Cao</option>
+                    <option value="price-desc">💎 Giá: Cao → Thấp</option>
                     <option value="name-asc">🔤 Tên: A → Z</option>
                   </select>
                 </div>
               </div>
-
-              {/* Thẻ gợi ý nhanh */}
-              <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                <span className="text-[11px] font-semibold text-slate-500 mr-1 flex items-center gap-1">
-                  <Filter size={11} /> Gợi ý:
-                </span>
-                <button
-                  type="button"
-                  onClick={() => { setSelectedSpecialty('all'); setPriceFilter('all'); setKeyword(''); }}
-                  className={`text-[11px] px-2.5 py-1 rounded-lg transition font-medium cursor-pointer ${
-                    selectedSpecialty === 'all' && priceFilter === 'all' && !keyword
-                      ? 'bg-pine-teal text-white shadow-2xs'
-                      : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  Tất cả
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedSpecialty('Chuyên khoa Da liễu')}
-                  className={`text-[11px] px-2.5 py-1 rounded-lg transition font-medium cursor-pointer ${
-                    selectedSpecialty === 'Chuyên khoa Da liễu'
-                      ? 'bg-pine-teal text-white shadow-2xs'
-                      : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  Da liễu
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedSpecialty('Chuyên khoa Nội tổng quát')}
-                  className={`text-[11px] px-2.5 py-1 rounded-lg transition font-medium cursor-pointer ${
-                    selectedSpecialty === 'Chuyên khoa Nội tổng quát'
-                      ? 'bg-pine-teal text-white shadow-2xs'
-                      : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  Nội tổng quát
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPriceFilter('under300')}
-                  className={`text-[11px] px-2.5 py-1 rounded-lg transition font-medium cursor-pointer ${
-                    priceFilter === 'under300'
-                      ? 'bg-pine-teal text-white shadow-2xs'
-                      : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  Dưới 300k
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPriceFilter('300to500')}
-                  className={`text-[11px] px-2.5 py-1 rounded-lg transition font-medium cursor-pointer ${
-                    priceFilter === '300to500'
-                      ? 'bg-pine-teal text-white shadow-2xs'
-                      : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  300k - 500k
-                </button>
-              </div>
             </div>
 
-            {/* DANH SÁCH THẺ BÁC SĨ (ĐỒNG BỘ VỚI 3D CAROUSEL BÊN TRÁI) */}
-            <div className="space-y-3">
+            {/* DANH SÁCH BÁC SĨ: DẠNG LƯỚI 2 CỘT x 2 HÀNG (GRID 2x2 COMPACT) */}
+            <div>
               {loading ? (
                 <div className="py-12 text-center text-xs text-slate-400 bg-slate-50 rounded-2xl border border-slate-200/70">
                   <div className="inline-block w-6 h-6 border-2 border-pine-teal border-t-transparent rounded-full animate-spin mb-2" />
@@ -699,115 +636,118 @@ export default function ClinicSpecialtiesDirectory() {
                   </button>
                 </div>
               ) : (
-                paginatedDoctors.map((item, index) => {
-                  const globalIndex = (currentPage - 1) * PAGE_SIZE + index + 1;
-                  const displayIndex = globalIndex < 10 ? `0${globalIndex}` : `${globalIndex}`;
-                  const isMatching3D = active3DDoctor?.id === item.id;
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {paginatedDoctors.map((item, index) => {
+                    const globalIndex = (currentPage - 1) * PAGE_SIZE + index + 1;
+                    const displayIndex = globalIndex < 10 ? `0${globalIndex}` : `${globalIndex}`;
+                    const isMatching3D = active3DDoctor?.id === item.id;
 
-                  return (
-                    <div
-                      key={item.id}
-                      onMouseEnter={() => {
-                        const foundIdx = carouselDoctors.findIndex((d) => d.id === item.id);
-                        if (foundIdx !== -1) {
-                          setCarouselIndex(foundIdx);
-                        }
-                      }}
-                      className={`group p-4 sm:p-5 rounded-2xl transition-all duration-300 flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative overflow-hidden ${
-                        isMatching3D
-                          ? 'bg-emerald-50/40 border-2 border-pine-teal shadow-[0_8px_20px_-4px_rgba(14,92,85,0.15)] ring-2 ring-teal-500/20'
-                          : 'bg-white hover:bg-slate-50/60 border border-slate-200/80 hover:border-teal-primary/60 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.04)] hover:-translate-y-0.5'
-                      }`}
-                    >
-                      {/* Vạch màu nhấn ở cạnh trái */}
-                      <span className={`absolute left-0 top-0 bottom-0 w-1.5 transition-opacity duration-300 rounded-l-2xl ${
-                        isMatching3D ? 'bg-pine-teal opacity-100' : 'bg-pine-teal opacity-0 group-hover:opacity-100'
-                      }`} />
+                    return (
+                      <div
+                        key={item.id}
+                        onMouseEnter={() => {
+                          const foundIdx = carouselDoctors.findIndex((d) => d.id === item.id);
+                          if (foundIdx !== -1) {
+                            setCarouselIndex(foundIdx);
+                          }
+                        }}
+                        className={`group p-3 sm:p-3.5 rounded-2xl transition-all duration-300 flex flex-col justify-between relative overflow-hidden ${
+                          isMatching3D
+                            ? 'bg-emerald-50/50 border-2 border-pine-teal shadow-md ring-2 ring-teal-500/20'
+                            : 'bg-white hover:bg-slate-50/70 border border-slate-200/90 hover:border-teal-primary/60 shadow-2xs hover:-translate-y-0.5'
+                        }`}
+                      >
+                        {/* Vạch màu nhấn ở cạnh trái */}
+                        <span
+                          className={`absolute left-0 top-0 bottom-0 w-1 transition-opacity duration-300 rounded-l-2xl ${
+                            isMatching3D ? 'bg-pine-teal opacity-100' : 'bg-pine-teal opacity-0 group-hover:opacity-100'
+                          }`}
+                        />
 
-                      <div className="flex items-start gap-3.5 sm:gap-4 pl-1 min-w-0 flex-1">
-                        {/* Avatar ảnh Bác sĩ tròn chuyên nghiệp */}
-                        <div className="relative w-12 h-12 rounded-2xl overflow-hidden border-2 border-teal-200/80 shrink-0 shadow-2xs bg-slate-100">
-                          <img
-                            src={item.avatarUrl}
-                            alt={item.doctorName}
-                            className="w-full h-full object-cover object-top"
-                            loading="lazy"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1594824813637-43c292f7c006?w=500&auto=format&fit=crop&q=80';
-                            }}
-                          />
-                          <span className="absolute bottom-0 right-0 bg-pine-teal text-white text-[9px] font-mono px-1 rounded-tl-md font-bold">
-                            {displayIndex}
-                          </span>
-                        </div>
+                        <div className="space-y-2">
+                          {/* Hàng trên: Avatar tròn & Thông tin bác sĩ */}
+                          <div className="flex items-start gap-2.5">
+                            {/* Avatar ảnh Bác sĩ bo tròn */}
+                            <div className="relative w-11 h-11 rounded-xl overflow-hidden border border-teal-200/80 shrink-0 shadow-2xs bg-slate-100">
+                              <img
+                                src={item.avatarUrl}
+                                alt={item.doctorName}
+                                className="w-full h-full object-cover object-top"
+                                loading="lazy"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src =
+                                    'https://images.unsplash.com/photo-1651008376811-b90baee60c1f?w=500&auto=format&fit=crop&q=80';
+                                }}
+                              />
+                              <span className="absolute bottom-0 right-0 bg-pine-teal text-white text-[8px] font-mono px-1 rounded-tl-md font-bold">
+                                {displayIndex}
+                              </span>
+                            </div>
 
-                        {/* Thông tin bác sĩ thực tế */}
-                        <div className="space-y-1.5 min-w-0 flex-1">
-                          {/* Chuyên khoa, Buồng khám, Cơ sở & Badge đồng bộ 3D */}
-                          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                            <span className="text-xs font-extrabold text-pine-teal">
-                              {item.specialtyName}
-                            </span>
-                            {item.roomNumber && (
-                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-semibold border border-blue-200/60 shadow-2xs">
-                                {item.roomNumber}
-                              </span>
-                            )}
-                            {item.centerName && (
-                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium border border-slate-200/70 shadow-2xs">
-                                {item.centerName}
-                              </span>
-                            )}
-                            {isMatching3D && (
-                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold border border-emerald-300 shadow-2xs flex items-center gap-1">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                Đang hiển thị ở sân khấu 3D
-                              </span>
-                            )}
+                            {/* Thông tin bác sĩ thực tế */}
+                            <div className="min-w-0 flex-1 space-y-0.5">
+                              {/* Chuyên khoa & Buồng khám */}
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-[11px] font-extrabold text-pine-teal truncate max-w-[130px]">
+                                  {item.specialtyName}
+                                </span>
+                                {item.roomNumber && (
+                                  <span className="text-[9px] px-1.5 py-0.2 rounded-md bg-blue-50 text-blue-700 font-semibold border border-blue-200/60 shrink-0">
+                                    {item.roomNumber}
+                                  </span>
+                                )}
+                                {isMatching3D && (
+                                  <span className="text-[9px] px-1.5 py-0.2 rounded-md bg-emerald-100 text-emerald-800 font-bold border border-emerald-300 shrink-0 flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                    3D
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Họ tên bác sĩ + Học vị */}
+                              <h4 className="text-xs sm:text-[13px] font-extrabold text-slate-900 group-hover:text-pine-teal transition-colors truncate">
+                                {item.doctorName}
+                              </h4>
+
+                              {/* Tên cơ sở chi nhánh */}
+                              <p className="text-[10px] text-slate-500 truncate flex items-center gap-1">
+                                <Building2 size={10} className="shrink-0 text-slate-400" />
+                                <span className="truncate">{item.centerName}</span>
+                              </p>
+                            </div>
                           </div>
 
-                          {/* Họ tên bác sĩ + Học vị */}
-                          <h4 className="text-sm sm:text-base font-extrabold text-slate-900 group-hover:text-pine-teal transition-colors">
-                            {item.doctorName}
-                          </h4>
-
-                          {/* Mô tả thế mạnh lâm sàng */}
-                          <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">
+                          {/* Mô tả thế mạnh lâm sàng gọn 1 dòng */}
+                          <p className="text-[11px] text-slate-500 leading-snug line-clamp-1">
                             {item.description}
                           </p>
+                        </div>
 
-                          {/* Cam kết thăm khám thực tế */}
-                          <div className="flex items-center gap-2 pt-0.5 text-xs text-emerald-700 font-medium">
-                            <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
-                            <span>Bác sĩ trực tiếp thăm khám theo giờ hẹn</span>
+                        {/* Hàng dưới: Giá Khám Niêm Yết & Nút Đặt Khám */}
+                        <div className="pt-2 mt-2 border-t border-slate-100 flex items-center justify-between gap-1.5">
+                          <div>
+                            <span className="text-[8px] font-semibold text-slate-400 block uppercase tracking-wider">
+                              Giá khám
+                            </span>
+                            <span className="text-xs sm:text-sm font-black text-pine-teal">
+                              {item.consultationFee.toLocaleString('vi-VN')} đ
+                            </span>
                           </div>
+
+                          {/* Nút Đặt Khám dẫn vào /booking */}
+                          <Link
+                            href={`/booking?doctorId=${item.id}&specialtyId=${item.specialtyId || ''}`}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-pine-teal hover:bg-pine-teal-hover text-white text-[11px] font-bold transition shadow-2xs hover:shadow-sm cursor-pointer shrink-0"
+                          >
+                            <Calendar size={11} />
+                            <span>Đặt khám</span>
+                            <ArrowUpRight size={11} />
+                          </Link>
                         </div>
                       </div>
-
-                      {/* Giá Khám Niêm Yết & Nút Đặt Khám Ngay */}
-                      <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 shrink-0">
-                        <div className="text-left sm:text-right">
-                          <span className="text-[10px] font-semibold text-slate-400 block uppercase tracking-wider">
-                            Giá khám niêm yết
-                          </span>
-                          <span className="text-sm sm:text-base font-black text-pine-teal">
-                            {item.consultationFee.toLocaleString('vi-VN')} đ
-                          </span>
-                        </div>
-
-                        {/* Nút Đặt Khám Ngay dẫn vào /booking */}
-                        <Link
-                          href={`/booking?doctorId=${item.id}&specialtyId=${item.specialtyId || ''}`}
-                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-pine-teal hover:bg-pine-teal-hover text-white text-xs font-bold transition shadow-2xs hover:shadow-sm cursor-pointer shrink-0"
-                        >
-                          <Calendar size={13} />
-                          <span>Đặt Khám Ngay</span>
-                          <ArrowUpRight size={13} />
-                        </Link>
-                      </div>
-                    </div>
-                  );
-                })
+                    );
+                  })}
+                </div>
               )}
             </div>
 
