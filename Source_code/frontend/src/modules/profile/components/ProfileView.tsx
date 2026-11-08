@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { User, Mail, Phone, Save, KeyRound, Stethoscope, LogOut, ArrowLeft, Camera, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { api, clearAuthSession, getAuthToken } from '@/shared/lib/api';
+import { api, clearAuthSession, getAuthToken, getAuthUser } from '@/shared/lib/api';
 import LoadingSpinner from '@/shared/components/Feedback/LoadingSpinner';
 import AlertMessage from '@/shared/components/Feedback/AlertMessage';
 
@@ -64,24 +64,31 @@ export default function ProfileView() {
     async function loadData() {
       try {
         const data = await api.getProfile();
+        // Backend trả về `doctorProfiles` (danh sách hồ sơ chuyên môn của Bác sĩ)
+        const primaryDocProfile =
+          data.doctorProfile ||
+          (Array.isArray(data.doctorProfiles) && data.doctorProfiles.length > 0
+            ? data.doctorProfiles[0]
+            : null);
+
         setProfile({
-          id: data.id || '',
+          id: data.userId || data.id || '',
           fullName: data.fullName || '',
           email: data.email || '',
           phone: data.phone || '',
           roles: data.roles || ['CUSTOMER'],
           rolesWithCenter: data.rolesWithCenter || [],
-          doctorProfile: data.doctorProfile || null,
+          doctorProfile: primaryDocProfile,
           patientProfile: data.patientProfile || null,
         });
 
-        if (data.doctorProfile) {
+        if (primaryDocProfile) {
           setDoctorForm({
-            academicTitle: data.doctorProfile.academicTitle || 'BS.CKI',
-            bio: data.doctorProfile.bio || '',
+            academicTitle: primaryDocProfile.academicTitle || 'BS.CKI',
+            bio: primaryDocProfile.bio || '',
           });
-          if (data.doctorProfile.avatarUrl) {
-            setAvatarUrl(data.doctorProfile.avatarUrl);
+          if (primaryDocProfile.avatarUrl) {
+            setAvatarUrl(primaryDocProfile.avatarUrl);
           }
         }
 
@@ -154,17 +161,38 @@ export default function ProfileView() {
       const cdnUrl = uploadRes.url;
       setAvatarUrl(cdnUrl);
 
-      // Nếu là Bác sĩ, tự động cập nhật avatarUrl vào hồ sơ Bác sĩ
-      if (profile.doctorProfile) {
+      // Nếu tài khoản là Bác sĩ (ROLE_DOCTOR hoặc có doctorProfile), lưu ngay avatarUrl vào CSDL
+      const isDoc = profile.roles.includes('ROLE_DOCTOR') || Boolean(profile.doctorProfile);
+      if (isDoc) {
+        const titleToSave = doctorForm.academicTitle || profile.doctorProfile?.academicTitle || 'BS.CKI';
+        const bioToSave = doctorForm.bio || profile.doctorProfile?.bio || '';
         await api.updateDoctorProfile({
-          ...doctorForm,
+          academicTitle: titleToSave,
+          bio: bioToSave,
           avatarUrl: cdnUrl,
         });
+
+        setProfile((prev) => ({
+          ...prev,
+          doctorProfile: prev.doctorProfile
+            ? { ...prev.doctorProfile, avatarUrl: cdnUrl }
+            : { academicTitle: titleToSave, bio: bioToSave, avatarUrl: cdnUrl },
+        }));
       }
 
-      setMessage('Đã tải và cập nhật ảnh đại diện lên Cloudinary thành công!');
+      // Đồng bộ vào sessionStorage để HeaderNav và các trang khác cập nhật ngay
+      const authUser = getAuthUser();
+      if (authUser) {
+        const updatedUser = { ...authUser, avatarUrl: cdnUrl };
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('user', JSON.stringify(updatedUser));
+          window.dispatchEvent(new CustomEvent('medsched:user_profile_updated', { detail: { avatarUrl: cdnUrl } }));
+        }
+      }
+
+      setMessage('Đã tải và cập nhật ảnh đại diện bác sĩ thành công!');
     } catch (err: any) {
-      setError(err.message || 'Lỗi khi tải ảnh đại diện lên máy chủ đám mây.');
+      setError(err.message || 'Lỗi khi tải ảnh đại diện lên máy chủ.');
     } finally {
       setUploadingAvatar(false);
       e.target.value = '';
@@ -255,6 +283,7 @@ export default function ProfileView() {
       await api.updateDoctorProfile({
         academicTitle: doctorForm.academicTitle,
         bio: doctorForm.bio,
+        avatarUrl: avatarUrl || undefined,
       });
       setMessage('Cập nhật hồ sơ chuyên môn Bác sĩ thành công!');
     } catch (err: any) {
