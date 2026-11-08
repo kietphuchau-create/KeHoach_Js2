@@ -259,11 +259,47 @@ export const api = {
     });
   },
 
-  async updateDoctorProfile(payload: { academicTitle?: string; roomNumber?: string; bio?: string }) {
+  async updateDoctorProfile(payload: { academicTitle?: string; roomNumber?: string; bio?: string; avatarUrl?: string }) {
     return request<any>("/me/doctor-profile", {
       method: "PUT",
       body: JSON.stringify(payload),
     });
+  },
+
+  async uploadFile(file: File, folder = "avatars") {
+    const token = getAuthToken();
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("folder", folder);
+
+    const rootApiUrl = API_BASE_URL.replace(/\/v1\/?$/, "");
+    let targetUrl = `${rootApiUrl}/files/upload`;
+
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    let response = await fetch(targetUrl, {
+      method: "POST",
+      headers,
+      body: formData,
+    });
+
+    if (response.status === 404 && targetUrl !== `${API_BASE_URL}/files/upload`) {
+      response = await fetch(`${API_BASE_URL}/files/upload`, {
+        method: "POST",
+        headers,
+        body: formData,
+      });
+    }
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.message || "Tải tệp tin lên máy chủ đám mây thất bại.");
+    }
+
+    return response.json();
   },
 
   // --- 3. QUẢN TRỊ VIÊN (ADMIN) ---
