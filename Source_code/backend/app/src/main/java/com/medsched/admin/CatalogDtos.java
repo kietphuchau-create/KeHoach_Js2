@@ -100,7 +100,36 @@ public final class CatalogDtos {
             BigDecimal consultationFee,
             String roomNumber,
             String bio,
-            String avatarUrl) {
+            String avatarUrl,
+            Double rating,
+            Integer totalReviews) {
+
+        public DoctorSummaryResponse(
+                String id,
+                String userId,
+                String fullName,
+                String phone,
+                String specialtyId,
+                String specialtyName,
+                String medicalCenterId,
+                String medicalCenterName,
+                String academicTitle,
+                BigDecimal consultationFee,
+                String roomNumber,
+                String bio,
+                String avatarUrl) {
+            this(id, userId, fullName, phone, specialtyId, specialtyName,
+                    medicalCenterId, medicalCenterName, academicTitle, consultationFee,
+                    roomNumber, bio, avatarUrl, 5.0, 0);
+        }
+    }
+
+    public record PageResponse<T>(
+            java.util.List<T> content,
+            int page,
+            int size,
+            long totalElements,
+            int totalPages) {
     }
 
     public record TimeSlotResponse(

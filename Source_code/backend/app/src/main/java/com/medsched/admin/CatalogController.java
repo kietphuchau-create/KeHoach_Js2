@@ -138,4 +138,23 @@ public class CatalogController {
         return catalogService.listDoctors(specialtyId, centerId);
     }
 
+    /**
+     * REQ-SEARCH-01 & REQ-SEARCH-02:
+     * GET /api/v1/doctors/search
+     */
+    @GetMapping("/doctors/search")
+    public CatalogDtos.PageResponse<CatalogDtos.DoctorSummaryResponse> searchDoctors(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String specialtyId,
+            @RequestParam(required = false) String centerId,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate availableDate,
+            @RequestParam(required = false) java.math.BigDecimal minPrice,
+            @RequestParam(required = false) java.math.BigDecimal maxPrice,
+            @RequestParam(defaultValue = "price") String sortBy,
+            @RequestParam(defaultValue = "ASC") String sortDir,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return catalogService.searchDoctors(keyword, specialtyId, centerId, availableDate, minPrice, maxPrice, sortBy, sortDir, page, size);
+    }
+
 }

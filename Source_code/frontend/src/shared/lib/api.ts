@@ -495,6 +495,42 @@ export const api = {
     return request<any[]>(`/doctors${qs}`);
   },
 
+  /**
+   * REQ-SEARCH-01 & REQ-SEARCH-02: Tìm kiếm và phân trang bác sĩ nâng cao
+   */
+  async searchDoctors(params?: {
+    keyword?: string;
+    specialtyId?: string;
+    centerId?: string;
+    availableDate?: string;
+    minPrice?: number;
+    maxPrice?: number;
+    sortBy?: string;
+    sortDir?: string;
+    page?: number;
+    size?: number;
+  }) {
+    const query = new URLSearchParams();
+    if (params?.keyword) query.append("keyword", params.keyword);
+    if (params?.specialtyId) query.append("specialtyId", params.specialtyId);
+    if (params?.centerId) query.append("centerId", params.centerId);
+    if (params?.availableDate) query.append("availableDate", params.availableDate);
+    if (params?.minPrice !== undefined) query.append("minPrice", String(params.minPrice));
+    if (params?.maxPrice !== undefined) query.append("maxPrice", String(params.maxPrice));
+    if (params?.sortBy) query.append("sortBy", params.sortBy);
+    if (params?.sortDir) query.append("sortDir", params.sortDir);
+    if (params?.page !== undefined) query.append("page", String(params.page));
+    if (params?.size !== undefined) query.append("size", String(params.size));
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    return request<{
+      content: any[];
+      page: number;
+      size: number;
+      totalElements: number;
+      totalPages: number;
+    }>(`/doctors/search${qs}`);
+  },
+
   // --- 5. ĐẶT LỊCH (APPOINTMENTS) & SPRING AI TRIAGE ---
   async bookAppointment(payload: {
     medicalCenterId?: string;
