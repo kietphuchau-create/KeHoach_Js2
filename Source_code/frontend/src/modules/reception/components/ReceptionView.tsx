@@ -2124,6 +2124,13 @@ export default function ReceptionView() {
                   </div>
                 )}
 
+                {error && (
+                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-600 text-xs flex items-center gap-2 animate-in fade-in">
+                    <AlertCircle size={16} className="shrink-0" />
+                    <span className="font-medium">{error}</span>
+                  </div>
+                )}
+
                 <div className="pt-2">
                   <button
                     type="submit"
