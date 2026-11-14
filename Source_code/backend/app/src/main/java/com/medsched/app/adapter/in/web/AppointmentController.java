@@ -19,6 +19,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.beans.factory.annotation.Autowired;
 import com.medsched.persistence.entity.AppointmentEntity;
+import com.medsched.persistence.entity.PatientProfileEntity;
 import com.medsched.persistence.entity.TimeSlotEntity;
 import com.medsched.persistence.enums.AppointmentStatus;
 import com.medsched.persistence.enums.RelationshipType;
@@ -129,15 +130,15 @@ public class AppointmentController {
             }
         }
 
-        if (profileOpt.isEmpty()) {
+        if (profileOpt.isPresent()) {
+            PatientProfileEntity patientProfile = profileOpt.get();
+            if (patientProfile.getDateOfBirth() == null || patientProfile.getGender() == null) {
+                throw new com.medsched.common.AppExceptions.BadRequestException(
+                        "Hồ sơ bệnh nhân chưa hoàn tất thông tin cá nhân bắt buộc (Ngày sinh, Giới tính). Vui lòng cập nhật hồ sơ tại trang Hồ sơ cá nhân trước khi đặt lịch khám.");
+            }
+        } else if (principal != null) {
             throw new com.medsched.common.AppExceptions.BadRequestException(
                     "Không tìm thấy hồ sơ bệnh nhân. Vui lòng cập nhật thông tin cá nhân tại trang Hồ sơ trước khi đặt lịch khám.");
-        }
-
-        PatientProfileEntity patientProfile = profileOpt.get();
-        if (patientProfile.getDateOfBirth() == null || patientProfile.getGender() == null) {
-            throw new com.medsched.common.AppExceptions.BadRequestException(
-                    "Hồ sơ bệnh nhân chưa hoàn tất thông tin cá nhân bắt buộc (Ngày sinh, Giới tính). Vui lòng cập nhật hồ sơ tại trang Hồ sơ cá nhân trước khi đặt lịch khám.");
         }
 
         String doctorId = request.doctorId();
