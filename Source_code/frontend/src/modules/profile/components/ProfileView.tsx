@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { User, Mail, Phone, Save, KeyRound, Stethoscope, LogOut, ArrowLeft, Camera, Loader2 } from 'lucide-react';
+import { User, Mail, Phone, Save, KeyRound, Stethoscope, LogOut, ArrowLeft, Camera, Loader2, ShieldAlert } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { api, clearAuthSession, getAuthToken, getAuthUser } from '@/shared/lib/api';
@@ -49,10 +49,12 @@ export default function ProfileView() {
     cccdNumber: '',
     healthInsuranceNo: '',
     dateOfBirth: '',
-    gender: 'MALE' as 'MALE' | 'FEMALE' | 'OTHER',
+    gender: '' as 'MALE' | 'FEMALE' | 'OTHER' | '',
     address: '',
     medicalHistory: '',
   });
+
+  const [isFromIncompleteBooking, setIsFromIncompleteBooking] = useState(false);
 
   useEffect(() => {
     const token = getAuthToken();
@@ -97,7 +99,7 @@ export default function ProfileView() {
             cccdNumber: data.patientProfile.cccdNumber || '',
             healthInsuranceNo: data.patientProfile.healthInsuranceNo || '',
             dateOfBirth: data.patientProfile.dateOfBirth || '',
-            gender: data.patientProfile.gender || 'MALE',
+            gender: data.patientProfile.gender || '',
             address: data.patientProfile.address || '',
             medicalHistory: data.patientProfile.medicalHistory || '',
           });
@@ -119,6 +121,9 @@ export default function ProfileView() {
           setTimeout(() => {
             document.getElementById('doi-mat-khau')?.scrollIntoView({ behavior: 'smooth' });
           }, 150);
+        }
+        if (urlParams.get('reason') === 'incomplete_profile') {
+          setIsFromIncompleteBooking(true);
         }
       }
     };
@@ -190,7 +195,7 @@ export default function ProfileView() {
         }
       }
 
-      setMessage('Đã tải và cập nhật ảnh đại diện bác sĩ thành công!');
+      setMessage(isDoc ? 'Đã tải và cập nhật ảnh đại diện bác sĩ thành công!' : 'Đã tải và cập nhật ảnh đại diện thành công!');
     } catch (err: any) {
       setError(err.message || 'Lỗi khi tải ảnh đại diện lên máy chủ.');
     } finally {
@@ -218,7 +223,7 @@ export default function ProfileView() {
           cccdNumber: patientForm.cccdNumber.trim() || undefined,
           healthInsuranceNo: patientForm.healthInsuranceNo.trim() || undefined,
           dateOfBirth: patientForm.dateOfBirth || undefined,
-          gender: patientForm.gender,
+          gender: (patientForm.gender || undefined) as any,
           phone: profile.phone.trim() || undefined,
           address: patientForm.address.trim() || undefined,
           medicalHistory: patientForm.medicalHistory.trim() || undefined,
@@ -228,7 +233,16 @@ export default function ProfileView() {
         console.warn('Lỗi lưu patient profile:', pErr);
       }
 
-      setMessage('Cập nhật thông tin cá nhân và hồ sơ y tế bệnh nhân thành công!');
+      const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+      const redirectParam = urlParams?.get('redirect');
+      if (redirectParam) {
+        setMessage('Cập nhật hồ sơ bệnh nhân thành công! Đang chuyển hướng quay lại trang đặt lịch...');
+        setTimeout(() => {
+          router.push(redirectParam);
+        }, 1200);
+      } else {
+        setMessage('Cập nhật thông tin cá nhân và hồ sơ y tế bệnh nhân thành công!');
+      }
       setProfile((prev) => ({
         ...prev,
         fullName: res.fullName || prev.fullName,
@@ -404,6 +418,19 @@ export default function ProfileView() {
 
       {/* Card Thông Tin Hồ Sơ */}
       <div className="bg-white rounded-2xl shadow-sm border border-mint-light p-4 sm:p-5">
+        {isFromIncompleteBooking && (
+          <div className="mb-4 p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-800 flex items-start gap-3 shadow-xs animate-in fade-in">
+            <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <h4 className="font-bold text-xs sm:text-sm text-amber-900">
+                Yêu cầu hoàn tất hồ sơ để tiếp tục Đặt Lịch Khám
+              </h4>
+              <p className="text-[11px] sm:text-xs text-amber-700 mt-0.5 leading-relaxed">
+                Quý khách vui lòng chọn <strong>Ngày sinh</strong>, <strong>Giới tính</strong>, nhập <strong>Số CCCD</strong> và bấm nút <strong>"Lưu Thay Đổi Hồ Sơ"</strong> ở góc dưới bên phải. Hệ thống sẽ tự động đưa bạn quay lại trang Đặt lịch khám.
+              </p>
+            </div>
+          </div>
+        )}
         <form onSubmit={handleProfileSubmit} className="space-y-3">
           {/* Hàng 1: Họ tên + SĐT + Email */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -483,6 +510,7 @@ export default function ProfileView() {
                 onChange={(e) => setPatientForm({ ...patientForm, gender: e.target.value as any })}
                 className="w-full px-3 py-2 border border-mint-light bg-mint-soft rounded-lg outline-none focus:bg-white focus:ring-1 focus:ring-pine-teal focus:border-teal-primary transition text-xs cursor-pointer"
               >
+                <option value="">-- Chọn giới tính --</option>
                 <option value="MALE">Nam</option>
                 <option value="FEMALE">Nữ</option>
                 <option value="OTHER">Khác</option>

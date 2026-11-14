@@ -19,6 +19,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.beans.factory.annotation.Autowired;
 import com.medsched.persistence.entity.AppointmentEntity;
+import com.medsched.persistence.entity.PatientProfileEntity;
 import com.medsched.persistence.entity.TimeSlotEntity;
 import com.medsched.persistence.enums.AppointmentStatus;
 import com.medsched.persistence.enums.RelationshipType;
@@ -105,7 +106,7 @@ public class AppointmentController {
 
     public record BookRequest(
             @NotBlank String medicalCenterId,
-            @NotBlank String patientProfileId,
+            String patientProfileId,
             @NotBlank String doctorId,
             @NotBlank String slotId,
             String symptoms,
@@ -117,16 +118,27 @@ public class AppointmentController {
             @AuthenticationPrincipal AppUserDetails principal,
             @Valid @RequestBody BookRequest request) {
 
-        String patientProfileId = request.patientProfileId();
-        if (patientProfiles.findById(patientProfileId).isEmpty()) {
-            if (principal != null) {
-                patientProfileId = patientProfiles.findByUserIdAndRelationship(principal.getUserId(), RelationshipType.SELF)
-                        .map(p -> p.getId())
-                        .orElse(patientProfileId);
+        String patientProfileId = request.patientProfileId() != null ? request.patientProfileId().trim() : "";
+        Optional<PatientProfileEntity> profileOpt = patientProfileId.isBlank()
+                ? Optional.empty()
+                : patientProfiles.findById(patientProfileId);
+
+        if (profileOpt.isEmpty() && principal != null) {
+            profileOpt = patientProfiles.findByUserIdAndRelationship(principal.getUserId(), RelationshipType.SELF);
+            if (profileOpt.isPresent()) {
+                patientProfileId = profileOpt.get().getId();
             }
-            if (patientProfiles.findById(patientProfileId).isEmpty() && patientProfiles.count() > 0) {
-                patientProfileId = patientProfiles.findAll().get(0).getId();
+        }
+
+        if (profileOpt.isPresent()) {
+            PatientProfileEntity patientProfile = profileOpt.get();
+            if (patientProfile.getDateOfBirth() == null || patientProfile.getGender() == null) {
+                throw new com.medsched.common.AppExceptions.BadRequestException(
+                        "Hồ sơ bệnh nhân chưa hoàn tất thông tin cá nhân bắt buộc (Ngày sinh, Giới tính). Vui lòng cập nhật hồ sơ tại trang Hồ sơ cá nhân trước khi đặt lịch khám.");
             }
+        } else if (principal != null) {
+            throw new com.medsched.common.AppExceptions.BadRequestException(
+                    "Không tìm thấy hồ sơ bệnh nhân. Vui lòng cập nhật thông tin cá nhân tại trang Hồ sơ trước khi đặt lịch khám.");
         }
 
         String doctorId = request.doctorId();

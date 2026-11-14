@@ -95,7 +95,8 @@ public class AuthService {
         users.save(user);
 
         PatientProfileEntity self = new PatientProfileEntity(UUID.randomUUID().toString(), user.getId(),
-                RelationshipType.SELF, fullName, null, null, null, null, phone, null, null, now, now);
+                RelationshipType.SELF, fullName, blankToNull(request.cccdNumber()), null,
+                request.dateOfBirth(), request.gender(), phone, null, null, now, now);
         patientProfiles.save(self);
 
         return issueTokens(userDetailsService.loadUserById(user.getId()), user.getFullName(), sessionId);
