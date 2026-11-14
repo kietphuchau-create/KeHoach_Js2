@@ -836,6 +836,7 @@ export const api = {
   async registerWalkinPatient(payload: {
     fullName: string;
     phone: string;
+    email?: string;
     cccdNumber?: string;
     doctorId?: string;
     specialty?: string;

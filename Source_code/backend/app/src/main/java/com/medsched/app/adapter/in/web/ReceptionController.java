@@ -76,8 +76,15 @@ public class ReceptionController {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private com.medsched.persistence.repository.PaymentJpaRepository paymentJpaRepository;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.medsched.mail.EmailService emailService;
+
     public void setClock(Clock clock) {
         this.clock = clock;
+    }
+
+    public void setEmailService(com.medsched.mail.EmailService emailService) {
+        this.emailService = emailService;
     }
 
     public void setDoctorScheduleJpaRepository(com.medsched.persistence.repository.DoctorScheduleJpaRepository doctorScheduleJpaRepository) {
@@ -250,14 +257,19 @@ public class ReceptionController {
             String medicalCenterId,
             String symptoms,
             String gender,
-            Integer birthYear
+            Integer birthYear,
+            String email
     ) {
         public WalkinRequest(String fullName, String phone, String cccdNumber, String doctorId, String specialty, String password) {
-            this(fullName, phone, cccdNumber, doctorId, specialty, password, null, null, null, null);
+            this(fullName, phone, cccdNumber, doctorId, specialty, password, null, null, null, null, null);
         }
 
         public WalkinRequest(String fullName, String phone, String cccdNumber, String doctorId, String specialty, String password, String medicalCenterId) {
-            this(fullName, phone, cccdNumber, doctorId, specialty, password, medicalCenterId, null, null, null);
+            this(fullName, phone, cccdNumber, doctorId, specialty, password, medicalCenterId, null, null, null, null);
+        }
+
+        public WalkinRequest(String fullName, String phone, String cccdNumber, String doctorId, String specialty, String password, String medicalCenterId, String symptoms, String gender, Integer birthYear) {
+            this(fullName, phone, cccdNumber, doctorId, specialty, password, medicalCenterId, symptoms, gender, birthYear, null);
         }
     }
 
@@ -555,12 +567,20 @@ public class ReceptionController {
         String cccdNumber = req.cccdNumber() != null && !req.cccdNumber().isBlank()
                 ? InputValidator.validateCccd(req.cccdNumber())
                 : null;
-        String email = cleanPhone + "@medsched.vn";
+        String rawEmail = req.email() != null && !req.email().isBlank() ? req.email().trim() : null;
+        String email;
+        if (rawEmail != null) {
+            email = InputValidator.validateEmail(rawEmail);
+        } else {
+            email = cleanPhone + "@medsched.vn";
+        }
 
-        // 1. Kiểm tra không cho trùng SĐT tài khoản
-        if ((!cleanPhone.isBlank() && userJpaRepository.findByPhone(cleanPhone).isPresent())
-                || userJpaRepository.findByEmail(email).isPresent()) {
+        // 1. Kiểm tra không cho trùng SĐT hoặc email tài khoản
+        if (!cleanPhone.isBlank() && userJpaRepository.findByPhone(cleanPhone).isPresent()) {
             throw new IllegalArgumentException("Số điện thoại đã tồn tại trên hệ thống, yêu cầu lễ tân hoặc khách hàng kiểm tra lại");
+        }
+        if (userJpaRepository.findByEmail(email).isPresent()) {
+            throw new IllegalArgumentException("Địa chỉ email '" + email + "' đã tồn tại trên hệ thống. Vui lòng kiểm tra lại hoặc nhập email khác.");
         }
 
         String rawPass = req.password() != null && !req.password().isBlank() ? req.password() : "Med@1234";
@@ -702,6 +722,25 @@ public class ReceptionController {
             app.setTestData(true);
         }
         app = appointmentJpaRepository.save(app);
+
+        // Gửi email thông tin tài khoản và phiếu khám về Gmail của người bệnh
+        if (emailService != null && email != null && !email.endsWith("@medsched.vn")) {
+            try {
+                emailService.sendWalkinAccountCredentialsEmail(
+                        email,
+                        cleanName,
+                        cleanPhone,
+                        rawPass,
+                        bookingCode,
+                        queueNumber,
+                        doctorName,
+                        roomNumber,
+                        specialty
+                );
+            } catch (Exception e) {
+                System.err.println("Không thể gửi email thông tin tài khoản cho bệnh nhân vãng lai: " + e.getMessage());
+            }
+        }
 
         WalkinResponse res = new WalkinResponse(
                 app.getId(),
