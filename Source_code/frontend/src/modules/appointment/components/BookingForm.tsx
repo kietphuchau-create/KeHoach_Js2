@@ -4317,6 +4317,13 @@ export default function BookingForm() {
       {/* Modal Báo Động Hồ Sơ Chưa Hoàn Tất */}
       <IncompleteProfileModal
         isOpen={showIncompleteProfileModal}
+        currentProfile={patientProfile}
+        onSuccess={(updatedProfile) => {
+          setPatientProfile(updatedProfile);
+          setMissingProfileFields({});
+          setShowIncompleteProfileModal(false);
+          setError(null);
+        }}
         onClose={() => setShowIncompleteProfileModal(false)}
         missingFields={missingProfileFields}
         redirectUrl="/booking"

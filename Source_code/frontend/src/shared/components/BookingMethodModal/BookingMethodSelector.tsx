@@ -6554,6 +6554,7 @@ export default function BookingMethodSelector({
       {/* Modal Báo Động Hồ Sơ Chưa Hoàn Tất */}
       <IncompleteProfileModal
         isOpen={showIncompleteProfileModal}
+        onSuccess={() => setShowIncompleteProfileModal(false)}
         onClose={() => setShowIncompleteProfileModal(false)}
         redirectUrl="/booking"
       />
