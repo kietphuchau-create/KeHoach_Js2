@@ -29,7 +29,20 @@ public final class AdminDtos {
                               Instant createdAt,
                               String specialtyName,
                               String academicTitle,
-                              String roomNumber) {
+                              String roomNumber,
+                              boolean canDelete) {
+        public UserSummary(String userId,
+                           String email,
+                           String fullName,
+                           String phone,
+                           boolean active,
+                           List<RoleAssignment> roles,
+                           Instant createdAt,
+                           String specialtyName,
+                           String academicTitle,
+                           String roomNumber) {
+            this(userId, email, fullName, phone, active, roles, createdAt, specialtyName, academicTitle, roomNumber, false);
+        }
     }
 
     /** A staff role granted at one specific branch. */

@@ -11,6 +11,10 @@ public interface DoctorReviewJpaRepository extends JpaRepository<DoctorReviewEnt
 
     List<DoctorReviewEntity> findByDoctorIdOrderByCreatedAtDesc(String doctorId);
 
+    List<DoctorReviewEntity> findByAppointmentId(String appointmentId);
+
+    void deleteByAppointmentId(String appointmentId);
+
     @Query("SELECT AVG(r.rating) FROM DoctorReviewEntity r WHERE r.doctorId = :doctorId")
     Double getAverageRatingByDoctorId(@Param("doctorId") String doctorId);
 
