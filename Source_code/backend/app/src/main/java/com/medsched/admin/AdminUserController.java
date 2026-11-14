@@ -72,6 +72,14 @@ public class AdminUserController {
         return adminUserService.updateStatus(userId, request.active(), principal.getUserId());
     }
 
+    /** Xóa hoàn toàn tài khoản thử nghiệm khi đang BẬT Chế độ Develop 24/7 (chỉ xóa tài khoản tạo sau khi bật). */
+    @DeleteMapping("/{userId}")
+    public ResponseEntity<Void> deleteDevUser(@AuthenticationPrincipal AppUserDetails principal,
+                                              @PathVariable String userId) {
+        adminUserService.deleteDevUser(userId, principal.getUserId());
+        return ResponseEntity.noContent().build();
+    }
+
     /** Reset password for a user. */
     @PostMapping("/{userId}/reset-password")
     public AdminDtos.UserSummary resetPassword(@AuthenticationPrincipal AppUserDetails principal,
