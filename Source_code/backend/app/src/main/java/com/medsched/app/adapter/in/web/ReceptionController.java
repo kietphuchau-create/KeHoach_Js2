@@ -669,6 +669,11 @@ public class ReceptionController {
             List<com.medsched.persistence.entity.DoctorScheduleEntity> todaySchedules =
                     doctorScheduleJpaRepository.findByDoctorIdAndWorkDate(doctorId, today);
             boolean hasActiveSchedule = todaySchedules.stream().anyMatch(s -> s.getStatus() == com.medsched.persistence.enums.ScheduleStatus.ACTIVE);
+            // Nếu đang BẬT Chế Độ Develop 24/7: linh hoạt chấp nhận ca trực ACTIVE của Bác sĩ (tránh bị chặn khi vừa qua nửa đêm 00:00)
+            if (!hasActiveSchedule && com.medsched.doctor.DoctorScheduleService.isDevMode247Active()) {
+                hasActiveSchedule = doctorScheduleJpaRepository.findByDoctorIdOrderByWorkDateAscStartTimeAsc(doctorId).stream()
+                        .anyMatch(s -> s.getStatus() == com.medsched.persistence.enums.ScheduleStatus.ACTIVE);
+            }
             if (!hasActiveSchedule) {
                 throw new IllegalArgumentException(
                         "Bác sĩ " + doctorName + " không có ca trực nào trong ngày hôm nay ("
