@@ -182,6 +182,14 @@ function VerifyOtpContent() {
       setSuccess(true);
       if (typeof window !== 'undefined') {
         sessionStorage.removeItem('medsched_otp_session');
+        const pendingHealth = sessionStorage.getItem('medsched_pending_health');
+        if (pendingHealth) {
+          try {
+            const healthObj = JSON.parse(pendingHealth);
+            api.updatePatientProfile(healthObj).catch((e) => console.warn('Lỗi lưu thông tin y tế sau OTP:', e));
+          } catch {}
+          sessionStorage.removeItem('medsched_pending_health');
+        }
       }
 
       // Chuyển hướng sau 1.2s

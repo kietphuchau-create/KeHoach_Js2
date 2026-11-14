@@ -37,8 +37,10 @@ import {
   Award,
   GraduationCap,
   Sparkles,
+  ShieldAlert,
   X
 } from 'lucide-react';
+import IncompleteProfileModal from '@/shared/components/Feedback/IncompleteProfileModal';
 import { api, AppointmentResponse, getAuthUser, getAuthToken } from '@/shared/lib/api';
 import { formatDoctorFullName } from '@/shared/lib/formatters';
 import AlertMessage from '@/shared/components/Feedback/AlertMessage';
@@ -189,6 +191,15 @@ export default function BookingForm() {
   const [step1Errors, setStep1Errors] = useState<{ center?: string; specialty?: string }>({});
   const [step2Errors, setStep2Errors] = useState<{ doctor?: string; date?: string; slot?: string }>({});
 
+  // Chốt chặn kiểm tra hồ sơ y tế bệnh nhân bắt buộc
+  const [patientProfile, setPatientProfile] = useState<any>(null);
+  const [showIncompleteProfileModal, setShowIncompleteProfileModal] = useState<boolean>(false);
+  const [missingProfileFields, setMissingProfileFields] = useState<{
+    dateOfBirth?: boolean;
+    gender?: boolean;
+    cccdNumber?: boolean;
+  }>({});
+
   // Authentication & Role Check: Bắt buộc đăng nhập tài khoản bệnh nhân để đặt lịch khám
   useEffect(() => {
     const token = getAuthToken();
@@ -210,6 +221,27 @@ export default function BookingForm() {
       return;
     }
     setAuthChecking(false);
+
+    // Pre-check hồ sơ bệnh nhân: Bắt buộc có Ngày sinh và Giới tính để khám bệnh
+    api.getProfile()
+      .then((p) => {
+        const pp = p?.patientProfile;
+        setPatientProfile(pp || null);
+        const missingDob = !pp?.dateOfBirth;
+        const missingGen = !pp?.gender;
+        const missingCccd = !pp?.cccdNumber;
+        if (missingDob || missingGen) {
+          setMissingProfileFields({
+            dateOfBirth: missingDob,
+            gender: missingGen,
+            cccdNumber: missingCccd,
+          });
+          setShowIncompleteProfileModal(true);
+        }
+      })
+      .catch((err) => {
+        console.warn('Lỗi kiểm tra hồ sơ bệnh nhân:', err);
+      });
   }, [router]);
 
   // Form selections
@@ -963,18 +995,34 @@ export default function BookingForm() {
       setError('Vui lòng nhập họ tên người thân được đặt khám hộ trong cửa sổ thông tin.');
       return;
     }
+
+    // Chốt chặn kiểm tra hồ sơ y tế bệnh nhân bắt buộc
+    let activeProfile = patientProfile;
+    if (!activeProfile) {
+      try {
+        const p = await api.getProfile();
+        activeProfile = p?.patientProfile || null;
+        setPatientProfile(activeProfile);
+      } catch (e) {
+        console.warn('Lỗi kiểm tra profile:', e);
+      }
+    }
+
+    if (!activeProfile?.dateOfBirth || !activeProfile?.gender) {
+      setMissingProfileFields({
+        dateOfBirth: !activeProfile?.dateOfBirth,
+        gender: !activeProfile?.gender,
+        cccdNumber: !activeProfile?.cccdNumber,
+      });
+      setShowIncompleteProfileModal(true);
+      setError('Hồ sơ bệnh nhân chưa đủ thông tin bắt buộc (Ngày sinh, Giới tính). Vui lòng cập nhật thông tin trước khi hoàn tất đặt lịch.');
+      return;
+    }
+
     setSubmitting(true);
 
     try {
-      let currentPatientProfileId = '';
-      try {
-        const profile = await api.getProfile();
-        if (profile?.patientProfile?.profileId) {
-          currentPatientProfileId = profile.patientProfile.profileId;
-        }
-      } catch {
-        // Backend tự động phân giải từ JWT Session
-      }
+      let currentPatientProfileId = activeProfile?.profileId || '';
 
       let formattedSymptoms = symptoms.trim() || 'Khám kiểm tra sức khỏe định kỳ';
       if (bookingFor === 'relative') {
@@ -1501,6 +1549,31 @@ export default function BookingForm() {
   return (
     <div className="w-full max-w-4xl mx-auto my-auto space-y-4 sm:px-4 pb-6 sm:pb-10">
       <h1 className="sr-only">Đặt Lịch Khám Bác Sĩ Chuyên Khoa</h1>
+
+      {(missingProfileFields.dateOfBirth || missingProfileFields.gender) && (
+        <div className="p-3.5 sm:p-4 rounded-xl bg-amber-50 border border-amber-300 text-amber-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-amber-100 text-amber-700 shrink-0">
+              <ShieldAlert className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-xs sm:text-sm font-bold text-amber-900">
+                Hồ sơ y tế của bạn chưa đầy đủ ({[missingProfileFields.dateOfBirth && 'Ngày sinh', missingProfileFields.gender && 'Giới tính', missingProfileFields.cccdNumber && 'CCCD'].filter(Boolean).join(', ')})
+              </p>
+              <p className="text-[11px] sm:text-xs text-amber-700 mt-0.5">
+                Vui lòng hoàn tất thông tin cá nhân để mở khóa quyền đặt lịch khám bệnh.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => router.push('/profile?redirect=/booking&reason=incomplete_profile')}
+            className="px-3.5 py-2 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs transition shrink-0 cursor-pointer shadow-xs"
+          >
+            Cập nhật ngay
+          </button>
+        </div>
+      )}
 
       {/* Thanh tiến trình Stepper (Chỉ báo tiến trình chuẩn Y tế - Trong suốt, không khung trắng) */}
       {step < 4 && (
@@ -4240,6 +4313,14 @@ export default function BookingForm() {
           initialPromoCode={appliedPromo || undefined}
         />
       )}
+
+      {/* Modal Báo Động Hồ Sơ Chưa Hoàn Tất */}
+      <IncompleteProfileModal
+        isOpen={showIncompleteProfileModal}
+        onClose={() => setShowIncompleteProfileModal(false)}
+        missingFields={missingProfileFields}
+        redirectUrl="/booking"
+      />
     </div>
   );
 }

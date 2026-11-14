@@ -32,6 +32,7 @@ import {
   ExternalLink,
   Navigation
 } from 'lucide-react';
+import IncompleteProfileModal from '@/shared/components/Feedback/IncompleteProfileModal';
 import { api, getAuthToken, getAuthUser } from '@/shared/lib/api';
 import { validatePromotion } from '@/shared/lib/promotions';
 import { getClinicScheduleConfig } from '@/shared/lib/scheduleConfig';
@@ -1423,6 +1424,7 @@ export default function BookingMethodSelector({
   const [isAiAnalyzing, setIsAiAnalyzing] = useState<boolean>(false);
   const [aiClinicalSummary, setAiClinicalSummary] = useState<string>('');
   const [aiPreparationAdvice, setAiPreparationAdvice] = useState<string>('');
+  const [showIncompleteProfileModal, setShowIncompleteProfileModal] = useState<boolean>(false);
 
   // Bước 2: Các lựa chọn chi tiết & ô nhập tình trạng khác
   const [selectedNature, setSelectedNature] = useState<string>('');
@@ -3997,15 +3999,23 @@ export default function BookingMethodSelector({
         setHeldSlot(null);
       }
 
-      // 1. Phân giải Patient Profile ID từ User đang đăng nhập
+      // 1. Phân giải & Kiểm tra tính đầy đủ của Patient Profile từ User đang đăng nhập
       let currentPatientProfileId = '';
+      let userPatientProfile: any = null;
       try {
         const profile = await api.getProfile();
-        if (profile?.patientProfile?.profileId) {
-          currentPatientProfileId = profile.patientProfile.profileId;
+        userPatientProfile = profile?.patientProfile;
+        if (userPatientProfile?.profileId) {
+          currentPatientProfileId = userPatientProfile.profileId;
         }
       } catch (e) {
         // Backend tự động phân giải từ JWT Session principal
+      }
+
+      if (!userPatientProfile?.dateOfBirth || !userPatientProfile?.gender) {
+        setShowIncompleteProfileModal(true);
+        isInitiatingAptRef.current = false;
+        return null;
       }
 
       // 2. Tìm Bác sĩ & Chi nhánh hợp lệ (Ưu tiên ID thực từ DB)
@@ -6540,6 +6550,13 @@ export default function BookingMethodSelector({
           </div>
         </div>
       )}
+
+      {/* Modal Báo Động Hồ Sơ Chưa Hoàn Tất */}
+      <IncompleteProfileModal
+        isOpen={showIncompleteProfileModal}
+        onClose={() => setShowIncompleteProfileModal(false)}
+        redirectUrl="/booking"
+      />
     </div>
   );
 }
