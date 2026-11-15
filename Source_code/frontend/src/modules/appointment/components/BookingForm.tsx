@@ -535,6 +535,7 @@ export default function BookingForm() {
         const todaySched = docSchedules.find((sch) => isScheduleOnDate(sch, todayIso));
         if (todaySched && (active247 || !isPastAllTodaySlots(selectedDoctor))) {
           setBookingDate(todayIso);
+          setHasSelectedDate(true);
           setSelectedSlot((prev) => ({
             ...prev,
             date: formatISODateToVN(todayIso),
@@ -550,6 +551,7 @@ export default function BookingForm() {
         if (futureSched) {
           const futureIso = String(futureSched.workDate).slice(0, 10);
           setBookingDate(futureIso);
+          setHasSelectedDate(true);
           setSelectedSlot((prev) => ({
             ...prev,
             date: formatISODateToVN(futureIso),
@@ -644,9 +646,8 @@ export default function BookingForm() {
       (dayOfWeek === 6 && Boolean(clinicConfig?.operatingDays?.saturday)) ||
       (dayOfWeek === 0 && Boolean(clinicConfig?.operatingDays?.sunday));
 
-    const hasDoctorShiftOnDate = selectedDoctor && (
-      schedules.some((sch) => isDoctorActiveOnSchedule(selectedDoctor, sch) && isScheduleOnDate(sch, isoString)) ||
-      (isoString === bookingDate && dynamicSlots.length > 0)
+    const hasDoctorShiftOnDate = selectedDoctor && schedules.some(
+      (sch) => isDoctorActiveOnSchedule(selectedDoctor, sch) && isScheduleOnDate(sch, isoString)
     );
     const anyDoctorHasShiftOnDate = schedules.some(
       (sch) => isScheduleOnDate(sch, isoString) && String(sch.status).toUpperCase() === 'ACTIVE'
@@ -883,6 +884,8 @@ export default function BookingForm() {
     const targetDate = bookingDate || todayIso;
 
     const findBestDoctor = (docs: any[]) => {
+      if (!docs || docs.length === 0) return null;
+
       // 1. Ưu tiên bác sĩ có ca trực ngày đang chọn (targetDate) và còn giờ khả dụng
       const docOnDateActive = docs.find((d) =>
         schedules.some((sch) => {
@@ -902,7 +905,13 @@ export default function BookingForm() {
       );
       if (docOnDate) return docOnDate;
 
-      // 3. Ưu tiên bác sĩ có bất kỳ ca trực nào
+      // 3. Ưu tiên bác sĩ có ca trực hôm nay
+      const docToday = docs.find((d) =>
+        schedules.some((sch) => isDoctorActiveOnSchedule(d, sch) && isScheduleOnDate(sch, todayIso))
+      );
+      if (docToday) return docToday;
+
+      // 4. Ưu tiên bác sĩ có bất kỳ ca trực nào
       const docWithAnyShift = docs.find((d) =>
         schedules.some((sch) => isDoctorActiveOnSchedule(d, sch))
       );
@@ -913,11 +922,29 @@ export default function BookingForm() {
       const exists = filteredDoctors.some((d) => d.id === selectedDoctor.id);
       if (!exists) {
         setSelectedDoctor(findBestDoctor(filteredDoctors));
+      } else if (schedules.length > 0) {
+        // Kiểm tra xem bác sĩ đang chọn có ca trực trên targetDate không
+        const currentHasShift = schedules.some(
+          (sch) => isDoctorActiveOnSchedule(selectedDoctor, sch) && isScheduleOnDate(sch, targetDate)
+        );
+        // Nếu bác sĩ hiện tại KHÔNG có ca trực nhưng trong danh mục có bác sĩ KHÁC CÓ ca trực:
+        // Tự động chuyển ưu tiên sang bác sĩ có ca trực thực tế (đồng bộ với Admin & Lễ tân)
+        if (!currentHasShift) {
+          const betterDoc = findBestDoctor(filteredDoctors);
+          if (betterDoc && betterDoc.id !== selectedDoctor.id) {
+            const betterHasShift = schedules.some(
+              (sch) => isDoctorActiveOnSchedule(betterDoc, sch) && (isScheduleOnDate(sch, targetDate) || isScheduleOnDate(sch, todayIso))
+            );
+            if (betterHasShift) {
+              setSelectedDoctor(betterDoc);
+            }
+          }
+        }
       }
     } else if (filteredDoctors.length > 0) {
       setSelectedDoctor(findBestDoctor(filteredDoctors));
     }
-  }, [filteredDoctors, selectedDoctor, schedules, bookingDate]);
+  }, [filteredDoctors, selectedDoctor?.id, schedules, bookingDate]);
 
   // Khi thay đổi bác sĩ, ngày hoặc khung giờ: reset phiếu chờ thanh toán
   useEffect(() => {
@@ -2036,7 +2063,7 @@ export default function BookingForm() {
                         {activeCenterObj?.name || 'Cơ sở khám bệnh'}
                       </span>
                       <span className="text-[11px] text-blue-600 font-semibold block truncate">
-                        {selectedDoctor?.room ? `Buồng ${selectedDoctor.room}` : 'Buồng khám'} • Thứ 2 - CN (07:30 - 17:30)
+                        {selectedDoctor?.room ? `Buồng ${selectedDoctor.room}` : 'Buồng khám'} • {isDev247 || Boolean(getClinicScheduleConfig()?.devMode247) ? 'Trực 24/7 (00:00 - 23:30)' : 'Thứ 2 - CN (07:30 - 17:30)'}
                       </span>
                     </div>
                   </div>
@@ -2080,7 +2107,7 @@ export default function BookingForm() {
                 </span>
                 <span className="flex items-center gap-1 text-slate-400 font-medium">
                   <Clock size={12} />
-                  <span>07:30 - 17:30</span>
+                  <span>{isDev247 || Boolean(getClinicScheduleConfig()?.devMode247) ? '00:00 - 23:30 (24/7)' : '07:30 - 17:30'}</span>
                 </span>
               </div>
             </div>
@@ -2104,10 +2131,10 @@ export default function BookingForm() {
                           const isSelected = selectedDoctor?.id === doc.id;
                           const details = getDoctorFullDetails(doc, activeSpecialtyObj?.name, activeCenterObj?.name);
                           const docSchedules = schedules.filter((sch) => isDoctorActiveOnSchedule(doc, sch));
-                          const hasScheduleOnBookingDate =
-                            docSchedules.some((sch) => isScheduleOnDate(sch, bookingDate)) ||
-                            (isSelected && dynamicSlots.length > 0);
-                          const hasAnySchedule = docSchedules.length > 0 || hasScheduleOnBookingDate;
+                          const todayIsoStr = getTodayISODate();
+                          const hasScheduleOnBookingDate = docSchedules.some((sch) => isScheduleOnDate(sch, bookingDate));
+                          const hasScheduleToday = docSchedules.some((sch) => isScheduleOnDate(sch, todayIsoStr));
+                          const hasAnySchedule = docSchedules.length > 0;
 
                           return (
                             <div
@@ -2139,7 +2166,12 @@ export default function BookingForm() {
                                     {hasScheduleOnBookingDate ? (
                                       <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded-md flex items-center gap-1 shrink-0">
                                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                                        Có ca trực ngày này
+                                        {hasSelectedDate ? 'Có ca trực ngày này' : 'Có ca trực hôm nay'}
+                                      </span>
+                                    ) : hasScheduleToday ? (
+                                      <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded-md flex items-center gap-1 shrink-0">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                        Có ca trực hôm nay
                                       </span>
                                     ) : hasAnySchedule ? (
                                       <span className="text-[10px] bg-sky-50 text-sky-700 border border-sky-200/80 font-medium px-1.5 py-0.2 rounded-md shrink-0">
@@ -2400,10 +2432,8 @@ export default function BookingForm() {
                                       (dayOfWeek === 0 && Boolean(clinicConfig?.operatingDays?.sunday));
 
                                     // Bác sĩ đang chọn có ca trực ngày này hay không
-                                    const hasDoctorShift = selectedDoctor && (
-                                      schedules.some(
-                                        (sch) => isDoctorActiveOnSchedule(selectedDoctor, sch) && isScheduleOnDate(sch, isoString)
-                                      ) || (isoString === bookingDate && dynamicSlots.length > 0)
+                                    const hasDoctorShift = selectedDoctor && schedules.some(
+                                      (sch) => isDoctorActiveOnSchedule(selectedDoctor, sch) && isScheduleOnDate(sch, isoString)
                                     );
                                     // Bất kỳ bác sĩ nào trong cơ sở có ca trực ngày này
                                     const anyDoctorHasShift = schedules.some(
