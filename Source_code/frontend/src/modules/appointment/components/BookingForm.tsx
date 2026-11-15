@@ -701,8 +701,9 @@ export default function BookingForm() {
       if (selectedSpecDocs.length === 0) {
         errors.specialty = 'Chuyên khoa này hiện chưa có bác sĩ trực tại chi nhánh. Vui lòng chọn chuyên khoa khác.';
       } else {
+        const todayIso = getTodayISODate();
         const hasOpenSchedule = selectedSpecDocs.some((d) =>
-          schedules.some((sch) => isDoctorActiveOnSchedule(d, sch))
+          schedules.some((sch) => isDoctorActiveOnSchedule(d, sch) && sch.workDate && String(sch.workDate).slice(0, 10) >= todayIso)
         );
         if (!hasOpenSchedule) {
           errors.specialty = 'Chuyên khoa này hiện các bác sĩ chưa mở ca trực. Vui lòng chọn chuyên khoa có ca trực đang mở hoặc đổi cơ sở khám bệnh.';
@@ -911,9 +912,9 @@ export default function BookingForm() {
       );
       if (docToday) return docToday;
 
-      // 4. Ưu tiên bác sĩ có bất kỳ ca trực nào
+      // 4. Ưu tiên bác sĩ có bất kỳ ca trực nào hợp lệ (hôm nay hoặc sắp tới)
       const docWithAnyShift = docs.find((d) =>
-        schedules.some((sch) => isDoctorActiveOnSchedule(d, sch))
+        schedules.some((sch) => isDoctorActiveOnSchedule(d, sch) && sch.workDate && String(sch.workDate).slice(0, 10) >= todayIso)
       );
       return docWithAnyShift || docs[0] || null;
     };
@@ -1828,15 +1829,21 @@ export default function BookingForm() {
                     </div>
                   ) : (
                     filteredSpecialties.map((spec) => {
+                      const todayIso = getTodayISODate();
                       const specDoctors = doctors.filter(
                         (d) => (!selectedCenter || !d.centerId || d.centerId === selectedCenter) && d.specialtyId === spec.id
                       );
                       const docCount = specDoctors.length;
                       const hasDoctors = docCount > 0;
-                      const doctorsWithActiveSchedule = specDoctors.filter((d) =>
-                        schedules.some((sch) => isDoctorActiveOnSchedule(d, sch))
+                      // Bác sĩ có ca trực hôm nay (đồng bộ chính xác với Quầy Tiếp Đón / Lễ tân & Admin Schedule Config)
+                      const doctorsWithTodaySchedule = specDoctors.filter((d) =>
+                        schedules.some((sch) => isDoctorActiveOnSchedule(d, sch) && isScheduleOnDate(sch, todayIso))
                       );
-                      const hasActiveSchedules = doctorsWithActiveSchedule.length > 0;
+                      // Bác sĩ có ca trực sắp tới (hôm nay hoặc tương lai, không tính ca cũ trong quá khứ)
+                      const doctorsWithUpcomingSchedule = specDoctors.filter((d) =>
+                        schedules.some((sch) => isDoctorActiveOnSchedule(d, sch) && sch.workDate && String(sch.workDate).slice(0, 10) >= todayIso)
+                      );
+                      const hasActiveSchedules = doctorsWithTodaySchedule.length > 0 || doctorsWithUpcomingSchedule.length > 0;
                       const isSelectable = hasDoctors && hasActiveSchedules;
                       const isSelected = selectedSpecialty === spec.id && isSelectable;
 
@@ -1859,7 +1866,9 @@ export default function BookingForm() {
                               ? `Chuyên khoa ${spec.name} hiện chưa có bác sĩ phụ trách tại chi nhánh này`
                               : !hasActiveSchedules
                               ? `Chuyên khoa ${spec.name} hiện chưa có bác sĩ mở lịch trực tại chi nhánh này`
-                              : `Chọn ${spec.name} (${doctorsWithActiveSchedule.length} bác sĩ có ca trực)`
+                              : doctorsWithTodaySchedule.length > 0
+                              ? `Chọn ${spec.name} (${doctorsWithTodaySchedule.length} bác sĩ có ca trực hôm nay)`
+                              : `Chọn ${spec.name} (${doctorsWithUpcomingSchedule.length} bác sĩ có ca trực sắp tới)`
                           }
                           className={`p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border-2 transition flex items-center justify-between gap-2 select-none min-h-[66px] sm:min-h-[72px] ${
                             !hasDoctors
@@ -1913,10 +1922,15 @@ export default function BookingForm() {
                                   <span className="text-[10px] text-amber-700 font-medium bg-amber-50 border border-amber-200/60 px-1.5 py-0.2 rounded truncate">
                                     Chưa mở ca trực
                                   </span>
-                                ) : (
+                                ) : doctorsWithTodaySchedule.length > 0 ? (
                                   <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 border border-emerald-200/60 px-1.5 py-0.2 rounded truncate flex items-center gap-1">
                                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                                    {doctorsWithActiveSchedule.length} BS có ca trực
+                                    {doctorsWithTodaySchedule.length} BS có ca trực
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] text-sky-700 font-bold bg-sky-50 border border-sky-200/60 px-1.5 py-0.2 rounded truncate flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
+                                    {doctorsWithUpcomingSchedule.length} BS có ca trực
                                   </span>
                                 )}
                               </div>
@@ -1945,10 +1959,13 @@ export default function BookingForm() {
                 {selectedCenter &&
                   filteredSpecialties.length > 0 &&
                   filteredSpecialties.every((spec) => {
+                    const todayIso = getTodayISODate();
                     const specDocs = doctors.filter(
                       (d) => (!selectedCenter || !d.centerId || d.centerId === selectedCenter) && d.specialtyId === spec.id
                     );
-                    return !specDocs.some((d) => schedules.some((sch) => isDoctorActiveOnSchedule(d, sch)));
+                    return !specDocs.some((d) =>
+                      schedules.some((sch) => isDoctorActiveOnSchedule(d, sch) && sch.workDate && String(sch.workDate).slice(0, 10) >= todayIso)
+                    );
                   }) && (
                     <div className="mt-3 p-3.5 bg-gradient-to-r from-amber-50/90 to-orange-50/70 border border-amber-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fadeIn">
                       <div className="flex items-start gap-2.5">
@@ -1963,11 +1980,12 @@ export default function BookingForm() {
                         </div>
                       </div>
                       {(() => {
+                        const todayIso = getTodayISODate();
                         const activeCenterWithSched = centers.find((c) =>
                           c.id !== selectedCenter &&
                           doctors.some((d) =>
                             d.centerId === c.id &&
-                            schedules.some((sch) => isDoctorActiveOnSchedule(d, sch))
+                            schedules.some((sch) => isDoctorActiveOnSchedule(d, sch) && sch.workDate && String(sch.workDate).slice(0, 10) >= todayIso)
                           )
                         );
                         if (activeCenterWithSched) {
@@ -2134,7 +2152,7 @@ export default function BookingForm() {
                           const todayIsoStr = getTodayISODate();
                           const hasScheduleOnBookingDate = docSchedules.some((sch) => isScheduleOnDate(sch, bookingDate));
                           const hasScheduleToday = docSchedules.some((sch) => isScheduleOnDate(sch, todayIsoStr));
-                          const hasAnySchedule = docSchedules.length > 0;
+                          const hasUpcomingSchedule = docSchedules.some((sch) => sch.workDate && String(sch.workDate).slice(0, 10) >= todayIsoStr);
 
                           return (
                             <div
@@ -2173,7 +2191,7 @@ export default function BookingForm() {
                                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                                         Có ca trực hôm nay
                                       </span>
-                                    ) : hasAnySchedule ? (
+                                    ) : hasUpcomingSchedule ? (
                                       <span className="text-[10px] bg-sky-50 text-sky-700 border border-sky-200/80 font-medium px-1.5 py-0.2 rounded-md shrink-0">
                                         Có ca ngày khác
                                       </span>
