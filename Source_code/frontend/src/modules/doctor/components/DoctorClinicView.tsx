@@ -29,6 +29,7 @@ import {
   X,
   UserX,
   Plus,
+  Pencil,
   FlaskConical,
   RotateCcw,
   Printer,
@@ -601,6 +602,113 @@ export default function DoctorClinicView() {
   const [newMedDosage, setNewMedDosage] = useState('');
   const [newMedPrice, setNewMedPrice] = useState<number | string>(5000);
 
+  // ── CLAB-157: Quản lý Thêm, Xóa, Sửa trực tiếp ở từng hàng ngang của đơn thuốc (Inline CRUD) ──
+  const [editingRowIndex, setEditingRowIndex] = useState<number | null>(null);
+  const [editingItemData, setEditingItemData] = useState<MedicineItem | null>(null);
+
+  // Vị trí chèn thêm dòng thuốc mới (null nếu không chèn; 0..n là index chèn vào)
+  const [insertRowIndex, setInsertRowIndex] = useState<number | null>(null);
+  const [insertItemData, setInsertItemData] = useState<MedicineItem>({
+    medicineName: '',
+    unit: 'Viên',
+    quantity: 10,
+    dosage: '',
+    unitPrice: 5000,
+  });
+
+  // Bắt đầu sửa hàng ngang
+  const handleStartEditRow = (idx: number) => {
+    setInsertRowIndex(null);
+    setEditingRowIndex(idx);
+    setEditingItemData({ ...prescriptionItems[idx] });
+  };
+
+  // Hủy sửa hàng
+  const handleCancelEditRow = () => {
+    setEditingRowIndex(null);
+    setEditingItemData(null);
+  };
+
+  // Lưu chỉnh sửa hàng ngang
+  const handleSaveEditRow = (idx: number) => {
+    if (!editingItemData) return;
+    if (!editingItemData.medicineName.trim()) {
+      setNotification('⚠️ Vui lòng nhập tên thuốc & hàm lượng.');
+      return;
+    }
+    const updatedQty = Math.max(1, Number(editingItemData.quantity) || 1);
+    const updatedPrice = Math.max(0, Number(editingItemData.unitPrice) || 0);
+    const updatedItem: MedicineItem = {
+      ...editingItemData,
+      medicineName: editingItemData.medicineName.trim(),
+      unit: editingItemData.unit.trim() || 'Viên',
+      quantity: updatedQty,
+      dosage: editingItemData.dosage.trim() || 'Theo chỉ định của bác sĩ',
+      unitPrice: updatedPrice,
+    };
+
+    setPrescriptionItems((prev) => prev.map((item, i) => (i === idx ? updatedItem : item)));
+    setEditingRowIndex(null);
+    setEditingItemData(null);
+    setNotification(`✅ Đã lưu cập nhật thuốc "${updatedItem.medicineName}".`);
+  };
+
+  // Bắt đầu chèn thêm dòng thuốc mới tại vị trí (ngay sau hàng idx hoặc ở cuối)
+  const handleStartInsertRow = (atIndex: number) => {
+    setEditingRowIndex(null);
+    setInsertRowIndex(atIndex);
+    setInsertItemData({
+      medicineName: '',
+      unit: 'Viên',
+      quantity: 10,
+      dosage: '',
+      unitPrice: 5000,
+    });
+  };
+
+  // Hủy chèn dòng
+  const handleCancelInsertRow = () => {
+    setInsertRowIndex(null);
+  };
+
+  // Lưu dòng thuốc mới được chèn
+  const handleSaveInsertRow = () => {
+    if (!insertItemData.medicineName.trim()) {
+      setNotification('⚠️ Vui lòng nhập tên thuốc cần thêm.');
+      return;
+    }
+    const qty = Math.max(1, Number(insertItemData.quantity) || 1);
+    const price = Math.max(0, Number(insertItemData.unitPrice) || 0);
+    const newItem: MedicineItem = {
+      medicineName: insertItemData.medicineName.trim(),
+      unit: insertItemData.unit.trim() || 'Viên',
+      quantity: qty,
+      dosage: insertItemData.dosage.trim() || 'Theo chỉ định của bác sĩ',
+      unitPrice: price,
+    };
+
+    setPrescriptionItems((prev) => {
+      const targetIdx = insertRowIndex !== null ? insertRowIndex : prev.length;
+      const clone = [...prev];
+      clone.splice(targetIdx, 0, newItem);
+      return clone;
+    });
+
+    setInsertRowIndex(null);
+    setNotification(`💊 Đã thêm thuốc "${newItem.medicineName}" vào đơn.`);
+  };
+
+  // Tăng/giảm số lượng nhanh trên hàng
+  const handleQuickChangeQty = (idx: number, delta: number) => {
+    setPrescriptionItems((prev) =>
+      prev.map((item, i) => {
+        if (i !== idx) return item;
+        const newQty = Math.max(1, (Number(item.quantity) || 1) + delta);
+        return { ...item, quantity: newQty };
+      })
+    );
+  };
+
   // Áp dụng đơn thuốc mẫu
   const handleApplyPreset = (key: string) => {
     const preset = PRESCRIPTION_PRESETS[key];
@@ -635,7 +743,18 @@ export default function DoctorClinicView() {
 
   // Xóa thuốc khỏi đơn
   const handleRemoveMedicine = (idx: number) => {
+    const medName = prescriptionItems[idx]?.medicineName || 'thuốc';
     setPrescriptionItems((prev) => prev.filter((_, i) => i !== idx));
+    if (editingRowIndex === idx) {
+      setEditingRowIndex(null);
+      setEditingItemData(null);
+    } else if (editingRowIndex !== null && editingRowIndex > idx) {
+      setEditingRowIndex(editingRowIndex - 1);
+    }
+    if (insertRowIndex !== null && insertRowIndex > idx) {
+      setInsertRowIndex(insertRowIndex - 1);
+    }
+    setNotification(`🗑️ Đã xóa "${medName}" khỏi đơn thuốc.`);
   };
 
   // Tính tổng tiền thuốc
@@ -2546,10 +2665,23 @@ export default function DoctorClinicView() {
                       <span className="text-xs font-bold bg-teal-50 text-teal-800 px-2 py-0.5 rounded-md border border-teal-200">
                         {prescriptionItems.length} loại thuốc
                       </span>
+                      <button
+                        type="button"
+                        onClick={() => handleStartInsertRow(prescriptionItems.length)}
+                        className="text-[11px] font-bold text-teal-700 hover:text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-2.5 py-0.5 rounded-md transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                        title="Thêm một dòng thuốc mới vào cuối đơn"
+                      >
+                        <Plus size={12} />
+                        <span>Thêm dòng</span>
+                      </button>
                       {prescriptionItems.length > 0 && (
                         <button
                           type="button"
-                          onClick={() => setPrescriptionItems([])}
+                          onClick={() => {
+                            setPrescriptionItems([]);
+                            setEditingRowIndex(null);
+                            setInsertRowIndex(null);
+                          }}
                           className="text-[11px] text-rose-600 hover:underline cursor-pointer"
                         >
                           Xóa tất cả
@@ -2558,93 +2690,666 @@ export default function DoctorClinicView() {
                     </div>
                   </div>
 
-                  {prescriptionItems.length === 0 ? (
-                    <div className="p-6 text-center bg-slate-50/70 border border-dashed border-slate-200 rounded-xl space-y-1">
+                  {/* Empty state or Table with inline CRUD */}
+                  {prescriptionItems.length === 0 && insertRowIndex === null ? (
+                    <div className="p-6 text-center bg-slate-50/70 border border-dashed border-slate-200 rounded-xl space-y-2">
                       <Pill size={24} className="mx-auto text-slate-300 mb-1" />
                       <p className="text-xs text-slate-500 font-medium">Chưa có thuốc nào trong đơn</p>
-                      <p className="text-[11px] text-slate-400">Chọn mẫu nhanh ở trên hoặc nhập thông tin thuốc bên dưới</p>
+                      <p className="text-[11px] text-slate-400">Chọn mẫu nhanh ở trên hoặc bấm thêm dòng thuốc trực tiếp</p>
+                      <button
+                        type="button"
+                        onClick={() => handleStartInsertRow(0)}
+                        className="mt-2 text-xs font-bold text-teal-700 hover:text-teal-800 bg-white hover:bg-teal-50 border border-teal-300 px-3 py-1.5 rounded-lg transition inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                      >
+                        <Plus size={14} />
+                        <span>+ Thêm dòng thuốc đầu tiên</span>
+                      </button>
                     </div>
                   ) : (
                     <>
                       {/* Mobile Card List View for Medications */}
-                      <div className="sm:hidden space-y-2">
+                      <div className="sm:hidden space-y-2.5">
+                        {/* If inserting at index 0 */}
+                        {insertRowIndex === 0 && (
+                          <div className="p-3 bg-teal-50/80 rounded-xl border-2 border-teal-400 shadow-xs space-y-2">
+                            <div className="flex items-center justify-between text-xs font-bold text-teal-800">
+                              <span>➕ Thêm thuốc mới (Đầu danh sách):</span>
+                              <button type="button" onClick={handleCancelInsertRow} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X size={15} /></button>
+                            </div>
+                            <input
+                              type="text"
+                              value={insertItemData.medicineName}
+                              onChange={(e) => setInsertItemData(prev => ({ ...prev, medicineName: e.target.value }))}
+                              placeholder="Tên thuốc & hàm lượng..."
+                              className="w-full px-2.5 py-1.5 bg-white border border-teal-400 rounded-lg text-xs font-bold"
+                            />
+                            <div className="grid grid-cols-3 gap-2">
+                              <select
+                                value={insertItemData.unit}
+                                onChange={(e) => setInsertItemData(prev => ({ ...prev, unit: e.target.value }))}
+                                className="px-2 py-1.5 bg-white border border-teal-400 rounded-lg text-xs"
+                              >
+                                <option value="Viên">Viên</option>
+                                <option value="Gói">Gói</option>
+                                <option value="Tuýp">Tuýp</option>
+                                <option value="Chai">Chai</option>
+                                <option value="Hộp">Hộp</option>
+                                <option value="Ống">Ống</option>
+                                <option value="Lọ">Lọ</option>
+                                <option value="Vỉ">Vỉ</option>
+                              </select>
+                              <input
+                                type="number"
+                                min={1}
+                                value={insertItemData.quantity}
+                                onChange={(e) => setInsertItemData(prev => ({ ...prev, quantity: Math.max(1, Number(e.target.value) || 1) }))}
+                                placeholder="SL"
+                                className="px-2 py-1.5 bg-white border border-teal-400 rounded-lg text-xs text-center font-bold text-teal-800 font-mono"
+                              />
+                              <input
+                                type="number"
+                                step={500}
+                                min={0}
+                                value={insertItemData.unitPrice}
+                                onChange={(e) => setInsertItemData(prev => ({ ...prev, unitPrice: Math.max(0, Number(e.target.value) || 0) }))}
+                                placeholder="Đơn giá"
+                                className="px-2 py-1.5 bg-white border border-teal-400 rounded-lg text-xs text-right font-mono"
+                              />
+                            </div>
+                            <input
+                              type="text"
+                              value={insertItemData.dosage}
+                              onChange={(e) => setInsertItemData(prev => ({ ...prev, dosage: e.target.value }))}
+                              placeholder="Cách dùng / Liều uống..."
+                              className="w-full px-2.5 py-1.5 bg-white border border-teal-400 rounded-lg text-xs"
+                            />
+                            <div className="flex gap-2 justify-end pt-1">
+                              <button type="button" onClick={handleCancelInsertRow} className="px-3 py-1 bg-slate-200 text-slate-700 rounded-lg text-xs font-medium cursor-pointer">Hủy</button>
+                              <button type="button" onClick={handleSaveInsertRow} className="px-3 py-1 bg-teal-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer"><Check size={13} /> Thêm</button>
+                            </div>
+                          </div>
+                        )}
+
                         {prescriptionItems.map((item, idx) => {
                           const lineTotal = (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
+                          const isEditing = editingRowIndex === idx;
+
                           return (
-                            <div key={idx} className="p-3 bg-white rounded-xl border border-slate-200 shadow-2xs space-y-2">
-                              <div className="flex items-start justify-between gap-2">
-                                <div>
-                                  <span className="text-[10px] text-slate-400 font-mono mr-1.5">#{idx + 1}</span>
-                                  <span className="font-bold text-slate-800 text-xs">{item.medicineName}</span>
+                            <React.Fragment key={idx}>
+                              {isEditing ? (
+                                <div className="p-3 bg-amber-50/80 rounded-xl border-2 border-amber-400 shadow-xs space-y-2">
+                                  <div className="flex items-center justify-between text-xs font-bold text-amber-900">
+                                    <span>✏️ Sửa thuốc #{idx + 1}:</span>
+                                    <button type="button" onClick={handleCancelEditRow} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X size={15} /></button>
+                                  </div>
+                                  <input
+                                    type="text"
+                                    value={editingItemData?.medicineName || ''}
+                                    onChange={(e) => setEditingItemData(prev => prev ? ({ ...prev, medicineName: e.target.value }) : null)}
+                                    placeholder="Tên thuốc & hàm lượng..."
+                                    className="w-full px-2.5 py-1.5 bg-white border border-amber-400 rounded-lg text-xs font-bold text-slate-800"
+                                  />
+                                  <div className="grid grid-cols-3 gap-2">
+                                    <select
+                                      value={editingItemData?.unit || 'Viên'}
+                                      onChange={(e) => setEditingItemData(prev => prev ? ({ ...prev, unit: e.target.value }) : null)}
+                                      className="px-2 py-1.5 bg-white border border-amber-400 rounded-lg text-xs"
+                                    >
+                                      <option value="Viên">Viên</option>
+                                      <option value="Gói">Gói</option>
+                                      <option value="Tuýp">Tuýp</option>
+                                      <option value="Chai">Chai</option>
+                                      <option value="Hộp">Hộp</option>
+                                      <option value="Ống">Ống</option>
+                                      <option value="Lọ">Lọ</option>
+                                      <option value="Vỉ">Vỉ</option>
+                                    </select>
+                                    <input
+                                      type="number"
+                                      min={1}
+                                      value={editingItemData?.quantity ?? 1}
+                                      onChange={(e) => setEditingItemData(prev => prev ? ({ ...prev, quantity: Math.max(1, Number(e.target.value) || 1) }) : null)}
+                                      placeholder="SL"
+                                      className="px-2 py-1.5 bg-white border border-amber-400 rounded-lg text-xs text-center font-bold text-teal-800 font-mono"
+                                    />
+                                    <input
+                                      type="number"
+                                      step={500}
+                                      min={0}
+                                      value={editingItemData?.unitPrice ?? 0}
+                                      onChange={(e) => setEditingItemData(prev => prev ? ({ ...prev, unitPrice: Math.max(0, Number(e.target.value) || 0) }) : null)}
+                                      placeholder="Đơn giá"
+                                      className="px-2 py-1.5 bg-white border border-amber-400 rounded-lg text-xs text-right font-mono"
+                                    />
+                                  </div>
+                                  <input
+                                    type="text"
+                                    value={editingItemData?.dosage || ''}
+                                    onChange={(e) => setEditingItemData(prev => prev ? ({ ...prev, dosage: e.target.value }) : null)}
+                                    placeholder="Cách dùng / Liều uống..."
+                                    className="w-full px-2.5 py-1.5 bg-white border border-amber-400 rounded-lg text-xs"
+                                  />
+                                  <div className="flex gap-2 justify-end pt-1">
+                                    <button type="button" onClick={handleCancelEditRow} className="px-3 py-1 bg-slate-200 text-slate-700 rounded-lg text-xs font-medium cursor-pointer">Hủy</button>
+                                    <button type="button" onClick={() => handleSaveEditRow(idx)} className="px-3 py-1 bg-emerald-600 text-white rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer"><Check size={13} /> Lưu</button>
+                                  </div>
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveMedicine(idx)}
-                                  className="text-rose-500 hover:bg-rose-50 p-1.5 rounded-lg transition cursor-pointer shrink-0"
-                                  title="Xóa thuốc này"
-                                >
-                                  <Trash2 size={15} />
-                                </button>
-                              </div>
-                              <div className="grid grid-cols-3 gap-1 text-[11px] bg-slate-50 p-2 rounded-lg text-slate-700">
-                                <div>SL: <strong className="text-teal-800 font-mono">{item.quantity}</strong> {item.unit}</div>
-                                <div className="text-center">ĐG: <span className="font-mono">{item.unitPrice?.toLocaleString('vi-VN')}đ</span></div>
-                                <div className="text-right font-bold text-slate-900 font-mono">{lineTotal.toLocaleString('vi-VN')}đ</div>
-                              </div>
-                              <p className="text-[11px] text-slate-500 italic">👉 {item.dosage}</p>
-                            </div>
+                              ) : (
+                                <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-2xs space-y-2 hover:border-teal-300 transition">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="min-w-0 flex-1">
+                                      <span className="text-[10px] text-slate-400 font-mono mr-1.5">#{idx + 1}</span>
+                                      <span className="font-bold text-slate-800 text-xs">{item.medicineName}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1 shrink-0">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleStartInsertRow(idx + 1)}
+                                        className="text-teal-600 hover:bg-teal-50 p-1.5 rounded-lg transition cursor-pointer"
+                                        title="Chèn thuốc mới dưới dòng này"
+                                      >
+                                        <Plus size={14} />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleStartEditRow(idx)}
+                                        className="text-amber-600 hover:bg-amber-50 p-1.5 rounded-lg transition cursor-pointer"
+                                        title="Sửa dòng thuốc này"
+                                      >
+                                        <Pencil size={13} />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRemoveMedicine(idx)}
+                                        className="text-rose-500 hover:bg-rose-50 p-1.5 rounded-lg transition cursor-pointer"
+                                        title="Xóa thuốc này"
+                                      >
+                                        <Trash2 size={14} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                  <div className="grid grid-cols-3 gap-1 text-[11px] bg-slate-50 p-2 rounded-lg text-slate-700 items-center">
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-slate-500">SL:</span>
+                                      <button type="button" onClick={() => handleQuickChangeQty(idx, -1)} className="w-4 h-4 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-200 flex items-center justify-center font-bold text-[10px] cursor-pointer">-</button>
+                                      <strong className="text-teal-800 font-mono">{item.quantity}</strong>
+                                      <button type="button" onClick={() => handleQuickChangeQty(idx, 1)} className="w-4 h-4 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-200 flex items-center justify-center font-bold text-[10px] cursor-pointer">+</button>
+                                      <span className="text-[10px] text-slate-500">{item.unit}</span>
+                                    </div>
+                                    <div className="text-center">ĐG: <span className="font-mono">{item.unitPrice?.toLocaleString('vi-VN')}đ</span></div>
+                                    <div className="text-right font-bold text-slate-900 font-mono">{lineTotal.toLocaleString('vi-VN')}đ</div>
+                                  </div>
+                                  <p className="text-[11px] text-slate-500 italic">👉 {item.dosage}</p>
+                                </div>
+                              )}
+
+                              {/* If inserting right after this index */}
+                              {insertRowIndex === idx + 1 && (
+                                <div className="p-3 bg-teal-50/80 rounded-xl border-2 border-teal-400 shadow-xs space-y-2">
+                                  <div className="flex items-center justify-between text-xs font-bold text-teal-800">
+                                    <span>➕ Chèn thuốc mới sau dòng #{idx + 1}:</span>
+                                    <button type="button" onClick={handleCancelInsertRow} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X size={15} /></button>
+                                  </div>
+                                  <input
+                                    type="text"
+                                    value={insertItemData.medicineName}
+                                    onChange={(e) => setInsertItemData(prev => ({ ...prev, medicineName: e.target.value }))}
+                                    placeholder="Tên thuốc & hàm lượng..."
+                                    className="w-full px-2.5 py-1.5 bg-white border border-teal-400 rounded-lg text-xs font-bold"
+                                  />
+                                  <div className="grid grid-cols-3 gap-2">
+                                    <select
+                                      value={insertItemData.unit}
+                                      onChange={(e) => setInsertItemData(prev => ({ ...prev, unit: e.target.value }))}
+                                      className="px-2 py-1.5 bg-white border border-teal-400 rounded-lg text-xs"
+                                    >
+                                      <option value="Viên">Viên</option>
+                                      <option value="Gói">Gói</option>
+                                      <option value="Tuýp">Tuýp</option>
+                                      <option value="Chai">Chai</option>
+                                      <option value="Hộp">Hộp</option>
+                                      <option value="Ống">Ống</option>
+                                      <option value="Lọ">Lọ</option>
+                                      <option value="Vỉ">Vỉ</option>
+                                    </select>
+                                    <input
+                                      type="number"
+                                      min={1}
+                                      value={insertItemData.quantity}
+                                      onChange={(e) => setInsertItemData(prev => ({ ...prev, quantity: Math.max(1, Number(e.target.value) || 1) }))}
+                                      placeholder="SL"
+                                      className="px-2 py-1.5 bg-white border border-teal-400 rounded-lg text-xs text-center font-bold text-teal-800 font-mono"
+                                    />
+                                    <input
+                                      type="number"
+                                      step={500}
+                                      min={0}
+                                      value={insertItemData.unitPrice}
+                                      onChange={(e) => setInsertItemData(prev => ({ ...prev, unitPrice: Math.max(0, Number(e.target.value) || 0) }))}
+                                      placeholder="Đơn giá"
+                                      className="px-2 py-1.5 bg-white border border-teal-400 rounded-lg text-xs text-right font-mono"
+                                    />
+                                  </div>
+                                  <input
+                                    type="text"
+                                    value={insertItemData.dosage}
+                                    onChange={(e) => setInsertItemData(prev => ({ ...prev, dosage: e.target.value }))}
+                                    placeholder="Cách dùng / Liều uống..."
+                                    className="w-full px-2.5 py-1.5 bg-white border border-teal-400 rounded-lg text-xs"
+                                  />
+                                  <div className="flex gap-2 justify-end pt-1">
+                                    <button type="button" onClick={handleCancelInsertRow} className="px-3 py-1 bg-slate-200 text-slate-700 rounded-lg text-xs font-medium cursor-pointer">Hủy</button>
+                                    <button type="button" onClick={handleSaveInsertRow} className="px-3 py-1 bg-teal-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer"><Check size={13} /> Thêm</button>
+                                  </div>
+                                </div>
+                              )}
+                            </React.Fragment>
                           );
                         })}
+
                         <div className="p-2.5 bg-teal-50 rounded-xl border border-teal-200 flex justify-between items-center text-xs">
                           <span className="font-bold text-teal-900">Tổng tiền thuốc:</span>
                           <span className="font-black text-teal-900 text-sm font-mono">{totalMedicineCost.toLocaleString('vi-VN')} đ</span>
                         </div>
                       </div>
 
-                      {/* Desktop Table View */}
+                      {/* Desktop Table View with Inline CRUD */}
                       <div className="hidden sm:block overflow-x-auto rounded-xl border border-slate-200 shadow-2xs">
                         <table className="w-full text-left text-xs">
                           <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 text-[11px]">
                             <tr>
                               <th className="p-2.5 text-center w-8">#</th>
                               <th className="p-2.5">Tên thuốc &amp; Hàm lượng</th>
-                              <th className="p-2.5 w-16 text-center">ĐVT</th>
-                              <th className="p-2.5 w-14 text-center">SL</th>
+                              <th className="p-2.5 w-20 text-center">ĐVT</th>
+                              <th className="p-2.5 w-24 text-center">SL</th>
                               <th className="p-2.5">Cách dùng / Liều uống</th>
                               <th className="p-2.5 text-right w-24">Đơn giá</th>
                               <th className="p-2.5 text-right w-24">Thành tiền</th>
-                              <th className="p-2.5 text-center w-10"></th>
+                              <th className="p-2.5 text-center w-28 font-semibold text-slate-700">Thao tác</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 bg-white">
-                            {prescriptionItems.map((item, idx) => {
-                              const lineTotal = (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
-                              return (
-                                <tr key={idx} className="hover:bg-slate-50/70 transition">
-                                  <td className="p-2.5 text-center text-slate-400 font-mono text-[11px]">{idx + 1}</td>
-                                  <td className="p-2.5 font-bold text-slate-800">{item.medicineName}</td>
-                                  <td className="p-2.5 text-center text-slate-600 font-medium">{item.unit}</td>
-                                  <td className="p-2.5 text-center font-bold text-teal-800 font-mono">{item.quantity}</td>
-                                  <td className="p-2.5 text-slate-600 italic text-[11px]">{item.dosage}</td>
-                                  <td className="p-2.5 text-right text-slate-600 font-mono text-[11px]">
-                                    {item.unitPrice?.toLocaleString('vi-VN')} đ
-                                  </td>
-                                  <td className="p-2.5 text-right font-bold text-slate-800 font-mono text-[11px]">
-                                    {lineTotal.toLocaleString('vi-VN')} đ
-                                  </td>
-                                  <td className="p-2.5 text-center">
+                            {/* Insert row at top if index === 0 */}
+                            {insertRowIndex === 0 && (
+                              <tr className="bg-teal-50/80 border-2 border-teal-400 shadow-xs">
+                                <td className="p-2 text-center text-teal-700 font-bold text-[11px] font-mono">➕</td>
+                                <td className="p-2">
+                                  <input
+                                    type="text"
+                                    autoFocus
+                                    value={insertItemData.medicineName}
+                                    onChange={(e) => setInsertItemData(prev => ({ ...prev, medicineName: e.target.value }))}
+                                    placeholder="Tên thuốc & hàm lượng..."
+                                    className="w-full px-2 py-1 bg-white border border-teal-400 rounded text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-teal-600"
+                                  />
+                                </td>
+                                <td className="p-2 text-center">
+                                  <select
+                                    value={insertItemData.unit}
+                                    onChange={(e) => setInsertItemData(prev => ({ ...prev, unit: e.target.value }))}
+                                    className="px-1.5 py-1 bg-white border border-teal-400 rounded text-xs focus:outline-none"
+                                  >
+                                    <option value="Viên">Viên</option>
+                                    <option value="Gói">Gói</option>
+                                    <option value="Tuýp">Tuýp</option>
+                                    <option value="Chai">Chai</option>
+                                    <option value="Hộp">Hộp</option>
+                                    <option value="Ống">Ống</option>
+                                    <option value="Lọ">Lọ</option>
+                                    <option value="Vỉ">Vỉ</option>
+                                  </select>
+                                </td>
+                                <td className="p-2 text-center">
+                                  <div className="flex items-center justify-center gap-1">
                                     <button
                                       type="button"
-                                      onClick={() => handleRemoveMedicine(idx)}
-                                      className="text-slate-400 hover:text-rose-600 p-1 rounded-md transition cursor-pointer"
-                                      title="Xóa thuốc này"
+                                      onClick={() => setInsertItemData(prev => ({ ...prev, quantity: Math.max(1, (Number(prev.quantity) || 1) - 1) }))}
+                                      className="w-5 h-5 rounded bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs border border-slate-200 cursor-pointer"
+                                    >-</button>
+                                    <input
+                                      type="number"
+                                      min={1}
+                                      value={insertItemData.quantity}
+                                      onChange={(e) => setInsertItemData(prev => ({ ...prev, quantity: Math.max(1, Number(e.target.value) || 1) }))}
+                                      className="w-12 text-center py-1 bg-white border border-teal-400 rounded text-xs font-bold text-teal-800 font-mono focus:outline-none"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => setInsertItemData(prev => ({ ...prev, quantity: (Number(prev.quantity) || 1) + 1 }))}
+                                      className="w-5 h-5 rounded bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs border border-slate-200 cursor-pointer"
+                                    >+</button>
+                                  </div>
+                                </td>
+                                <td className="p-2">
+                                  <input
+                                    type="text"
+                                    value={insertItemData.dosage}
+                                    onChange={(e) => setInsertItemData(prev => ({ ...prev, dosage: e.target.value }))}
+                                    placeholder="Cách dùng / Liều uống..."
+                                    className="w-full px-2 py-1 bg-white border border-teal-400 rounded text-xs focus:outline-none"
+                                  />
+                                </td>
+                                <td className="p-2 text-right">
+                                  <input
+                                    type="number"
+                                    step={500}
+                                    min={0}
+                                    value={insertItemData.unitPrice}
+                                    onChange={(e) => setInsertItemData(prev => ({ ...prev, unitPrice: Math.max(0, Number(e.target.value) || 0) }))}
+                                    placeholder="Đơn giá"
+                                    className="w-20 text-right py-1 px-1.5 bg-white border border-teal-400 rounded text-xs font-mono focus:outline-none"
+                                  />
+                                </td>
+                                <td className="p-2 text-right font-bold text-teal-900 font-mono text-[11px]">
+                                  {((Number(insertItemData.quantity) || 0) * (Number(insertItemData.unitPrice) || 0)).toLocaleString('vi-VN')} đ
+                                </td>
+                                <td className="p-2 text-center">
+                                  <div className="flex items-center justify-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={handleSaveInsertRow}
+                                      className="px-2 py-1 bg-teal-700 hover:bg-teal-800 text-white rounded text-[11px] font-bold flex items-center gap-1 shadow-2xs transition cursor-pointer"
+                                      title="Lưu dòng thuốc này"
                                     >
-                                      <Trash2 size={13} />
+                                      <Check size={13} />
+                                      <span>Thêm</span>
                                     </button>
-                                  </td>
-                                </tr>
+                                    <button
+                                      type="button"
+                                      onClick={handleCancelInsertRow}
+                                      className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded transition cursor-pointer"
+                                      title="Hủy"
+                                    >
+                                      <X size={14} />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+
+                            {prescriptionItems.map((item, idx) => {
+                              const lineTotal = (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
+                              const isEditing = editingRowIndex === idx;
+
+                              return (
+                                <React.Fragment key={idx}>
+                                  {isEditing ? (
+                                    <tr className="bg-amber-50/80 border-2 border-amber-400 shadow-xs">
+                                      <td className="p-2 text-center text-amber-700 font-bold text-[11px] font-mono">
+                                        #{idx + 1}
+                                      </td>
+                                      <td className="p-2">
+                                        <input
+                                          type="text"
+                                          autoFocus
+                                          value={editingItemData?.medicineName || ''}
+                                          onChange={(e) => setEditingItemData(prev => prev ? ({ ...prev, medicineName: e.target.value }) : null)}
+                                          placeholder="Tên thuốc & hàm lượng..."
+                                          className="w-full px-2 py-1 bg-white border border-amber-400 rounded text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                        />
+                                      </td>
+                                      <td className="p-2 text-center">
+                                        <select
+                                          value={editingItemData?.unit || 'Viên'}
+                                          onChange={(e) => setEditingItemData(prev => prev ? ({ ...prev, unit: e.target.value }) : null)}
+                                          className="px-1.5 py-1 bg-white border border-amber-400 rounded text-xs focus:outline-none"
+                                        >
+                                          <option value="Viên">Viên</option>
+                                          <option value="Gói">Gói</option>
+                                          <option value="Tuýp">Tuýp</option>
+                                          <option value="Chai">Chai</option>
+                                          <option value="Hộp">Hộp</option>
+                                          <option value="Ống">Ống</option>
+                                          <option value="Lọ">Lọ</option>
+                                          <option value="Vỉ">Vỉ</option>
+                                        </select>
+                                      </td>
+                                      <td className="p-2 text-center">
+                                        <div className="flex items-center justify-center gap-1">
+                                          <button
+                                            type="button"
+                                            onClick={() => setEditingItemData(prev => prev ? ({ ...prev, quantity: Math.max(1, (Number(prev.quantity) || 1) - 1) }) : null)}
+                                            className="w-5 h-5 rounded bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs border border-slate-200 cursor-pointer"
+                                          >-</button>
+                                          <input
+                                            type="number"
+                                            min={1}
+                                            value={editingItemData?.quantity ?? 1}
+                                            onChange={(e) => setEditingItemData(prev => prev ? ({ ...prev, quantity: Math.max(1, Number(e.target.value) || 1) }) : null)}
+                                            className="w-12 text-center py-1 bg-white border border-amber-400 rounded text-xs font-bold text-teal-800 font-mono focus:outline-none"
+                                          />
+                                          <button
+                                            type="button"
+                                            onClick={() => setEditingItemData(prev => prev ? ({ ...prev, quantity: (Number(prev?.quantity) || 1) + 1 }) : null)}
+                                            className="w-5 h-5 rounded bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs border border-slate-200 cursor-pointer"
+                                          >+</button>
+                                        </div>
+                                      </td>
+                                      <td className="p-2">
+                                        <input
+                                          type="text"
+                                          value={editingItemData?.dosage || ''}
+                                          onChange={(e) => setEditingItemData(prev => prev ? ({ ...prev, dosage: e.target.value }) : null)}
+                                          placeholder="Cách dùng / Liều uống..."
+                                          className="w-full px-2 py-1 bg-white border border-amber-400 rounded text-xs focus:outline-none"
+                                        />
+                                      </td>
+                                      <td className="p-2 text-right">
+                                        <input
+                                          type="number"
+                                          step={500}
+                                          min={0}
+                                          value={editingItemData?.unitPrice ?? 0}
+                                          onChange={(e) => setEditingItemData(prev => prev ? ({ ...prev, unitPrice: Math.max(0, Number(e.target.value) || 0) }) : null)}
+                                          placeholder="Đơn giá"
+                                          className="w-20 text-right py-1 px-1.5 bg-white border border-amber-400 rounded text-xs font-mono focus:outline-none"
+                                        />
+                                      </td>
+                                      <td className="p-2 text-right font-bold text-amber-950 font-mono text-[11px]">
+                                        {((Number(editingItemData?.quantity) || 0) * (Number(editingItemData?.unitPrice) || 0)).toLocaleString('vi-VN')} đ
+                                      </td>
+                                      <td className="p-2 text-center">
+                                        <div className="flex items-center justify-center gap-1">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleSaveEditRow(idx)}
+                                            className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[11px] font-bold flex items-center gap-1 shadow-2xs transition cursor-pointer"
+                                            title="Lưu thay đổi dòng này"
+                                          >
+                                            <Check size={13} />
+                                            <span>Lưu</span>
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={handleCancelEditRow}
+                                            className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded transition cursor-pointer"
+                                            title="Hủy bỏ"
+                                          >
+                                            <X size={14} />
+                                          </button>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  ) : (
+                                    <tr
+                                      className="hover:bg-teal-50/30 transition group/row"
+                                      onDoubleClick={() => handleStartEditRow(idx)}
+                                      title="Nhấp đúp chuột hoặc bấm biểu tượng bút chì để sửa dòng này"
+                                    >
+                                      <td className="p-2.5 text-center text-slate-400 font-mono text-[11px]">{idx + 1}</td>
+                                      <td className="p-2.5 font-bold text-slate-800">{item.medicineName}</td>
+                                      <td className="p-2.5 text-center text-slate-600 font-medium">{item.unit}</td>
+                                      <td className="p-2.5 text-center">
+                                        <div className="flex items-center justify-center gap-1">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleQuickChangeQty(idx, -1)}
+                                            className="w-4 h-4 rounded text-slate-400 hover:text-rose-600 hover:bg-slate-100 flex items-center justify-center font-bold text-[10px] transition cursor-pointer"
+                                            title="Giảm 1 số lượng"
+                                          >-</button>
+                                          <span className="font-bold text-teal-800 font-mono text-xs px-1 min-w-[20px] text-center">{item.quantity}</span>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleQuickChangeQty(idx, 1)}
+                                            className="w-4 h-4 rounded text-slate-400 hover:text-teal-700 hover:bg-slate-100 flex items-center justify-center font-bold text-[10px] transition cursor-pointer"
+                                            title="Tăng 1 số lượng"
+                                          >+</button>
+                                        </div>
+                                      </td>
+                                      <td className="p-2.5 text-slate-600 italic text-[11px]">{item.dosage}</td>
+                                      <td className="p-2.5 text-right text-slate-600 font-mono text-[11px]">
+                                        {item.unitPrice?.toLocaleString('vi-VN')} đ
+                                      </td>
+                                      <td className="p-2.5 text-right font-bold text-slate-800 font-mono text-[11px]">
+                                        {lineTotal.toLocaleString('vi-VN')} đ
+                                      </td>
+                                      <td className="p-2.5 text-center">
+                                        <div className="flex items-center justify-center gap-1">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleStartInsertRow(idx + 1)}
+                                            className="p-1 text-teal-600 hover:text-teal-800 hover:bg-teal-50 rounded transition cursor-pointer"
+                                            title="Chèn thêm thuốc ngay dưới dòng này"
+                                          >
+                                            <Plus size={14} />
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleStartEditRow(idx)}
+                                            className="p-1 text-amber-600 hover:text-amber-800 hover:bg-amber-50 rounded transition cursor-pointer"
+                                            title="Sửa dòng thuốc này"
+                                          >
+                                            <Pencil size={13} />
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleRemoveMedicine(idx)}
+                                            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
+                                            title="Xóa dòng thuốc này"
+                                          >
+                                            <Trash2 size={13} />
+                                          </button>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  )}
+
+                                  {/* Insert row after this item if insertRowIndex === idx + 1 */}
+                                  {insertRowIndex === idx + 1 && (
+                                    <tr className="bg-teal-50/80 border-2 border-teal-400 shadow-xs">
+                                      <td className="p-2 text-center text-teal-700 font-bold text-[11px] font-mono">➕</td>
+                                      <td className="p-2">
+                                        <input
+                                          type="text"
+                                          autoFocus
+                                          value={insertItemData.medicineName}
+                                          onChange={(e) => setInsertItemData(prev => ({ ...prev, medicineName: e.target.value }))}
+                                          placeholder="Tên thuốc & hàm lượng..."
+                                          className="w-full px-2 py-1 bg-white border border-teal-400 rounded text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-teal-600"
+                                        />
+                                      </td>
+                                      <td className="p-2 text-center">
+                                        <select
+                                          value={insertItemData.unit}
+                                          onChange={(e) => setInsertItemData(prev => ({ ...prev, unit: e.target.value }))}
+                                          className="px-1.5 py-1 bg-white border border-teal-400 rounded text-xs focus:outline-none"
+                                        >
+                                          <option value="Viên">Viên</option>
+                                          <option value="Gói">Gói</option>
+                                          <option value="Tuýp">Tuýp</option>
+                                          <option value="Chai">Chai</option>
+                                          <option value="Hộp">Hộp</option>
+                                          <option value="Ống">Ống</option>
+                                          <option value="Lọ">Lọ</option>
+                                          <option value="Vỉ">Vỉ</option>
+                                        </select>
+                                      </td>
+                                      <td className="p-2 text-center">
+                                        <div className="flex items-center justify-center gap-1">
+                                          <button
+                                            type="button"
+                                            onClick={() => setInsertItemData(prev => ({ ...prev, quantity: Math.max(1, (Number(prev.quantity) || 1) - 1) }))}
+                                            className="w-5 h-5 rounded bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs border border-slate-200 cursor-pointer"
+                                          >-</button>
+                                          <input
+                                            type="number"
+                                            min={1}
+                                            value={insertItemData.quantity}
+                                            onChange={(e) => setInsertItemData(prev => ({ ...prev, quantity: Math.max(1, Number(e.target.value) || 1) }))}
+                                            className="w-12 text-center py-1 bg-white border border-teal-400 rounded text-xs font-bold text-teal-800 font-mono focus:outline-none"
+                                          />
+                                          <button
+                                            type="button"
+                                            onClick={() => setInsertItemData(prev => ({ ...prev, quantity: (Number(prev.quantity) || 1) + 1 }))}
+                                            className="w-5 h-5 rounded bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs border border-slate-200 cursor-pointer"
+                                          >+</button>
+                                        </div>
+                                      </td>
+                                      <td className="p-2">
+                                        <input
+                                          type="text"
+                                          value={insertItemData.dosage}
+                                          onChange={(e) => setInsertItemData(prev => ({ ...prev, dosage: e.target.value }))}
+                                          placeholder="Cách dùng / Liều uống..."
+                                          className="w-full px-2 py-1 bg-white border border-teal-400 rounded text-xs focus:outline-none"
+                                        />
+                                      </td>
+                                      <td className="p-2 text-right">
+                                        <input
+                                          type="number"
+                                          step={500}
+                                          min={0}
+                                          value={insertItemData.unitPrice}
+                                          onChange={(e) => setInsertItemData(prev => ({ ...prev, unitPrice: Math.max(0, Number(e.target.value) || 0) }))}
+                                          placeholder="Đơn giá"
+                                          className="w-20 text-right py-1 px-1.5 bg-white border border-teal-400 rounded text-xs font-mono focus:outline-none"
+                                        />
+                                      </td>
+                                      <td className="p-2 text-right font-bold text-teal-900 font-mono text-[11px]">
+                                        {((Number(insertItemData.quantity) || 0) * (Number(insertItemData.unitPrice) || 0)).toLocaleString('vi-VN')} đ
+                                      </td>
+                                      <td className="p-2 text-center">
+                                        <div className="flex items-center justify-center gap-1">
+                                          <button
+                                            type="button"
+                                            onClick={handleSaveInsertRow}
+                                            className="px-2 py-1 bg-teal-700 hover:bg-teal-800 text-white rounded text-[11px] font-bold flex items-center gap-1 shadow-2xs transition cursor-pointer"
+                                            title="Lưu dòng thuốc này"
+                                          >
+                                            <Check size={13} />
+                                            <span>Thêm</span>
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={handleCancelInsertRow}
+                                            className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded transition cursor-pointer"
+                                            title="Hủy"
+                                          >
+                                            <X size={14} />
+                                          </button>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  )}
+                                </React.Fragment>
                               );
                             })}
+
+                            {/* Row to trigger Add new item at the bottom */}
+                            {insertRowIndex !== prescriptionItems.length && (
+                              <tr>
+                                <td colSpan={8} className="p-2 bg-slate-50/50 hover:bg-teal-50/40 text-center border-t border-slate-100 transition">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleStartInsertRow(prescriptionItems.length)}
+                                    className="text-xs text-teal-700 hover:text-teal-800 font-bold inline-flex items-center gap-1.5 cursor-pointer py-1 px-3.5 rounded-lg hover:bg-white border border-dashed border-teal-300 hover:border-teal-500 transition shadow-2xs"
+                                  >
+                                    <Plus size={13} />
+                                    <span>+ Thêm dòng thuốc mới vào đơn</span>
+                                  </button>
+                                </td>
+                              </tr>
+                            )}
                           </tbody>
                           <tfoot className="bg-teal-50/60 border-t border-teal-100 font-bold text-xs text-teal-950">
                             <tr>
