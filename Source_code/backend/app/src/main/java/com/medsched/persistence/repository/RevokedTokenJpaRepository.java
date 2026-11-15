@@ -11,6 +11,10 @@ public interface RevokedTokenJpaRepository extends JpaRepository<RevokedTokenEnt
 
     boolean existsByTokenHash(String tokenHash);
 
+    java.util.List<RevokedTokenEntity> findByUserId(String userId);
+
+    void deleteByUserId(String userId);
+
     void deleteByExpiresAtBefore(Instant now);
 
 }

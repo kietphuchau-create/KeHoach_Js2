@@ -132,11 +132,16 @@ export default function HeaderNav() {
       api.getProfile().then((freshProfile: any) => {
         if (freshProfile && freshProfile.fullName) {
           const storedRoom = typeof window !== 'undefined' ? sessionStorage.getItem('medsched_doctor_active_room') : null;
+          const docAvatar =
+            (freshProfile.doctorProfiles && freshProfile.doctorProfiles[0]?.avatarUrl) ||
+            freshProfile.doctorProfile?.avatarUrl;
+
           const updatedUser = {
             ...authUser,
             fullName: freshProfile.fullName,
             phone: freshProfile.phone || authUser.phone,
             roles: freshProfile.roles || authUser.roles,
+            avatarUrl: docAvatar || authUser.avatarUrl || null,
             roomNumber: authUser.roomNumber || storedRoom || null,
           };
           setUser((prev: any) => ({
@@ -192,12 +197,25 @@ export default function HeaderNav() {
     };
     window.addEventListener("medsched:doctor_room_changed", handleRoomChanged);
 
+    const handleProfileUpdated = (e: any) => {
+      const authUser = getAuthUser();
+      if (authUser) {
+        setUser((prev: any) => ({
+          ...prev,
+          ...authUser,
+          ...(e.detail || {}),
+        }));
+      }
+    };
+    window.addEventListener("medsched:user_profile_updated", handleProfileUpdated);
+
     const handleKickout = () => {
       setUser(null);
     };
     window.addEventListener("medsched:concurrent_kickout", handleKickout);
     return () => {
       window.removeEventListener("medsched:doctor_room_changed", handleRoomChanged);
+      window.removeEventListener("medsched:user_profile_updated", handleProfileUpdated);
       window.removeEventListener("medsched:concurrent_kickout", handleKickout);
     };
   }, [pathname, router]);
@@ -337,8 +355,12 @@ export default function HeaderNav() {
             : 'border-slate-200/80 text-slate-700 hover:text-emerald-700 hover:border-emerald-300'
         }`}
       >
-        <div className="w-6 h-6 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold text-xs shrink-0 border border-emerald-200/60 shadow-2xs group-hover:scale-105 transition-transform">
-          {(user.fullName || user.email || 'U').charAt(0).toUpperCase()}
+        <div className="w-6 h-6 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold text-xs shrink-0 border border-emerald-200/60 shadow-2xs group-hover:scale-105 transition-transform overflow-hidden">
+          {user.avatarUrl ? (
+            <img src={user.avatarUrl} alt={user.fullName} className="w-full h-full object-cover" />
+          ) : (
+            (user.fullName || user.email || 'U').charAt(0).toUpperCase()
+          )}
         </div>
         <span className="max-w-[100px] lg:max-w-[150px] truncate font-semibold text-slate-800 group-hover:text-emerald-700 transition-colors">
           {user.fullName || user.email}
@@ -377,8 +399,12 @@ export default function HeaderNav() {
           {/* Header tóm tắt thông tin người dùng */}
           <div className="px-4 py-2.5 border-b border-slate-100">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-teal-700 text-white flex items-center justify-center font-bold text-base shadow-sm shrink-0">
-                {(user.fullName || user.email || 'U').charAt(0).toUpperCase()}
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-teal-700 text-white flex items-center justify-center font-bold text-base shadow-sm shrink-0 overflow-hidden">
+                {user.avatarUrl ? (
+                  <img src={user.avatarUrl} alt={user.fullName} className="w-full h-full object-cover" />
+                ) : (
+                  (user.fullName || user.email || 'U').charAt(0).toUpperCase()
+                )}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-bold text-slate-800 truncate" title={user.fullName || user.email}>

@@ -28,7 +28,8 @@ import {
   AlertTriangle,
   Info,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Trash2
 } from 'lucide-react';
 import { api, getAuthToken, getAuthUser } from '@/shared/lib/api';
 import LoadingSpinner from '@/shared/components/Feedback/LoadingSpinner';
@@ -51,6 +52,43 @@ export interface UserItem {
   specialtyName?: string;
   academicTitle?: string;
   roomNumber?: string;
+  avatarUrl?: string;
+  canDelete?: boolean;
+}
+
+// Hàm gán ảnh chân dung bác sĩ chuẩn y khoa nếu chưa có ảnh upload
+function resolveDoctorAvatar(name?: string, specialty?: string, existingUrl?: string): string {
+  if (
+    existingUrl && 
+    existingUrl.trim().startsWith('http') && 
+    !existingUrl.includes('svg') && 
+    !existingUrl.includes('data:')
+  ) {
+    return existingUrl;
+  }
+  const spec = (specialty || '').toLowerCase();
+  const docName = (name || '').toLowerCase();
+
+  if (spec.includes('da liễu') || docName.includes('yến nhi') || docName.includes('thu hà') || docName.includes('minh anh')) {
+    return 'https://images.unsplash.com/photo-1651008376811-b90baee60c1f?w=500&auto=format&fit=crop&q=80';
+  }
+  if (spec.includes('mắt') || docName.includes('quỳnh chi')) {
+    return 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=500&auto=format&fit=crop&q=80';
+  }
+  if (spec.includes('răng') || docName.includes('vũ minh đức')) {
+    return 'https://images.unsplash.com/photo-1537368910025-700350fe46c7?w=500&auto=format&fit=crop&q=80';
+  }
+  if (spec.includes('nội') || docName.includes('trần văn hùng')) {
+    return 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=500&auto=format&fit=crop&q=80';
+  }
+  if (spec.includes('tai mũi họng') || docName.includes('bảo')) {
+    return 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=500&auto=format&fit=crop&q=80';
+  }
+  if (spec.includes('nhi') || docName.includes('thảo my')) {
+    return 'https://images.unsplash.com/photo-1651008376811-b90baee60c1f?w=500&auto=format&fit=crop&q=80';
+  }
+
+  return 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=500&auto=format&fit=crop&q=80';
 }
 
 export default function UserTable() {
@@ -83,6 +121,11 @@ export default function UserTable() {
   const [newPassword, setNewPassword] = useState('Medsched@123');
   const [showPassword, setShowPassword] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+
+  // State cho Chế độ Develop 24/7 và Modal Xác Nhận Xóa Tài Khoản Test
+  const [devMode, setDevMode] = useState<{ enabled: boolean; startedAt?: string } | null>(null);
+  const [deleteConfirmUser, setDeleteConfirmUser] = useState<UserItem | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   // Danh mục buồng khám lâm sàng tiêu chuẩn
   const APPROVED_CLINIC_ROOMS = [
@@ -190,19 +233,63 @@ export default function UserTable() {
     }
     try {
       const isLockedTab = role === 'LOCKED';
-      const res = await api.getAdminUsers({
-        role: (role === 'ALL' || isLockedTab) ? undefined : role,
-        q: query.trim() || undefined,
-        page: isLockedTab ? 0 : page,
-        size: isLockedTab ? 100 : pageSize,
+      
+      // Tải song song danh sách người dùng, danh sách bác sĩ và trạng thái Chế độ Develop 24/7
+      const [res, docRes, devRes] = await Promise.all([
+        api.getAdminUsers({
+          role: (role === 'ALL' || isLockedTab) ? undefined : role,
+          q: query.trim() || undefined,
+          page: isLockedTab ? 0 : page,
+          size: isLockedTab ? 100 : pageSize,
+        }),
+        api.getDoctors().catch(() => []),
+        api.getDevMode().catch(() => null)
+      ]);
+
+      if (devRes) {
+        setDevMode({ enabled: devRes.enabled, startedAt: devRes.startedAt });
+      }
+
+      const doctorsList: any[] = Array.isArray(docRes) ? docRes : [];
+      const docMapById: Record<string, any> = {};
+      const docMapByEmail: Record<string, any> = {};
+      const docMapByName: Record<string, any> = {};
+
+      doctorsList.forEach((d: any) => {
+        if (d.userId) docMapById[d.userId] = d;
+        if (d.id) docMapById[d.id] = d;
+        if (d.email) docMapByEmail[d.email.toLowerCase()] = d;
+        if (d.fullName) docMapByName[d.fullName.toLowerCase()] = d;
       });
 
       const rawList = res?.items || res?.content || (Array.isArray(res) ? res : []);
+      const isDevModeActive = devRes ? devRes.enabled : (devMode?.enabled ?? false);
+      const devStartedAtTime = devRes?.startedAt
+        ? new Date(devRes.startedAt).getTime()
+        : (devMode?.startedAt ? new Date(devMode.startedAt).getTime() : 0);
+
       let normalizedUsers: UserItem[] = rawList
         .map((u: any) => {
           const roleStrings: string[] = Array.isArray(u.roles)
             ? u.roles.map((r: any) => (typeof r === 'string' ? r : r.role))
             : [];
+          const isDoc = roleStrings.includes('ROLE_DOCTOR');
+          const docMatch = isDoc
+            ? (docMapById[u.userId || u.id] ||
+               (u.email ? docMapByEmail[u.email.toLowerCase()] : null) ||
+               (u.fullName ? docMapByName[u.fullName.toLowerCase()] : null))
+            : null;
+
+          const rawAvatar = docMatch?.avatarUrl || u.avatarUrl || null;
+          const finalAvatar = isDoc
+            ? resolveDoctorAvatar(u.fullName, u.specialtyName || docMatch?.specialtyName, rawAvatar)
+            : rawAvatar;
+
+          const isCreatedInDevSession = Boolean(
+            u.createdAt && devStartedAtTime > 0 && new Date(u.createdAt).getTime() >= devStartedAtTime
+          );
+          const canDelete = Boolean(u.canDelete || (isDevModeActive && isCreatedInDevSession));
+
           return {
             id: u.userId || u.id,
             email: u.email,
@@ -213,10 +300,12 @@ export default function UserTable() {
             roles: roleStrings,
             active: u.active ?? true,
             createdAt: u.createdAt,
-            medicalCenterName: u.roles?.[0]?.medicalCenterName || u.medicalCenterName,
-            specialtyName: u.specialtyName,
-            academicTitle: u.academicTitle,
-            roomNumber: u.roomNumber,
+            medicalCenterName: u.roles?.[0]?.medicalCenterName || u.medicalCenterName || docMatch?.centerName || docMatch?.medicalCenterName,
+            specialtyName: u.specialtyName || docMatch?.specialtyName,
+            academicTitle: u.academicTitle || docMatch?.academicTitle,
+            roomNumber: u.roomNumber || docMatch?.roomNumber,
+            avatarUrl: finalAvatar || undefined,
+            canDelete,
           };
         });
 
@@ -343,6 +432,29 @@ export default function UserTable() {
       setMessage({ type: 'error', text: err.message || 'Thao tác thay đổi trạng thái thất bại.' });
     } finally {
       setActionLoadingId(null);
+    }
+  };
+
+  const handleDeleteDevUser = async (user: UserItem) => {
+    try {
+      setDeleteLoading(true);
+      await api.deleteAdminUser(user.id);
+      setMessage({
+        type: 'success',
+        text: `Đã xóa vĩnh viễn tài khoản test: ${user.fullName} (${user.email || user.phone}). SĐT và email đã được giải phóng để kiểm thử lại.`
+      });
+      setDeleteConfirmUser(null);
+      if (detailUser?.id === user.id) {
+        setDetailUser(null);
+      }
+      await loadUsers(debouncedQuery, currentPage, selectedRole, true);
+    } catch (err: any) {
+      setMessage({
+        type: 'error',
+        text: err?.message || 'Không thể xóa tài khoản test. Vui lòng kiểm tra lại quyền hạn hoặc trạng thái Chế độ 24/7.'
+      });
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -541,8 +653,19 @@ export default function UserTable() {
                         className="flex items-center gap-2.5 cursor-pointer group"
                         title="Bấm để xem đầy đủ thông tin chi tiết"
                       >
-                        <div className="w-8 h-8 rounded-full bg-mint-light text-pine-teal border border-teal-primary/30 flex items-center justify-center font-bold text-xs group-hover:scale-105 group-hover:bg-teal-primary group-hover:text-white transition shadow-xs shrink-0">
-                          {user.fullName ? user.fullName.charAt(0).toUpperCase() : 'U'}
+                        <div className="w-8 h-8 rounded-full bg-mint-light text-pine-teal border border-teal-primary/30 flex items-center justify-center font-bold text-xs group-hover:scale-105 group-hover:bg-teal-primary group-hover:text-white transition shadow-xs shrink-0 overflow-hidden">
+                          {user.avatarUrl ? (
+                            <img
+                              src={user.avatarUrl}
+                              alt={user.fullName}
+                              className="w-full h-full object-cover object-top"
+                              onError={(e) => {
+                                (e.target as HTMLElement).style.display = 'none';
+                              }}
+                            />
+                          ) : (
+                            <span>{user.fullName ? user.fullName.charAt(0).toUpperCase() : 'U'}</span>
+                          )}
                         </div>
                         <div>
                           <span className="font-semibold group-hover:text-pine-teal group-hover:underline underline-offset-2 transition">
@@ -694,16 +817,36 @@ export default function UserTable() {
                           <div className="relative group/tooltip inline-flex items-center justify-center">
                             <span
                               className="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
-                              title="Tài khoản của chính bạn (Không thể tự khóa)"
+                              title="Tài khoản của chính bạn (Không thể tự khóa hoặc xóa)"
                               aria-label="Chính bạn"
                             >
                               <ShieldCheck size={15} />
                             </span>
                             <div className="pointer-events-none absolute bottom-full right-0 mb-1.5 opacity-0 group-hover/tooltip:opacity-100 group-hover/tooltip:-translate-y-0.5 transition-all duration-200 z-50 flex flex-col items-end">
                               <div className="bg-slate-800 text-white text-[11px] font-semibold py-1 px-2.5 rounded-md whitespace-nowrap shadow-md">
-                                Chính bạn (Không thể khóa)
+                                Chính bạn (Không thể khóa/xóa)
                               </div>
                               <div className="w-2 h-1 mr-3 border-x-4 border-x-transparent border-t-4 border-t-slate-800 -mt-px" />
+                            </div>
+                          </div>
+                        ) : user.canDelete ? (
+                          /* Khi BẬT chế độ 24H: Cho phép Admin XÓA thay vì KHÓA đối với tài khoản tạo sau khi bật */
+                          <div className="relative group/tooltip inline-flex items-center justify-center">
+                            <button
+                              type="button"
+                              onClick={() => setDeleteConfirmUser(user)}
+                              disabled={actionLoadingId === user.id || deleteLoading}
+                              className="w-8 h-8 rounded-lg flex items-center justify-center transition cursor-pointer shadow-2xs hover:scale-110 active:scale-95 border bg-rose-50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 border-rose-200"
+                              title="Xóa tài khoản test (Chế độ 24/7)"
+                              aria-label="Xóa tài khoản test"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                            <div className="pointer-events-none absolute bottom-full right-0 mb-1.5 opacity-0 group-hover/tooltip:opacity-100 group-hover/tooltip:-translate-y-0.5 transition-all duration-200 z-50 flex flex-col items-end">
+                              <div className="bg-rose-800 text-white text-[11px] font-semibold py-1 px-2.5 rounded-md whitespace-nowrap shadow-md">
+                                Xóa vĩnh viễn (Chế độ 24/7)
+                              </div>
+                              <div className="w-2 h-1 mr-3 border-x-4 border-x-transparent border-t-4 border-t-rose-800 -mt-px" />
                             </div>
                           </div>
                         ) : (
@@ -939,8 +1082,19 @@ export default function UserTable() {
               </button>
 
               <div className="flex items-center gap-3 pr-8">
-                <div className="w-11 h-11 rounded-xl bg-white/20 backdrop-blur-xs text-white border border-white/30 flex items-center justify-center font-extrabold text-lg shadow-inner shrink-0">
-                  {detailUser.fullName ? detailUser.fullName.charAt(0).toUpperCase() : 'U'}
+                <div className="w-11 h-11 rounded-xl bg-white/20 backdrop-blur-xs text-white border border-white/30 flex items-center justify-center font-extrabold text-lg shadow-inner shrink-0 overflow-hidden">
+                  {detailUser.avatarUrl ? (
+                    <img
+                      src={detailUser.avatarUrl}
+                      alt={detailUser.fullName}
+                      className="w-full h-full object-cover object-top"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    <span>{detailUser.fullName ? detailUser.fullName.charAt(0).toUpperCase() : 'U'}</span>
+                  )}
                 </div>
                 <div className="min-w-0">
                   <h3 className="font-extrabold text-base text-white leading-tight truncate">
@@ -1100,21 +1254,36 @@ export default function UserTable() {
                 </button>
 
                 {detailUser.id !== currentUser?.id && detailUser.email !== currentUser?.email && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleToggleStatus(detailUser);
-                      setDetailUser(prev => prev ? { ...prev, active: !prev.active } : null);
-                    }}
-                    className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1.5 rounded-xl border transition cursor-pointer ${
-                      detailUser.active
-                        ? 'bg-rose-50 text-rose-700 hover:bg-rose-100 border-rose-200'
-                        : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border-emerald-200'
-                    }`}
-                  >
-                    {detailUser.active ? <Lock size={13} /> : <CheckCircle2 size={13} />}
-                    <span>{detailUser.active ? 'Khóa TK' : 'Mở khóa'}</span>
-                  </button>
+                  detailUser.canDelete ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const target = detailUser;
+                        setDetailUser(null);
+                        setDeleteConfirmUser(target);
+                      }}
+                      className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1.5 rounded-xl border transition cursor-pointer bg-rose-50 text-rose-700 hover:bg-rose-100 border-rose-200"
+                    >
+                      <Trash2 size={13} />
+                      <span>Xóa TK test (24/7)</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleToggleStatus(detailUser);
+                        setDetailUser(prev => prev ? { ...prev, active: !prev.active } : null);
+                      }}
+                      className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1.5 rounded-xl border transition cursor-pointer ${
+                        detailUser.active
+                          ? 'bg-rose-50 text-rose-700 hover:bg-rose-100 border-rose-200'
+                          : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border-emerald-200'
+                      }`}
+                    >
+                      {detailUser.active ? <Lock size={13} /> : <CheckCircle2 size={13} />}
+                      <span>{detailUser.active ? 'Khóa TK' : 'Mở khóa'}</span>
+                    </button>
+                  )
                 )}
               </div>
 
@@ -1157,8 +1326,19 @@ export default function UserTable() {
             <form onSubmit={handleAssignRoom} className="p-4 sm:p-5 space-y-3.5 overflow-y-auto flex-1">
               {/* Doctor Info Card */}
               <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200/80 text-xs flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-700 font-bold flex items-center justify-center text-sm shrink-0 border border-purple-200">
-                  {assignModalUser.fullName ? assignModalUser.fullName.charAt(0).toUpperCase() : 'B'}
+                <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-700 font-bold flex items-center justify-center text-sm shrink-0 border border-purple-200 overflow-hidden">
+                  {assignModalUser.avatarUrl ? (
+                    <img
+                      src={assignModalUser.avatarUrl}
+                      alt={assignModalUser.fullName}
+                      className="w-full h-full object-cover object-top"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    <span>{assignModalUser.fullName ? assignModalUser.fullName.charAt(0).toUpperCase() : 'B'}</span>
+                  )}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Bác sĩ thực hiện:</div>
@@ -1305,6 +1485,94 @@ export default function UserTable() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal xác nhận xóa vĩnh viễn tài khoản test khi đang bật Chế độ Develop 24/7 */}
+      {deleteConfirmUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl border border-rose-200 max-w-md w-full p-5 sm:p-6 text-slate-800 animate-in zoom-in-95 duration-200">
+            <div className="flex items-start gap-3.5 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0 border border-rose-200">
+                <Trash2 size={20} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base font-bold text-slate-900 leading-tight">
+                  Xóa vĩnh viễn tài khoản test?
+                </h3>
+                <p className="text-xs text-rose-600 font-medium mt-0.5">
+                  Chế độ Develop 24/7 đang kích hoạt
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmUser(null)}
+                disabled={deleteLoading}
+                className="text-slate-400 hover:text-slate-600 transition p-1 cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="bg-rose-50/60 border border-rose-100 rounded-xl p-3.5 mb-4 text-xs space-y-1.5 text-slate-700">
+              <div>
+                <span className="text-slate-500">Họ và tên:</span>{' '}
+                <strong className="text-slate-900 font-bold">{deleteConfirmUser.fullName}</strong>
+              </div>
+              <div>
+                <span className="text-slate-500">Email:</span>{' '}
+                <span className="font-mono text-slate-900">{deleteConfirmUser.email || '—'}</span>
+              </div>
+              <div>
+                <span className="text-slate-500">Số điện thoại:</span>{' '}
+                <strong className="text-slate-900">{deleteConfirmUser.phone || '—'}</strong>
+              </div>
+              {deleteConfirmUser.createdAt && (
+                <div>
+                  <span className="text-slate-500">Thời điểm tạo:</span>{' '}
+                  <span className="text-slate-800 font-medium">
+                    {new Date(deleteConfirmUser.createdAt).toLocaleString('vi-VN')}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-[11.5px] text-amber-900 flex items-start gap-2 mb-5">
+              <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+              <span>
+                Tài khoản này được tạo trong phiên kiểm thử Develop 24/7. Thao tác này sẽ xóa sạch tài khoản và các hồ sơ / ca khám liên quan, giải phóng số điện thoại và email để có thể tiếp tục thử nghiệm.
+              </span>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmUser(null)}
+                disabled={deleteLoading}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDeleteDevUser(deleteConfirmUser)}
+                disabled={deleteLoading}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white rounded-xl text-xs font-bold shadow-md shadow-rose-600/20 transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {deleteLoading ? (
+                  <>
+                    <RefreshCw size={13} className="animate-spin" />
+                    <span>Đang xóa...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={13} />
+                    <span>Xác nhận xóa vĩnh viễn</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

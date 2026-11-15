@@ -15,6 +15,10 @@ public interface UserMedicalCenterRoleJpaRepository extends JpaRepository<UserMe
      */
     List<UserMedicalCenterRoleEntity> findByUserIdAndActiveTrue(String userId);
 
+    List<UserMedicalCenterRoleEntity> findByUserId(String userId);
+
+    void deleteByUserId(String userId);
+
     boolean existsByUserIdAndMedicalCenterIdAndRoleAndActiveTrue(String userId, String medicalCenterId, UserRole role);
 
     List<UserMedicalCenterRoleEntity> findByMedicalCenterIdAndRole(String medicalCenterId, UserRole role);

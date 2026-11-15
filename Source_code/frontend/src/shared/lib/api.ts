@@ -321,6 +321,12 @@ export const api = {
     });
   },
 
+  async deleteAdminUser(userId: string) {
+    return request<void>(`/admin/users/${userId}`, {
+      method: "DELETE",
+    });
+  },
+
   async resetUserPassword(userId: string, newPassword: string) {
     return request<any>(`/admin/users/${userId}/reset-password`, {
       method: "POST",
@@ -836,6 +842,7 @@ export const api = {
   async registerWalkinPatient(payload: {
     fullName: string;
     phone: string;
+    email?: string;
     cccdNumber?: string;
     doctorId?: string;
     specialty?: string;
@@ -1223,6 +1230,8 @@ export const api = {
       message: string;
       cleanedSchedulesCount?: number;
       cleanedAppointmentsCount?: number;
+      sessionId?: string;
+      startedAt?: string;
     }>('/doctor/schedules/dev-mode');
   },
 

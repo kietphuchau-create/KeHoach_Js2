@@ -5,7 +5,9 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
+import java.time.LocalDate;
 import java.util.List;
+import com.medsched.persistence.enums.Gender;
 
 /**
  * Request/response contracts of the authentication module.
@@ -34,7 +36,15 @@ public final class AuthDtos {
             String fullName,
 
             @Pattern(regexp = "^$|^0[0-9]{8,10}$", message = "Số điện thoại phải bắt đầu bằng 0 và có 9-11 số")
-            String phone) {
+            String phone,
+
+            LocalDate dateOfBirth,
+            Gender gender,
+            String cccdNumber) {
+
+        public RegisterRequest(String email, String password, String fullName, String phone) {
+            this(email, password, fullName, phone, null, null, null);
+        }
     }
 
     /** Shared by all four roles: Customer, Doctor, Staff, Admin. */

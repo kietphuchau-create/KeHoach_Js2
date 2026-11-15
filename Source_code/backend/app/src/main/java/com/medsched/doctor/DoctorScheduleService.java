@@ -1370,10 +1370,11 @@ public class DoctorScheduleService {
         boolean isToday = schedule.getWorkDate().equals(today);
         boolean isPastSchedule = schedule.getWorkDate().isBefore(today);
 
+        boolean isDevActive = isDevMode247Active();
         List<TimeSlotEntity> slotsToLock = new ArrayList<>();
         for (TimeSlotEntity s : slots) {
             LocalTime slotStartLt = s.getStartTime().atZone(VN_ZONE).toLocalTime();
-            boolean isSlotPast = isPastSchedule || (isToday && !slotStartLt.isAfter(nowTime));
+            boolean isSlotPast = isPastSchedule || (isToday && !isDevActive && !slotStartLt.isAfter(nowTime));
             if (isSlotPast && s.getStatus() == SlotStatus.AVAILABLE) {
                 s.setStatus(SlotStatus.LOCKED);
                 s.setUpdatedAt(nowInstant);

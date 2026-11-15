@@ -37,7 +37,8 @@ import {
   Percent,
   ChevronRight,
   UserCheck,
-  FileText
+  FileText,
+  Mail
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -132,6 +133,7 @@ export default function ReceptionView() {
   // Walk-in Registration states (Khách vãng lai đăng ký tại quầy)
   const [walkinName, setWalkinName] = useState('');
   const [walkinPhone, setWalkinPhone] = useState('');
+  const [walkinEmail, setWalkinEmail] = useState('');
   const [walkinSpecialty, setWalkinSpecialty] = useState('');
   const [walkinPassword, setWalkinPassword] = useState('Med@123456');
   const [specialties, setSpecialties] = useState<any[]>([]);
@@ -423,6 +425,15 @@ export default function ReceptionView() {
     }
     return { isValid: true, message: 'Họ và tên hợp lệ' };
   }, [walkinName]);
+
+  const walkinEmailValidation = useMemo(() => {
+    const em = walkinEmail.trim();
+    if (!em) return { isValid: false, message: 'Bắt buộc nhập email để gửi tài khoản & mật khẩu' };
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) {
+      return { isValid: false, message: 'Email không đúng định dạng (ví dụ: benhnhan@gmail.com)' };
+    }
+    return { isValid: true, message: 'Email hợp lệ (sẽ gửi tài khoản & mật khẩu về hòm thư này)' };
+  }, [walkinEmail]);
   const [preselectedWalkinInfo, setPreselectedWalkinInfo] = useState<{
     doctorName: string;
     roomNumber: string;
@@ -1119,22 +1130,27 @@ export default function ReceptionView() {
       setError(`Lỗi họ và tên: ${walkinNameValidation.message}`);
       return;
     }
+    if (!walkinEmailValidation.isValid) {
+      setError(`Lỗi email: ${walkinEmailValidation.message}`);
+      return;
+    }
 
     setLoading(true);
     setError(null);
 
     const cleanPhone = walkinPhone.trim();
     const cleanName = walkinName.trim();
+    const cleanEmail = walkinEmail.trim();
     const docId = selectedDoctorId;
     const spec = walkinSpecialty || (availableDoctorsForSpecialty.find((d) => d.id === docId)?.specialtyName) || 'Đa khoa';
     const autoPass = walkinPassword || (cleanPhone.length >= 4 ? `Med@${cleanPhone.slice(-4)}` : 'Med@1234');
-    const generatedEmail = `${cleanPhone}@medsched.vn`;
 
     try {
       // 1. Tạo tài khoản & ca khám thực tế lưu vào CSDL MySQL
       const walkinRes = await api.registerWalkinPatient({
         fullName: cleanName,
         phone: cleanPhone,
+        email: cleanEmail,
         doctorId: docId,
         specialty: spec,
         password: autoPass,
@@ -1200,7 +1216,7 @@ export default function ReceptionView() {
         bookingCode,
         fullName: cleanName,
         phone: cleanPhone,
-        email: generatedEmail,
+        email: cleanEmail,
         passwordInit: autoPass,
         doctorName: formatDoctorFullName(null, docName),
         roomNumber: roomNum,
@@ -1211,6 +1227,7 @@ export default function ReceptionView() {
       // Reset form
       setWalkinName('');
       setWalkinPhone('');
+      setWalkinEmail('');
       setWalkinSymptoms('');
       setWalkinBirthYear('');
       setWalkinGender('OTHER');
@@ -1914,6 +1931,40 @@ export default function ReceptionView() {
                       </div>
                     </div>
 
+                    {/* Email người bệnh (Để gửi tài khoản, mật khẩu & vé hẹn) */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-bold text-slate-700">
+                          GMAIL / EMAIL NGƯỜI BỆNH <span className="text-rose-500">*</span>
+                        </label>
+                        <span className="text-[11px] text-teal-600 font-medium">
+                          (Tự động gửi tài khoản &amp; mật khẩu về Gmail)
+                        </span>
+                      </div>
+                      <div className="relative">
+                        <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                        <input
+                          type="email"
+                          required
+                          value={walkinEmail}
+                          onChange={(e) => setWalkinEmail(e.target.value)}
+                          placeholder="Ví dụ: nguyenvana@gmail.com"
+                          className={`w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border rounded-xl focus:bg-white focus:ring-2 focus:outline-none text-xs font-semibold text-slate-800 transition ${
+                            walkinEmail.length > 0
+                              ? walkinEmailValidation.isValid
+                                ? 'border-emerald-400 focus:ring-emerald-500'
+                                : 'border-rose-300 focus:ring-rose-400 bg-rose-50/20'
+                              : 'border-slate-200 focus:ring-emerald-500'
+                          }`}
+                        />
+                      </div>
+                      {walkinEmail.length > 0 && (
+                        <p className={`text-[11px] mt-1 font-medium ${walkinEmailValidation.isValid ? 'text-emerald-600' : 'text-rose-600'}`}>
+                          {walkinEmailValidation.isValid ? '✓ ' : '✕ '}{walkinEmailValidation.message}
+                        </p>
+                      )}
+                    </div>
+
                     {/* Chuyên khoa & Bác sĩ */}
                     {/* Cảnh báo ngoài giờ làm việc nếu chưa bật 24/7 */}
                     {!isWithinBusinessHours && (
@@ -2073,6 +2124,13 @@ export default function ReceptionView() {
                   </div>
                 )}
 
+                {error && (
+                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-600 text-xs flex items-center gap-2 animate-in fade-in">
+                    <AlertCircle size={16} className="shrink-0" />
+                    <span className="font-medium">{error}</span>
+                  </div>
+                )}
+
                 <div className="pt-2">
                   <button
                     type="submit"
@@ -2081,6 +2139,7 @@ export default function ReceptionView() {
                       (method === 'WALK_IN' && (
                         !walkinPhoneValidation.isValid ||
                         !walkinNameValidation.isValid ||
+                        !walkinEmailValidation.isValid ||
                         !selectedDoctorId ||
                         availableDoctorsForSpecialty.length === 0 ||
                         !isWithinBusinessHours
@@ -2388,13 +2447,19 @@ export default function ReceptionView() {
                         </div>
                         <div className="space-y-1">
                           <div className="flex items-center gap-1.5 text-[10px] text-slate-300">
-                            <span className="text-slate-400 w-12 shrink-0">Tên ĐN:</span>
+                            <span className="text-slate-400 w-14 shrink-0">Email/ĐN:</span>
+                            <span className="font-mono font-bold text-teal-300 bg-white/10 px-1.5 py-0.5 rounded text-[11px] truncate" title={accountHandoverModal.email}>
+                              {accountHandoverModal.email}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-[10px] text-slate-300">
+                            <span className="text-slate-400 w-14 shrink-0">SĐT:</span>
                             <span className="font-mono font-bold text-white bg-white/10 px-1.5 py-0.5 rounded text-[11px]">
                               {accountHandoverModal.phone}
                             </span>
                           </div>
                           <div className="flex items-center gap-1.5 text-[10px] text-slate-300">
-                            <span className="text-slate-400 w-12 shrink-0">Mật khẩu:</span>
+                            <span className="text-slate-400 w-14 shrink-0">Mật khẩu:</span>
                             <span className="font-mono font-bold text-emerald-300 bg-emerald-950/80 px-1.5 py-0.5 rounded border border-emerald-500/30 text-[11px]">
                               {accountHandoverModal.passwordInit}
                             </span>
@@ -2416,7 +2481,9 @@ export default function ReceptionView() {
                     </div>
 
                     <div className="flex items-center justify-between text-[9px] text-slate-400 px-1">
-                      <span>Đổi MK lần đầu • Tra cứu đơn thuốc &amp; KQ xét nghiệm</span>
+                      <span className="text-emerald-700 font-semibold flex items-center gap-1 truncate max-w-[70%]" title={`Đã gửi email về ${accountHandoverModal.email}`}>
+                        ✓ Đã gửi tài khoản về Gmail: <strong>{accountHandoverModal.email}</strong>
+                      </span>
                       <span className="font-mono font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">medsched.vn</span>
                     </div>
                   </div>

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { User, Mail, Lock, Phone, Eye, EyeOff, CheckCircle2, Circle, AlertCircle, ShieldCheck, Sparkles } from 'lucide-react';
+import { User, Mail, Lock, Phone, Eye, EyeOff, CheckCircle2, Circle, AlertCircle, ShieldCheck, Sparkles, ShieldAlert } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { api } from '@/shared/lib/api';
@@ -39,6 +39,14 @@ export default function RegisterForm() {
     confirmPassword: '',
     agreeTerms: true,
   });
+
+  const [optionalHealth, setOptionalHealth] = useState({
+    dateOfBirth: '',
+    gender: '' as 'MALE' | 'FEMALE' | 'OTHER' | '',
+    cccdNumber: '',
+  });
+  const [showSoftWarning, setShowSoftWarning] = useState(false);
+  const [softWarningConfirmed, setSoftWarningConfirmed] = useState(false);
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -253,9 +261,32 @@ export default function RegisterForm() {
     }
     setFieldErrors({});
 
+    // KỊCH BẢN 1: Nếu để trống Ngày sinh / Giới tính / CCCD và chưa bấm bỏ qua cảnh báo mềm
+    const isHealthIncomplete = !optionalHealth.dateOfBirth || !optionalHealth.gender || !optionalHealth.cccdNumber;
+    if (isHealthIncomplete && !softWarningConfirmed) {
+      setShowSoftWarning(true);
+      return;
+    }
+
+    await proceedWithRegistration();
+  };
+
+  const proceedWithRegistration = async () => {
     setLoading(true);
+    setShowSoftWarning(false);
 
     try {
+      // Lưu thông tin y tế tạm thời nếu người dùng có nhập
+      if (typeof window !== 'undefined') {
+        const payload: any = {};
+        if (optionalHealth.dateOfBirth) payload.dateOfBirth = optionalHealth.dateOfBirth;
+        if (optionalHealth.gender) payload.gender = optionalHealth.gender;
+        if (optionalHealth.cccdNumber) payload.cccdNumber = optionalHealth.cccdNumber;
+        if (Object.keys(payload).length > 0) {
+          sessionStorage.setItem('medsched_pending_health', JSON.stringify(payload));
+        }
+      }
+
       const res = await api.requestOtp({
         fullName: trimmedName,
         email: rawEmail,
@@ -655,7 +686,54 @@ export default function RegisterForm() {
           </div>
         )}
 
-        {/* ── 5. ĐỒNG Ý ĐIỀU KHOẢN ── */}
+        {/* ── 5. THÔNG TIN Y TẾ CƠ BẢN (TÙY CHỌN) ── */}
+        <div id="optional-health-section" className="pt-2 border-t border-slate-100">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+              <span>🩺 Thông tin khám bệnh</span>
+              <span className="text-[10px] font-normal text-slate-400">(Tùy chọn - Có thể để trống)</span>
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 mb-1.5">
+            <div>
+              <label className="block text-[10px] font-medium text-slate-600 mb-0.5">Ngày sinh</label>
+              <input
+                type="date"
+                value={optionalHealth.dateOfBirth}
+                onChange={(e) => setOptionalHealth({ ...optionalHealth, dateOfBirth: e.target.value })}
+                className="w-full px-2 py-1 bg-mint-soft border border-mint-light rounded-lg text-xs outline-none focus:bg-white focus:border-teal-primary"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-medium text-slate-600 mb-0.5">Giới tính</label>
+              <select
+                value={optionalHealth.gender}
+                onChange={(e) => setOptionalHealth({ ...optionalHealth, gender: e.target.value as any })}
+                className="w-full px-2 py-1 bg-mint-soft border border-mint-light rounded-lg text-xs outline-none focus:bg-white focus:border-teal-primary cursor-pointer"
+              >
+                <option value="">-- Chưa chọn --</option>
+                <option value="MALE">Nam</option>
+                <option value="FEMALE">Nữ</option>
+                <option value="OTHER">Khác</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-medium text-slate-600 mb-0.5">Số CCCD / CMND</label>
+            <input
+              type="text"
+              maxLength={12}
+              value={optionalHealth.cccdNumber}
+              onChange={(e) => setOptionalHealth({ ...optionalHealth, cccdNumber: e.target.value.replace(/\D/g, '') })}
+              placeholder="12 chữ số (để liên kết hồ sơ BHYT)"
+              className="w-full px-2 py-1 bg-mint-soft border border-mint-light rounded-lg text-xs outline-none focus:bg-white focus:border-teal-primary"
+            />
+          </div>
+        </div>
+
+        {/* ── 6. ĐỒNG Ý ĐIỀU KHOẢN ── */}
         <div className="flex items-start pt-0.5">
           <input
             type="checkbox"
@@ -680,6 +758,54 @@ export default function RegisterForm() {
           {loading ? 'Đang gửi mã xác thực...' : 'Đăng Ký & Nhận Mã OTP'}
         </button>
       </form>
+
+      {/* ── MODAL CẢNH BÁO MỀM (SOFT WARNING) ── */}
+      {showSoftWarning && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white rounded-2xl p-5 sm:p-6 max-w-sm w-full shadow-2xl border border-amber-200">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+                <ShieldAlert className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-800 text-sm sm:text-base">Lưu Ý Thông Tin Y Tế</h3>
+                <span className="text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 font-semibold">
+                  Tùy chọn - Có thể để trống
+                </span>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed mb-4">
+              Bạn đang để trống thông tin y tế ({[!optionalHealth.dateOfBirth && 'Ngày sinh', !optionalHealth.gender && 'Giới tính', !optionalHealth.cccdNumber && 'CCCD'].filter(Boolean).join(', ')}).
+              <br /><br />
+              Bạn hoàn toàn có thể tiếp tục tạo tài khoản ngay bây giờ, tuy nhiên khi <strong>Đặt Lịch Khám</strong> hệ thống sẽ yêu cầu bổ sung các thông tin này để bác sĩ lập hồ sơ bệnh án theo chuẩn Bộ Y Tế.
+            </p>
+
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSoftWarning(false);
+                  document.getElementById('optional-health-section')?.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="w-full py-2.5 px-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs shadow-xs transition cursor-pointer"
+              >
+                Bổ sung thông tin ngay
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSoftWarningConfirmed(true);
+                  proceedWithRegistration();
+                }}
+                className="w-full py-2 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 font-medium text-xs transition cursor-pointer"
+              >
+                Để sau, tiếp tục đăng ký
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="text-center mt-3 text-xs text-slate-600">
         Đã có tài khoản?{' '}

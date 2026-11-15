@@ -50,6 +50,45 @@ class AdminUserServiceTest {
     @Mock
     private PasswordEncoder passwordEncoder;
 
+    @Mock
+    private com.medsched.persistence.repository.PatientProfileJpaRepository patientProfiles;
+
+    @Mock
+    private com.medsched.persistence.repository.AppointmentJpaRepository appointments;
+
+    @Mock
+    private com.medsched.persistence.repository.AppointmentStatusLogJpaRepository appointmentStatusLogs;
+
+    @Mock
+    private com.medsched.persistence.repository.PaymentJpaRepository payments;
+
+    @Mock
+    private com.medsched.persistence.repository.InvoiceJpaRepository invoices;
+
+    @Mock
+    private com.medsched.persistence.repository.MedicalRecordJpaRepository medicalRecords;
+
+    @Mock
+    private com.medsched.persistence.repository.PrescriptionJpaRepository prescriptions;
+
+    @Mock
+    private com.medsched.persistence.repository.PrescriptionItemJpaRepository prescriptionItems;
+
+    @Mock
+    private com.medsched.persistence.repository.DoctorReviewJpaRepository doctorReviews;
+
+    @Mock
+    private com.medsched.persistence.repository.DoctorScheduleJpaRepository doctorSchedules;
+
+    @Mock
+    private com.medsched.persistence.repository.TimeSlotJpaRepository timeSlots;
+
+    @Mock
+    private com.medsched.persistence.repository.PasswordResetTokenJpaRepository passwordResetTokens;
+
+    @Mock
+    private com.medsched.persistence.repository.RevokedTokenJpaRepository revokedTokens;
+
     @InjectMocks
     private AdminUserService adminUserService;
 
@@ -157,5 +196,82 @@ class AdminUserServiceTest {
 
         assertThat(summary).isNotNull();
         assertThat(targetUser.isActive()).isFalse();
+    }
+
+    @Test
+    @DisplayName("Xóa tài khoản test thất bại khi Chế độ 24/7 đang TẮT")
+    void testDeleteDevUser_DevModeInactive_ThrowsException() {
+        com.medsched.doctor.DoctorScheduleService.setDevMode247Active(false);
+
+        var ex = assertThrows(AppExceptions.BadRequestException.class, () -> {
+            adminUserService.deleteDevUser("user-001", "admin-001");
+        });
+        assertThat(ex.getMessage()).contains("Chỉ được phép xóa tài khoản khi đang BẬT Chế Độ Develop 24/7");
+    }
+
+    @Test
+    @DisplayName("Xóa tài khoản test thất bại khi tài khoản tạo TRƯỚC thời điểm bật 24/7")
+    void testDeleteDevUser_CreatedBeforeDevMode_ThrowsException() {
+        try {
+            com.medsched.doctor.DoctorScheduleService.setDevMode247Active(true);
+            Instant oldTime = Instant.now().minusSeconds(3600); // Tạo trước 1 tiếng
+            UserEntity preExistingUser = new UserEntity(
+                    "old-user-001", "old@test.vn", "hash", "Old User", "0911111111", true, oldTime, oldTime
+            );
+
+            when(users.findById("old-user-001")).thenReturn(Optional.of(preExistingUser));
+
+            var ex = assertThrows(AppExceptions.BadRequestException.class, () -> {
+                adminUserService.deleteDevUser("old-user-001", "admin-001");
+            });
+            assertThat(ex.getMessage()).contains("Chỉ được phép xóa các tài khoản test tạo sau thời điểm bật Chế độ 24/7");
+        } finally {
+            com.medsched.doctor.DoctorScheduleService.setDevMode247Active(false);
+        }
+    }
+
+    @Test
+    @DisplayName("Xóa tài khoản test thất bại khi Admin cố tình tự xóa chính mình")
+    void testDeleteDevUser_SelfDelete_ThrowsException() {
+        try {
+            com.medsched.doctor.DoctorScheduleService.setDevMode247Active(true);
+            Instant futureTime = Instant.now().plusSeconds(60);
+            UserEntity adminUser = new UserEntity(
+                    "admin-001", "admin@medsched.vn", "hash", "Admin", "0900000001", true, futureTime, futureTime
+            );
+
+            when(users.findById("admin-001")).thenReturn(Optional.of(adminUser));
+
+            var ex = assertThrows(AppExceptions.BadRequestException.class, () -> {
+                adminUserService.deleteDevUser("admin-001", "admin-001");
+            });
+            assertThat(ex.getMessage()).contains("Không thể tự xóa tài khoản của chính mình");
+        } finally {
+            com.medsched.doctor.DoctorScheduleService.setDevMode247Active(false);
+        }
+    }
+
+    @Test
+    @DisplayName("Xóa tài khoản test thành công khi tạo SAU thời điểm bật 24/7")
+    void testDeleteDevUser_Success() {
+        try {
+            com.medsched.doctor.DoctorScheduleService.setDevMode247Active(true);
+            Instant testCreatedTime = Instant.now().plusSeconds(10); // Tạo trong phiên 24/7
+            UserEntity testUser = new UserEntity(
+                    "test-user-999", "test999@gmail.com", "hash", "Test Patient", "0988888888", true, testCreatedTime, testCreatedTime
+            );
+
+            when(users.findById("test-user-999")).thenReturn(Optional.of(testUser));
+            when(roles.findByUserId("test-user-999")).thenReturn(List.of());
+            when(doctors.findByUserId("test-user-999")).thenReturn(List.of());
+            when(patientProfiles.findByUserId("test-user-999")).thenReturn(List.of());
+
+            adminUserService.deleteDevUser("test-user-999", "admin-001");
+
+            verify(users, times(1)).delete(testUser);
+            verify(users, times(1)).flush();
+        } finally {
+            com.medsched.doctor.DoctorScheduleService.setDevMode247Active(false);
+        }
     }
 }

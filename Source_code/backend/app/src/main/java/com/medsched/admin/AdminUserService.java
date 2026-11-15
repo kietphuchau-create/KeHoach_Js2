@@ -2,17 +2,35 @@ package com.medsched.admin;
 
 import com.medsched.common.AppExceptions;
 import com.medsched.common.InputValidator;
+import com.medsched.persistence.entity.AppointmentEntity;
 import com.medsched.persistence.entity.DoctorEntity;
+import com.medsched.persistence.entity.DoctorScheduleEntity;
 import com.medsched.persistence.entity.MedicalCenterEntity;
 import com.medsched.persistence.entity.SpecialtyEntity;
+import com.medsched.persistence.entity.TimeSlotEntity;
 import com.medsched.persistence.entity.UserEntity;
 import com.medsched.persistence.entity.UserMedicalCenterRoleEntity;
+import com.medsched.persistence.enums.SlotStatus;
 import com.medsched.persistence.enums.UserRole;
+import com.medsched.persistence.repository.AppointmentJpaRepository;
+import com.medsched.persistence.repository.AppointmentStatusLogJpaRepository;
 import com.medsched.persistence.repository.DoctorJpaRepository;
+import com.medsched.persistence.repository.DoctorReviewJpaRepository;
+import com.medsched.persistence.repository.DoctorScheduleJpaRepository;
+import com.medsched.persistence.repository.InvoiceJpaRepository;
 import com.medsched.persistence.repository.MedicalCenterJpaRepository;
+import com.medsched.persistence.repository.MedicalRecordJpaRepository;
+import com.medsched.persistence.repository.PasswordResetTokenJpaRepository;
+import com.medsched.persistence.repository.PatientProfileJpaRepository;
+import com.medsched.persistence.repository.PaymentJpaRepository;
+import com.medsched.persistence.repository.PrescriptionItemJpaRepository;
+import com.medsched.persistence.repository.PrescriptionJpaRepository;
+import com.medsched.persistence.repository.RevokedTokenJpaRepository;
 import com.medsched.persistence.repository.SpecialtyJpaRepository;
+import com.medsched.persistence.repository.TimeSlotJpaRepository;
 import com.medsched.persistence.repository.UserJpaRepository;
 import com.medsched.persistence.repository.UserMedicalCenterRoleJpaRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -39,6 +57,60 @@ public class AdminUserService {
     private final SpecialtyJpaRepository specialties;
     private final MedicalCenterJpaRepository medicalCenters;
     private final PasswordEncoder passwordEncoder;
+    private final PatientProfileJpaRepository patientProfiles;
+    private final AppointmentJpaRepository appointments;
+    private final AppointmentStatusLogJpaRepository appointmentStatusLogs;
+    private final PaymentJpaRepository payments;
+    private final InvoiceJpaRepository invoices;
+    private final MedicalRecordJpaRepository medicalRecords;
+    private final PrescriptionJpaRepository prescriptions;
+    private final PrescriptionItemJpaRepository prescriptionItems;
+    private final DoctorReviewJpaRepository doctorReviews;
+    private final DoctorScheduleJpaRepository doctorSchedules;
+    private final TimeSlotJpaRepository timeSlots;
+    private final PasswordResetTokenJpaRepository passwordResetTokens;
+    private final RevokedTokenJpaRepository revokedTokens;
+
+    @Autowired
+    public AdminUserService(UserJpaRepository users,
+                            UserMedicalCenterRoleJpaRepository roles,
+                            DoctorJpaRepository doctors,
+                            SpecialtyJpaRepository specialties,
+                            MedicalCenterJpaRepository medicalCenters,
+                            PasswordEncoder passwordEncoder,
+                            PatientProfileJpaRepository patientProfiles,
+                            AppointmentJpaRepository appointments,
+                            AppointmentStatusLogJpaRepository appointmentStatusLogs,
+                            PaymentJpaRepository payments,
+                            InvoiceJpaRepository invoices,
+                            MedicalRecordJpaRepository medicalRecords,
+                            PrescriptionJpaRepository prescriptions,
+                            PrescriptionItemJpaRepository prescriptionItems,
+                            DoctorReviewJpaRepository doctorReviews,
+                            DoctorScheduleJpaRepository doctorSchedules,
+                            TimeSlotJpaRepository timeSlots,
+                            PasswordResetTokenJpaRepository passwordResetTokens,
+                            RevokedTokenJpaRepository revokedTokens) {
+        this.users = users;
+        this.roles = roles;
+        this.doctors = doctors;
+        this.specialties = specialties;
+        this.medicalCenters = medicalCenters;
+        this.passwordEncoder = passwordEncoder;
+        this.patientProfiles = patientProfiles;
+        this.appointments = appointments;
+        this.appointmentStatusLogs = appointmentStatusLogs;
+        this.payments = payments;
+        this.invoices = invoices;
+        this.medicalRecords = medicalRecords;
+        this.prescriptions = prescriptions;
+        this.prescriptionItems = prescriptionItems;
+        this.doctorReviews = doctorReviews;
+        this.doctorSchedules = doctorSchedules;
+        this.timeSlots = timeSlots;
+        this.passwordResetTokens = passwordResetTokens;
+        this.revokedTokens = revokedTokens;
+    }
 
     public AdminUserService(UserJpaRepository users,
                             UserMedicalCenterRoleJpaRepository roles,
@@ -46,12 +118,8 @@ public class AdminUserService {
                             SpecialtyJpaRepository specialties,
                             MedicalCenterJpaRepository medicalCenters,
                             PasswordEncoder passwordEncoder) {
-        this.users = users;
-        this.roles = roles;
-        this.doctors = doctors;
-        this.specialties = specialties;
-        this.medicalCenters = medicalCenters;
-        this.passwordEncoder = passwordEncoder;
+        this(users, roles, doctors, specialties, medicalCenters, passwordEncoder,
+                null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     /**
@@ -207,6 +275,191 @@ public class AdminUserService {
         return toSummary(user);
     }
 
+    /**
+     * Hard delete tài khoản test khi đang BẬT Chế Độ Develop 24/7.
+     * Ràng buộc an toàn: Chỉ được phép xóa tài khoản có createdAt sau thời điểm bật chế độ 24/7.
+     */
+    @Transactional
+    public void deleteDevUser(String userId, String actorId) {
+        if (!com.medsched.doctor.DoctorScheduleService.isDevMode247Active()) {
+            throw new AppExceptions.BadRequestException("Chỉ được phép xóa tài khoản khi đang BẬT Chế Độ Develop 24/7.");
+        }
+        Instant devStartedAt = com.medsched.doctor.DoctorScheduleService.getDevModeStartedAt();
+        if (devStartedAt == null) {
+            throw new AppExceptions.BadRequestException("Không tìm thấy thời điểm kích hoạt Chế Độ Develop 24/7 hợp lệ.");
+        }
+
+        UserEntity user = requireUser(userId);
+        if (user.getId().equals(actorId)) {
+            throw new AppExceptions.BadRequestException("Không thể tự xóa tài khoản của chính mình.");
+        }
+
+        if (user.getCreatedAt() == null || user.getCreatedAt().isBefore(devStartedAt)) {
+            throw new AppExceptions.BadRequestException(
+                    "Không thể xóa tài khoản này! Chỉ được phép xóa các tài khoản test tạo sau thời điểm bật Chế độ 24/7 (" + devStartedAt + ")."
+            );
+        }
+
+        // 1. Dọn dẹp quyền chi nhánh
+        if (roles != null) {
+            List<UserMedicalCenterRoleEntity> roleList = roles.findByUserId(userId);
+            if (roleList != null && !roleList.isEmpty()) {
+                roles.deleteAll(roleList);
+            }
+        }
+
+        // 2. Dọn dẹp hồ sơ Bác sĩ và ca trực (nếu có)
+        if (doctors != null) {
+            List<DoctorEntity> docList = doctors.findByUserId(userId);
+            if (docList != null && !docList.isEmpty()) {
+                for (DoctorEntity doc : docList) {
+                    cleanupDoctorData(doc.getId());
+                    doctors.delete(doc);
+                }
+            }
+        }
+
+        // 3. Dọn dẹp hồ sơ Bệnh nhân và các ca khám liên quan
+        if (patientProfiles != null) {
+            List<com.medsched.persistence.entity.PatientProfileEntity> profiles = patientProfiles.findByUserId(userId);
+            if (profiles != null && !profiles.isEmpty()) {
+                for (var profile : profiles) {
+                    cleanupPatientAppointments(profile.getId());
+                    patientProfiles.delete(profile);
+                }
+            }
+        }
+
+        // 4. Dọn dẹp tokens
+        if (passwordResetTokens != null) {
+            var pTokens = passwordResetTokens.findByUserId(userId);
+            if (pTokens != null && !pTokens.isEmpty()) {
+                passwordResetTokens.deleteAll(pTokens);
+            }
+        }
+        if (revokedTokens != null) {
+            var rTokens = revokedTokens.findByUserId(userId);
+            if (rTokens != null && !rTokens.isEmpty()) {
+                revokedTokens.deleteAll(rTokens);
+            }
+        }
+
+        // 5. Xóa hoàn toàn tài khoản người dùng
+        users.delete(user);
+        users.flush();
+    }
+
+    private void cleanupDoctorData(String doctorId) {
+        if (doctorSchedules != null && timeSlots != null) {
+            var scheds = doctorSchedules.findByDoctorIdOrderByWorkDateAscStartTimeAsc(doctorId);
+            if (scheds != null && !scheds.isEmpty()) {
+                for (var s : scheds) {
+                    var slots = timeSlots.findByScheduleIdOrderByStartTimeAsc(s.getId());
+                    if (slots != null && !slots.isEmpty()) {
+                        if (appointments != null) {
+                            var slotIds = slots.stream().map(TimeSlotEntity::getId).toList();
+                            var appts = appointments.findBySlotIdIn(slotIds);
+                            if (appts != null && !appts.isEmpty()) {
+                                for (var a : appts) {
+                                    cleanupSingleAppointment(a);
+                                }
+                            }
+                        }
+                        timeSlots.deleteAll(slots);
+                    }
+                }
+                doctorSchedules.deleteAll(scheds);
+            }
+        }
+
+        if (appointments != null) {
+            var docAppts = appointments.findByDoctorId(doctorId);
+            if (docAppts != null && !docAppts.isEmpty()) {
+                for (var a : docAppts) {
+                    cleanupSingleAppointment(a);
+                }
+            }
+        }
+
+        if (doctorReviews != null) {
+            var reviews = doctorReviews.findByDoctorIdOrderByCreatedAtDesc(doctorId);
+            if (reviews != null && !reviews.isEmpty()) {
+                doctorReviews.deleteAll(reviews);
+            }
+        }
+    }
+
+    private void cleanupPatientAppointments(String patientProfileId) {
+        if (appointments != null) {
+            var appts = appointments.findByPatientProfileIdOrderByCreatedAtDesc(patientProfileId);
+            if (appts != null && !appts.isEmpty()) {
+                for (var a : appts) {
+                    cleanupSingleAppointment(a);
+                }
+            }
+        }
+    }
+
+    private void cleanupSingleAppointment(AppointmentEntity a) {
+        String apptId = a.getId();
+        if (doctorReviews != null) {
+            try {
+                var reviews = doctorReviews.findByAppointmentId(apptId);
+                if (reviews != null && !reviews.isEmpty()) {
+                    doctorReviews.deleteAll(reviews);
+                }
+            } catch (Exception ignored) {}
+        }
+        if (payments != null) {
+            try {
+                var payList = payments.findByAppointmentId(apptId);
+                if (payList != null && !payList.isEmpty()) {
+                    payments.deleteAll(payList);
+                }
+            } catch (Exception ignored) {}
+        }
+        if (invoices != null) {
+            try {
+                invoices.findByAppointmentId(apptId).ifPresent(invoices::delete);
+            } catch (Exception ignored) {}
+        }
+        if (medicalRecords != null) {
+            try {
+                medicalRecords.findByAppointmentId(apptId).ifPresent(rec -> {
+                    if (prescriptionItems != null) {
+                        var items = prescriptionItems.findByMedicalRecordId(rec.getId());
+                        if (items != null && !items.isEmpty()) {
+                            prescriptionItems.deleteAll(items);
+                        }
+                    }
+                    medicalRecords.delete(rec);
+                });
+            } catch (Exception ignored) {}
+        }
+        if (prescriptions != null) {
+            try {
+                prescriptions.findByAppointmentId(apptId).ifPresent(prescriptions::delete);
+            } catch (Exception ignored) {}
+        }
+        if (appointmentStatusLogs != null) {
+            try {
+                var logs = appointmentStatusLogs.findByAppointmentIdOrderByCreatedAtAsc(apptId);
+                if (logs != null && !logs.isEmpty()) {
+                    appointmentStatusLogs.deleteAll(logs);
+                }
+            } catch (Exception ignored) {}
+        }
+        if (timeSlots != null && a.getSlotId() != null) {
+            try {
+                timeSlots.findById(a.getSlotId()).ifPresent(slot -> {
+                    slot.setStatus(SlotStatus.AVAILABLE);
+                    timeSlots.save(slot);
+                });
+            } catch (Exception ignored) {}
+        }
+        appointments.delete(a);
+    }
+
     private UserEntity createUser(String email, String rawPassword, String fullName, String phone, String actorId) {
         String normalized = email.trim().toLowerCase();
         if (users.existsByEmail(normalized)) {
@@ -264,8 +517,12 @@ public class AdminUserService {
             }
         }
 
+        boolean devActive = com.medsched.doctor.DoctorScheduleService.isDevMode247Active();
+        Instant devStartedAt = com.medsched.doctor.DoctorScheduleService.getDevModeStartedAt();
+        boolean canDelete = devActive && devStartedAt != null && user.getCreatedAt() != null && !user.getCreatedAt().isBefore(devStartedAt);
+
         return new AdminDtos.UserSummary(user.getId(), user.getEmail(), user.getFullName(), user.getPhone(),
-                user.isActive(), assignments, user.getCreatedAt(), specialtyName, academicTitle, roomNumber);
+                user.isActive(), assignments, user.getCreatedAt(), specialtyName, academicTitle, roomNumber, canDelete);
     }
 
     private UserEntity requireUser(String userId) {
