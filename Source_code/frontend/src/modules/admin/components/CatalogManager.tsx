@@ -832,45 +832,53 @@ export default function CatalogManager() {
       const emptyStockCount = medicines.filter(m => m.stockQuantity === 0).length;
 
       return (
-        <div className="space-y-4 p-4">
-          {/* KPI Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 flex items-center justify-between">
+        <div className="space-y-3.5 p-3 sm:p-4">
+          {/* KPI Cards (Compact) */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex items-center justify-between">
               <div>
                 <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Tổng Mặt Hàng</p>
-                <h4 className="text-xl font-black text-slate-900 mt-0.5">{medicines.length}</h4>
-                <p className="text-[10px] text-emerald-600 font-medium">Danh mục thuốc khả dụng</p>
+                <div className="flex items-baseline gap-1.5 mt-0.5">
+                  <span className="text-xl font-black text-slate-900">{medicines.length}</span>
+                  <span className="text-[10px] text-emerald-600 font-semibold">hoạt chất</span>
+                </div>
               </div>
-              <div className="w-10 h-10 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center font-bold">💊</div>
+              <div className="w-8 h-8 rounded-lg bg-teal-100 text-teal-700 flex items-center justify-center font-bold text-sm">💊</div>
             </div>
-            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 flex items-center justify-between">
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex items-center justify-between">
               <div>
                 <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Tổng Tồn Khả Dụng</p>
-                <h4 className="text-xl font-black text-slate-900 mt-0.5">{totalStock.toLocaleString('vi-VN')}</h4>
-                <p className="text-[10px] text-slate-400 font-medium">Viên, chai, lọ, tuýp</p>
+                <div className="flex items-baseline gap-1.5 mt-0.5">
+                  <span className="text-xl font-black text-slate-900">{totalStock.toLocaleString('vi-VN')}</span>
+                  <span className="text-[10px] text-slate-400 font-medium">đơn vị</span>
+                </div>
               </div>
-              <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">📦</div>
+              <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-sm">📦</div>
             </div>
-            <div className="bg-amber-50/60 p-3.5 rounded-xl border border-amber-200 flex items-center justify-between">
+            <div className="bg-amber-50/60 p-3 rounded-xl border border-amber-200 flex items-center justify-between">
               <div>
-                <p className="text-[10px] text-amber-700 font-bold uppercase tracking-wider">Sắp Hết Hàng</p>
-                <h4 className="text-xl font-black text-amber-600 mt-0.5">{lowStockCount}</h4>
-                <p className="text-[10px] text-amber-600 font-medium">&lt; 30 đơn vị khả dụng</p>
+                <p className="text-[10px] text-amber-700 font-bold uppercase tracking-wider">Sắp Hết Hàng (&lt; 30)</p>
+                <div className="flex items-baseline gap-1.5 mt-0.5">
+                  <span className="text-xl font-black text-amber-600">{lowStockCount}</span>
+                  <span className="text-[10px] text-amber-600 font-medium">cần nhập</span>
+                </div>
               </div>
-              <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold">⚠️</div>
+              <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-sm">⚠️</div>
             </div>
-            <div className="bg-rose-50/60 p-3.5 rounded-xl border border-rose-200 flex items-center justify-between">
+            <div className="bg-rose-50/60 p-3 rounded-xl border border-rose-200 flex items-center justify-between">
               <div>
                 <p className="text-[10px] text-rose-700 font-bold uppercase tracking-wider">Đã Hết Hàng</p>
-                <h4 className="text-xl font-black text-rose-600 mt-0.5">{emptyStockCount}</h4>
-                <p className="text-[10px] text-rose-600 font-medium">Khóa kê đơn tự động</p>
+                <div className="flex items-baseline gap-1.5 mt-0.5">
+                  <span className="text-xl font-black text-rose-600">{emptyStockCount}</span>
+                  <span className="text-[10px] text-rose-600 font-medium">khóa kê đơn</span>
+                </div>
               </div>
-              <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center font-bold">🚫</div>
+              <div className="w-8 h-8 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center font-bold text-sm">🚫</div>
             </div>
           </div>
 
           {/* Filters & Search Toolbar */}
-          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 pt-2">
+          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 pt-1">
             <div className="flex items-center gap-2">
               <label className="text-xs font-bold text-slate-700 shrink-0">Chi Nhánh:</label>
               <select
@@ -880,7 +888,9 @@ export default function CatalogManager() {
               >
                 <option value="ALL">Tất cả chi nhánh MedSched</option>
                 {centers.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
+                  <option key={c.id} value={c.id}>
+                    {c.name?.includes('Trần Đại Nghĩa') ? 'CN Trần Đại Nghĩa' : c.name?.includes('Trịnh Đình Thảo') ? 'CN Trịnh Đình Thảo' : c.name}
+                  </option>
                 ))}
               </select>
             </div>
@@ -932,22 +942,22 @@ export default function CatalogManager() {
             </div>
           </div>
 
-          {/* Table */}
+          {/* Table (Compact & Fits within Viewport) */}
           <div className="overflow-x-auto rounded-xl border border-slate-200">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-700 uppercase">
-                  <th className="py-3 px-3.5 whitespace-nowrap w-28">Mã Thuốc</th>
-                  <th className="py-3 px-3.5 font-bold">Tên Thuốc &amp; Hoạt Chất</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap">Chi Nhánh Quản Lý</th>
-                  <th className="py-3 px-3 text-center whitespace-nowrap w-20">Đơn Vị</th>
-                  <th className="py-3 px-3.5 text-right whitespace-nowrap w-32">Đơn Giá Niêm Yết</th>
-                  <th className="py-3 px-3.5 text-center whitespace-nowrap w-36">Tồn Kho Khả Dụng</th>
-                  <th className="py-3 px-3 text-center whitespace-nowrap w-28">Trạng Thái</th>
-                  <th className="py-3 px-3.5 text-right whitespace-nowrap w-36">Thao Tác</th>
+                <tr className="bg-slate-50/90 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  <th className="py-2.5 px-3 w-28 whitespace-nowrap">Mã Thuốc</th>
+                  <th className="py-2.5 px-3">Tên Thuốc &amp; Hoạt Chất</th>
+                  <th className="py-2.5 px-3 text-center w-36 whitespace-nowrap">Chi Nhánh</th>
+                  <th className="py-2.5 px-2 text-center w-16 whitespace-nowrap">ĐVT</th>
+                  <th className="py-2.5 px-3 text-right w-28 whitespace-nowrap">Đơn Giá</th>
+                  <th className="py-2.5 px-3 text-center w-32 whitespace-nowrap">Tồn Kho</th>
+                  <th className="py-2.5 px-2 text-center w-24 whitespace-nowrap">Trạng Thái</th>
+                  <th className="py-2.5 px-3 text-right w-32 whitespace-nowrap">Thao Tác</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 text-xs">
+              <tbody className="divide-y divide-slate-100">
                 {filteredMeds.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="py-10 text-center text-slate-400">
@@ -960,34 +970,49 @@ export default function CatalogManager() {
                   filteredMeds.map((m) => {
                     const isOutOfStock = m.stockQuantity === 0;
                     const isLowStock = m.stockQuantity > 0 && m.stockQuantity <= 30;
+                    const isTranDaiNghia = m.medicalCenterName?.includes('Trần Đại Nghĩa');
+                    const shortCenterName = isTranDaiNghia
+                      ? 'Trần Đại Nghĩa'
+                      : m.medicalCenterName?.includes('Trịnh Đình Thảo')
+                      ? 'Trịnh Đình Thảo'
+                      : m.medicalCenterName?.replace(/^Phòng Khám Đa Khoa MedSched - (Chi Nhánh )?/i, '').replace(/\s*\(ITC\)$/i, '') || m.medicalCenterName;
+
                     return (
                       <tr key={m.id} className={`hover:bg-slate-50 transition ${isOutOfStock ? 'bg-rose-50/20' : ''}`}>
-                        <td className="py-3 px-3.5 font-mono font-bold text-slate-600 whitespace-nowrap">{m.code}</td>
-                        <td className="py-3 px-3.5">
-                          <div className="font-bold text-slate-900">{m.name}</div>
-                          <div className="text-[11px] text-slate-400">Hoạt chất: {m.activeIngredient || 'Chưa cập nhật'}</div>
+                        <td className="py-2.5 px-3 font-mono font-bold text-slate-600 text-[11px] whitespace-nowrap">{m.code}</td>
+                        <td className="py-2.5 px-3">
+                          <span className="font-bold text-slate-900">{m.name}</span>
+                          {m.activeIngredient && (
+                            <span className="text-[10px] text-slate-400 ml-1.5">({m.activeIngredient})</span>
+                          )}
                         </td>
-                        <td className="py-3 px-3.5 whitespace-nowrap">
-                          <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-700">
-                            {m.medicalCenterName}
+                        <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                          <span
+                            className={`px-2 py-0.5 rounded-md text-[11px] font-bold ${
+                              isTranDaiNghia
+                                ? 'bg-sky-50 text-sky-700 border border-sky-200'
+                                : 'bg-purple-50 text-purple-700 border border-purple-200'
+                            }`}
+                          >
+                            {shortCenterName}
                           </span>
                         </td>
-                        <td className="py-3 px-3 text-center font-bold text-slate-700 whitespace-nowrap">{m.unit}</td>
-                        <td className="py-3 px-3.5 text-right font-black text-slate-900 whitespace-nowrap">
+                        <td className="py-2.5 px-2 text-center font-bold text-slate-700 whitespace-nowrap text-[11px]">{m.unit}</td>
+                        <td className="py-2.5 px-3 text-right font-black text-slate-900 whitespace-nowrap">
                           {m.unitPrice.toLocaleString('vi-VN')} đ
                         </td>
-                        <td className="py-3 px-3.5 text-center whitespace-nowrap">
-                          <div className={`font-black ${isOutOfStock ? 'text-rose-600' : isLowStock ? 'text-amber-600' : 'text-slate-800'}`}>
+                        <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                          <div className={`font-bold ${isOutOfStock ? 'text-rose-600' : isLowStock ? 'text-amber-600' : 'text-slate-800'} text-[11px]`}>
                             {m.stockQuantity} <span className="text-[10px] font-normal text-slate-400">{m.unit.toLowerCase()}</span>
                           </div>
-                          <div className="w-20 h-1.5 bg-slate-100 rounded-full mx-auto mt-1 overflow-hidden">
+                          <div className="w-16 h-1 bg-slate-100 rounded-full mx-auto mt-0.5 overflow-hidden">
                             <div
                               className={`h-full ${isOutOfStock ? 'bg-rose-500' : isLowStock ? 'bg-amber-500' : 'bg-emerald-500'}`}
                               style={{ width: `${Math.min(100, (m.stockQuantity / 400) * 100)}%` }}
                             />
                           </div>
                         </td>
-                        <td className="py-3 px-3 text-center whitespace-nowrap">
+                        <td className="py-2.5 px-2 text-center whitespace-nowrap">
                           {isOutOfStock ? (
                             <span className="inline-flex items-center gap-1 text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full text-[10px] font-bold">
                               <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span> Hết hàng
@@ -1002,29 +1027,29 @@ export default function CatalogManager() {
                             </span>
                           )}
                         </td>
-                        <td className="py-3 px-3.5 text-right whitespace-nowrap">
-                          <div className="inline-flex items-center justify-end gap-1.5 whitespace-nowrap">
+                        <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                          <div className="inline-flex items-center justify-end gap-1 whitespace-nowrap">
                             <button
                               onClick={() => handleOpenImportModal(m)}
-                              className="px-2.5 py-1 bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                              className="px-2 py-0.5 bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 rounded text-[11px] font-bold transition flex items-center gap-0.5 cursor-pointer"
                               title="Nhập thêm số lượng thuốc vào kho"
                             >
-                              <PackagePlus size={13} />
+                              <PackagePlus size={12} />
                               <span>Nhập kho</span>
                             </button>
                             <button
                               onClick={() => openModal('edit', m)}
-                              className="p-1 text-blue-600 hover:bg-blue-50 hover:text-blue-700 rounded-lg transition cursor-pointer"
+                              className="p-1 text-blue-600 hover:bg-blue-50 hover:text-blue-700 rounded transition cursor-pointer"
                               title="Sửa thông tin thuốc / Đổi giá niêm yết"
                             >
-                              <Edit2 size={15} />
+                              <Edit2 size={14} />
                             </button>
                             <button
                               onClick={() => handleDelete(m.id)}
-                              className="p-1 text-rose-600 hover:bg-rose-50 hover:text-rose-700 rounded-lg transition cursor-pointer"
+                              className="p-1 text-rose-600 hover:bg-rose-50 hover:text-rose-700 rounded transition cursor-pointer"
                               title="Xóa thuốc khỏi danh mục"
                             >
-                              <Trash2 size={15} />
+                              <Trash2 size={14} />
                             </button>
                           </div>
                         </td>
