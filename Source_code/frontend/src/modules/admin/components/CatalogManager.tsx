@@ -23,7 +23,9 @@ import {
   UserX,
   Pill,
   PackagePlus,
-  PackageCheck
+  PackageCheck,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { api } from '@/shared/lib/api';
 import LoadingSpinner from '@/shared/components/Feedback/LoadingSpinner';
@@ -71,6 +73,7 @@ export default function CatalogManager() {
   const [medBranchFilter, setMedBranchFilter] = useState<string>('ALL');
   const [medStatusFilter, setMedStatusFilter] = useState<'ALL' | 'AVAILABLE' | 'LOW' | 'EMPTY'>('ALL');
   const [medSearchQuery, setMedSearchQuery] = useState<string>('');
+  const [medPage, setMedPage] = useState<number>(0);
   const [importModalOpen, setImportModalOpen] = useState<boolean>(false);
   const [selectedMedForImport, setSelectedMedForImport] = useState<MedicineInventoryItem | null>(null);
   const [importQuantity, setImportQuantity] = useState<number>(100);
@@ -831,6 +834,13 @@ export default function CatalogManager() {
       const lowStockCount = medicines.filter(m => m.stockQuantity > 0 && m.stockQuantity <= 30).length;
       const emptyStockCount = medicines.filter(m => m.stockQuantity === 0).length;
 
+      // Pagination (Tối đa 5 loại thuốc / trang)
+      const pageSize = 5;
+      const totalElements = filteredMeds.length;
+      const totalPages = Math.ceil(totalElements / pageSize) || 1;
+      const validPage = Math.min(medPage, Math.max(0, totalPages - 1));
+      const paginatedMeds = filteredMeds.slice(validPage * pageSize, (validPage + 1) * pageSize);
+
       return (
         <div className="space-y-3.5 p-3 sm:p-4">
           {/* KPI Cards (Compact) */}
@@ -883,7 +893,10 @@ export default function CatalogManager() {
               <label className="text-xs font-bold text-slate-700 shrink-0">Chi Nhánh:</label>
               <select
                 value={medBranchFilter}
-                onChange={(e) => setMedBranchFilter(e.target.value)}
+                onChange={(e) => {
+                  setMedBranchFilter(e.target.value);
+                  setMedPage(0);
+                }}
                 className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:ring-1 focus:ring-teal-500"
               >
                 <option value="ALL">Tất cả chi nhánh MedSched</option>
@@ -899,7 +912,10 @@ export default function CatalogManager() {
               <input
                 type="text"
                 value={medSearchQuery}
-                onChange={(e) => setMedSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setMedSearchQuery(e.target.value);
+                  setMedPage(0);
+                }}
                 placeholder="Tìm thuốc, hoạt chất, mã..."
                 className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-teal-500"
               />
@@ -908,7 +924,10 @@ export default function CatalogManager() {
 
             <div className="flex items-center gap-1 overflow-x-auto">
               <button
-                onClick={() => setMedStatusFilter('ALL')}
+                onClick={() => {
+                  setMedStatusFilter('ALL');
+                  setMedPage(0);
+                }}
                 className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
                   medStatusFilter === 'ALL' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
                 }`}
@@ -916,7 +935,10 @@ export default function CatalogManager() {
                 Tất cả ({medicines.length})
               </button>
               <button
-                onClick={() => setMedStatusFilter('AVAILABLE')}
+                onClick={() => {
+                  setMedStatusFilter('AVAILABLE');
+                  setMedPage(0);
+                }}
                 className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
                   medStatusFilter === 'AVAILABLE' ? 'bg-emerald-600 text-white' : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100'
                 }`}
@@ -924,7 +946,10 @@ export default function CatalogManager() {
                 Còn hàng
               </button>
               <button
-                onClick={() => setMedStatusFilter('LOW')}
+                onClick={() => {
+                  setMedStatusFilter('LOW');
+                  setMedPage(0);
+                }}
                 className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
                   medStatusFilter === 'LOW' ? 'bg-amber-600 text-white' : 'text-amber-700 bg-amber-50 hover:bg-amber-100'
                 }`}
@@ -932,7 +957,10 @@ export default function CatalogManager() {
                 Sắp hết ({lowStockCount})
               </button>
               <button
-                onClick={() => setMedStatusFilter('EMPTY')}
+                onClick={() => {
+                  setMedStatusFilter('EMPTY');
+                  setMedPage(0);
+                }}
                 className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
                   medStatusFilter === 'EMPTY' ? 'bg-rose-600 text-white' : 'text-rose-700 bg-rose-50 hover:bg-rose-100'
                 }`}
@@ -967,7 +995,7 @@ export default function CatalogManager() {
                     </td>
                   </tr>
                 ) : (
-                  filteredMeds.map((m) => {
+                  paginatedMeds.map((m) => {
                     const isOutOfStock = m.stockQuantity === 0;
                     const isLowStock = m.stockQuantity > 0 && m.stockQuantity <= 30;
                     const isTranDaiNghia = m.medicalCenterName?.includes('Trần Đại Nghĩa');
@@ -1059,6 +1087,63 @@ export default function CatalogManager() {
                 )}
               </tbody>
             </table>
+
+            {/* Pagination Footer (Tối đa 5 thuốc / trang) */}
+            {filteredMeds.length > 0 && (
+              <div className="px-3.5 py-2.5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span>Hiển thị</span>
+                  <strong className="text-slate-800 font-bold">
+                    {totalElements === 0 ? 0 : validPage * pageSize + 1} - {Math.min((validPage + 1) * pageSize, totalElements)}
+                  </strong>
+                  <span>trên tổng số</span>
+                  <strong className="text-slate-800 font-bold">{totalElements}</strong>
+                  <span>mặt hàng thuốc</span>
+                  <span className="text-slate-400 font-normal ml-1">(Tối đa {pageSize} thuốc/trang)</span>
+                </div>
+
+                {totalPages > 1 && (
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setMedPage(p => Math.max(0, p - 1))}
+                      disabled={validPage === 0}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-slate-700 text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 hover:text-teal-700 transition shadow-2xs cursor-pointer"
+                    >
+                      <ChevronLeft size={14} />
+                      <span>Trước</span>
+                    </button>
+
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: totalPages }, (_, i) => i).map((pageIdx) => (
+                        <button
+                          key={pageIdx}
+                          type="button"
+                          onClick={() => setMedPage(pageIdx)}
+                          className={`min-w-[28px] h-7 px-2 flex items-center justify-center rounded-lg text-xs font-bold transition shadow-2xs cursor-pointer ${
+                            validPage === pageIdx
+                              ? 'bg-teal-600 text-white border border-teal-600'
+                              : 'bg-white text-slate-700 border border-slate-200 hover:bg-teal-50 hover:text-teal-700'
+                          }`}
+                        >
+                          {pageIdx + 1}
+                        </button>
+                      ))}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setMedPage(p => Math.min(totalPages - 1, p + 1))}
+                      disabled={validPage >= totalPages - 1}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-slate-700 text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 hover:text-teal-700 transition shadow-2xs cursor-pointer"
+                    >
+                      <span>Sau</span>
+                      <ChevronRight size={14} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       );
