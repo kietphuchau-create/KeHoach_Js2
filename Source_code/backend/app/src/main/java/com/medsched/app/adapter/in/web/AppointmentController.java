@@ -837,6 +837,9 @@ public class AppointmentController {
         if (patientProfileId == null || newSlot.getStartTime() == null || newSlot.getEndTime() == null) {
             return;
         }
+        java.time.ZoneId vnZone = java.time.ZoneId.of("Asia/Ho_Chi_Minh");
+        LocalDate newDate = newSlot.getStartTime().atZone(vnZone).toLocalDate();
+
         List<AppointmentEntity> patientApps = appointmentJpaRepository.findByPatientProfileIdOrderByCreatedAtDesc(patientProfileId);
         for (AppointmentEntity app : patientApps) {
             if (app.getId().equals(currentAppId)) continue;
@@ -850,6 +853,12 @@ public class AppointmentController {
             }
             timeSlotJpaRepository.findById(app.getSlotId()).ifPresent(s -> {
                 if (s.getStartTime() != null && s.getEndTime() != null) {
+                    LocalDate existingDate = s.getStartTime().atZone(vnZone).toLocalDate();
+                    if (newDate.equals(existingDate) && newSlot.getDoctorId() != null && newSlot.getDoctorId().equals(app.getDoctorId())) {
+                        throw new IllegalArgumentException(
+                                "Bệnh nhân đã có một ca khám khác (Mã #" + app.getBookingCode() + ") với Bác sĩ này trong cùng ngày. "
+                                + "Không thể đổi lịch sang khung giờ này.");
+                    }
                     boolean overlap = newSlot.getStartTime().isBefore(s.getEndTime()) && newSlot.getEndTime().isAfter(s.getStartTime());
                     if (overlap) {
                         throw new IllegalArgumentException("Bệnh nhân đã có một ca khám khác trùng khung giờ khám này.");

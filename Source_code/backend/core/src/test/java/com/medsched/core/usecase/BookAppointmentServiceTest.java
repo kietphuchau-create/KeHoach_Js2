@@ -184,4 +184,61 @@ class BookAppointmentServiceTest {
         assertThat(result).isNotNull();
         assertThat(result.slotId()).isEqualTo("slot-contiguous");
     }
+
+    @Test
+    @DisplayName("Chống spam cùng bác sĩ: Đã có ca PENDING/CONFIRMED với cùng Bác sĩ trong ngày -> Chặn đặt thêm")
+    void givenPatientHasActiveAppointmentWithSameDoctorOnSameDay_whenBookAgain_thenThrowSlotNotAvailableException() {
+        Instant start = nextWednesdayMorning(14, 0);
+        Instant end = nextWednesdayMorning(14, 30);
+        TimeSlot newSlot = new TimeSlot("slot-afternoon", "sch-doc1", start, end, "AVAILABLE", 0);
+
+        Instant morningStart = nextWednesdayMorning(8, 30);
+        Instant morningEnd = nextWednesdayMorning(9, 0);
+        TimeSlot morningSlot = new TimeSlot("slot-morning", "sch-doc1", morningStart, morningEnd, "BOOKED", 1);
+
+        Appointment morningApp = new Appointment(
+                "app-morning", "MED-888999", "center-1", "patient-1", "doc-1", "slot-morning",
+                "APP-101", "ONLINE_BOOKED", "Khám da liễu", null, null, "CONFIRMED",
+                false, 0, null, Instant.now(), Instant.now()
+        );
+
+        given(timeSlotRepository.findById("slot-afternoon")).willReturn(Optional.of(newSlot));
+        given(appointmentRepository.findByPatientProfileId("patient-1")).willReturn(List.of(morningApp));
+        given(timeSlotRepository.findById("slot-morning")).willReturn(Optional.of(morningSlot));
+
+        BookAppointmentUseCase.Command cmd = new BookAppointmentUseCase.Command(
+                "center-1", "patient-1", "doc-1", "slot-afternoon", "Tái khám chiều", ""
+        );
+
+        assertThatThrownBy(() -> bookService.book(cmd))
+                .isInstanceOf(SlotNotAvailableException.class)
+                .hasMessageContaining("Bạn đã có ca khám mã #MED-888999");
+    }
+
+    @Test
+    @DisplayName("Chống spam tài nguyên: Đã có 2 ca khám đang chờ trong cùng 1 ngày -> Chặn đặt ca thứ 3")
+    void givenPatientHasTwoActiveAppointmentsOnSameDay_whenBookThird_thenThrowSlotNotAvailableException() {
+        Instant start = nextWednesdayMorning(15, 0);
+        Instant end = nextWednesdayMorning(15, 30);
+        TimeSlot thirdSlot = new TimeSlot("slot-third", "sch-doc3", start, end, "AVAILABLE", 0);
+
+        TimeSlot slot1 = new TimeSlot("s1", "sch-doc1", nextWednesdayMorning(8, 0), nextWednesdayMorning(8, 30), "BOOKED", 1);
+        TimeSlot slot2 = new TimeSlot("s2", "sch-doc2", nextWednesdayMorning(10, 0), nextWednesdayMorning(10, 30), "BOOKED", 1);
+
+        Appointment app1 = new Appointment("a1", "MED-001", "c1", "patient-1", "doc-1", "s1", "A-1", "ONLINE_BOOKED", "", null, null, "CONFIRMED", false, 0, null, Instant.now(), Instant.now());
+        Appointment app2 = new Appointment("a2", "MED-002", "c1", "patient-1", "doc-2", "s2", "A-2", "ONLINE_BOOKED", "", null, null, "CONFIRMED", false, 0, null, Instant.now(), Instant.now());
+
+        given(timeSlotRepository.findById("slot-third")).willReturn(Optional.of(thirdSlot));
+        given(appointmentRepository.findByPatientProfileId("patient-1")).willReturn(List.of(app1, app2));
+        given(timeSlotRepository.findById("s1")).willReturn(Optional.of(slot1));
+        given(timeSlotRepository.findById("s2")).willReturn(Optional.of(slot2));
+
+        BookAppointmentUseCase.Command cmd = new BookAppointmentUseCase.Command(
+                "c1", "patient-1", "doc-3", "slot-third", "Khám chuyên khoa thứ 3", ""
+        );
+
+        assertThatThrownBy(() -> bookService.book(cmd))
+                .isInstanceOf(SlotNotAvailableException.class)
+                .hasMessageContaining("hệ thống giới hạn tối đa 2 ca khám đang chờ");
+    }
 }
