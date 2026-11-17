@@ -54,6 +54,12 @@ import AlertMessage from '@/shared/components/Feedback/AlertMessage';
 import LoginForm from '@/modules/auth/components/LoginForm';
 import { getClinicRooms, ClinicRoom } from '@/shared/lib/clinicRooms';
 import { getClinicScheduleConfig, SCHEDULE_CONFIG_UPDATED_EVENT } from '@/shared/lib/scheduleConfig';
+import { 
+  getMedicines, 
+  deductMedicineStock, 
+  MedicineInventoryItem, 
+  MEDICINES_UPDATED_EVENT 
+} from '@/shared/lib/medicineInventory';
 import { Bot } from 'lucide-react';
 import UniversalAiAssistantModal from '@/shared/components/Feedback/UniversalAiAssistantModal';
 
@@ -74,11 +80,13 @@ interface PatientQueueItem {
 }
 
 export interface MedicineItem {
+  medicineId?: string;
   medicineName: string;
   dosage: string;
   quantity: number;
   unit: string;
   unitPrice: number;
+  stockQuantity?: number;
 }
 
 const PRESCRIPTION_PRESETS: Record<string, { label: string; diagnosis: string; advice: string; items: MedicineItem[] }> = {
@@ -595,12 +603,25 @@ export default function DoctorClinicView() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [showPrescriptionPrintModal]);
 
+  // CLAB-159: Danh mục Kho Dược phòng khám (Khóa giá niêm yết & kiểm soát tồn kho)
+  const [inventoryMedicines, setInventoryMedicines] = useState<MedicineInventoryItem[]>([]);
+  const [selectedInventoryMedId, setSelectedInventoryMedId] = useState<string>('');
+
+  useEffect(() => {
+    setInventoryMedicines(getMedicines());
+    const handleMedUpdate = () => {
+      setInventoryMedicines(getMedicines());
+    };
+    window.addEventListener(MEDICINES_UPDATED_EVENT, handleMedUpdate);
+    return () => window.removeEventListener(MEDICINES_UPDATED_EVENT, handleMedUpdate);
+  }, []);
+
   // Quick manual add medicine row states
   const [newMedName, setNewMedName] = useState('');
   const [newMedUnit, setNewMedUnit] = useState('Viên');
   const [newMedQty, setNewMedQty] = useState<number | string>(10);
   const [newMedDosage, setNewMedDosage] = useState('');
-  const [newMedPrice, setNewMedPrice] = useState<number | string>(5000);
+  const [newMedPrice, setNewMedPrice] = useState<number | string>(0);
 
   // ── CLAB-157: Quản lý Thêm, Xóa, Sửa trực tiếp ở từng hàng ngang của đơn thuốc (Inline CRUD) ──
   const [editingRowIndex, setEditingRowIndex] = useState<number | null>(null);
@@ -609,12 +630,36 @@ export default function DoctorClinicView() {
   // Vị trí chèn thêm dòng thuốc mới (null nếu không chèn; 0..n là index chèn vào)
   const [insertRowIndex, setInsertRowIndex] = useState<number | null>(null);
   const [insertItemData, setInsertItemData] = useState<MedicineItem>({
+    medicineId: '',
     medicineName: '',
     unit: 'Viên',
     quantity: 10,
-    dosage: '',
-    unitPrice: 5000,
+    dosage: 'Ngày uống 2 lần, mỗi lần 1 viên sau ăn',
+    unitPrice: 0,
+    stockQuantity: undefined,
   });
+
+  const selectedInventoryMed = inventoryMedicines.find(m => m.id === selectedInventoryMedId);
+
+  const renderMedicineOptions = () => (
+    <>
+      <option value="">-- Chọn thuốc từ kho dược phòng khám --</option>
+      <optgroup label="Chi Nhánh Trần Đại Nghĩa">
+        {inventoryMedicines.filter(m => m.medicalCenterName?.includes('Trần Đại Nghĩa')).map(m => (
+          <option key={m.id} value={m.id} disabled={m.stockQuantity === 0}>
+            {m.name} ({m.activeIngredient || m.unit}) • {m.unitPrice.toLocaleString('vi-VN')} đ {m.stockQuantity === 0 ? '❌ [HẾT HÀNG]' : `[Còn ${m.stockQuantity} ${m.unit.toLowerCase()}]`}
+          </option>
+        ))}
+      </optgroup>
+      <optgroup label="Chi Nhánh Trịnh Đình Thảo (ITC)">
+        {inventoryMedicines.filter(m => m.medicalCenterName?.includes('Trịnh Đình Thảo')).map(m => (
+          <option key={m.id} value={m.id} disabled={m.stockQuantity === 0}>
+            {m.name} ({m.activeIngredient || m.unit}) • {m.unitPrice.toLocaleString('vi-VN')} đ {m.stockQuantity === 0 ? '❌ [HẾT HÀNG]' : `[Còn ${m.stockQuantity} ${m.unit.toLowerCase()}]`}
+          </option>
+        ))}
+      </optgroup>
+    </>
+  );
 
   // Bắt đầu sửa hàng ngang
   const handleStartEditRow = (idx: number) => {
@@ -633,18 +678,33 @@ export default function DoctorClinicView() {
   const handleSaveEditRow = (idx: number) => {
     if (!editingItemData) return;
     if (!editingItemData.medicineName.trim()) {
-      setNotification('⚠️ Vui lòng nhập tên thuốc & hàm lượng.');
+      setNotification('⚠️ Vui lòng chọn thuốc từ danh mục kho dược.');
       return;
     }
+    const targetMed = inventoryMedicines.find(m => m.id === editingItemData.medicineId || m.name === editingItemData.medicineName);
+    const availableStock = targetMed ? targetMed.stockQuantity : (editingItemData.stockQuantity ?? 9999);
+
+    if (availableStock === 0) {
+      setNotification(`❌ Thuốc "${editingItemData.medicineName}" hiện đã hết hàng trong kho.`);
+      return;
+    }
+
     const updatedQty = Math.max(1, Number(editingItemData.quantity) || 1);
-    const updatedPrice = Math.max(0, Number(editingItemData.unitPrice) || 0);
+    if (updatedQty > availableStock) {
+      setNotification(`⚠️ Số lượng kê đơn (${updatedQty}) vượt quá tồn kho khả dụng (${availableStock} ${editingItemData.unit}).`);
+      return;
+    }
+
+    const updatedPrice = targetMed ? targetMed.unitPrice : Math.max(0, Number(editingItemData.unitPrice) || 0);
     const updatedItem: MedicineItem = {
       ...editingItemData,
+      medicineId: targetMed ? targetMed.id : editingItemData.medicineId,
       medicineName: editingItemData.medicineName.trim(),
-      unit: editingItemData.unit.trim() || 'Viên',
+      unit: targetMed ? targetMed.unit : (editingItemData.unit.trim() || 'Viên'),
       quantity: updatedQty,
       dosage: editingItemData.dosage.trim() || 'Theo chỉ định của bác sĩ',
       unitPrice: updatedPrice,
+      stockQuantity: availableStock,
     };
 
     setPrescriptionItems((prev) => prev.map((item, i) => (i === idx ? updatedItem : item)));
@@ -657,12 +717,15 @@ export default function DoctorClinicView() {
   const handleStartInsertRow = (atIndex: number) => {
     setEditingRowIndex(null);
     setInsertRowIndex(atIndex);
+    const firstMed = inventoryMedicines.find(m => m.stockQuantity > 0) || inventoryMedicines[0];
     setInsertItemData({
-      medicineName: '',
-      unit: 'Viên',
+      medicineId: firstMed ? firstMed.id : '',
+      medicineName: firstMed ? `${firstMed.name}${firstMed.activeIngredient ? ` (${firstMed.activeIngredient})` : ''}` : '',
+      unit: firstMed ? firstMed.unit : 'Viên',
       quantity: 10,
-      dosage: '',
-      unitPrice: 5000,
+      dosage: 'Ngày uống 2 lần, mỗi lần 1 viên sau ăn',
+      unitPrice: firstMed ? firstMed.unitPrice : 0,
+      stockQuantity: firstMed ? firstMed.stockQuantity : undefined,
     });
   };
 
@@ -674,17 +737,32 @@ export default function DoctorClinicView() {
   // Lưu dòng thuốc mới được chèn
   const handleSaveInsertRow = () => {
     if (!insertItemData.medicineName.trim()) {
-      setNotification('⚠️ Vui lòng nhập tên thuốc cần thêm.');
+      setNotification('⚠️ Vui lòng chọn thuốc từ kho dược phòng khám.');
       return;
     }
+    const targetMed = inventoryMedicines.find(m => m.id === insertItemData.medicineId || m.name === insertItemData.medicineName);
+    const availableStock = targetMed ? targetMed.stockQuantity : (insertItemData.stockQuantity ?? 9999);
+    
+    if (availableStock === 0) {
+      setNotification(`❌ Thuốc "${insertItemData.medicineName}" hiện đã hết hàng trong kho. Không thể kê đơn.`);
+      return;
+    }
+
     const qty = Math.max(1, Number(insertItemData.quantity) || 1);
-    const price = Math.max(0, Number(insertItemData.unitPrice) || 0);
+    if (qty > availableStock) {
+      setNotification(`⚠️ Số lượng kê đơn (${qty}) vượt quá tồn kho khả dụng (${availableStock} ${insertItemData.unit}). Vui lòng điều chỉnh lại.`);
+      return;
+    }
+
+    const price = targetMed ? targetMed.unitPrice : Math.max(0, Number(insertItemData.unitPrice) || 0);
     const newItem: MedicineItem = {
+      medicineId: targetMed ? targetMed.id : insertItemData.medicineId,
       medicineName: insertItemData.medicineName.trim(),
-      unit: insertItemData.unit.trim() || 'Viên',
+      unit: targetMed ? targetMed.unit : (insertItemData.unit.trim() || 'Viên'),
       quantity: qty,
       dosage: insertItemData.dosage.trim() || 'Theo chỉ định của bác sĩ',
       unitPrice: price,
+      stockQuantity: availableStock,
     };
 
     setPrescriptionItems((prev) => {
@@ -695,7 +773,7 @@ export default function DoctorClinicView() {
     });
 
     setInsertRowIndex(null);
-    setNotification(`💊 Đã thêm thuốc "${newItem.medicineName}" vào đơn.`);
+    setNotification(`💊 Đã thêm thuốc "${newItem.medicineName}" (Đơn giá niêm yết: ${price.toLocaleString('vi-VN')} đ).`);
   };
 
   // Tăng/giảm số lượng nhanh trên hàng
@@ -703,7 +781,14 @@ export default function DoctorClinicView() {
     setPrescriptionItems((prev) =>
       prev.map((item, i) => {
         if (i !== idx) return item;
-        const newQty = Math.max(1, (Number(item.quantity) || 1) + delta);
+        const targetMed = inventoryMedicines.find(m => m.id === item.medicineId || m.name === item.medicineName);
+        const maxStock = targetMed ? targetMed.stockQuantity : (item.stockQuantity ?? 9999);
+        const proposed = (Number(item.quantity) || 1) + delta;
+        if (delta > 0 && proposed > maxStock) {
+          setNotification(`⚠️ Không thể tăng thêm: Tồn kho chỉ còn ${maxStock} ${item.unit.toLowerCase()}.`);
+          return item;
+        }
+        const newQty = Math.max(1, proposed);
         return { ...item, quantity: newQty };
       })
     );
@@ -716,29 +801,63 @@ export default function DoctorClinicView() {
     setSelectedPreset(key);
     setClinicalNotes(preset.diagnosis);
     setDoctorAdvice(preset.advice);
-    setPrescriptionItems([...preset.items]);
-    setNotification(`⚡ Đã nạp đơn thuốc mẫu: ${preset.label} (${preset.items.length} loại thuốc). Bác sĩ có thể chỉnh sửa thêm bớt tùy ý.`);
+
+    // Khóa giá theo danh mục kho dược niêm yết
+    const enriched = preset.items.map(item => {
+      const match = inventoryMedicines.find(m => 
+        m.name.toLowerCase().includes(item.medicineName.toLowerCase().split(' ')[0]) ||
+        item.medicineName.toLowerCase().includes(m.name.toLowerCase())
+      );
+      if (match) {
+        return {
+          ...item,
+          medicineId: match.id,
+          unitPrice: match.unitPrice,
+          unit: match.unit,
+          stockQuantity: match.stockQuantity
+        };
+      }
+      return item;
+    });
+
+    setPrescriptionItems(enriched);
+    setNotification(`⚡ Đã nạp đơn thuốc mẫu: ${preset.label} (${preset.items.length} loại thuốc từ kho dược). Đơn giá niêm yết tự động khóa.`);
   };
 
-  // Thêm thuốc thủ công
+  // Thêm thuốc từ kho dược phòng khám
   const handleAddManualMedicine = () => {
-    if (!newMedName.trim()) {
-      setNotification('⚠️ Vui lòng nhập tên thuốc cần kê đơn.');
+    const targetMed = inventoryMedicines.find(m => m.id === selectedInventoryMedId);
+    if (!targetMed) {
+      setNotification('⚠️ Vui lòng chọn một loại thuốc trong danh mục kho dược phòng khám.');
       return;
     }
-    const qty = Number(newMedQty) || 1;
-    const price = Number(newMedPrice) || 0;
+
+    if (targetMed.stockQuantity === 0) {
+      setNotification(`❌ Thuốc "${targetMed.name}" hiện đã hết hàng trong kho. Không thể kê đơn.`);
+      return;
+    }
+
+    const qty = Math.max(1, Number(newMedQty) || 1);
+    if (qty > targetMed.stockQuantity) {
+      setNotification(`⚠️ Số lượng kê (${qty}) vượt quá tồn kho khả dụng (${targetMed.stockQuantity} ${targetMed.unit}).`);
+      return;
+    }
+
     const newItem: MedicineItem = {
-      medicineName: newMedName.trim(),
-      unit: newMedUnit.trim() || 'Viên',
+      medicineId: targetMed.id,
+      medicineName: `${targetMed.name}${targetMed.activeIngredient ? ` (${targetMed.activeIngredient})` : ''}`,
+      unit: targetMed.unit,
       quantity: qty,
-      dosage: newMedDosage.trim() || 'Theo chỉ định của bác sĩ',
-      unitPrice: price,
+      dosage: newMedDosage.trim() || 'Ngày uống 2 lần, mỗi lần 1 viên sau ăn',
+      unitPrice: targetMed.unitPrice,
+      stockQuantity: targetMed.stockQuantity,
     };
+
     setPrescriptionItems((prev) => [...prev, newItem]);
+    setSelectedInventoryMedId('');
     setNewMedName('');
     setNewMedDosage('');
-    setNotification(`💊 Đã thêm thuốc "${newItem.medicineName}" vào đơn.`);
+    setNotification(`💊 Đã kê "${newItem.medicineName}" (Đơn giá niêm yết: ${targetMed.unitPrice.toLocaleString('vi-VN')} đ, tồn kho còn: ${targetMed.stockQuantity - qty} ${targetMed.unit.toLowerCase()}).`);
   };
 
   // Xóa thuốc khỏi đơn
@@ -1244,6 +1363,25 @@ export default function DoctorClinicView() {
         return;
       }
 
+      // ── [CLAB-159] Guardrail: Kiểm tra tồn kho khả dụng trước khi xác nhận ──
+      const stockViolation = prescriptionItems.find(item => {
+        const targetMed = inventoryMedicines.find(
+          m => m.id === item.medicineId ||
+               m.name.toLowerCase() === item.medicineName.toLowerCase() ||
+               item.medicineName.toLowerCase().startsWith(m.name.toLowerCase())
+        );
+        if (targetMed) {
+          if (targetMed.stockQuantity === 0) return true;
+          if (Number(item.quantity) > targetMed.stockQuantity) return true;
+        }
+        return false;
+      });
+
+      if (stockViolation) {
+        setNotification(`🚨 [KHO DƯỢC] CẢNH BÁO: Thuốc "${stockViolation.medicineName}" đã hết hàng hoặc số lượng kê đơn (${stockViolation.quantity}) vượt quá tồn kho khả dụng. Vui lòng điều chỉnh lại trước khi hoàn tất!`);
+        return;
+      }
+
       setShowCompleteModal(true);
     } else {
       handleCallNext();
@@ -1288,6 +1426,19 @@ export default function DoctorClinicView() {
         items: [...prescriptionItems],
         totalAmount: totalMedicineCost,
         createdAt: new Date().toISOString()
+      });
+
+      // ── [CLAB-159] Trừ tồn kho tự động trong Kho Dược phòng khám ──
+      prescriptionItems.forEach((item) => {
+        const targetMed = inventoryMedicines.find(
+          (m) =>
+            m.id === item.medicineId ||
+            m.name.toLowerCase() === item.medicineName.toLowerCase() ||
+            item.medicineName.toLowerCase().startsWith(m.name.toLowerCase())
+        );
+        if (targetMed) {
+          deductMedicineStock(targetMed.id, Number(item.quantity) || 1);
+        }
       });
 
       setShowCompleteModal(false);
@@ -2713,31 +2864,41 @@ export default function DoctorClinicView() {
                         {insertRowIndex === 0 && (
                           <div className="p-3 bg-teal-50/80 rounded-xl border-2 border-teal-400 shadow-xs space-y-2">
                             <div className="flex items-center justify-between text-xs font-bold text-teal-800">
-                              <span>➕ Thêm thuốc mới (Đầu danh sách):</span>
+                              <span>➕ Thêm thuốc mới từ kho dược (Đầu đơn):</span>
                               <button type="button" onClick={handleCancelInsertRow} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X size={15} /></button>
                             </div>
-                            <input
-                              type="text"
-                              value={insertItemData.medicineName}
-                              onChange={(e) => setInsertItemData(prev => ({ ...prev, medicineName: e.target.value }))}
-                              placeholder="Tên thuốc & hàm lượng..."
-                              className="w-full px-2.5 py-1.5 bg-white border border-teal-400 rounded-lg text-xs font-bold"
-                            />
+                            <select
+                              value={insertItemData.medicineId || ''}
+                              onChange={(e) => {
+                                const medId = e.target.value;
+                                const med = inventoryMedicines.find(m => m.id === medId);
+                                if (med) {
+                                  setInsertItemData(prev => ({
+                                    ...prev,
+                                    medicineId: med.id,
+                                    medicineName: `${med.name}${med.activeIngredient ? ` (${med.activeIngredient})` : ''}`,
+                                    unit: med.unit,
+                                    unitPrice: med.unitPrice,
+                                    stockQuantity: med.stockQuantity,
+                                  }));
+                                }
+                              }}
+                              className="w-full px-2.5 py-1.5 bg-white border border-teal-400 rounded-lg text-xs font-bold text-slate-800"
+                            >
+                              {renderMedicineOptions()}
+                            </select>
+                            {insertItemData.stockQuantity !== undefined && (
+                              <p className={`text-[10px] font-bold ${insertItemData.stockQuantity === 0 ? 'text-rose-600' : insertItemData.stockQuantity <= 30 ? 'text-amber-600' : 'text-emerald-700'}`}>
+                                📦 Tồn kho khả dụng: {insertItemData.stockQuantity} {insertItemData.unit.toLowerCase()}
+                              </p>
+                            )}
                             <div className="grid grid-cols-3 gap-2">
-                              <select
+                              <input
+                                type="text"
+                                readOnly
                                 value={insertItemData.unit}
-                                onChange={(e) => setInsertItemData(prev => ({ ...prev, unit: e.target.value }))}
-                                className="px-2 py-1.5 bg-white border border-teal-400 rounded-lg text-xs"
-                              >
-                                <option value="Viên">Viên</option>
-                                <option value="Gói">Gói</option>
-                                <option value="Tuýp">Tuýp</option>
-                                <option value="Chai">Chai</option>
-                                <option value="Hộp">Hộp</option>
-                                <option value="Ống">Ống</option>
-                                <option value="Lọ">Lọ</option>
-                                <option value="Vỉ">Vỉ</option>
-                              </select>
+                                className="px-2 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-xs text-center font-bold text-slate-600 cursor-not-allowed"
+                              />
                               <input
                                 type="number"
                                 min={1}
@@ -2747,13 +2908,11 @@ export default function DoctorClinicView() {
                                 className="px-2 py-1.5 bg-white border border-teal-400 rounded-lg text-xs text-center font-bold text-teal-800 font-mono"
                               />
                               <input
-                                type="number"
-                                step={500}
-                                min={0}
-                                value={insertItemData.unitPrice}
-                                onChange={(e) => setInsertItemData(prev => ({ ...prev, unitPrice: Math.max(0, Number(e.target.value) || 0) }))}
-                                placeholder="Đơn giá"
-                                className="px-2 py-1.5 bg-white border border-teal-400 rounded-lg text-xs text-right font-mono"
+                                type="text"
+                                readOnly
+                                value={`${(Number(insertItemData.unitPrice) || 0).toLocaleString('vi-VN')} đ`}
+                                title="Đơn giá niêm yết cố định"
+                                className="px-2 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-xs text-right font-mono font-bold text-slate-700 cursor-not-allowed"
                               />
                             </div>
                             <input
@@ -2782,28 +2941,38 @@ export default function DoctorClinicView() {
                                     <span>✏️ Sửa thuốc #{idx + 1}:</span>
                                     <button type="button" onClick={handleCancelEditRow} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X size={15} /></button>
                                   </div>
-                                  <input
-                                    type="text"
-                                    value={editingItemData?.medicineName || ''}
-                                    onChange={(e) => setEditingItemData(prev => prev ? ({ ...prev, medicineName: e.target.value }) : null)}
-                                    placeholder="Tên thuốc & hàm lượng..."
+                                  <select
+                                    value={editingItemData?.medicineId || ''}
+                                    onChange={(e) => {
+                                      const medId = e.target.value;
+                                      const med = inventoryMedicines.find(m => m.id === medId);
+                                      if (med) {
+                                        setEditingItemData(prev => prev ? ({
+                                          ...prev,
+                                          medicineId: med.id,
+                                          medicineName: `${med.name}${med.activeIngredient ? ` (${med.activeIngredient})` : ''}`,
+                                          unit: med.unit,
+                                          unitPrice: med.unitPrice,
+                                          stockQuantity: med.stockQuantity,
+                                        }) : null);
+                                      }
+                                    }}
                                     className="w-full px-2.5 py-1.5 bg-white border border-amber-400 rounded-lg text-xs font-bold text-slate-800"
-                                  />
+                                  >
+                                    {renderMedicineOptions()}
+                                  </select>
+                                  {editingItemData?.stockQuantity !== undefined && (
+                                    <p className={`text-[10px] font-bold ${editingItemData.stockQuantity === 0 ? 'text-rose-600' : editingItemData.stockQuantity <= 30 ? 'text-amber-600' : 'text-emerald-700'}`}>
+                                      📦 Tồn kho khả dụng: {editingItemData.stockQuantity} {editingItemData.unit.toLowerCase()}
+                                    </p>
+                                  )}
                                   <div className="grid grid-cols-3 gap-2">
-                                    <select
+                                    <input
+                                      type="text"
+                                      readOnly
                                       value={editingItemData?.unit || 'Viên'}
-                                      onChange={(e) => setEditingItemData(prev => prev ? ({ ...prev, unit: e.target.value }) : null)}
-                                      className="px-2 py-1.5 bg-white border border-amber-400 rounded-lg text-xs"
-                                    >
-                                      <option value="Viên">Viên</option>
-                                      <option value="Gói">Gói</option>
-                                      <option value="Tuýp">Tuýp</option>
-                                      <option value="Chai">Chai</option>
-                                      <option value="Hộp">Hộp</option>
-                                      <option value="Ống">Ống</option>
-                                      <option value="Lọ">Lọ</option>
-                                      <option value="Vỉ">Vỉ</option>
-                                    </select>
+                                      className="px-2 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-xs text-center font-bold text-slate-600 cursor-not-allowed"
+                                    />
                                     <input
                                       type="number"
                                       min={1}
@@ -2813,13 +2982,11 @@ export default function DoctorClinicView() {
                                       className="px-2 py-1.5 bg-white border border-amber-400 rounded-lg text-xs text-center font-bold text-teal-800 font-mono"
                                     />
                                     <input
-                                      type="number"
-                                      step={500}
-                                      min={0}
-                                      value={editingItemData?.unitPrice ?? 0}
-                                      onChange={(e) => setEditingItemData(prev => prev ? ({ ...prev, unitPrice: Math.max(0, Number(e.target.value) || 0) }) : null)}
-                                      placeholder="Đơn giá"
-                                      className="px-2 py-1.5 bg-white border border-amber-400 rounded-lg text-xs text-right font-mono"
+                                      type="text"
+                                      readOnly
+                                      value={`${(Number(editingItemData?.unitPrice) || 0).toLocaleString('vi-VN')} đ`}
+                                      title="Đơn giá niêm yết cố định"
+                                      className="px-2 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-xs text-right font-mono font-bold text-slate-700 cursor-not-allowed"
                                     />
                                   </div>
                                   <input
@@ -2887,31 +3054,41 @@ export default function DoctorClinicView() {
                               {insertRowIndex === idx + 1 && (
                                 <div className="p-3 bg-teal-50/80 rounded-xl border-2 border-teal-400 shadow-xs space-y-2">
                                   <div className="flex items-center justify-between text-xs font-bold text-teal-800">
-                                    <span>➕ Chèn thuốc mới sau dòng #{idx + 1}:</span>
+                                    <span>➕ Chèn thuốc mới từ kho sau dòng #{idx + 1}:</span>
                                     <button type="button" onClick={handleCancelInsertRow} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X size={15} /></button>
                                   </div>
-                                  <input
-                                    type="text"
-                                    value={insertItemData.medicineName}
-                                    onChange={(e) => setInsertItemData(prev => ({ ...prev, medicineName: e.target.value }))}
-                                    placeholder="Tên thuốc & hàm lượng..."
-                                    className="w-full px-2.5 py-1.5 bg-white border border-teal-400 rounded-lg text-xs font-bold"
-                                  />
+                                  <select
+                                    value={insertItemData.medicineId || ''}
+                                    onChange={(e) => {
+                                      const medId = e.target.value;
+                                      const med = inventoryMedicines.find(m => m.id === medId);
+                                      if (med) {
+                                        setInsertItemData(prev => ({
+                                          ...prev,
+                                          medicineId: med.id,
+                                          medicineName: `${med.name}${med.activeIngredient ? ` (${med.activeIngredient})` : ''}`,
+                                          unit: med.unit,
+                                          unitPrice: med.unitPrice,
+                                          stockQuantity: med.stockQuantity,
+                                        }));
+                                      }
+                                    }}
+                                    className="w-full px-2.5 py-1.5 bg-white border border-teal-400 rounded-lg text-xs font-bold text-slate-800"
+                                  >
+                                    {renderMedicineOptions()}
+                                  </select>
+                                  {insertItemData.stockQuantity !== undefined && (
+                                    <p className={`text-[10px] font-bold ${insertItemData.stockQuantity === 0 ? 'text-rose-600' : insertItemData.stockQuantity <= 30 ? 'text-amber-600' : 'text-emerald-700'}`}>
+                                      📦 Tồn kho khả dụng: {insertItemData.stockQuantity} {insertItemData.unit.toLowerCase()}
+                                    </p>
+                                  )}
                                   <div className="grid grid-cols-3 gap-2">
-                                    <select
+                                    <input
+                                      type="text"
+                                      readOnly
                                       value={insertItemData.unit}
-                                      onChange={(e) => setInsertItemData(prev => ({ ...prev, unit: e.target.value }))}
-                                      className="px-2 py-1.5 bg-white border border-teal-400 rounded-lg text-xs"
-                                    >
-                                      <option value="Viên">Viên</option>
-                                      <option value="Gói">Gói</option>
-                                      <option value="Tuýp">Tuýp</option>
-                                      <option value="Chai">Chai</option>
-                                      <option value="Hộp">Hộp</option>
-                                      <option value="Ống">Ống</option>
-                                      <option value="Lọ">Lọ</option>
-                                      <option value="Vỉ">Vỉ</option>
-                                    </select>
+                                      className="px-2 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-xs text-center font-bold text-slate-600 cursor-not-allowed"
+                                    />
                                     <input
                                       type="number"
                                       min={1}
@@ -2921,13 +3098,11 @@ export default function DoctorClinicView() {
                                       className="px-2 py-1.5 bg-white border border-teal-400 rounded-lg text-xs text-center font-bold text-teal-800 font-mono"
                                     />
                                     <input
-                                      type="number"
-                                      step={500}
-                                      min={0}
-                                      value={insertItemData.unitPrice}
-                                      onChange={(e) => setInsertItemData(prev => ({ ...prev, unitPrice: Math.max(0, Number(e.target.value) || 0) }))}
-                                      placeholder="Đơn giá"
-                                      className="px-2 py-1.5 bg-white border border-teal-400 rounded-lg text-xs text-right font-mono"
+                                      type="text"
+                                      readOnly
+                                      value={`${(Number(insertItemData.unitPrice) || 0).toLocaleString('vi-VN')} đ`}
+                                      title="Đơn giá niêm yết cố định"
+                                      className="px-2 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-xs text-right font-mono font-bold text-slate-700 cursor-not-allowed"
                                     />
                                   </div>
                                   <input
@@ -2974,30 +3149,45 @@ export default function DoctorClinicView() {
                               <tr className="bg-teal-50/80 border-2 border-teal-400 shadow-xs">
                                 <td className="p-2 text-center text-teal-700 font-bold text-[11px] font-mono">➕</td>
                                 <td className="p-2">
-                                  <input
-                                    type="text"
-                                    autoFocus
-                                    value={insertItemData.medicineName}
-                                    onChange={(e) => setInsertItemData(prev => ({ ...prev, medicineName: e.target.value }))}
-                                    placeholder="Tên thuốc & hàm lượng..."
+                                  <select
+                                    value={insertItemData.medicineId || ''}
+                                    onChange={(e) => {
+                                      const medId = e.target.value;
+                                      const med = inventoryMedicines.find(m => m.id === medId);
+                                      if (med) {
+                                        setInsertItemData(prev => ({
+                                          ...prev,
+                                          medicineId: med.id,
+                                          medicineName: `${med.name}${med.activeIngredient ? ` (${med.activeIngredient})` : ''}`,
+                                          unit: med.unit,
+                                          unitPrice: med.unitPrice,
+                                          stockQuantity: med.stockQuantity,
+                                        }));
+                                      }
+                                    }}
                                     className="w-full px-2 py-1 bg-white border border-teal-400 rounded text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-teal-600"
-                                  />
+                                  >
+                                    {renderMedicineOptions()}
+                                  </select>
+                                  {insertItemData.stockQuantity !== undefined && (
+                                    <div className="flex items-center gap-1 mt-0.5 text-[10px]">
+                                      <span className={insertItemData.stockQuantity === 0 ? 'text-rose-600 font-bold' : insertItemData.stockQuantity <= 30 ? 'text-amber-600 font-bold' : 'text-emerald-700 font-bold'}>
+                                        📦 Tồn: {insertItemData.stockQuantity} {insertItemData.unit}
+                                      </span>
+                                      {Number(insertItemData.quantity) > insertItemData.stockQuantity && (
+                                        <span className="text-rose-600 font-bold">• ⚠️ Vượt tồn</span>
+                                      )}
+                                    </div>
+                                  )}
                                 </td>
                                 <td className="p-2 text-center">
-                                  <select
+                                  <input
+                                    type="text"
+                                    readOnly
                                     value={insertItemData.unit}
-                                    onChange={(e) => setInsertItemData(prev => ({ ...prev, unit: e.target.value }))}
-                                    className="px-1.5 py-1 bg-white border border-teal-400 rounded text-xs focus:outline-none"
-                                  >
-                                    <option value="Viên">Viên</option>
-                                    <option value="Gói">Gói</option>
-                                    <option value="Tuýp">Tuýp</option>
-                                    <option value="Chai">Chai</option>
-                                    <option value="Hộp">Hộp</option>
-                                    <option value="Ống">Ống</option>
-                                    <option value="Lọ">Lọ</option>
-                                    <option value="Vỉ">Vỉ</option>
-                                  </select>
+                                    className="w-16 text-center py-1 bg-slate-100 border border-slate-200 rounded text-xs font-bold text-slate-600 cursor-not-allowed"
+                                    title="ĐVT theo danh mục kho"
+                                  />
                                 </td>
                                 <td className="p-2 text-center">
                                   <div className="flex items-center justify-center gap-1">
@@ -3031,13 +3221,11 @@ export default function DoctorClinicView() {
                                 </td>
                                 <td className="p-2 text-right">
                                   <input
-                                    type="number"
-                                    step={500}
-                                    min={0}
-                                    value={insertItemData.unitPrice}
-                                    onChange={(e) => setInsertItemData(prev => ({ ...prev, unitPrice: Math.max(0, Number(e.target.value) || 0) }))}
-                                    placeholder="Đơn giá"
-                                    className="w-20 text-right py-1 px-1.5 bg-white border border-teal-400 rounded text-xs font-mono focus:outline-none"
+                                    type="text"
+                                    readOnly
+                                    value={`${(Number(insertItemData.unitPrice) || 0).toLocaleString('vi-VN')} đ`}
+                                    title="Đơn giá niêm yết kho dược cố định"
+                                    className="w-20 text-right py-1 px-1.5 bg-slate-100 border border-slate-200 rounded text-xs font-mono font-bold text-slate-700 cursor-not-allowed"
                                   />
                                 </td>
                                 <td className="p-2 text-right font-bold text-teal-900 font-mono text-[11px]">
@@ -3079,30 +3267,45 @@ export default function DoctorClinicView() {
                                         #{idx + 1}
                                       </td>
                                       <td className="p-2">
-                                        <input
-                                          type="text"
-                                          autoFocus
-                                          value={editingItemData?.medicineName || ''}
-                                          onChange={(e) => setEditingItemData(prev => prev ? ({ ...prev, medicineName: e.target.value }) : null)}
-                                          placeholder="Tên thuốc & hàm lượng..."
+                                        <select
+                                          value={editingItemData?.medicineId || ''}
+                                          onChange={(e) => {
+                                            const medId = e.target.value;
+                                            const med = inventoryMedicines.find(m => m.id === medId);
+                                            if (med) {
+                                              setEditingItemData(prev => prev ? ({
+                                                ...prev,
+                                                medicineId: med.id,
+                                                medicineName: `${med.name}${med.activeIngredient ? ` (${med.activeIngredient})` : ''}`,
+                                                unit: med.unit,
+                                                unitPrice: med.unitPrice,
+                                                stockQuantity: med.stockQuantity,
+                                              }) : null);
+                                            }
+                                          }}
                                           className="w-full px-2 py-1 bg-white border border-amber-400 rounded text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                                        />
+                                        >
+                                          {renderMedicineOptions()}
+                                        </select>
+                                        {editingItemData?.stockQuantity !== undefined && (
+                                          <div className="flex items-center gap-1 mt-0.5 text-[10px]">
+                                            <span className={editingItemData.stockQuantity === 0 ? 'text-rose-600 font-bold' : editingItemData.stockQuantity <= 30 ? 'text-amber-600 font-bold' : 'text-emerald-700 font-bold'}>
+                                              📦 Tồn: {editingItemData.stockQuantity} {editingItemData.unit}
+                                            </span>
+                                            {Number(editingItemData.quantity) > editingItemData.stockQuantity && (
+                                              <span className="text-rose-600 font-bold">• ⚠️ Vượt tồn</span>
+                                            )}
+                                          </div>
+                                        )}
                                       </td>
                                       <td className="p-2 text-center">
-                                        <select
+                                        <input
+                                          type="text"
+                                          readOnly
                                           value={editingItemData?.unit || 'Viên'}
-                                          onChange={(e) => setEditingItemData(prev => prev ? ({ ...prev, unit: e.target.value }) : null)}
-                                          className="px-1.5 py-1 bg-white border border-amber-400 rounded text-xs focus:outline-none"
-                                        >
-                                          <option value="Viên">Viên</option>
-                                          <option value="Gói">Gói</option>
-                                          <option value="Tuýp">Tuýp</option>
-                                          <option value="Chai">Chai</option>
-                                          <option value="Hộp">Hộp</option>
-                                          <option value="Ống">Ống</option>
-                                          <option value="Lọ">Lọ</option>
-                                          <option value="Vỉ">Vỉ</option>
-                                        </select>
+                                          className="w-16 text-center py-1 bg-slate-100 border border-slate-200 rounded text-xs font-bold text-slate-600 cursor-not-allowed"
+                                          title="ĐVT theo danh mục kho"
+                                        />
                                       </td>
                                       <td className="p-2 text-center">
                                         <div className="flex items-center justify-center gap-1">
@@ -3136,13 +3339,11 @@ export default function DoctorClinicView() {
                                       </td>
                                       <td className="p-2 text-right">
                                         <input
-                                          type="number"
-                                          step={500}
-                                          min={0}
-                                          value={editingItemData?.unitPrice ?? 0}
-                                          onChange={(e) => setEditingItemData(prev => prev ? ({ ...prev, unitPrice: Math.max(0, Number(e.target.value) || 0) }) : null)}
-                                          placeholder="Đơn giá"
-                                          className="w-20 text-right py-1 px-1.5 bg-white border border-amber-400 rounded text-xs font-mono focus:outline-none"
+                                          type="text"
+                                          readOnly
+                                          value={`${(Number(editingItemData?.unitPrice) || 0).toLocaleString('vi-VN')} đ`}
+                                          title="Đơn giá niêm yết kho dược cố định"
+                                          className="w-20 text-right py-1 px-1.5 bg-slate-100 border border-slate-200 rounded text-xs font-mono font-bold text-slate-700 cursor-not-allowed"
                                         />
                                       </td>
                                       <td className="p-2 text-right font-bold text-amber-950 font-mono text-[11px]">
@@ -3177,7 +3378,18 @@ export default function DoctorClinicView() {
                                       title="Nhấp đúp chuột hoặc bấm biểu tượng bút chì để sửa dòng này"
                                     >
                                       <td className="p-2.5 text-center text-slate-400 font-mono text-[11px]">{idx + 1}</td>
-                                      <td className="p-2.5 font-bold text-slate-800">{item.medicineName}</td>
+                                      <td className="p-2.5 font-bold text-slate-800">
+                                        {item.medicineName}
+                                        {item.stockQuantity !== undefined && (
+                                          <span className={`ml-2 text-[10px] px-1.5 py-0.5 rounded font-semibold ${
+                                            item.stockQuantity === 0 ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                                            item.stockQuantity <= 30 ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                                            'bg-slate-100 text-slate-600'
+                                          }`}>
+                                            Kho: {item.stockQuantity} {item.unit.toLowerCase()}
+                                          </span>
+                                        )}
+                                      </td>
                                       <td className="p-2.5 text-center text-slate-600 font-medium">{item.unit}</td>
                                       <td className="p-2.5 text-center">
                                         <div className="flex items-center justify-center gap-1">
@@ -3197,8 +3409,11 @@ export default function DoctorClinicView() {
                                         </div>
                                       </td>
                                       <td className="p-2.5 text-slate-600 italic text-[11px]">{item.dosage}</td>
-                                      <td className="p-2.5 text-right text-slate-600 font-mono text-[11px]">
-                                        {item.unitPrice?.toLocaleString('vi-VN')} đ
+                                      <td className="p-2.5 text-right text-slate-600 font-mono text-[11px] whitespace-nowrap">
+                                        <span>{item.unitPrice?.toLocaleString('vi-VN')} đ</span>
+                                        <span title="Đơn giá niêm yết kho dược cố định">
+                                          <Lock size={10} className="inline text-slate-400 ml-1" />
+                                        </span>
                                       </td>
                                       <td className="p-2.5 text-right font-bold text-slate-800 font-mono text-[11px]">
                                         {lineTotal.toLocaleString('vi-VN')} đ
@@ -3239,30 +3454,45 @@ export default function DoctorClinicView() {
                                     <tr className="bg-teal-50/80 border-2 border-teal-400 shadow-xs">
                                       <td className="p-2 text-center text-teal-700 font-bold text-[11px] font-mono">➕</td>
                                       <td className="p-2">
-                                        <input
-                                          type="text"
-                                          autoFocus
-                                          value={insertItemData.medicineName}
-                                          onChange={(e) => setInsertItemData(prev => ({ ...prev, medicineName: e.target.value }))}
-                                          placeholder="Tên thuốc & hàm lượng..."
+                                        <select
+                                          value={insertItemData.medicineId || ''}
+                                          onChange={(e) => {
+                                            const medId = e.target.value;
+                                            const med = inventoryMedicines.find(m => m.id === medId);
+                                            if (med) {
+                                              setInsertItemData(prev => ({
+                                                ...prev,
+                                                medicineId: med.id,
+                                                medicineName: `${med.name}${med.activeIngredient ? ` (${med.activeIngredient})` : ''}`,
+                                                unit: med.unit,
+                                                unitPrice: med.unitPrice,
+                                                stockQuantity: med.stockQuantity,
+                                              }));
+                                            }
+                                          }}
                                           className="w-full px-2 py-1 bg-white border border-teal-400 rounded text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-teal-600"
-                                        />
+                                        >
+                                          {renderMedicineOptions()}
+                                        </select>
+                                        {insertItemData.stockQuantity !== undefined && (
+                                          <div className="flex items-center gap-1 mt-0.5 text-[10px]">
+                                            <span className={insertItemData.stockQuantity === 0 ? 'text-rose-600 font-bold' : insertItemData.stockQuantity <= 30 ? 'text-amber-600 font-bold' : 'text-emerald-700 font-bold'}>
+                                              📦 Tồn: {insertItemData.stockQuantity} {insertItemData.unit}
+                                            </span>
+                                            {Number(insertItemData.quantity) > insertItemData.stockQuantity && (
+                                              <span className="text-rose-600 font-bold">• ⚠️ Vượt tồn</span>
+                                            )}
+                                          </div>
+                                        )}
                                       </td>
                                       <td className="p-2 text-center">
-                                        <select
+                                        <input
+                                          type="text"
+                                          readOnly
                                           value={insertItemData.unit}
-                                          onChange={(e) => setInsertItemData(prev => ({ ...prev, unit: e.target.value }))}
-                                          className="px-1.5 py-1 bg-white border border-teal-400 rounded text-xs focus:outline-none"
-                                        >
-                                          <option value="Viên">Viên</option>
-                                          <option value="Gói">Gói</option>
-                                          <option value="Tuýp">Tuýp</option>
-                                          <option value="Chai">Chai</option>
-                                          <option value="Hộp">Hộp</option>
-                                          <option value="Ống">Ống</option>
-                                          <option value="Lọ">Lọ</option>
-                                          <option value="Vỉ">Vỉ</option>
-                                        </select>
+                                          className="w-16 text-center py-1 bg-slate-100 border border-slate-200 rounded text-xs font-bold text-slate-600 cursor-not-allowed"
+                                          title="ĐVT theo danh mục kho"
+                                        />
                                       </td>
                                       <td className="p-2 text-center">
                                         <div className="flex items-center justify-center gap-1">
@@ -3296,13 +3526,11 @@ export default function DoctorClinicView() {
                                       </td>
                                       <td className="p-2 text-right">
                                         <input
-                                          type="number"
-                                          step={500}
-                                          min={0}
-                                          value={insertItemData.unitPrice}
-                                          onChange={(e) => setInsertItemData(prev => ({ ...prev, unitPrice: Math.max(0, Number(e.target.value) || 0) }))}
-                                          placeholder="Đơn giá"
-                                          className="w-20 text-right py-1 px-1.5 bg-white border border-teal-400 rounded text-xs font-mono focus:outline-none"
+                                          type="text"
+                                          readOnly
+                                          value={`${(Number(insertItemData.unitPrice) || 0).toLocaleString('vi-VN')} đ`}
+                                          title="Đơn giá niêm yết kho dược cố định"
+                                          className="w-20 text-right py-1 px-1.5 bg-slate-100 border border-slate-200 rounded text-xs font-mono font-bold text-slate-700 cursor-not-allowed"
                                         />
                                       </td>
                                       <td className="p-2 text-right font-bold text-teal-900 font-mono text-[11px]">
@@ -3367,48 +3595,77 @@ export default function DoctorClinicView() {
                     </>
                   )}
 
-                  {/* Manual Add Medicine Input Row */}
+                  {/* Kê Đơn Thuốc Từ Kho Dược Phòng Khám (Niêm yết cố định) */}
                   <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                    <span className="text-[11px] font-bold text-slate-700 block">Thêm thuốc tự do vào đơn:</span>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
+                        <Pill size={14} className="text-teal-600" /> Kê đơn thuốc từ Danh mục Kho Dược (Giá niêm yết cố định):
+                      </span>
+                      {selectedInventoryMed && (
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                          selectedInventoryMed.stockQuantity === 0
+                            ? 'bg-rose-100 text-rose-700'
+                            : selectedInventoryMed.stockQuantity <= 30
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-emerald-100 text-emerald-800'
+                        }`}>
+                          Tồn khả dụng: {selectedInventoryMed.stockQuantity} {selectedInventoryMed.unit.toLowerCase()}
+                        </span>
+                      )}
+                    </div>
                     <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
                       <div className="sm:col-span-5">
-                        <input
-                          type="text"
-                          value={newMedName}
-                          onChange={(e) => setNewMedName(e.target.value)}
-                          placeholder="Tên thuốc & hàm lượng (vd: Paracetamol 500mg)"
-                          className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-teal-600 focus:outline-none"
-                        />
+                        <select
+                          value={selectedInventoryMedId}
+                          onChange={(e) => {
+                            const medId = e.target.value;
+                            setSelectedInventoryMedId(medId);
+                            const med = inventoryMedicines.find(m => m.id === medId);
+                            if (med) {
+                              setNewMedName(`${med.name}${med.activeIngredient ? ` (${med.activeIngredient})` : ''}`);
+                              setNewMedUnit(med.unit);
+                              setNewMedPrice(med.unitPrice);
+                              if (!newMedDosage) {
+                                setNewMedDosage('Ngày uống 2 lần, mỗi lần 1 viên sau ăn');
+                              }
+                            } else {
+                              setNewMedName('');
+                              setNewMedPrice(0);
+                            }
+                          }}
+                          className="w-full px-3 py-1.5 bg-white border border-teal-500 rounded-lg text-xs font-bold text-slate-800 focus:ring-1 focus:ring-teal-600 focus:outline-none"
+                        >
+                          {renderMedicineOptions()}
+                        </select>
                       </div>
                       <div className="grid grid-cols-3 sm:contents gap-2">
-                        <select
+                        <input
+                          type="text"
+                          readOnly
                           value={newMedUnit}
-                          onChange={(e) => setNewMedUnit(e.target.value)}
-                          className="sm:col-span-2 px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-teal-600 focus:outline-none"
-                        >
-                          <option value="Viên">Viên</option>
-                          <option value="Gói">Gói</option>
-                          <option value="Chai">Chai</option>
-                          <option value="Tuýp">Tuýp</option>
-                          <option value="Hộp">Hộp</option>
-                          <option value="Ống">Ống</option>
-                        </select>
+                          title="ĐVT theo danh mục kho"
+                          className="sm:col-span-2 px-2 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-xs text-center font-bold text-slate-600 cursor-not-allowed"
+                        />
                         <input
                           type="number"
                           min={1}
                           value={newMedQty}
                           onChange={(e) => setNewMedQty(e.target.value)}
                           placeholder="SL"
-                          className="sm:col-span-2 px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-center font-mono focus:ring-1 focus:ring-teal-600 focus:outline-none"
+                          className="sm:col-span-2 px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-center font-bold text-teal-800 font-mono focus:ring-1 focus:ring-teal-600 focus:outline-none"
                         />
-                        <input
-                          type="number"
-                          step={500}
-                          value={newMedPrice}
-                          onChange={(e) => setNewMedPrice(e.target.value)}
-                          placeholder="Đơn giá"
-                          className="sm:col-span-3 px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-right font-mono focus:ring-1 focus:ring-teal-600 focus:outline-none"
-                        />
+                        <div className="sm:col-span-3 relative">
+                          <input
+                            type="text"
+                            readOnly
+                            value={`${(Number(newMedPrice) || 0).toLocaleString('vi-VN')} đ`}
+                            title="Giá niêm yết kho dược cố định (Bác sĩ không được chỉnh sửa)"
+                            className="w-full px-2 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-xs text-right font-mono font-bold text-slate-700 cursor-not-allowed"
+                          />
+                          <span className="absolute left-2 top-2 text-[10px] text-slate-400 flex items-center gap-0.5">
+                            <Lock size={10} /> Niêm yết
+                          </span>
+                        </div>
                       </div>
                     </div>
                     <div className="flex gap-2 items-center">
@@ -3422,11 +3679,17 @@ export default function DoctorClinicView() {
                       <button
                         type="button"
                         onClick={handleAddManualMedicine}
-                        className="px-3 sm:px-4 py-1.5 bg-teal-700 hover:bg-teal-800 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0"
+                        disabled={!selectedInventoryMedId || (selectedInventoryMed?.stockQuantity ?? 0) === 0 || Number(newMedQty) > (selectedInventoryMed?.stockQuantity ?? 0)}
+                        className="px-3 sm:px-4 py-1.5 bg-teal-700 hover:bg-teal-800 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        <Plus size={14} /> <span className="hidden sm:inline">Thêm Thuốc</span><span className="sm:hidden">Thêm</span>
+                        <Plus size={14} /> <span className="hidden sm:inline">Kê Thuốc Vào Đơn</span><span className="sm:hidden">Kê Thuốc</span>
                       </button>
                     </div>
+                    {selectedInventoryMed && Number(newMedQty) > selectedInventoryMed.stockQuantity && (
+                      <p className="text-[11px] text-rose-600 font-bold mt-1">
+                        ⚠️ Không thể thêm: Số lượng kê ({newMedQty}) vượt quá tồn kho khả dụng ({selectedInventoryMed.stockQuantity} {selectedInventoryMed.unit.toLowerCase()}).
+                      </p>
+                    )}
                   </div>
                 </div>
 
