@@ -193,6 +193,7 @@ export default function BookingForm() {
 
   // Chốt chặn kiểm tra hồ sơ y tế bệnh nhân bắt buộc
   const [patientProfile, setPatientProfile] = useState<any>(null);
+  const [existingAppointments, setExistingAppointments] = useState<AppointmentResponse[]>([]);
   const [showIncompleteProfileModal, setShowIncompleteProfileModal] = useState<boolean>(false);
   const [missingProfileFields, setMissingProfileFields] = useState<{
     dateOfBirth?: boolean;
@@ -222,11 +223,16 @@ export default function BookingForm() {
     }
     setAuthChecking(false);
 
-    // Pre-check hồ sơ bệnh nhân: Bắt buộc có Ngày sinh và Giới tính để khám bệnh
+    // Pre-check hồ sơ bệnh nhân: Bắt buộc có Ngày sinh và Giới tính để khám bệnh & tải danh sách lịch khám cũ
     api.getProfile()
       .then((p) => {
         const pp = p?.patientProfile;
         setPatientProfile(pp || null);
+        if (pp?.profileId) {
+          api.getAppointmentsByPatient(pp.profileId)
+            .then((apps) => setExistingAppointments(apps || []))
+            .catch(() => {});
+        }
         const missingDob = !pp?.dateOfBirth;
         const missingGen = !pp?.gender;
         const missingCccd = !pp?.cccdNumber;
@@ -470,6 +476,31 @@ export default function BookingForm() {
       date: formatISODateToVN(initialDate),
     };
   });
+
+  // ── CHỐNG SPAM LỊCH & GIỮ CHỖ ẢO (CLAB-160) ──────────────────────────────
+  // 1. Lọc tất cả ca khám đang chờ (PENDING, CONFIRMED, CHECKED_IN) của bệnh nhân trong ngày đang chọn
+  const activeAppointmentsOnSelectedDate = useMemo(() => {
+    if (bookingFor !== 'self') return [];
+    return existingAppointments.filter((apt) => {
+      const status = String(apt.status || '').toUpperCase();
+      const isActive = status === 'PENDING' || status === 'CONFIRMED' || status === 'CHECKED_IN';
+      if (!isActive) return false;
+      const aptDate = apt.appointmentDate || (apt.startTime ? String(apt.startTime).slice(0, 10) : '');
+      return aptDate === bookingDate;
+    });
+  }, [bookingFor, existingAppointments, bookingDate]);
+
+  // 2. Kiểm tra ca khám trùng với Bác sĩ đang chọn trong cùng ngày
+  const sameDoctorActiveAppointment = useMemo(() => {
+    if (!selectedDoctor?.id || bookingFor !== 'self') return null;
+    return activeAppointmentsOnSelectedDate.find((apt) => apt.doctorId === selectedDoctor.id) || null;
+  }, [activeAppointmentsOnSelectedDate, selectedDoctor, bookingFor]);
+
+  // 3. Giới hạn tối đa 2 ca khám đang chờ trong cùng 1 ngày
+  const isDayBookingLimitReached = useMemo(() => {
+    if (bookingFor !== 'self') return false;
+    return activeAppointmentsOnSelectedDate.length >= 2;
+  }, [bookingFor, activeAppointmentsOnSelectedDate]);
 
   // Quản lý hiển thị lịch chọn ngày (di chuột hoặc bấm vào để mở, không có Thứ 7 & CN)
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -741,6 +772,10 @@ export default function BookingForm() {
       selectedSlot.time === 'Hết chỗ'
     ) {
       errors.slot = 'Bác sĩ chưa có ca trực khả dụng trong ngày này. Vui lòng bấm "Đổi ngày" trên lịch hoặc đổi bác sĩ có ca trực.';
+    } else if (sameDoctorActiveAppointment) {
+      errors.slot = `Bạn đã có ca khám mã #${sameDoctorActiveAppointment.bookingCode} (${sameDoctorActiveAppointment.slotTime || 'Khung giờ cũ'}) với Bác sĩ này trong ngày ${selectedSlot.date || bookingDate}. Vui lòng đổi giờ hoặc hủy ca cũ trước khi đặt thêm.`;
+    } else if (isDayBookingLimitReached) {
+      errors.slot = `Bạn đã có ${activeAppointmentsOnSelectedDate.length} ca khám đang chờ trong ngày ${selectedSlot.date || bookingDate}. Để chống spam giữ chỗ ảo, hệ thống giới hạn tối đa 2 ca khám/ngày.`;
     }
 
     setStep2Errors(errors);
@@ -1020,6 +1055,16 @@ export default function BookingForm() {
     if (bookingFor === 'relative' && !relativeInfo.fullName.trim()) {
       setShowRelativeModal(true);
       setError('Vui lòng nhập họ tên người thân được đặt khám hộ trong cửa sổ thông tin.');
+      return;
+    }
+
+    // Chốt chặn chống spam lịch & giữ chỗ ảo (CLAB-160)
+    if (sameDoctorActiveAppointment) {
+      setError(`Bạn đã có ca khám mã #${sameDoctorActiveAppointment.bookingCode} (${sameDoctorActiveAppointment.slotTime || 'Khung giờ cũ'}) với Bác sĩ này trong ngày ${selectedSlot.date || bookingDate}. Vui lòng đổi giờ hoặc hủy ca cũ trước khi đặt thêm.`);
+      return;
+    }
+    if (isDayBookingLimitReached) {
+      setError(`Bạn đã có ${activeAppointmentsOnSelectedDate.length} ca khám đang chờ trong ngày ${selectedSlot.date || bookingDate}. Để chống spam giữ chỗ ảo, hệ thống giới hạn tối đa 2 ca khám/ngày.`);
       return;
     }
 
@@ -2484,12 +2529,25 @@ export default function BookingForm() {
                                         }`}
                                       >
                                         <span>{day}</span>
-                                        {hasDoctorShift && (
-                                          <span
-                                            className={`w-1 h-1 rounded-full ${isSelected ? 'bg-emerald-300' : 'bg-emerald-500'}`}
-                                            title="Bác sĩ có ca trực ngày này"
-                                          />
-                                        )}
+                                        <div className="flex items-center gap-0.5 justify-center">
+                                          {hasDoctorShift && (
+                                            <span
+                                              className={`w-1 h-1 rounded-full ${isSelected ? 'bg-emerald-300' : 'bg-emerald-500'}`}
+                                              title="Bác sĩ có ca trực ngày này"
+                                            />
+                                          )}
+                                          {existingAppointments.some((a) => {
+                                            const st = String(a.status || '').toUpperCase();
+                                            const isAct = st === 'PENDING' || st === 'CONFIRMED' || st === 'CHECKED_IN';
+                                            const aDate = a.appointmentDate || (a.startTime ? String(a.startTime).slice(0, 10) : '');
+                                            return isAct && aDate === isoString;
+                                          }) && (
+                                            <span
+                                              className="w-1.5 h-1.5 rounded-full bg-amber-500"
+                                              title="Bạn đã có lịch khám đang chờ trong ngày này"
+                                            />
+                                          )}
+                                        </div>
                                       </button>
                                     );
                                   })}
@@ -2539,6 +2597,81 @@ export default function BookingForm() {
                           </div>
                         )}
                       </div>
+
+                      {/* Chốt chặn Chống spam lịch (CLAB-160): Cảnh báo nếu đã có ca khám đang chờ trong ngày */}
+                      {hasSelectedDate && sameDoctorActiveAppointment && (
+                        <div className="p-4 bg-amber-50/95 border-2 border-amber-300 rounded-2xl flex items-start gap-3 shadow-2xs animate-fadeIn">
+                          <div className="w-9 h-9 rounded-xl bg-amber-200/80 text-amber-800 flex items-center justify-center shrink-0 mt-0.5">
+                            <ShieldAlert size={20} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h4 className="text-xs font-bold text-amber-900">
+                                Bạn đã có ca khám đang chờ với Bác sĩ {selectedDoctor?.name || 'này'}
+                              </h4>
+                              <span className="font-mono bg-amber-200 text-amber-900 border border-amber-400 px-2 py-0.5 rounded text-[11px] font-bold">
+                                #{sameDoctorActiveAppointment.bookingCode}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-amber-800 mt-1.5 leading-relaxed">
+                              Hệ thống ghi nhận bạn đã có 1 ca khám vào ngày <strong>{formatVietnameseFullDate(bookingDate)}</strong> ({sameDoctorActiveAppointment.slotTime || 'Khung giờ cũ'}).
+                              Để tránh giữ chỗ ảo (spam lịch), mỗi bệnh nhân không thể đặt thêm khung giờ khác với cùng Bác sĩ trong ngày.
+                            </p>
+                            <div className="mt-3 flex items-center gap-2 flex-wrap">
+                              <button
+                                type="button"
+                                onClick={() => router.push('/my-appointments')}
+                                className="px-3 py-1.5 bg-amber-700 hover:bg-amber-800 text-white rounded-xl font-bold text-xs transition inline-flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                              >
+                                <FileText size={13} />
+                                <span>Xem phiếu hẹn &amp; Đổi giờ</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setShowDatePicker(true)}
+                                className="px-3 py-1.5 bg-white hover:bg-amber-100 border border-amber-400 text-amber-900 rounded-xl font-bold text-xs transition inline-flex items-center gap-1.5 cursor-pointer"
+                              >
+                                <Calendar size={13} />
+                                <span>Chọn ngày khám khác</span>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {hasSelectedDate && !sameDoctorActiveAppointment && isDayBookingLimitReached && (
+                        <div className="p-4 bg-rose-50/95 border-2 border-rose-300 rounded-2xl flex items-start gap-3 shadow-2xs animate-fadeIn">
+                          <div className="w-9 h-9 rounded-xl bg-rose-200/80 text-rose-800 flex items-center justify-center shrink-0 mt-0.5">
+                            <ShieldAlert size={20} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="text-xs font-bold text-rose-900">
+                              Đã đạt giới hạn số ca khám trong ngày ({activeAppointmentsOnSelectedDate.length}/2 ca đang chờ)
+                            </h4>
+                            <p className="text-[11px] text-rose-800 mt-1.5 leading-relaxed">
+                              Bạn đã có {activeAppointmentsOnSelectedDate.length} ca khám đang chờ trong ngày <strong>{formatVietnameseFullDate(bookingDate)}</strong>. Để đảm bảo cơ hội tiếp cận y tế công bằng cho mọi bệnh nhân, hệ thống giới hạn tối đa 2 ca khám/ngày.
+                            </p>
+                            <div className="mt-3 flex items-center gap-2 flex-wrap">
+                              <button
+                                type="button"
+                                onClick={() => router.push('/my-appointments')}
+                                className="px-3 py-1.5 bg-rose-700 hover:bg-rose-800 text-white rounded-xl font-bold text-xs transition inline-flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                              >
+                                <FileText size={13} />
+                                <span>Xem danh sách phiếu hẹn</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setShowDatePicker(true)}
+                                className="px-3 py-1.5 bg-white hover:bg-rose-100 border border-rose-400 text-rose-900 rounded-xl font-bold text-xs transition inline-flex items-center gap-1.5 cursor-pointer"
+                              >
+                                <Calendar size={13} />
+                                <span>Chọn ngày khám khác</span>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Chọn Khung Giờ Khám (Time-slot) - Ẩn mặc định, CHỈ HIỆN KHI ĐÃ CHỌN NGÀY XONG */}
                       {hasSelectedDate && (
@@ -2980,9 +3113,20 @@ export default function BookingForm() {
                     <button
                       type="button"
                       onClick={handleContinueStep2}
-                      className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-5 sm:px-7 rounded-xl transition shadow-md shadow-blue-600/20 flex items-center justify-center gap-1.5 cursor-pointer text-xs sm:text-sm w-1/2 sm:w-auto shrink-0"
+                      disabled={Boolean(sameDoctorActiveAppointment || isDayBookingLimitReached)}
+                      className={`font-bold py-2.5 px-5 sm:px-7 rounded-xl transition flex items-center justify-center gap-1.5 text-xs sm:text-sm w-1/2 sm:w-auto shrink-0 ${
+                        sameDoctorActiveAppointment || isDayBookingLimitReached
+                          ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none border border-slate-300'
+                          : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-600/20 cursor-pointer'
+                      }`}
                     >
-                      <span>Tiếp tục</span>
+                      <span>
+                        {sameDoctorActiveAppointment
+                          ? 'Đã có ca khám với Bác sĩ này'
+                          : isDayBookingLimitReached
+                          ? 'Đạt giới hạn 2 ca/ngày'
+                          : 'Tiếp tục'}
+                      </span>
                       <ArrowRight size={15} />
                     </button>
                   </div>
@@ -3322,13 +3466,27 @@ export default function BookingForm() {
                       </button>
                       <button
                         type="submit"
-                        disabled={submitting}
-                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-5 sm:px-7 rounded-xl transition shadow-md shadow-blue-600/25 flex items-center justify-center gap-1.5 cursor-pointer text-xs sm:text-sm disabled:opacity-50 w-1/2 sm:w-auto shrink-0"
+                        disabled={submitting || Boolean(sameDoctorActiveAppointment || isDayBookingLimitReached)}
+                        className={`font-bold py-2.5 px-5 sm:px-7 rounded-xl transition flex items-center justify-center gap-1.5 text-xs sm:text-sm w-1/2 sm:w-auto shrink-0 ${
+                          sameDoctorActiveAppointment || isDayBookingLimitReached
+                            ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none border border-slate-300'
+                            : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-600/25 cursor-pointer disabled:opacity-50'
+                        }`}
                       >
                         {submitting ? (
                           <>
                             <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />
                             <span>Đang xử lý...</span>
+                          </>
+                        ) : sameDoctorActiveAppointment ? (
+                          <>
+                            <ShieldAlert size={15} className="shrink-0" />
+                            <span>Đã có ca khám với Bác sĩ này</span>
+                          </>
+                        ) : isDayBookingLimitReached ? (
+                          <>
+                            <ShieldAlert size={15} className="shrink-0" />
+                            <span>Đạt giới hạn 2 ca/ngày</span>
                           </>
                         ) : (
                           <>

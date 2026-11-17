@@ -11,9 +11,11 @@ import com.medsched.core.port.out.TimeSlotRepositoryPort;
 
 import java.time.DayOfWeek;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -54,8 +56,8 @@ public class BookAppointmentService implements BookAppointmentUseCase {
         // ── Kiểm tra giờ hành chính ──────────────────────────────────
         validateBusinessHours(slot);
 
-        // ── Kiểm tra tránh bệnh nhân đặt trùng giờ 2 bác sĩ ──────────
-        validatePatientNotDoubleBooked(command.patientProfileId(), slot);
+        // ── Kiểm tra tránh bệnh nhân đặt trùng giờ 2 bác sĩ & chống spam ──────────
+        validatePatientNotDoubleBooked(command.patientProfileId(), command.doctorId(), slot);
 
         boolean locked = timeSlotRepository.lockSlot(command.slotId());
         if (!locked) {
@@ -129,10 +131,14 @@ public class BookAppointmentService implements BookAppointmentUseCase {
     }
 
     /**
-     * Ngăn chặn bệnh nhân đặt trùng lịch: Bệnh nhân không được phép có hai ca khám
-     * đang kích hoạt (PENDING, CONFIRMED, CHECKED_IN) có khung giờ khám chồng chéo nhau.
+     * Ngăn chặn bệnh nhân đặt trùng lịch và chống spam giữ chỗ ảo:
+     * 1. Không được đặt trùng chính xác cùng 1 slot_id.
+     * 2. Không được đặt hai ca khám có khung giờ bị chồng lấn lên nhau (Time Overlap).
+     * 3. Chống spam cùng bác sĩ: Trong cùng một ngày (workDate), mỗi bệnh nhân chỉ được phép có tối đa 01 ca khám đang hoạt động
+     *    (PENDING, CONFIRMED, CHECKED_IN) với cùng một Bác sĩ. Muốn đổi giờ phải dùng chức năng Đổi lịch hoặc hủy ca cũ.
+     * 4. Chống spam tài nguyên hệ thống: Giới hạn tối đa 2 ca khám đang chờ trong cùng một ngày cho các chuyên khoa khác nhau.
      */
-    private void validatePatientNotDoubleBooked(String patientProfileId, TimeSlot targetSlot) {
+    private void validatePatientNotDoubleBooked(String patientProfileId, String targetDoctorId, TimeSlot targetSlot) {
         if (patientProfileId == null || patientProfileId.isBlank() || targetSlot.startTime() == null || targetSlot.endTime() == null) {
             return;
         }
@@ -141,6 +147,9 @@ public class BookAppointmentService implements BookAppointmentUseCase {
         if (existingApps == null || existingApps.isEmpty()) {
             return;
         }
+
+        LocalDate targetDate = targetSlot.startTime().atZone(VN_ZONE).toLocalDate();
+        int activeCountSameDay = 0;
 
         for (Appointment existing : existingApps) {
             String status = existing.status();
@@ -152,18 +161,45 @@ public class BookAppointmentService implements BookAppointmentUseCase {
                 continue;
             }
 
-            // Trùng chính xác slot ID
+            // 1. Trùng chính xác slot ID
             if (existing.slotId().equals(targetSlot.id())) {
                 throw new SlotNotAvailableException(
                         "Bạn đã có một lịch hẹn (Mã: " + existing.bookingCode()
                         + ") tại đúng khung giờ này. Không thể đặt trùng lặp!");
             }
 
-            // Kiểm tra khung giờ của ca khám trước có chồng lấn với slot đang chọn không
+            // 2. Kiểm tra khung giờ của ca khám trước
             Optional<TimeSlot> existingSlotOpt = timeSlotRepository.findById(existing.slotId());
             if (existingSlotOpt.isPresent()) {
                 TimeSlot existingSlot = existingSlotOpt.get();
                 if (existingSlot.startTime() != null && existingSlot.endTime() != null) {
+                    LocalDate existingDate = existingSlot.startTime().atZone(VN_ZONE).toLocalDate();
+
+                    if (targetDate.equals(existingDate)) {
+                        activeCountSameDay++;
+
+                        // 3. Chống spam với cùng một Bác sĩ trong cùng ngày
+                        if (targetDoctorId != null && targetDoctorId.equals(existing.doctorId())) {
+                            String timeStr = existingSlot.startTime().atZone(VN_ZONE).toLocalTime().toString();
+                            throw new SlotNotAvailableException(
+                                    "Bạn đã có ca khám mã #" + existing.bookingCode()
+                                    + " vào ngày " + targetDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                                    + " (lúc " + timeStr + ") với Bác sĩ này đang chờ phục vụ. "
+                                    + "Để tránh chiếm giữ chỗ ảo (spam lịch), bạn không thể đặt thêm khung giờ khác với cùng Bác sĩ trong ngày. "
+                                    + "Vui lòng hoàn tất khám, đổi giờ hoặc hủy ca cũ trước khi đặt thêm!");
+                        }
+
+                        // 4. Chống spam tài nguyên hệ thống (tối đa 2 ca đang chờ trong 1 ngày)
+                        if (activeCountSameDay >= 2) {
+                            throw new SlotNotAvailableException(
+                                    "Bạn hiện đã có " + activeCountSameDay + " ca khám đang chờ trong ngày "
+                                    + targetDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) + ". "
+                                    + "Để đảm bảo cơ hội cho mọi bệnh nhân, hệ thống giới hạn tối đa 2 ca khám đang chờ trong cùng một ngày. "
+                                    + "Vui lòng hoàn tất khám hoặc hủy ca cũ trước khi đặt thêm!");
+                        }
+                    }
+
+                    // 5. Kiểm tra trùng lấn khung giờ (Time Overlap)
                     boolean overlap = targetSlot.startTime().isBefore(existingSlot.endTime())
                             && targetSlot.endTime().isAfter(existingSlot.startTime());
                     if (overlap) {
