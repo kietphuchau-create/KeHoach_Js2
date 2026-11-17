@@ -21,6 +21,36 @@ export interface Promotion {
 
 export const DEFAULT_PROMOTIONS: Promotion[] = [
   {
+    id: 'promo-free',
+    code: 'FREE',
+    name: 'Đặc Quyền Kiểm Thử Miễn Cọc (0 đ)',
+    description: 'Miễn phí 100% tiền đặt cọc giữ chỗ khi đặt khám trải nghiệm hệ thống.',
+    discountType: 'FREE_DEPOSIT',
+    discountValue: 100,
+    maxUses: 9999,
+    usedCount: 0,
+    startDate: '2026-01-01',
+    endDate: '2026-12-31',
+    status: 'active',
+    targetAudience: 'Toàn bộ bệnh nhân',
+    createdAt: '2026-01-01T00:00:00Z',
+  },
+  {
+    id: 'promo-code2k',
+    code: 'CODE2K',
+    name: 'Thử Nghiệm VietQR Đồng Giá 2.000 đ',
+    description: 'Toàn bộ chuyển khoản đặt cọc quét mã VietQR thật đồng giá 2.000 đ.',
+    discountType: 'FIX_TO_2K',
+    discountValue: 2000,
+    maxUses: 9999,
+    usedCount: 0,
+    startDate: '2026-01-01',
+    endDate: '2026-12-31',
+    status: 'active',
+    targetAudience: 'Toàn bộ bệnh nhân',
+    createdAt: '2026-01-01T00:00:00Z',
+  },
+  {
     id: 'promo-demo2k',
     code: 'DEMO2K',
     name: 'Mã Thử Nghiệm Thanh Toán Thật (2.000 đ)',
@@ -215,8 +245,16 @@ export async function getPromotionsFromDb(): Promise<Promotion[]> {
   try {
     const list = await api.getAdminPromotions();
     if (Array.isArray(list) && list.length > 0) {
-      savePromotions(list);
-      return list;
+      // Kết hợp mã từ MySQL với các mã hệ thống chuẩn nếu chưa tồn tại
+      const existingCodes = new Set(list.map((p) => p.code.toUpperCase()));
+      const merged = [...list];
+      for (const def of DEFAULT_PROMOTIONS) {
+        if (!existingCodes.has(def.code.toUpperCase())) {
+          merged.push(def);
+        }
+      }
+      savePromotions(merged);
+      return merged;
     }
   } catch (e) {
     console.warn('Không thể tải khuyến mãi từ MySQL, sử dụng cache cục bộ:', e);

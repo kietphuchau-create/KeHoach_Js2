@@ -424,7 +424,7 @@ export default function PromotionManager() {
 
                     {/* Thời Gian Áp Dụng */}
                     <td className="py-3.5 px-3 whitespace-nowrap">
-                      <div className="text-slate-700 font-mono text-[11px]">{promo.startDate} $\rightarrow$ {promo.endDate}</div>
+                      <div className="text-slate-700 font-mono text-[11px]">{promo.startDate} → {promo.endDate}</div>
                     </td>
 
                     {/* Trạng Thái */}

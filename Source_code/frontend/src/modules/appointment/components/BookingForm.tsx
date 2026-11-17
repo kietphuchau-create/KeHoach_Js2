@@ -42,7 +42,7 @@ import {
 } from 'lucide-react';
 import IncompleteProfileModal from '@/shared/components/Feedback/IncompleteProfileModal';
 import { api, AppointmentResponse, getAuthUser, getAuthToken } from '@/shared/lib/api';
-import { formatDoctorFullName } from '@/shared/lib/formatters';
+import { formatDoctorFullName, getLocalDateString } from '@/shared/lib/formatters';
 import AlertMessage from '@/shared/components/Feedback/AlertMessage';
 import LoadingSpinner from '@/shared/components/Feedback/LoadingSpinner';
 import { useSingleTabLock } from '@/shared/hooks/useSingleTabLock';
@@ -50,7 +50,13 @@ import SingleTabLockOverlay from '@/shared/components/Feedback/SingleTabLockOver
 import { QrCodeImage } from '@/shared/components/QrCodeImage';
 import { VietQrModal } from '@/shared/components/VietQrModal';
 import QRCode from 'qrcode';
-import { validatePromotion } from '@/shared/lib/promotions';
+import {
+  validatePromotion,
+  getPromotions,
+  getPromotionsFromDb,
+  PROMOTIONS_UPDATED_EVENT,
+  Promotion
+} from '@/shared/lib/promotions';
 import { getClinicScheduleConfig, saveClinicScheduleConfig, SCHEDULE_CONFIG_UPDATED_EVENT } from '@/shared/lib/scheduleConfig';
 
 // Trích xuất chữ cái đại diện chuẩn cho Avatar Bác sĩ (Ưu tiên chữ cái đầu tên chính, viết hoa)
@@ -177,6 +183,25 @@ export default function BookingForm() {
   const [appliedPromo, setAppliedPromo] = useState<string | null>(null);
   const [paidPromoCode, setPaidPromoCode] = useState<string | null>(null);
   const [promoError, setPromoError] = useState<string | null>(null);
+  const [activePromotions, setActivePromotions] = useState<Promotion[]>([]);
+
+  // Tự động đồng bộ danh sách mã ưu đãi khả dụng từ hệ thống Admin
+  useEffect(() => {
+    const syncPromotions = () => {
+      const all = getPromotions();
+      const today = getLocalDateString();
+      const valid = all.filter(
+        (p) => p.status === 'active' && (!p.endDate || p.endDate >= today)
+      );
+      setActivePromotions(valid);
+    };
+
+    syncPromotions();
+    getPromotionsFromDb().then(() => syncPromotions()).catch(() => {});
+
+    window.addEventListener(PROMOTIONS_UPDATED_EVENT, syncPromotions);
+    return () => window.removeEventListener(PROMOTIONS_UPDATED_EVENT, syncPromotions);
+  }, []);
   const [showClinicInfoModal, setShowClinicInfoModal] = useState<boolean>(false);
   const [showFeeModal, setShowFeeModal] = useState<boolean>(false);
   const [showRelativeModal, setShowRelativeModal] = useState<boolean>(false);
@@ -1017,12 +1042,20 @@ export default function BookingForm() {
       return;
     }
     const promoRes = validatePromotion(cleaned);
-    const validCodes = ['GIAOVIEN', 'MEDFREE', 'GIAM100', 'TESTER', 'VIP', 'GV2026', 'BACSITHANH', 'KHOACNTT', 'DEMO'];
-    if (promoRes.valid || validCodes.includes(cleaned) || cleaned.startsWith('GV') || cleaned.startsWith('TEST') || cleaned.startsWith('FREE')) {
+    const validCodes = ['FREE', 'CODE2K', 'DEMO2K', 'GIAOVIEN', 'MEDFREE', 'GIAM100', 'TESTER', 'VIP', 'GV2026', 'BACSITHANH', 'KHOACNTT', 'DEMO'];
+    if (
+      promoRes.valid ||
+      validCodes.includes(cleaned) ||
+      activePromotions.some((p) => p.code.toUpperCase() === cleaned) ||
+      cleaned.startsWith('GV') ||
+      cleaned.startsWith('TEST') ||
+      cleaned.startsWith('FREE') ||
+      cleaned.startsWith('CODE')
+    ) {
       setAppliedPromo(cleaned);
       setPromoError(null);
     } else {
-      setPromoError(promoRes.message || 'Mã không hợp lệ. Vui lòng thử mã "GIAOVIEN" hoặc "MEDFREE".');
+      setPromoError(promoRes.message || 'Mã ưu đãi không hợp lệ hoặc đã hết hạn.');
     }
   };
 
@@ -4187,7 +4220,7 @@ export default function BookingForm() {
                           handleApplyPromo();
                         }
                       }}
-                      placeholder="Nhập GIAOVIEN hoặc MEDFREE..."
+                      placeholder="Nhập mã ưu đãi (VD: FREE, CODE2K, GIAOVIEN)..."
                       className="flex-1 bg-slate-50 border border-slate-200 focus:bg-white focus:border-amber-500 rounded-xl px-3 py-2.5 text-xs font-medium uppercase placeholder:normal-case placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-200"
                     />
                     <button
@@ -4205,49 +4238,76 @@ export default function BookingForm() {
                   )}
                 </div>
 
-                {/* Phím tắt chọn nhanh mã kiểm thử */}
+                {/* Danh sách mã ưu đãi khả dụng từ hệ thống (Đồng bộ trực tiếp với Admin) */}
                 <div className="p-3 bg-amber-50/60 border border-amber-200/80 rounded-2xl space-y-2">
-                  <span className="text-[11px] font-bold text-amber-900 block">
-                    ⚡ Chọn nhanh mã kiểm thử hệ thống:
-                  </span>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPromoInput('DEMO2K');
-                        setAppliedPromo('DEMO2K');
-                        setPromoError(null);
-                      }}
-                      className="p-2.5 bg-white border border-blue-300 hover:border-blue-500 rounded-xl text-left transition cursor-pointer hover:shadow-xs group"
-                    >
-                      <span className="font-mono font-bold text-blue-700 text-xs block group-hover:text-blue-800">DEMO2K</span>
-                      <span className="text-[10px] text-slate-500 block">Đồng giá 2.000 đ quét VietQR thật</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPromoInput('GIAOVIEN');
-                        setAppliedPromo('GIAOVIEN');
-                        setPromoError(null);
-                      }}
-                      className="p-2.5 bg-white border border-amber-300 hover:border-amber-500 rounded-xl text-left transition cursor-pointer hover:shadow-xs group"
-                    >
-                      <span className="font-mono font-bold text-amber-700 text-xs block group-hover:text-amber-800">GIAOVIEN</span>
-                      <span className="text-[10px] text-slate-500 block">Dành cho Thầy/Cô (0đ cọc)</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPromoInput('MEDFREE');
-                        setAppliedPromo('MEDFREE');
-                        setPromoError(null);
-                      }}
-                      className="p-2.5 bg-white border border-emerald-300 hover:border-emerald-500 rounded-xl text-left transition cursor-pointer hover:shadow-xs group"
-                    >
-                      <span className="font-mono font-bold text-emerald-700 text-xs block group-hover:text-emerald-800">MEDFREE</span>
-                      <span className="text-[10px] text-slate-500 block">Miễn 100% tiền cọc (0đ)</span>
-                    </button>
+                  <div className="text-[11px] font-bold text-amber-900 flex items-center justify-between">
+                    <span>⚡ Chọn nhanh mã ưu đãi khả dụng:</span>
+                    <span className="text-[10px] text-slate-500 font-normal">
+                      {activePromotions.length} mã đang hoạt động
+                    </span>
                   </div>
+
+                  {activePromotions.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-60 overflow-y-auto pr-0.5">
+                      {activePromotions.map((p) => {
+                        const isFree = p.discountType === 'FREE_DEPOSIT';
+                        const is2k = p.discountType === 'FIX_TO_2K';
+                        const badgeColor = isFree
+                          ? 'border-emerald-300 hover:border-emerald-500 hover:bg-emerald-50/40 text-emerald-800'
+                          : is2k
+                          ? 'border-blue-300 hover:border-blue-500 hover:bg-blue-50/40 text-blue-800'
+                          : 'border-amber-300 hover:border-amber-500 hover:bg-amber-50/40 text-amber-800';
+
+                        const discountBadge = isFree
+                          ? '0 đ cọc'
+                          : is2k
+                          ? '2.000 đ'
+                          : p.discountType === 'PERCENT'
+                          ? `-${p.discountValue}%`
+                          : `-${p.discountValue.toLocaleString('vi-VN')} đ`;
+
+                        const discountSubtitle = isFree
+                          ? 'Miễn 100% tiền cọc (0 đ)'
+                          : is2k
+                          ? 'Đồng giá 2.000 đ quét VietQR thật'
+                          : p.discountType === 'PERCENT'
+                          ? `Giảm ${p.discountValue}% tiền cọc`
+                          : `Giảm ${p.discountValue.toLocaleString('vi-VN')} đ`;
+
+                        return (
+                          <button
+                            key={p.id || p.code}
+                            type="button"
+                            onClick={() => {
+                              setPromoInput(p.code);
+                              setAppliedPromo(p.code);
+                              setPromoError(null);
+                            }}
+                            className={`p-2.5 bg-white border rounded-xl text-left transition cursor-pointer hover:shadow-xs group ${badgeColor}`}
+                          >
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="font-mono font-bold text-xs block truncate">
+                                {p.code}
+                              </span>
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 shrink-0">
+                                {discountBadge}
+                              </span>
+                            </div>
+                            <span className="text-[10px] text-slate-500 block truncate mt-0.5" title={p.name}>
+                              {p.name || discountSubtitle}
+                            </span>
+                            <span className="text-[10px] font-semibold text-emerald-700 block mt-0.5 truncate">
+                              {discountSubtitle}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="py-3 text-center text-xs text-slate-500">
+                      Hiện chưa có mã ưu đãi công khai nào đang mở.
+                    </div>
+                  )}
                 </div>
 
                 <div className="pt-1">
