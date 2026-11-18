@@ -47,6 +47,8 @@ import {
   DoorOpen,
   Calendar,
   CalendarX,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { api, getAuthUser, getAuthToken } from '@/shared/lib/api';
@@ -1979,6 +1981,23 @@ export default function DoctorClinicView() {
     }
   };
 
+  const QUEUE_COLLAPSED_STORAGE_KEY = 'medsched_doctor_queue_collapsed';
+  const [isQueueCollapsed, setIsQueueCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (localStorage.getItem(QUEUE_COLLAPSED_STORAGE_KEY) === 'true') {
+      setIsQueueCollapsed(true);
+    }
+  }, []);
+
+  const handleToggleQueueCollapsed = (collapsed: boolean) => {
+    setIsQueueCollapsed(collapsed);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(QUEUE_COLLAPSED_STORAGE_KEY, String(collapsed));
+    }
+  };
+
   const [queueTab, setQueueTab] = useState<'ALL' | 'WAITING' | 'UPCOMING' | 'COMPLETED'>('ALL');
 
   const upcomingCount = queue.filter((p) => p.status === 'UPCOMING').length;
@@ -2279,17 +2298,85 @@ export default function DoctorClinicView() {
 
       {/* Main 2-Column Clinical Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column: Waiting Queue (5 Cols) */}
+        {/* Left Column: Waiting Queue (Collapsible between 5 Cols & Compact Top Ribbon) */}
+        {isQueueCollapsed ? (
+          <div className="lg:col-span-12 bg-white rounded-2xl px-4 py-3 shadow-xs border border-slate-200 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2.5 min-w-0">
+              <div className="flex items-center gap-2 text-slate-800 font-bold text-xs sm:text-sm">
+                <Users size={16} className="text-teal-700 shrink-0" />
+                <span>Hàng Đợi Khám Hôm Nay</span>
+              </div>
+              <span className="text-[11px] font-mono font-bold bg-teal-50 text-teal-800 px-2 py-0.5 rounded-md border border-teal-100">
+                Tổng: {queue.length} ca
+              </span>
+              <span className="text-[11px] font-bold bg-amber-50 text-amber-800 px-2 py-0.5 rounded-md border border-amber-200">
+                Đang chờ: {waitingCount} ca
+              </span>
+              {currentPatient?.status === 'IN_CONSULTATION' && (
+                <span className="text-[11px] font-bold bg-emerald-50 text-emerald-800 px-2.5 py-0.5 rounded-md border border-emerald-200 inline-flex items-center gap-1 max-w-xs truncate">
+                  <Stethoscope size={12} className="shrink-0" />
+                  <span className="truncate">Đang khám #{currentPatient.queueNumber} — {currentPatient.patientName}</span>
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0 ml-auto">
+              {currentPatient?.status === 'IN_CONSULTATION' ? (
+                <button
+                  type="button"
+                  onClick={handleRequestComplete}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold shadow-2xs transition cursor-pointer"
+                  title="Hoàn tất ca khám hiện tại để chuyển sang ca kế tiếp"
+                >
+                  <CheckCircle2 size={14} />
+                  <span>Hoàn tất #{currentPatient.queueNumber}</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleCallNext}
+                  disabled={queue.length === 0}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+                    queue.length === 0
+                      ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
+                      : 'bg-teal-700 hover:bg-teal-800 text-white shadow-2xs cursor-pointer'
+                  }`}
+                >
+                  <Volume2 size={14} />
+                  <span>Gọi ca tiếp theo</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={loadQueue}
+                disabled={loadingQueue}
+                className="p-1.5 rounded-xl border border-slate-200 text-slate-500 hover:text-teal-700 hover:bg-teal-50 transition cursor-pointer"
+                title="Tải lại hàng đợi"
+              >
+                <RefreshCw size={14} className={loadingQueue ? 'animate-spin text-teal-700' : ''} />
+              </button>
+              <button
+                type="button"
+                onClick={() => handleToggleQueueCollapsed(false)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-300 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer"
+                title="Mở rộng bảng hàng đợi khám bên trái"
+              >
+                <PanelLeftOpen size={14} />
+                <span>Mở rộng hàng đợi</span>
+              </button>
+            </div>
+          </div>
+        ) : (
         <div className="lg:col-span-5 space-y-4">
           <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
               <div>
                 <h3 className="font-bold text-slate-800 text-base flex items-center gap-2">
-                  <Users size={18} className="text-teal-700" />
+                  <Users size={18} className="text-teal-700 shrink-0" />
                   <span>Hàng Đợi Khám Hôm Nay</span>
                 </h3>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 shrink-0">
                 <button
                   type="button"
                   onClick={loadQueue}
@@ -2299,9 +2386,18 @@ export default function DoctorClinicView() {
                 >
                   <RefreshCw size={14} className={loadingQueue ? 'animate-spin text-teal-700' : ''} />
                 </button>
-                <span className="text-xs font-mono font-bold bg-teal-50 text-teal-800 px-2 py-0.5 rounded-md">
+                <span className="text-xs font-mono font-bold bg-teal-50 text-teal-800 px-2 py-0.5 rounded-md whitespace-nowrap">
                   Tổng: {queue.length} ca
                 </span>
+                <button
+                  type="button"
+                  onClick={() => handleToggleQueueCollapsed(true)}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-slate-200 text-slate-600 hover:text-teal-800 hover:bg-teal-50 hover:border-teal-300 text-[11px] font-bold transition cursor-pointer whitespace-nowrap"
+                  title="Thu gọn bảng hàng đợi để mở rộng toàn màn hình khu vực khám bệnh"
+                >
+                  <PanelLeftClose size={14} />
+                  <span>Thu gọn</span>
+                </button>
               </div>
             </div>
 
@@ -2671,9 +2767,10 @@ export default function DoctorClinicView() {
             </div>
           </div>
         </div>
+        )}
 
-        {/* Right Column: Active Patient Consultation Console (7 Cols) */}
-        <div className="lg:col-span-7 space-y-6">
+        {/* Right Column: Active Patient Consultation Console (7 Cols or 12 Cols when Queue Collapsed) */}
+        <div className={`${isQueueCollapsed ? 'lg:col-span-12' : 'lg:col-span-7'} space-y-6`}>
           {!currentPatient ? (
             <div className="bg-white rounded-2xl p-12 text-center shadow-sm border border-slate-200 py-24">
               <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 border ${
