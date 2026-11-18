@@ -1224,10 +1224,18 @@ export default function DoctorClinicView() {
     }
 
     setQueue((prev) => {
-      // 1. Lọc tất cả ứng viên đang chờ được gọi (WAITING hoặc DEFERRED), loại trừ ca đang khám
+      // 1. Kiểm tra xem ca hiện tại có đang trong buồng khám (IN_CONSULTATION) hay không
+      const currentPatient = prev[activePatientIndex];
+      const currentIsConsulting = currentPatient?.status === 'IN_CONSULTATION';
+
+      // Lọc tất cả ứng viên đang chờ được gọi (WAITING hoặc DEFERRED)
+      // CHỈ loại trừ ca hiện tại nếu ca đó ĐANG THỰC SỰ ĐƯỢC KHÁM (IN_CONSULTATION)
       const waitingCandidates = prev
         .map((p, idx) => ({ p, idx }))
-        .filter(({ p, idx }) => idx !== activePatientIndex && (p.status === 'WAITING' || p.status === 'DEFERRED'));
+        .filter(({ p, idx }) => {
+          if (currentIsConsulting && idx === activePatientIndex) return false;
+          return p.status === 'WAITING' || p.status === 'DEFERRED';
+        });
 
       if (waitingCandidates.length === 0) {
         setNotification('Hiện tại đã hết bệnh nhân đang xếp hàng trong ca trực!');
@@ -1243,60 +1251,73 @@ export default function DoctorClinicView() {
 
       // QUY TẮC A1: Ưu tiên 1 tuyệt đối cho ca hẹn đã check-in (WAITING)
       if (bookedCandidates.length > 0) {
-        // Tìm ca hẹn tiếp theo theo thứ tự danh sách (ưu tiên sau activePatientIndex nếu có)
-        const afterCurrent = bookedCandidates.filter(({ idx }) => idx > activePatientIndex);
-        chosenCandidate = afterCurrent.length > 0 ? afterCurrent[0] : bookedCandidates[0];
+        // Nếu ca hiện tại đang chọn chính là 1 ca hẹn WAITING chưa khám, ưu tiên gọi ngay ca này!
+        const currentAsBooked = bookedCandidates.find(({ idx }) => idx === activePatientIndex);
+        if (currentAsBooked && !currentIsConsulting) {
+          chosenCandidate = currentAsBooked;
+        } else {
+          // Tìm ca hẹn tiếp theo theo thứ tự danh sách (ưu tiên sau activePatientIndex nếu có)
+          const afterCurrent = bookedCandidates.filter(({ idx }) => idx > activePatientIndex);
+          chosenCandidate = afterCurrent.length > 0 ? afterCurrent[0] : bookedCandidates[0];
+        }
         notificationMsg = `🎯 [ĐÚNG LỊCH HẸN] Đã gọi ca đặt trước STT #${chosenCandidate.p.queueNumber} (${chosenCandidate.p.patientName}) vào buồng khám.`;
       } else if (walkinCandidates.length > 0) {
-        // QUY TẮC A2: Chưa có ca hẹn nào đang chờ -> Kiểm tra khoảng trống thời gian đến ca hẹn kế tiếp
-        const now = new Date();
-        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+        // Nếu ca hiện tại đang chọn là ca vãng lai WAITING chưa khám và không có ca nào đang khám:
+        const currentAsWalkin = walkinCandidates.find(({ idx }) => idx === activePatientIndex);
+        if (currentAsWalkin && !currentIsConsulting) {
+          chosenCandidate = currentAsWalkin;
+          notificationMsg = `⚡ [TIẾP NHẬN VÃNG LAI] Đã tiếp nhận ca vãng lai STT #${chosenCandidate.p.queueNumber} (${chosenCandidate.p.patientName}) vào buồng khám.`;
+        } else {
+          // QUY TẮC A2: Chưa có ca hẹn nào đang chờ -> Kiểm tra khoảng trống thời gian đến ca hẹn kế tiếp
+          const now = new Date();
+          const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
-        let earliestSlotGap = Infinity;
-        let nextUpcomingTimeStr = '';
-        let nextUpcomingPatientName = '';
+          let earliestSlotGap = Infinity;
+          let nextUpcomingTimeStr = '';
+          let nextUpcomingPatientName = '';
 
-        for (const item of prev) {
-          if (item.queueNumber?.startsWith('W-')) continue;
-          if (item.status === 'COMPLETED' || item.status === 'MISSED_CALL' || item.status === 'TRANSFERRED') continue;
-          if (item.appointmentTime) {
-            const match = item.appointmentTime.match(/(\d{1,2}):(\d{2})/);
-            if (match) {
-              const slotMins = parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
-              const diff = slotMins - currentMinutes;
-              // Khung giờ hôm nay chưa trôi qua quá lâu
-              if (diff >= -5 && diff < earliestSlotGap) {
-                earliestSlotGap = diff;
-                nextUpcomingTimeStr = item.appointmentTime;
-                nextUpcomingPatientName = item.patientName;
+          for (const item of prev) {
+            if (item.queueNumber?.startsWith('W-')) continue;
+            if (item.status === 'COMPLETED' || item.status === 'MISSED_CALL' || item.status === 'TRANSFERRED') continue;
+            if (item.appointmentTime) {
+              const match = item.appointmentTime.match(/(\d{1,2}):(\d{2})/);
+              if (match) {
+                const slotMins = parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
+                const diff = slotMins - currentMinutes;
+                // Khung giờ hôm nay chưa trôi qua quá lâu
+                if (diff >= -5 && diff < earliestSlotGap) {
+                  earliestSlotGap = diff;
+                  nextUpcomingTimeStr = item.appointmentTime;
+                  nextUpcomingPatientName = item.patientName;
+                }
               }
             }
           }
+
+          // Đọc cấu hình chen ngang & khoảng trống an toàn từ Admin
+          const clinicCfg = typeof window !== 'undefined' ? getClinicScheduleConfig() : null;
+          const minBuffer = clinicCfg?.walkinMinBufferMinutes ?? 15;
+          const isInterleaveEnabled = clinicCfg?.walkinInterleaveEnabled ?? true;
+
+          if (!isInterleaveEnabled) {
+            setNotification('⚠️ TẠM DỪNG GỌI VÃNG LAI: Quản trị viên (Admin) hiện đang tắt tính năng xen kẽ ca vãng lai toàn hệ thống.');
+            return prev;
+          }
+
+          // CHẶN ĐỨNG NẾU KHOẢNG TRỐNG < minBuffer (Bảo vệ ca hẹn không bị trễ)
+          if (earliestSlotGap !== Infinity && earliestSlotGap < minBuffer) {
+            setNotification(
+              `⚠️ TẠM DỪNG GỌI VÃNG LAI: Chỉ còn ${earliestSlotGap} phút trước ca hẹn kế tiếp (${nextUpcomingPatientName} - ${nextUpcomingTimeStr}). Cấu hình phòng khám quy định cần tối thiểu ${minBuffer} phút để đảm bảo đón ca hẹn đúng giờ!`
+            );
+            return prev;
+          }
+
+          // Đủ điều kiện xen kẽ ca vãng lai (khoảng trống >= minBuffer hoặc không còn ca hẹn nào trong ngày)
+          const walkinAfter = walkinCandidates.filter(({ idx }) => idx > activePatientIndex);
+          chosenCandidate = walkinAfter.length > 0 ? walkinAfter[0] : walkinCandidates[0];
+          const gapInfo = earliestSlotGap !== Infinity ? `dư trống ${earliestSlotGap} phút (trước ca ${nextUpcomingTimeStr})` : 'buồng khám đã hoàn tất ca hẹn';
+          notificationMsg = `⚡ [XEN KẼ VÃNG LAI] Khoảng trống ${gapInfo}. Đã tiếp nhận ca vãng lai STT #${chosenCandidate.p.queueNumber} (${chosenCandidate.p.patientName}) vào buồng khám.`;
         }
-
-        // Đọc cấu hình chen ngang & khoảng trống an toàn từ Admin
-        const clinicCfg = typeof window !== 'undefined' ? getClinicScheduleConfig() : null;
-        const minBuffer = clinicCfg?.walkinMinBufferMinutes ?? 15;
-        const isInterleaveEnabled = clinicCfg?.walkinInterleaveEnabled ?? true;
-
-        if (!isInterleaveEnabled) {
-          setNotification('⚠️ TẠM DỪNG GỌI VÃNG LAI: Quản trị viên (Admin) hiện đang tắt tính năng xen kẽ ca vãng lai toàn hệ thống.');
-          return prev;
-        }
-
-        // CHẶN ĐỨNG NẾU KHOẢNG TRỐNG < minBuffer (Bảo vệ ca hẹn không bị trễ)
-        if (earliestSlotGap !== Infinity && earliestSlotGap < minBuffer) {
-          setNotification(
-            `⚠️ TẠM DỪNG GỌI VÃNG LAI: Chỉ còn ${earliestSlotGap} phút trước ca hẹn kế tiếp (${nextUpcomingPatientName} - ${nextUpcomingTimeStr}). Cấu hình phòng khám quy định cần tối thiểu ${minBuffer} phút để đảm bảo đón ca hẹn đúng giờ!`
-          );
-          return prev;
-        }
-
-        // Đủ điều kiện xen kẽ ca vãng lai (khoảng trống >= minBuffer hoặc không còn ca hẹn nào trong ngày)
-        const walkinAfter = walkinCandidates.filter(({ idx }) => idx > activePatientIndex);
-        chosenCandidate = walkinAfter.length > 0 ? walkinAfter[0] : walkinCandidates[0];
-        const gapInfo = earliestSlotGap !== Infinity ? `dư trống ${earliestSlotGap} phút (trước ca ${nextUpcomingTimeStr})` : 'buồng khám đã hoàn tất ca hẹn';
-        notificationMsg = `⚡ [XEN KẼ VÃNG LAI] Khoảng trống ${gapInfo}. Đã tiếp nhận ca vãng lai STT #${chosenCandidate.p.queueNumber} (${chosenCandidate.p.patientName}) vào buồng khám.`;
       }
 
       if (!chosenCandidate) {
