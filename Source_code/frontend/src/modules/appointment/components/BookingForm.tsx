@@ -4155,7 +4155,7 @@ export default function BookingForm() {
                 </div>
                 <div>
                   <h3 className="font-bold text-slate-800 text-sm sm:text-base">Mã Ưu Đãi / Voucher Miễn Cọc</h3>
-                  <span className="text-[11px] text-amber-700 font-medium">Hỗ trợ Giảng viên &amp; Tester kiểm thử</span>
+                  <span className="text-[11px] text-slate-500 font-medium">Nhập mã ưu đãi để nhận đặc quyền miễn/giảm tiền cọc</span>
                 </div>
               </div>
               <button
@@ -4220,7 +4220,7 @@ export default function BookingForm() {
                           handleApplyPromo();
                         }
                       }}
-                      placeholder="Nhập mã ưu đãi (VD: FREE, CODE2K, GIAOVIEN)..."
+                      placeholder="Nhập mã ưu đãi của bạn..."
                       className="flex-1 bg-slate-50 border border-slate-200 focus:bg-white focus:border-amber-500 rounded-xl px-3 py-2.5 text-xs font-medium uppercase placeholder:normal-case placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-200"
                     />
                     <button
@@ -4238,79 +4238,7 @@ export default function BookingForm() {
                   )}
                 </div>
 
-                {/* Danh sách mã ưu đãi khả dụng từ hệ thống (Đồng bộ trực tiếp với Admin) */}
-                <div className="p-3 bg-amber-50/60 border border-amber-200/80 rounded-2xl space-y-2">
-                  <div className="text-[11px] font-bold text-amber-900 flex items-center justify-between">
-                    <span>⚡ Chọn nhanh mã ưu đãi khả dụng:</span>
-                    <span className="text-[10px] text-slate-500 font-normal">
-                      {activePromotions.length} mã đang hoạt động
-                    </span>
-                  </div>
-
-                  {activePromotions.length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-60 overflow-y-auto pr-0.5">
-                      {activePromotions.map((p) => {
-                        const isFree = p.discountType === 'FREE_DEPOSIT';
-                        const is2k = p.discountType === 'FIX_TO_2K';
-                        const badgeColor = isFree
-                          ? 'border-emerald-300 hover:border-emerald-500 hover:bg-emerald-50/40 text-emerald-800'
-                          : is2k
-                          ? 'border-blue-300 hover:border-blue-500 hover:bg-blue-50/40 text-blue-800'
-                          : 'border-amber-300 hover:border-amber-500 hover:bg-amber-50/40 text-amber-800';
-
-                        const discountBadge = isFree
-                          ? '0 đ cọc'
-                          : is2k
-                          ? '2.000 đ'
-                          : p.discountType === 'PERCENT'
-                          ? `-${p.discountValue}%`
-                          : `-${p.discountValue.toLocaleString('vi-VN')} đ`;
-
-                        const discountSubtitle = isFree
-                          ? 'Miễn 100% tiền cọc (0 đ)'
-                          : is2k
-                          ? 'Đồng giá 2.000 đ quét VietQR thật'
-                          : p.discountType === 'PERCENT'
-                          ? `Giảm ${p.discountValue}% tiền cọc`
-                          : `Giảm ${p.discountValue.toLocaleString('vi-VN')} đ`;
-
-                        return (
-                          <button
-                            key={p.id || p.code}
-                            type="button"
-                            onClick={() => {
-                              setPromoInput(p.code);
-                              setAppliedPromo(p.code);
-                              setPromoError(null);
-                            }}
-                            className={`p-2.5 bg-white border rounded-xl text-left transition cursor-pointer hover:shadow-xs group ${badgeColor}`}
-                          >
-                            <div className="flex items-center justify-between gap-1">
-                              <span className="font-mono font-bold text-xs block truncate">
-                                {p.code}
-                              </span>
-                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 shrink-0">
-                                {discountBadge}
-                              </span>
-                            </div>
-                            <span className="text-[10px] text-slate-500 block truncate mt-0.5" title={p.name}>
-                              {p.name || discountSubtitle}
-                            </span>
-                            <span className="text-[10px] font-semibold text-emerald-700 block mt-0.5 truncate">
-                              {discountSubtitle}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="py-3 text-center text-xs text-slate-500">
-                      Hiện chưa có mã ưu đãi công khai nào đang mở.
-                    </div>
-                  )}
-                </div>
-
-                <div className="pt-1">
+                <div className="pt-2">
                   <button
                     type="button"
                     onClick={() => setShowVoucherModal(false)}

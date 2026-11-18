@@ -1019,7 +1019,7 @@ type AiWizardStep =
   | 'COMPLETED'               // Bước 6: Hoàn tất đặt chỗ & cấp mã hẹn
   | 'EMERGENCY';              // Cảnh báo cấp cứu khẩn cấp 115
 
-const VALID_PROMO_CODES = ['MEDSCHED2026', 'VIP', 'GIAOVIEN', 'MEDFREE', 'TESTER', 'DEMO2K', 'UDAI2K', 'GIAM100', 'FREE'];
+const VALID_PROMO_CODES = ['MEDSCHED2026', 'VIP', 'GIAOVIEN', 'MEDFREE', 'TESTER', 'DEMO2K', 'CODE2K', 'UDAI2K', 'GIAM100', 'FREE'];
 
 export interface ClarifyQuestionMeta {
   questionNumber: number;
@@ -5758,7 +5758,7 @@ export default function BookingMethodSelector({
                                     type="text"
                                     value={promoCode}
                                     onChange={(e) => setPromoCode(e.target.value)}
-                                    placeholder="Ví dụ: MEDSCHED2026, VIP, GIAOVIEN..."
+                                    placeholder="Nhập mã ưu đãi của bạn..."
                                     className="flex-1 p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs uppercase font-mono"
                                   />
                                   <button
