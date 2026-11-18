@@ -593,17 +593,6 @@ export default function DoctorClinicView() {
   const [showPrescriptionPrintModal, setShowPrescriptionPrintModal] = useState(false);
   const [lastSavedPrescription, setLastSavedPrescription] = useState<any>(null);
 
-  // Lắng nghe phím ESC để đóng modal in đơn thuốc
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && showPrescriptionPrintModal) {
-        setShowPrescriptionPrintModal(false);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showPrescriptionPrintModal]);
-
   // CLAB-159: Danh mục Kho Dược phòng khám (Khóa giá niêm yết & kiểm soát tồn kho)
   const [inventoryMedicines, setInventoryMedicines] = useState<MedicineInventoryItem[]>([]);
   const [selectedInventoryMedId, setSelectedInventoryMedId] = useState<string>('');
@@ -627,8 +616,27 @@ export default function DoctorClinicView() {
   // ── CLAB-157: Quản lý Thêm, Xóa, Sửa trực tiếp ở từng hàng ngang của đơn thuốc (Inline CRUD) ──
   const [editingRowIndex, setEditingRowIndex] = useState<number | null>(null);
   const [editingItemData, setEditingItemData] = useState<MedicineItem | null>(null);
-  // CLAB-169: Xem chi tiết toàn bộ hàng thuốc trong Popup Modal
+  // CLAB-169 / CLAB-170: Xem & chỉnh sửa chi tiết hàng thuốc trực tiếp trong Popup Modal
   const [viewMedicineDetail, setViewMedicineDetail] = useState<{ item: MedicineItem; index: number } | null>(null);
+  const [popupEditItem, setPopupEditItem] = useState<MedicineItem | null>(null);
+  const [popupError, setPopupError] = useState<string | null>(null);
+
+  // Lắng nghe phím ESC để đóng modal in đơn thuốc hoặc popup chi tiết thuốc
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (viewMedicineDetail) {
+          setViewMedicineDetail(null);
+          setPopupEditItem(null);
+          setPopupError(null);
+        } else if (showPrescriptionPrintModal) {
+          setShowPrescriptionPrintModal(false);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showPrescriptionPrintModal, viewMedicineDetail]);
 
   // Vị trí chèn thêm dòng thuốc mới (null nếu không chèn; 0..n là index chèn vào)
   const [insertRowIndex, setInsertRowIndex] = useState<number | null>(null);
@@ -664,6 +672,88 @@ export default function DoctorClinicView() {
     </>
   );
 
+  const findMatchingInventoryMed = (item: Pick<MedicineItem, 'medicineId' | 'medicineName'>) =>
+    inventoryMedicines.find(
+      m =>
+        (item.medicineId && m.id === item.medicineId) ||
+        m.name === item.medicineName ||
+        `${m.name}${m.activeIngredient ? ` (${m.activeIngredient})` : ''}` === item.medicineName
+    );
+
+  // Chuẩn hóa & kiểm tra tồn kho trước khi lưu một dòng thuốc
+  const validateAndNormalizeMedicineItem = (draft: MedicineItem): { item?: MedicineItem; error?: string } => {
+    if (!draft.medicineName.trim()) {
+      return { error: '⚠️ Vui lòng chọn thuốc từ danh mục kho dược.' };
+    }
+    const targetMed = findMatchingInventoryMed(draft);
+    const availableStock = targetMed ? targetMed.stockQuantity : (draft.stockQuantity ?? 9999);
+
+    if (availableStock === 0) {
+      return { error: `❌ Thuốc "${draft.medicineName}" hiện đã hết hàng trong kho.` };
+    }
+
+    const normalizedQty = Math.max(1, Number(draft.quantity) || 1);
+    if (normalizedQty > availableStock) {
+      return { error: `⚠️ Số lượng kê đơn (${normalizedQty}) vượt quá tồn kho khả dụng (${availableStock} ${draft.unit}).` };
+    }
+
+    const normalizedPrice = targetMed ? targetMed.unitPrice : Math.max(0, Number(draft.unitPrice) || 0);
+    return {
+      item: {
+        ...draft,
+        medicineId: targetMed ? targetMed.id : draft.medicineId,
+        medicineName: draft.medicineName.trim(),
+        unit: targetMed ? targetMed.unit : (draft.unit.trim() || 'Viên'),
+        quantity: normalizedQty,
+        dosage: draft.dosage.trim() || 'Theo chỉ định của bác sĩ',
+        unitPrice: normalizedPrice,
+        stockQuantity: availableStock,
+      },
+    };
+  };
+
+  // Mở popup xem & chỉnh sửa chi tiết thuốc trực tiếp
+  const handleOpenMedicineDetail = (item: MedicineItem, index: number) => {
+    const matchedMed = findMatchingInventoryMed(item);
+    const resolvedItem: MedicineItem = matchedMed
+      ? {
+          ...item,
+          medicineId: matchedMed.id,
+          unit: matchedMed.unit,
+          unitPrice: matchedMed.unitPrice,
+          stockQuantity: matchedMed.stockQuantity,
+        }
+      : { ...item };
+    setViewMedicineDetail({ item: resolvedItem, index });
+    setPopupEditItem(resolvedItem);
+    setPopupError(null);
+  };
+
+  const handleCloseMedicineDetail = () => {
+    setViewMedicineDetail(null);
+    setPopupEditItem(null);
+    setPopupError(null);
+  };
+
+  const handleSavePopupEdit = () => {
+    if (!viewMedicineDetail || !popupEditItem) return;
+    if (!Number.isFinite(Number(popupEditItem.quantity)) || Number(popupEditItem.quantity) < 1) {
+      setPopupError('⚠️ Vui lòng nhập số lượng kê tối thiểu là 1.');
+      return;
+    }
+    const result = validateAndNormalizeMedicineItem(popupEditItem);
+    if (result.error || !result.item) {
+      setPopupError(result.error || '⚠️ Thông tin thuốc không hợp lệ.');
+      return;
+    }
+
+    const targetIndex = viewMedicineDetail.index;
+    const savedItem = result.item;
+    setPrescriptionItems((prev) => prev.map((item, i) => (i === targetIndex ? savedItem : item)));
+    handleCloseMedicineDetail();
+    setNotification(`✅ Đã cập nhật thuốc "${savedItem.medicineName}".`);
+  };
+
   // Bắt đầu sửa hàng ngang
   const handleStartEditRow = (idx: number) => {
     setInsertRowIndex(null);
@@ -680,36 +770,13 @@ export default function DoctorClinicView() {
   // Lưu chỉnh sửa hàng ngang
   const handleSaveEditRow = (idx: number) => {
     if (!editingItemData) return;
-    if (!editingItemData.medicineName.trim()) {
-      setNotification('⚠️ Vui lòng chọn thuốc từ danh mục kho dược.');
-      return;
-    }
-    const targetMed = inventoryMedicines.find(m => m.id === editingItemData.medicineId || m.name === editingItemData.medicineName);
-    const availableStock = targetMed ? targetMed.stockQuantity : (editingItemData.stockQuantity ?? 9999);
-
-    if (availableStock === 0) {
-      setNotification(`❌ Thuốc "${editingItemData.medicineName}" hiện đã hết hàng trong kho.`);
+    const result = validateAndNormalizeMedicineItem(editingItemData);
+    if (result.error || !result.item) {
+      setNotification(result.error || '⚠️ Vui lòng kiểm tra lại thông tin thuốc.');
       return;
     }
 
-    const updatedQty = Math.max(1, Number(editingItemData.quantity) || 1);
-    if (updatedQty > availableStock) {
-      setNotification(`⚠️ Số lượng kê đơn (${updatedQty}) vượt quá tồn kho khả dụng (${availableStock} ${editingItemData.unit}).`);
-      return;
-    }
-
-    const updatedPrice = targetMed ? targetMed.unitPrice : Math.max(0, Number(editingItemData.unitPrice) || 0);
-    const updatedItem: MedicineItem = {
-      ...editingItemData,
-      medicineId: targetMed ? targetMed.id : editingItemData.medicineId,
-      medicineName: editingItemData.medicineName.trim(),
-      unit: targetMed ? targetMed.unit : (editingItemData.unit.trim() || 'Viên'),
-      quantity: updatedQty,
-      dosage: editingItemData.dosage.trim() || 'Theo chỉ định của bác sĩ',
-      unitPrice: updatedPrice,
-      stockQuantity: availableStock,
-    };
-
+    const updatedItem = result.item;
     setPrescriptionItems((prev) => prev.map((item, i) => (i === idx ? updatedItem : item)));
     setEditingRowIndex(null);
     setEditingItemData(null);
@@ -739,35 +806,13 @@ export default function DoctorClinicView() {
 
   // Lưu dòng thuốc mới được chèn
   const handleSaveInsertRow = () => {
-    if (!insertItemData.medicineName.trim()) {
-      setNotification('⚠️ Vui lòng chọn thuốc từ kho dược phòng khám.');
-      return;
-    }
-    const targetMed = inventoryMedicines.find(m => m.id === insertItemData.medicineId || m.name === insertItemData.medicineName);
-    const availableStock = targetMed ? targetMed.stockQuantity : (insertItemData.stockQuantity ?? 9999);
-    
-    if (availableStock === 0) {
-      setNotification(`❌ Thuốc "${insertItemData.medicineName}" hiện đã hết hàng trong kho. Không thể kê đơn.`);
+    const result = validateAndNormalizeMedicineItem(insertItemData);
+    if (result.error || !result.item) {
+      setNotification(result.error || '⚠️ Vui lòng chọn thuốc từ kho dược phòng khám.');
       return;
     }
 
-    const qty = Math.max(1, Number(insertItemData.quantity) || 1);
-    if (qty > availableStock) {
-      setNotification(`⚠️ Số lượng kê đơn (${qty}) vượt quá tồn kho khả dụng (${availableStock} ${insertItemData.unit}). Vui lòng điều chỉnh lại.`);
-      return;
-    }
-
-    const price = targetMed ? targetMed.unitPrice : Math.max(0, Number(insertItemData.unitPrice) || 0);
-    const newItem: MedicineItem = {
-      medicineId: targetMed ? targetMed.id : insertItemData.medicineId,
-      medicineName: insertItemData.medicineName.trim(),
-      unit: targetMed ? targetMed.unit : (insertItemData.unit.trim() || 'Viên'),
-      quantity: qty,
-      dosage: insertItemData.dosage.trim() || 'Theo chỉ định của bác sĩ',
-      unitPrice: price,
-      stockQuantity: availableStock,
-    };
-
+    const newItem = result.item;
     setPrescriptionItems((prev) => {
       const targetIdx = insertRowIndex !== null ? insertRowIndex : prev.length;
       const clone = [...prev];
@@ -776,7 +821,7 @@ export default function DoctorClinicView() {
     });
 
     setInsertRowIndex(null);
-    setNotification(`💊 Đã thêm thuốc "${newItem.medicineName}" (Đơn giá niêm yết: ${price.toLocaleString('vi-VN')} đ).`);
+    setNotification(`💊 Đã thêm thuốc "${newItem.medicineName}" (Đơn giá niêm yết: ${newItem.unitPrice.toLocaleString('vi-VN')} đ).`);
   };
 
   // Tăng/giảm số lượng nhanh trên hàng
@@ -876,8 +921,128 @@ export default function DoctorClinicView() {
     if (insertRowIndex !== null && insertRowIndex > idx) {
       setInsertRowIndex(insertRowIndex - 1);
     }
+    if (viewMedicineDetail) {
+      if (viewMedicineDetail.index === idx) {
+        handleCloseMedicineDetail();
+      } else if (viewMedicineDetail.index > idx) {
+        setViewMedicineDetail({ ...viewMedicineDetail, index: viewMedicineDetail.index - 1 });
+      }
+    }
     setNotification(`🗑️ Đã xóa "${medName}" khỏi đơn thuốc.`);
   };
+
+  // Render hàng thêm thuốc mới trên bảng Desktop (7 cột, không có cột Thao tác)
+  const renderDesktopInsertRow = () => (
+    <tr className="bg-teal-50/80 border-2 border-teal-400 shadow-xs">
+      <td className="p-2 text-center text-teal-700 font-bold text-[11px] font-mono">➕</td>
+      <td className="p-2">
+        <select
+          value={insertItemData.medicineId || ''}
+          onChange={(e) => {
+            const medId = e.target.value;
+            const med = inventoryMedicines.find(m => m.id === medId);
+            if (med) {
+              setInsertItemData(prev => ({
+                ...prev,
+                medicineId: med.id,
+                medicineName: `${med.name}${med.activeIngredient ? ` (${med.activeIngredient})` : ''}`,
+                unit: med.unit,
+                unitPrice: med.unitPrice,
+                stockQuantity: med.stockQuantity,
+              }));
+            }
+          }}
+          className="w-full px-2 py-1 bg-white border border-teal-400 rounded text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-teal-600"
+        >
+          {renderMedicineOptions()}
+        </select>
+        {insertItemData.stockQuantity !== undefined && (
+          <div className="flex items-center gap-1 mt-0.5 text-[10px]">
+            <span className={insertItemData.stockQuantity === 0 ? 'text-rose-600 font-bold' : insertItemData.stockQuantity <= 30 ? 'text-amber-600 font-bold' : 'text-emerald-700 font-bold'}>
+              📦 Tồn: {insertItemData.stockQuantity} {insertItemData.unit}
+            </span>
+            {Number(insertItemData.quantity) > insertItemData.stockQuantity && (
+              <span className="text-rose-600 font-bold">• ⚠️ Vượt tồn</span>
+            )}
+          </div>
+        )}
+      </td>
+      <td className="p-2 text-center">
+        <input
+          type="text"
+          readOnly
+          value={insertItemData.unit}
+          className="w-16 text-center py-1 bg-slate-100 border border-slate-200 rounded text-xs font-bold text-slate-600 cursor-not-allowed"
+          title="ĐVT theo danh mục kho"
+        />
+      </td>
+      <td className="p-2 text-center">
+        <div className="flex items-center justify-center gap-1">
+          <button
+            type="button"
+            onClick={() => setInsertItemData(prev => ({ ...prev, quantity: Math.max(1, (Number(prev.quantity) || 1) - 1) }))}
+            className="w-5 h-5 rounded bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs border border-slate-200 cursor-pointer"
+          >-</button>
+          <input
+            type="number"
+            min={1}
+            value={insertItemData.quantity}
+            onChange={(e) => setInsertItemData(prev => ({ ...prev, quantity: Math.max(1, Number(e.target.value) || 1) }))}
+            className="w-12 text-center py-1 bg-white border border-teal-400 rounded text-xs font-bold text-teal-800 font-mono focus:outline-none"
+          />
+          <button
+            type="button"
+            onClick={() => setInsertItemData(prev => ({ ...prev, quantity: (Number(prev.quantity) || 1) + 1 }))}
+            className="w-5 h-5 rounded bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs border border-slate-200 cursor-pointer"
+          >+</button>
+        </div>
+      </td>
+      <td className="p-2">
+        <input
+          type="text"
+          value={insertItemData.dosage}
+          onChange={(e) => setInsertItemData(prev => ({ ...prev, dosage: e.target.value }))}
+          placeholder="Cách dùng / Liều uống..."
+          className="w-full px-2 py-1 bg-white border border-teal-400 rounded text-xs focus:outline-none"
+        />
+      </td>
+      <td className="p-2 text-right">
+        <input
+          type="text"
+          readOnly
+          value={`${(Number(insertItemData.unitPrice) || 0).toLocaleString('vi-VN')} đ`}
+          title="Đơn giá niêm yết kho dược cố định"
+          className="w-20 text-right py-1 px-1.5 bg-slate-100 border border-slate-200 rounded text-xs font-mono font-bold text-slate-700 cursor-not-allowed"
+        />
+      </td>
+      <td className="p-2 text-right">
+        <div className="flex flex-col items-end gap-1.5">
+          <span className="font-bold text-teal-900 font-mono text-[11px] whitespace-nowrap">
+            {((Number(insertItemData.quantity) || 0) * (Number(insertItemData.unitPrice) || 0)).toLocaleString('vi-VN')} đ
+          </span>
+          <div className="flex items-center justify-end gap-1">
+            <button
+              type="button"
+              onClick={handleSaveInsertRow}
+              className="px-2 py-0.5 bg-teal-700 hover:bg-teal-800 text-white rounded text-[11px] font-bold flex items-center gap-1 shadow-2xs transition cursor-pointer whitespace-nowrap"
+              title="Lưu dòng thuốc này"
+            >
+              <Check size={12} />
+              <span>Thêm</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleCancelInsertRow}
+              className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded transition cursor-pointer"
+              title="Hủy"
+            >
+              <X size={13} />
+            </button>
+          </div>
+        </div>
+      </td>
+    </tr>
+  );
 
   // Tính tổng tiền thuốc
   const totalMedicineCost = prescriptionItems.reduce(
@@ -3073,11 +3238,11 @@ export default function DoctorClinicView() {
                                   <div className="pt-0.5">
                                     <button
                                       type="button"
-                                      onClick={() => setViewMedicineDetail({ item, index: idx })}
+                                      onClick={() => handleOpenMedicineDetail(item, idx)}
                                       className="inline-flex items-center gap-1.5 text-[11px] text-teal-700 hover:text-teal-900 font-medium cursor-pointer"
                                     >
                                       <Eye size={12} className="text-teal-600 shrink-0" />
-                                      <span className="truncate italic">👉 {item.dosage || 'Xem cách dùng'}</span>
+                                      <span className="truncate italic">👉 {item.dosage || 'Xem & sửa chi tiết'}</span>
                                     </button>
                                   </div>
                                 </div>
@@ -3161,7 +3326,7 @@ export default function DoctorClinicView() {
                         </div>
                       </div>
 
-                      {/* Desktop Table View with Inline CRUD */}
+                      {/* Desktop Table View (7 cột chuẩn - Bấm ô Cách dùng hoặc nhấp đúp hàng để sửa trực tiếp trong Popup) */}
                       <div className="hidden sm:block overflow-x-auto rounded-xl border border-slate-200 shadow-2xs">
                         <table className="w-full text-left text-xs">
                           <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 text-[11px]">
@@ -3171,122 +3336,13 @@ export default function DoctorClinicView() {
                               <th className="p-2.5 w-20 text-center">ĐVT</th>
                               <th className="p-2.5 w-24 text-center">SL</th>
                               <th className="p-2.5 text-center font-bold">CÁCH DÙNG</th>
-                              <th className="p-2.5 text-right w-24">Đơn giá</th>
-                              <th className="p-2.5 text-right w-24">Thành tiền</th>
-                              <th className="p-2.5 text-center w-28 font-semibold text-slate-700">Thao tác</th>
+                              <th className="p-2.5 text-right w-24 whitespace-nowrap">Đơn giá</th>
+                              <th className="p-2.5 text-right min-w-[115px] whitespace-nowrap">Thành tiền</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 bg-white">
                             {/* Insert row at top if index === 0 */}
-                            {insertRowIndex === 0 && (
-                              <tr className="bg-teal-50/80 border-2 border-teal-400 shadow-xs">
-                                <td className="p-2 text-center text-teal-700 font-bold text-[11px] font-mono">➕</td>
-                                <td className="p-2">
-                                  <select
-                                    value={insertItemData.medicineId || ''}
-                                    onChange={(e) => {
-                                      const medId = e.target.value;
-                                      const med = inventoryMedicines.find(m => m.id === medId);
-                                      if (med) {
-                                        setInsertItemData(prev => ({
-                                          ...prev,
-                                          medicineId: med.id,
-                                          medicineName: `${med.name}${med.activeIngredient ? ` (${med.activeIngredient})` : ''}`,
-                                          unit: med.unit,
-                                          unitPrice: med.unitPrice,
-                                          stockQuantity: med.stockQuantity,
-                                        }));
-                                      }
-                                    }}
-                                    className="w-full px-2 py-1 bg-white border border-teal-400 rounded text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-teal-600"
-                                  >
-                                    {renderMedicineOptions()}
-                                  </select>
-                                  {insertItemData.stockQuantity !== undefined && (
-                                    <div className="flex items-center gap-1 mt-0.5 text-[10px]">
-                                      <span className={insertItemData.stockQuantity === 0 ? 'text-rose-600 font-bold' : insertItemData.stockQuantity <= 30 ? 'text-amber-600 font-bold' : 'text-emerald-700 font-bold'}>
-                                        📦 Tồn: {insertItemData.stockQuantity} {insertItemData.unit}
-                                      </span>
-                                      {Number(insertItemData.quantity) > insertItemData.stockQuantity && (
-                                        <span className="text-rose-600 font-bold">• ⚠️ Vượt tồn</span>
-                                      )}
-                                    </div>
-                                  )}
-                                </td>
-                                <td className="p-2 text-center">
-                                  <input
-                                    type="text"
-                                    readOnly
-                                    value={insertItemData.unit}
-                                    className="w-16 text-center py-1 bg-slate-100 border border-slate-200 rounded text-xs font-bold text-slate-600 cursor-not-allowed"
-                                    title="ĐVT theo danh mục kho"
-                                  />
-                                </td>
-                                <td className="p-2 text-center">
-                                  <div className="flex items-center justify-center gap-1">
-                                    <button
-                                      type="button"
-                                      onClick={() => setInsertItemData(prev => ({ ...prev, quantity: Math.max(1, (Number(prev.quantity) || 1) - 1) }))}
-                                      className="w-5 h-5 rounded bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs border border-slate-200 cursor-pointer"
-                                    >-</button>
-                                    <input
-                                      type="number"
-                                      min={1}
-                                      value={insertItemData.quantity}
-                                      onChange={(e) => setInsertItemData(prev => ({ ...prev, quantity: Math.max(1, Number(e.target.value) || 1) }))}
-                                      className="w-12 text-center py-1 bg-white border border-teal-400 rounded text-xs font-bold text-teal-800 font-mono focus:outline-none"
-                                    />
-                                    <button
-                                      type="button"
-                                      onClick={() => setInsertItemData(prev => ({ ...prev, quantity: (Number(prev.quantity) || 1) + 1 }))}
-                                      className="w-5 h-5 rounded bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs border border-slate-200 cursor-pointer"
-                                    >+</button>
-                                  </div>
-                                </td>
-                                <td className="p-2">
-                                  <input
-                                    type="text"
-                                    value={insertItemData.dosage}
-                                    onChange={(e) => setInsertItemData(prev => ({ ...prev, dosage: e.target.value }))}
-                                    placeholder="Cách dùng / Liều uống..."
-                                    className="w-full px-2 py-1 bg-white border border-teal-400 rounded text-xs focus:outline-none"
-                                  />
-                                </td>
-                                <td className="p-2 text-right">
-                                  <input
-                                    type="text"
-                                    readOnly
-                                    value={`${(Number(insertItemData.unitPrice) || 0).toLocaleString('vi-VN')} đ`}
-                                    title="Đơn giá niêm yết kho dược cố định"
-                                    className="w-20 text-right py-1 px-1.5 bg-slate-100 border border-slate-200 rounded text-xs font-mono font-bold text-slate-700 cursor-not-allowed"
-                                  />
-                                </td>
-                                <td className="p-2 text-right font-bold text-teal-900 font-mono text-[11px]">
-                                  {((Number(insertItemData.quantity) || 0) * (Number(insertItemData.unitPrice) || 0)).toLocaleString('vi-VN')} đ
-                                </td>
-                                <td className="p-2 text-center">
-                                  <div className="flex items-center justify-center gap-1">
-                                    <button
-                                      type="button"
-                                      onClick={handleSaveInsertRow}
-                                      className="px-2 py-1 bg-teal-700 hover:bg-teal-800 text-white rounded text-[11px] font-bold flex items-center gap-1 shadow-2xs transition cursor-pointer"
-                                      title="Lưu dòng thuốc này"
-                                    >
-                                      <Check size={13} />
-                                      <span>Thêm</span>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={handleCancelInsertRow}
-                                      className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded transition cursor-pointer"
-                                      title="Hủy"
-                                    >
-                                      <X size={14} />
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            )}
+                            {insertRowIndex === 0 && renderDesktopInsertRow()}
 
                             {prescriptionItems.map((item, idx) => {
                               const lineTotal = (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
@@ -3379,36 +3435,38 @@ export default function DoctorClinicView() {
                                           className="w-20 text-right py-1 px-1.5 bg-slate-100 border border-slate-200 rounded text-xs font-mono font-bold text-slate-700 cursor-not-allowed"
                                         />
                                       </td>
-                                      <td className="p-2 text-right font-bold text-amber-950 font-mono text-[11px]">
-                                        {((Number(editingItemData?.quantity) || 0) * (Number(editingItemData?.unitPrice) || 0)).toLocaleString('vi-VN')} đ
-                                      </td>
-                                      <td className="p-2 text-center">
-                                        <div className="flex items-center justify-center gap-1">
-                                          <button
-                                            type="button"
-                                            onClick={() => handleSaveEditRow(idx)}
-                                            className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[11px] font-bold flex items-center gap-1 shadow-2xs transition cursor-pointer"
-                                            title="Lưu thay đổi dòng này"
-                                          >
-                                            <Check size={13} />
-                                            <span>Lưu</span>
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={handleCancelEditRow}
-                                            className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded transition cursor-pointer"
-                                            title="Hủy bỏ"
-                                          >
-                                            <X size={14} />
-                                          </button>
+                                      <td className="p-2 text-right">
+                                        <div className="flex flex-col items-end gap-1.5">
+                                          <span className="font-bold text-amber-950 font-mono text-[11px] whitespace-nowrap">
+                                            {((Number(editingItemData?.quantity) || 0) * (Number(editingItemData?.unitPrice) || 0)).toLocaleString('vi-VN')} đ
+                                          </span>
+                                          <div className="flex items-center justify-end gap-1">
+                                            <button
+                                              type="button"
+                                              onClick={() => handleSaveEditRow(idx)}
+                                              className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[11px] font-bold flex items-center gap-1 shadow-2xs transition cursor-pointer"
+                                              title="Lưu thay đổi dòng này"
+                                            >
+                                              <Check size={12} />
+                                              <span>Lưu</span>
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={handleCancelEditRow}
+                                              className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded transition cursor-pointer"
+                                              title="Hủy bỏ"
+                                            >
+                                              <X size={13} />
+                                            </button>
+                                          </div>
                                         </div>
                                       </td>
                                     </tr>
                                   ) : (
                                     <tr
                                       className="hover:bg-teal-50/30 transition group/row"
-                                      onDoubleClick={() => handleStartEditRow(idx)}
-                                      title="Nhấp đúp chuột hoặc bấm biểu tượng bút chì để sửa dòng này"
+                                      onDoubleClick={() => handleOpenMedicineDetail(item, idx)}
+                                      title="Nhấp đúp chuột vào hàng hoặc bấm ô Cách dùng để xem & chỉnh sửa trực tiếp"
                                     >
                                       <td className="p-2.5 text-center text-slate-400 font-mono text-[11px]">{idx + 1}</td>
                                       <td className="p-2.5 font-bold text-slate-800">
@@ -3428,14 +3486,20 @@ export default function DoctorClinicView() {
                                         <div className="flex items-center justify-center gap-1">
                                           <button
                                             type="button"
-                                            onClick={() => handleQuickChangeQty(idx, -1)}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleQuickChangeQty(idx, -1);
+                                            }}
                                             className="w-4 h-4 rounded text-slate-400 hover:text-rose-600 hover:bg-slate-100 flex items-center justify-center font-bold text-[10px] transition cursor-pointer"
                                             title="Giảm 1 số lượng"
                                           >-</button>
                                           <span className="font-bold text-teal-800 font-mono text-xs px-1 min-w-[20px] text-center">{item.quantity}</span>
                                           <button
                                             type="button"
-                                            onClick={() => handleQuickChangeQty(idx, 1)}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleQuickChangeQty(idx, 1);
+                                            }}
                                             className="w-4 h-4 rounded text-slate-400 hover:text-teal-700 hover:bg-slate-100 flex items-center justify-center font-bold text-[10px] transition cursor-pointer"
                                             title="Tăng 1 số lượng"
                                           >+</button>
@@ -3447,10 +3511,10 @@ export default function DoctorClinicView() {
                                             type="button"
                                             onClick={(e) => {
                                               e.stopPropagation();
-                                              setViewMedicineDetail({ item, index: idx });
+                                              handleOpenMedicineDetail(item, idx);
                                             }}
                                             className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 shadow-2xs hover:shadow-xs transition cursor-pointer max-w-[170px]"
-                                            title="Bấm để xem đầy đủ hàng thuốc này trong popup"
+                                            title="Bấm để xem & chỉnh sửa trực tiếp hàng thuốc này trong popup"
                                           >
                                             <Eye size={14} className="text-teal-600 shrink-0 group-hover/dosage:scale-110 transition-transform" />
                                             <span className="truncate text-[11px] font-medium text-slate-700 italic">
@@ -3470,7 +3534,7 @@ export default function DoctorClinicView() {
                                               </p>
                                               <div className="mt-1.5 pt-1.5 border-t border-slate-800 text-[10px] text-slate-400 flex items-center justify-between">
                                                 <span className="truncate max-w-[140px]">{item.medicineName}</span>
-                                                <span className="text-teal-400 font-semibold">Bấm để mở popup</span>
+                                                <span className="text-teal-400 font-semibold">Bấm để xem &amp; sửa</span>
                                               </div>
                                               <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-slate-900"></div>
                                             </div>
@@ -3483,150 +3547,14 @@ export default function DoctorClinicView() {
                                           <Lock size={10} className="inline text-slate-400 ml-1" />
                                         </span>
                                       </td>
-                                      <td className="p-2.5 text-right font-bold text-slate-800 font-mono text-[11px]">
+                                      <td className="p-2.5 text-right font-bold text-slate-800 font-mono text-[11px] whitespace-nowrap">
                                         {lineTotal.toLocaleString('vi-VN')} đ
-                                      </td>
-                                      <td className="p-2.5 text-center">
-                                        <div className="flex items-center justify-center gap-1">
-                                          <button
-                                            type="button"
-                                            onClick={() => handleStartInsertRow(idx + 1)}
-                                            className="p-1 text-teal-600 hover:text-teal-800 hover:bg-teal-50 rounded transition cursor-pointer"
-                                            title="Chèn thêm thuốc ngay dưới dòng này"
-                                          >
-                                            <Plus size={14} />
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={() => handleStartEditRow(idx)}
-                                            className="p-1 text-amber-600 hover:text-amber-800 hover:bg-amber-50 rounded transition cursor-pointer"
-                                            title="Sửa dòng thuốc này"
-                                          >
-                                            <Pencil size={13} />
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={() => handleRemoveMedicine(idx)}
-                                            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
-                                            title="Xóa dòng thuốc này"
-                                          >
-                                            <Trash2 size={13} />
-                                          </button>
-                                        </div>
                                       </td>
                                     </tr>
                                   )}
 
                                   {/* Insert row after this item if insertRowIndex === idx + 1 */}
-                                  {insertRowIndex === idx + 1 && (
-                                    <tr className="bg-teal-50/80 border-2 border-teal-400 shadow-xs">
-                                      <td className="p-2 text-center text-teal-700 font-bold text-[11px] font-mono">➕</td>
-                                      <td className="p-2">
-                                        <select
-                                          value={insertItemData.medicineId || ''}
-                                          onChange={(e) => {
-                                            const medId = e.target.value;
-                                            const med = inventoryMedicines.find(m => m.id === medId);
-                                            if (med) {
-                                              setInsertItemData(prev => ({
-                                                ...prev,
-                                                medicineId: med.id,
-                                                medicineName: `${med.name}${med.activeIngredient ? ` (${med.activeIngredient})` : ''}`,
-                                                unit: med.unit,
-                                                unitPrice: med.unitPrice,
-                                                stockQuantity: med.stockQuantity,
-                                              }));
-                                            }
-                                          }}
-                                          className="w-full px-2 py-1 bg-white border border-teal-400 rounded text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-teal-600"
-                                        >
-                                          {renderMedicineOptions()}
-                                        </select>
-                                        {insertItemData.stockQuantity !== undefined && (
-                                          <div className="flex items-center gap-1 mt-0.5 text-[10px]">
-                                            <span className={insertItemData.stockQuantity === 0 ? 'text-rose-600 font-bold' : insertItemData.stockQuantity <= 30 ? 'text-amber-600 font-bold' : 'text-emerald-700 font-bold'}>
-                                              📦 Tồn: {insertItemData.stockQuantity} {insertItemData.unit}
-                                            </span>
-                                            {Number(insertItemData.quantity) > insertItemData.stockQuantity && (
-                                              <span className="text-rose-600 font-bold">• ⚠️ Vượt tồn</span>
-                                            )}
-                                          </div>
-                                        )}
-                                      </td>
-                                      <td className="p-2 text-center">
-                                        <input
-                                          type="text"
-                                          readOnly
-                                          value={insertItemData.unit}
-                                          className="w-16 text-center py-1 bg-slate-100 border border-slate-200 rounded text-xs font-bold text-slate-600 cursor-not-allowed"
-                                          title="ĐVT theo danh mục kho"
-                                        />
-                                      </td>
-                                      <td className="p-2 text-center">
-                                        <div className="flex items-center justify-center gap-1">
-                                          <button
-                                            type="button"
-                                            onClick={() => setInsertItemData(prev => ({ ...prev, quantity: Math.max(1, (Number(prev.quantity) || 1) - 1) }))}
-                                            className="w-5 h-5 rounded bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs border border-slate-200 cursor-pointer"
-                                          >-</button>
-                                          <input
-                                            type="number"
-                                            min={1}
-                                            value={insertItemData.quantity}
-                                            onChange={(e) => setInsertItemData(prev => ({ ...prev, quantity: Math.max(1, Number(e.target.value) || 1) }))}
-                                            className="w-12 text-center py-1 bg-white border border-teal-400 rounded text-xs font-bold text-teal-800 font-mono focus:outline-none"
-                                          />
-                                          <button
-                                            type="button"
-                                            onClick={() => setInsertItemData(prev => ({ ...prev, quantity: (Number(prev.quantity) || 1) + 1 }))}
-                                            className="w-5 h-5 rounded bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs border border-slate-200 cursor-pointer"
-                                          >+</button>
-                                        </div>
-                                      </td>
-                                      <td className="p-2">
-                                        <input
-                                          type="text"
-                                          value={insertItemData.dosage}
-                                          onChange={(e) => setInsertItemData(prev => ({ ...prev, dosage: e.target.value }))}
-                                          placeholder="Cách dùng / Liều uống..."
-                                          className="w-full px-2 py-1 bg-white border border-teal-400 rounded text-xs focus:outline-none"
-                                        />
-                                      </td>
-                                      <td className="p-2 text-right">
-                                        <input
-                                          type="text"
-                                          readOnly
-                                          value={`${(Number(insertItemData.unitPrice) || 0).toLocaleString('vi-VN')} đ`}
-                                          title="Đơn giá niêm yết kho dược cố định"
-                                          className="w-20 text-right py-1 px-1.5 bg-slate-100 border border-slate-200 rounded text-xs font-mono font-bold text-slate-700 cursor-not-allowed"
-                                        />
-                                      </td>
-                                      <td className="p-2 text-right font-bold text-teal-900 font-mono text-[11px]">
-                                        {((Number(insertItemData.quantity) || 0) * (Number(insertItemData.unitPrice) || 0)).toLocaleString('vi-VN')} đ
-                                      </td>
-                                      <td className="p-2 text-center">
-                                        <div className="flex items-center justify-center gap-1">
-                                          <button
-                                            type="button"
-                                            onClick={handleSaveInsertRow}
-                                            className="px-2 py-1 bg-teal-700 hover:bg-teal-800 text-white rounded text-[11px] font-bold flex items-center gap-1 shadow-2xs transition cursor-pointer"
-                                            title="Lưu dòng thuốc này"
-                                          >
-                                            <Check size={13} />
-                                            <span>Thêm</span>
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={handleCancelInsertRow}
-                                            className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded transition cursor-pointer"
-                                            title="Hủy"
-                                          >
-                                            <X size={14} />
-                                          </button>
-                                        </div>
-                                      </td>
-                                    </tr>
-                                  )}
+                                  {insertRowIndex === idx + 1 && renderDesktopInsertRow()}
                                 </React.Fragment>
                               );
                             })}
@@ -3634,7 +3562,7 @@ export default function DoctorClinicView() {
                             {/* Row to trigger Add new item at the bottom */}
                             {insertRowIndex !== prescriptionItems.length && (
                               <tr>
-                                <td colSpan={8} className="p-2 bg-slate-50/50 hover:bg-teal-50/40 text-center border-t border-slate-100 transition">
+                                <td colSpan={7} className="p-2 bg-slate-50/50 hover:bg-teal-50/40 text-center border-t border-slate-100 transition">
                                   <button
                                     type="button"
                                     onClick={() => handleStartInsertRow(prescriptionItems.length)}
@@ -3652,10 +3580,9 @@ export default function DoctorClinicView() {
                               <td colSpan={6} className="p-2.5 text-right uppercase tracking-wider text-[11px]">
                                 Tổng chi phí tiền thuốc dự kiến:
                               </td>
-                              <td className="p-2.5 text-right font-black text-teal-900 font-mono text-sm">
+                              <td className="p-2.5 text-right font-black text-teal-900 font-mono text-sm whitespace-nowrap">
                                 {totalMedicineCost.toLocaleString('vi-VN')} đ
                               </td>
-                              <td></td>
                             </tr>
                           </tfoot>
                         </table>
@@ -3902,11 +3829,11 @@ export default function DoctorClinicView() {
 
 
 
-      {/* ── CLAB-169: Modal Popup Xem Toàn Bộ Chi Tiết Hàng Thuốc & Cách Dùng ── */}
-      {viewMedicineDetail && (
+      {/* ── CLAB-169 / CLAB-170: Modal Popup Xem & Chỉnh Sửa Trực Tiếp Hàng Thuốc ── */}
+      {viewMedicineDetail && popupEditItem && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150"
-          onClick={() => setViewMedicineDetail(null)}
+          onClick={handleCloseMedicineDetail}
         >
           <div
             className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200"
@@ -3920,16 +3847,16 @@ export default function DoctorClinicView() {
                 </div>
                 <div>
                   <h3 className="font-extrabold text-sm sm:text-base leading-tight">
-                    Chi Tiết Thuốc #{viewMedicineDetail.index + 1}
+                    Chi Tiết &amp; Chỉnh Sửa Thuốc #{viewMedicineDetail.index + 1}
                   </h3>
                   <p className="text-[11px] text-teal-100 mt-0.5">
-                    Toàn bộ thông tin hàng thuốc &amp; hướng dẫn cách dùng
+                    Chỉnh sửa trực tiếp tên thuốc, số lượng, cách dùng hoặc xóa khỏi đơn
                   </p>
                 </div>
               </div>
               <button
                 type="button"
-                onClick={() => setViewMedicineDetail(null)}
+                onClick={handleCloseMedicineDetail}
                 className="w-8 h-8 rounded-xl hover:bg-white/20 text-white/80 hover:text-white flex items-center justify-center transition cursor-pointer"
                 title="Đóng (Esc)"
               >
@@ -3939,75 +3866,176 @@ export default function DoctorClinicView() {
 
             {/* Modal Body */}
             <div className="p-6 space-y-4">
-              {/* Tên thuốc */}
-              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                  Tên thuốc &amp; Hàm lượng
+              {popupError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl text-xs font-bold text-rose-700 flex items-center gap-2">
+                  <AlertCircle size={15} className="shrink-0" />
+                  <span>{popupError}</span>
                 </div>
-                <div className="font-black text-slate-900 text-base sm:text-lg">
-                  {viewMedicineDetail.item.medicineName}
-                </div>
-                {viewMedicineDetail.item.stockQuantity !== undefined && (
-                  <div className="mt-1.5 flex items-center gap-2 text-xs">
-                    <span className="text-slate-500 font-medium">Tồn kho dược:</span>
-                    <span className={`font-bold ${
-                      viewMedicineDetail.item.stockQuantity === 0 ? 'text-rose-600' :
-                      viewMedicineDetail.item.stockQuantity <= 30 ? 'text-amber-600' : 'text-emerald-700'
-                    }`}>
-                      {viewMedicineDetail.item.stockQuantity} {viewMedicineDetail.item.unit?.toLowerCase()}
-                    </span>
+              )}
+
+              {/* Tên thuốc & chọn từ kho dược */}
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  Tên thuốc &amp; Hàm lượng (Chọn từ kho dược)
+                </label>
+                <select
+                  value={
+                    popupEditItem.medicineId && inventoryMedicines.some(m => m.id === popupEditItem.medicineId)
+                      ? popupEditItem.medicineId
+                      : popupEditItem.medicineName
+                      ? '__current__'
+                      : ''
+                  }
+                  onChange={(e) => {
+                    const medId = e.target.value;
+                    if (!medId || medId === '__current__') return;
+                    const med = inventoryMedicines.find(m => m.id === medId);
+                    if (med) {
+                      setPopupError(null);
+                      setPopupEditItem(prev => prev ? ({
+                        ...prev,
+                        medicineId: med.id,
+                        medicineName: `${med.name}${med.activeIngredient ? ` (${med.activeIngredient})` : ''}`,
+                        unit: med.unit,
+                        unitPrice: med.unitPrice,
+                        stockQuantity: med.stockQuantity,
+                      }) : null);
+                    }
+                  }}
+                  className="w-full px-3 py-2 bg-white border border-slate-300 focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-500/20 rounded-xl font-bold text-slate-900 text-sm"
+                >
+                  {popupEditItem.medicineName && !inventoryMedicines.some(m => m.id === popupEditItem.medicineId) && (
+                    <option value="__current__">{popupEditItem.medicineName} (Theo đơn hiện tại)</option>
+                  )}
+                  {renderMedicineOptions()}
+                </select>
+                {popupEditItem.stockQuantity !== undefined && (
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-slate-500 font-medium">Tồn kho dược:</span>
+                      <span className={`font-bold ${
+                        popupEditItem.stockQuantity === 0 ? 'text-rose-600' :
+                        popupEditItem.stockQuantity <= 30 ? 'text-amber-600' : 'text-emerald-700'
+                      }`}>
+                        {popupEditItem.stockQuantity} {popupEditItem.unit?.toLowerCase()}
+                      </span>
+                    </div>
+                    {Number(popupEditItem.quantity) > popupEditItem.stockQuantity && (
+                      <span className="text-[11px] font-bold text-rose-600">
+                        ⚠️ Vượt tồn kho khả dụng
+                      </span>
+                    )}
                   </div>
                 )}
               </div>
 
-              {/* Thông số số lượng & giá */}
-              <div className="grid grid-cols-3 gap-3">
-                <div className="p-3 bg-teal-50/80 border border-teal-200 rounded-2xl text-center">
-                  <div className="text-[10px] font-bold text-teal-700 uppercase">Số lượng kê</div>
-                  <div className="text-xl font-black text-teal-900 font-mono mt-0.5">
-                    {viewMedicineDetail.item.quantity}
+              {/* Thông số số lượng (editable) & giá */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="p-3 bg-teal-50/80 border border-teal-200 rounded-2xl text-center flex flex-col items-center justify-center">
+                  <div className="text-[10px] font-bold text-teal-700 uppercase mb-1.5">Số lượng kê</div>
+                  <div className="flex items-center justify-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPopupError(null);
+                        setPopupEditItem(prev => prev ? ({ ...prev, quantity: Math.max(1, (Number(prev.quantity) || 1) - 1) }) : null);
+                      }}
+                      className="w-7 h-7 rounded-lg bg-white hover:bg-teal-100 text-teal-800 font-bold text-sm border border-teal-300 flex items-center justify-center transition cursor-pointer"
+                      title="Giảm 1"
+                    >-</button>
+                    <input
+                      type="number"
+                      min={1}
+                      value={popupEditItem.quantity === 0 ? '' : popupEditItem.quantity}
+                      onChange={(e) => {
+                        setPopupError(null);
+                        const raw = e.target.value;
+                        setPopupEditItem(prev => prev ? ({ ...prev, quantity: raw === '' ? 0 : Math.max(0, Math.floor(Number(raw) || 0)) }) : null);
+                      }}
+                      onBlur={() => {
+                        setPopupEditItem(prev => prev && prev.quantity < 1 ? ({ ...prev, quantity: 1 }) : prev);
+                      }}
+                      className="w-14 text-center py-1 bg-white border border-teal-400 rounded-lg text-base font-black text-teal-900 font-mono focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPopupError(null);
+                        setPopupEditItem(prev => prev ? ({ ...prev, quantity: (Number(prev.quantity) || 1) + 1 }) : null);
+                      }}
+                      className="w-7 h-7 rounded-lg bg-white hover:bg-teal-100 text-teal-800 font-bold text-sm border border-teal-300 flex items-center justify-center transition cursor-pointer"
+                      title="Tăng 1"
+                    >+</button>
                   </div>
-                  <div className="text-[11px] text-teal-700 font-semibold">{viewMedicineDetail.item.unit}</div>
+                  <div className="text-[11px] text-teal-700 font-semibold mt-1">{popupEditItem.unit}</div>
                 </div>
 
-                <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl text-right">
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl text-right flex flex-col justify-center">
                   <div className="text-[10px] font-bold text-slate-500 uppercase">Đơn giá</div>
-                  <div className="text-sm font-bold text-slate-700 font-mono mt-1">
-                    {(Number(viewMedicineDetail.item.unitPrice) || 0).toLocaleString('vi-VN')} đ
+                  <div className="text-sm font-bold text-slate-700 font-mono mt-1 whitespace-nowrap">
+                    {(Number(popupEditItem.unitPrice) || 0).toLocaleString('vi-VN')} đ
                   </div>
-                  <div className="text-[10px] text-slate-400">Niêm yết kho</div>
+                  <div className="text-[10px] text-slate-400 flex items-center justify-end gap-1 mt-0.5">
+                    <Lock size={10} />
+                    <span>Niêm yết kho</span>
+                  </div>
                 </div>
 
-                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-right">
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-right flex flex-col justify-center">
                   <div className="text-[10px] font-bold text-emerald-700 uppercase">Thành tiền</div>
-                  <div className="text-sm font-black text-emerald-900 font-mono mt-1">
-                    {((Number(viewMedicineDetail.item.quantity) || 0) * (Number(viewMedicineDetail.item.unitPrice) || 0)).toLocaleString('vi-VN')} đ
+                  <div className="text-sm font-black text-emerald-900 font-mono mt-1 whitespace-nowrap">
+                    {((Number(popupEditItem.quantity) || 0) * (Number(popupEditItem.unitPrice) || 0)).toLocaleString('vi-VN')} đ
                   </div>
-                  <div className="text-[10px] text-emerald-600">Đã tính VAT</div>
+                  <div className="text-[10px] text-emerald-600 mt-0.5">Đã tính VAT</div>
                 </div>
               </div>
 
-              {/* Hướng dẫn cách dùng chi tiết */}
+              {/* Hướng dẫn cách dùng chi tiết (editable textarea) */}
               <div className="p-4 bg-amber-50/90 rounded-2xl border border-amber-200 space-y-2">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900 uppercase tracking-wide">
+                <label className="flex items-center gap-1.5 text-xs font-bold text-amber-900 uppercase tracking-wide">
                   <FileText size={15} className="text-amber-700" />
                   <span>HƯỚNG DẪN CÁCH DÙNG &amp; LIỀU UỐNG:</span>
-                </div>
-                <div className="text-xs sm:text-sm text-slate-800 leading-relaxed font-semibold bg-white p-3.5 rounded-xl border border-amber-200 whitespace-pre-wrap shadow-2xs">
-                  {viewMedicineDetail.item.dosage || 'Bác sĩ chưa ghi chú cách dùng cụ thể cho thuốc này.'}
-                </div>
+                </label>
+                <textarea
+                  rows={3}
+                  value={popupEditItem.dosage}
+                  onChange={(e) => {
+                    setPopupError(null);
+                    setPopupEditItem(prev => prev ? ({ ...prev, dosage: e.target.value }) : null);
+                  }}
+                  placeholder="Nhập hướng dẫn cách dùng, liều lượng uống trong ngày cho bệnh nhân..."
+                  className="w-full text-xs sm:text-sm text-slate-800 leading-relaxed font-semibold bg-white p-3.5 rounded-xl border border-amber-300 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-300/40 shadow-2xs resize-y"
+                />
               </div>
             </div>
 
             {/* Modal Footer */}
-            <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex justify-end">
+            <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
               <button
                 type="button"
-                onClick={() => setViewMedicineDetail(null)}
-                className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
+                onClick={() => handleRemoveMedicine(viewMedicineDetail.index)}
+                className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
               >
-                Đóng cửa sổ
+                <Trash2 size={14} />
+                <span>Xóa thuốc này</span>
               </button>
+              <div className="flex items-center gap-2 ml-auto">
+                <button
+                  type="button"
+                  onClick={handleCloseMedicineDetail}
+                  className="px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold transition cursor-pointer"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSavePopupEdit}
+                  className="px-5 py-2 bg-teal-700 hover:bg-teal-800 text-white rounded-xl text-xs font-bold transition shadow-xs flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Check size={14} />
+                  <span>Lưu thay đổi</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
