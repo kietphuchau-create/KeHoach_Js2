@@ -42,7 +42,7 @@ import {
 } from 'lucide-react';
 import IncompleteProfileModal from '@/shared/components/Feedback/IncompleteProfileModal';
 import { api, AppointmentResponse, getAuthUser, getAuthToken } from '@/shared/lib/api';
-import { formatDoctorFullName } from '@/shared/lib/formatters';
+import { formatDoctorFullName, getLocalDateString } from '@/shared/lib/formatters';
 import AlertMessage from '@/shared/components/Feedback/AlertMessage';
 import LoadingSpinner from '@/shared/components/Feedback/LoadingSpinner';
 import { useSingleTabLock } from '@/shared/hooks/useSingleTabLock';
@@ -50,7 +50,13 @@ import SingleTabLockOverlay from '@/shared/components/Feedback/SingleTabLockOver
 import { QrCodeImage } from '@/shared/components/QrCodeImage';
 import { VietQrModal } from '@/shared/components/VietQrModal';
 import QRCode from 'qrcode';
-import { validatePromotion } from '@/shared/lib/promotions';
+import {
+  validatePromotion,
+  getPromotions,
+  getPromotionsFromDb,
+  PROMOTIONS_UPDATED_EVENT,
+  Promotion
+} from '@/shared/lib/promotions';
 import { getClinicScheduleConfig, saveClinicScheduleConfig, SCHEDULE_CONFIG_UPDATED_EVENT } from '@/shared/lib/scheduleConfig';
 
 // Trích xuất chữ cái đại diện chuẩn cho Avatar Bác sĩ (Ưu tiên chữ cái đầu tên chính, viết hoa)
@@ -177,6 +183,25 @@ export default function BookingForm() {
   const [appliedPromo, setAppliedPromo] = useState<string | null>(null);
   const [paidPromoCode, setPaidPromoCode] = useState<string | null>(null);
   const [promoError, setPromoError] = useState<string | null>(null);
+  const [activePromotions, setActivePromotions] = useState<Promotion[]>([]);
+
+  // Tự động đồng bộ danh sách mã ưu đãi khả dụng từ hệ thống Admin
+  useEffect(() => {
+    const syncPromotions = () => {
+      const all = getPromotions();
+      const today = getLocalDateString();
+      const valid = all.filter(
+        (p) => p.status === 'active' && (!p.endDate || p.endDate >= today)
+      );
+      setActivePromotions(valid);
+    };
+
+    syncPromotions();
+    getPromotionsFromDb().then(() => syncPromotions()).catch(() => {});
+
+    window.addEventListener(PROMOTIONS_UPDATED_EVENT, syncPromotions);
+    return () => window.removeEventListener(PROMOTIONS_UPDATED_EVENT, syncPromotions);
+  }, []);
   const [showClinicInfoModal, setShowClinicInfoModal] = useState<boolean>(false);
   const [showFeeModal, setShowFeeModal] = useState<boolean>(false);
   const [showRelativeModal, setShowRelativeModal] = useState<boolean>(false);
@@ -1017,12 +1042,20 @@ export default function BookingForm() {
       return;
     }
     const promoRes = validatePromotion(cleaned);
-    const validCodes = ['GIAOVIEN', 'MEDFREE', 'GIAM100', 'TESTER', 'VIP', 'GV2026', 'BACSITHANH', 'KHOACNTT', 'DEMO'];
-    if (promoRes.valid || validCodes.includes(cleaned) || cleaned.startsWith('GV') || cleaned.startsWith('TEST') || cleaned.startsWith('FREE')) {
+    const validCodes = ['FREE', 'CODE2K', 'DEMO2K', 'GIAOVIEN', 'MEDFREE', 'GIAM100', 'TESTER', 'VIP', 'GV2026', 'BACSITHANH', 'KHOACNTT', 'DEMO'];
+    if (
+      promoRes.valid ||
+      validCodes.includes(cleaned) ||
+      activePromotions.some((p) => p.code.toUpperCase() === cleaned) ||
+      cleaned.startsWith('GV') ||
+      cleaned.startsWith('TEST') ||
+      cleaned.startsWith('FREE') ||
+      cleaned.startsWith('CODE')
+    ) {
       setAppliedPromo(cleaned);
       setPromoError(null);
     } else {
-      setPromoError(promoRes.message || 'Mã không hợp lệ. Vui lòng thử mã "GIAOVIEN" hoặc "MEDFREE".');
+      setPromoError(promoRes.message || 'Mã ưu đãi không hợp lệ hoặc đã hết hạn.');
     }
   };
 
@@ -1042,15 +1075,23 @@ export default function BookingForm() {
       return;
     }
 
+    const todayIso = getTodayISODate();
+    const isToday = bookingDate === todayIso;
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const [sh, sm] = (selectedSlot.time || '').split('-')[0].trim().split(':').map(Number);
+    const selectedStartMinutes = (sh || 0) * 60 + (sm || 0);
+
     if (
       !selectedSlot.id ||
       selectedSlot.id === 'default' ||
       selectedSlot.time === 'Chưa có ca trực' ||
       selectedSlot.time === 'Hết chỗ' ||
       selectedSlot.time === 'Chưa chọn' ||
-      timeSlots.find((s) => s.id === selectedSlot.id)?.disabled
+      timeSlots.find((s) => s.id === selectedSlot.id)?.disabled ||
+      (isToday && selectedStartMinutes <= currentMinutes)
     ) {
-      setError('Khung giờ bạn chọn đã qua, không còn khả dụng hoặc bác sĩ chưa mở ca trực. Vui lòng chọn khung giờ khác hoặc ngày khác.');
+      setError('Khung giờ bạn chọn đã qua, không còn khả dụng hoặc bác sĩ chưa mở ca trực. Vui lòng chọn khung giờ trong tương lai hoặc ngày khác.');
       return;
     }
     if (bookingFor === 'relative' && !relativeInfo.fullName.trim()) {
@@ -1496,18 +1537,45 @@ export default function BookingForm() {
   const timeSlots = useMemo(() => {
     if (!selectedDoctor?.id) return [];
     if (dynamicSlots.length > 0) {
-      return dynamicSlots.map((s) => ({
-        id: s.id,
-        time: s.time,
-        status: (s.status === 'full' ? 'full' : s.status === 'expired' ? 'expired' : s.status === 'locked' ? 'full' : 'available') as 'available' | 'full' | 'expired',
-        label: s.label,
-        disabled: s.disabled,
-      }));
+      const todayIso = getTodayISODate();
+      const isToday = bookingDate === todayIso;
+      const isPastDate = Boolean(bookingDate && bookingDate < todayIso);
+      const now = new Date();
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+      return dynamicSlots.map((s) => {
+        let slotStartMinutes = s.startMinutes;
+        if (slotStartMinutes === undefined) {
+          const [sh, sm] = (s.time || '').split('-')[0].trim().split(':').map(Number);
+          slotStartMinutes = (sh || 0) * 60 + (sm || 0);
+        }
+
+        const isPastSlot = isPastDate || (isToday && slotStartMinutes <= currentMinutes);
+        const isDisabled = Boolean(s.disabled || isPastSlot);
+        const status = isPastSlot
+          ? 'expired'
+          : s.status === 'full'
+          ? 'full'
+          : s.status === 'expired'
+          ? 'expired'
+          : s.status === 'locked'
+          ? 'full'
+          : 'available';
+        const label = isPastSlot ? 'Đã qua giờ' : s.label;
+
+        return {
+          id: s.id,
+          time: s.time,
+          status: status as 'available' | 'full' | 'expired',
+          label,
+          disabled: isDisabled,
+        };
+      });
     }
 
     // Khi bác sĩ chưa đăng ký ca trực hoặc dynamicSlots rỗng: Trả về rỗng, tuyệt đối không tự sinh slot ảo!
     return [];
-  }, [dynamicSlots, selectedDoctor?.id]);
+  }, [dynamicSlots, selectedDoctor?.id, bookingDate]);
 
   // Phân chia khung giờ Sáng & Chiều (Chuẩn YouMed - Ảnh 1 & Ảnh 3)
   const morningSlots = useMemo(() => {
@@ -1596,8 +1664,33 @@ export default function BookingForm() {
         });
       }
     }
-    // Nếu alreadyApplied = true: không tự động override slot user đã chọn
-  }, [bookingDate, timeSlots, selectedDoctor?.id, loadingSlots, loadedSlotsFor]);
+
+    // Kiểm tra an toàn: Nếu slot đang chọn đã rơi vào quá khứ hoặc bị khóa (CLAB-164)
+    if (selectedSlot.id && selectedSlot.id !== 'default') {
+      const currentSlotObj = timeSlots.find((slot) => slot.id === selectedSlot.id);
+      if (currentSlotObj?.disabled) {
+        const nextValidSlot = timeSlots.find((slot) => !slot.disabled);
+        if (nextValidSlot) {
+          setSelectedSlot({
+            id: nextValidSlot.id,
+            time: nextValidSlot.time,
+            date: formatISODateToVN(bookingDate),
+          });
+          setStep2Errors((previous) => ({ ...previous, slot: undefined }));
+        } else {
+          setSelectedSlot({
+            id: '',
+            time: 'Hết chỗ',
+            date: formatISODateToVN(bookingDate),
+          });
+          setStep2Errors((previous) => ({
+            ...previous,
+            slot: 'Toàn bộ khung giờ khám hôm nay đã qua hoặc đã kín chỗ. Vui lòng chọn ngày khám khác.',
+          }));
+        }
+      }
+    }
+  }, [bookingDate, timeSlots, selectedDoctor?.id, loadingSlots, loadedSlotsFor, selectedSlot.id]);
 
 
   const activeCenterObj = useMemo(() => {
@@ -4122,7 +4215,7 @@ export default function BookingForm() {
                 </div>
                 <div>
                   <h3 className="font-bold text-slate-800 text-sm sm:text-base">Mã Ưu Đãi / Voucher Miễn Cọc</h3>
-                  <span className="text-[11px] text-amber-700 font-medium">Hỗ trợ Giảng viên &amp; Tester kiểm thử</span>
+                  <span className="text-[11px] text-slate-500 font-medium">Nhập mã ưu đãi để nhận đặc quyền miễn/giảm tiền cọc</span>
                 </div>
               </div>
               <button
@@ -4187,7 +4280,7 @@ export default function BookingForm() {
                           handleApplyPromo();
                         }
                       }}
-                      placeholder="Nhập GIAOVIEN hoặc MEDFREE..."
+                      placeholder="Nhập mã ưu đãi của bạn..."
                       className="flex-1 bg-slate-50 border border-slate-200 focus:bg-white focus:border-amber-500 rounded-xl px-3 py-2.5 text-xs font-medium uppercase placeholder:normal-case placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-200"
                     />
                     <button
@@ -4205,52 +4298,7 @@ export default function BookingForm() {
                   )}
                 </div>
 
-                {/* Phím tắt chọn nhanh mã kiểm thử */}
-                <div className="p-3 bg-amber-50/60 border border-amber-200/80 rounded-2xl space-y-2">
-                  <span className="text-[11px] font-bold text-amber-900 block">
-                    ⚡ Chọn nhanh mã kiểm thử hệ thống:
-                  </span>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPromoInput('DEMO2K');
-                        setAppliedPromo('DEMO2K');
-                        setPromoError(null);
-                      }}
-                      className="p-2.5 bg-white border border-blue-300 hover:border-blue-500 rounded-xl text-left transition cursor-pointer hover:shadow-xs group"
-                    >
-                      <span className="font-mono font-bold text-blue-700 text-xs block group-hover:text-blue-800">DEMO2K</span>
-                      <span className="text-[10px] text-slate-500 block">Đồng giá 2.000 đ quét VietQR thật</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPromoInput('GIAOVIEN');
-                        setAppliedPromo('GIAOVIEN');
-                        setPromoError(null);
-                      }}
-                      className="p-2.5 bg-white border border-amber-300 hover:border-amber-500 rounded-xl text-left transition cursor-pointer hover:shadow-xs group"
-                    >
-                      <span className="font-mono font-bold text-amber-700 text-xs block group-hover:text-amber-800">GIAOVIEN</span>
-                      <span className="text-[10px] text-slate-500 block">Dành cho Thầy/Cô (0đ cọc)</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPromoInput('MEDFREE');
-                        setAppliedPromo('MEDFREE');
-                        setPromoError(null);
-                      }}
-                      className="p-2.5 bg-white border border-emerald-300 hover:border-emerald-500 rounded-xl text-left transition cursor-pointer hover:shadow-xs group"
-                    >
-                      <span className="font-mono font-bold text-emerald-700 text-xs block group-hover:text-emerald-800">MEDFREE</span>
-                      <span className="text-[10px] text-slate-500 block">Miễn 100% tiền cọc (0đ)</span>
-                    </button>
-                  </div>
-                </div>
-
-                <div className="pt-1">
+                <div className="pt-2">
                   <button
                     type="button"
                     onClick={() => setShowVoucherModal(false)}

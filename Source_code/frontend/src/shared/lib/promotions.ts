@@ -21,10 +21,25 @@ export interface Promotion {
 
 export const DEFAULT_PROMOTIONS: Promotion[] = [
   {
-    id: 'promo-demo2k',
-    code: 'DEMO2K',
-    name: 'Mã Thử Nghiệm Thanh Toán Thật (2.000 đ)',
-    description: 'Giảm tiền đặt cọc xuống đúng 2.000 đ để quét mã VietQR bằng App ngân hàng thật khi nghiệm thu demo.',
+    id: 'promo-free',
+    code: 'FREE',
+    name: 'ĐẶC QUYỀN DEV',
+    description: 'ĐẶC QUYỀN DEV',
+    discountType: 'FREE_DEPOSIT',
+    discountValue: 100,
+    maxUses: 9999,
+    usedCount: 0,
+    startDate: '2026-01-01',
+    endDate: '2026-12-31',
+    status: 'active',
+    targetAudience: 'Toàn bộ bệnh nhân',
+    createdAt: '2026-01-01T00:00:00Z',
+  },
+  {
+    id: 'promo-code2k',
+    code: 'CODE2K',
+    name: 'DÀNH CHO DEV',
+    description: 'TOÀN BỘ CHUYỂN KHOẢN ĐỒNG GIÁ 2K',
     discountType: 'FIX_TO_2K',
     discountValue: 2000,
     maxUses: 9999,
@@ -32,68 +47,8 @@ export const DEFAULT_PROMOTIONS: Promotion[] = [
     startDate: '2026-01-01',
     endDate: '2026-12-31',
     status: 'active',
-    targetAudience: 'Hội đồng phản biện & Giảng viên chấm thi',
+    targetAudience: 'Toàn bộ bệnh nhân',
     createdAt: '2026-01-01T00:00:00Z',
-  },
-  {
-    id: 'promo-giaovien',
-    code: 'GIAOVIEN',
-    name: 'Tri Ân Thầy Cô & Giảng Viên Chấm Thi',
-    description: 'Miễn phí 100% tiền đặt cọc giữ chỗ (0 đ). Xuất phiếu khám ngay khi xác nhận.',
-    discountType: 'FREE_DEPOSIT',
-    discountValue: 100,
-    maxUses: 9999,
-    usedCount: 0,
-    startDate: '2026-01-01',
-    endDate: '2026-12-31',
-    status: 'active',
-    targetAudience: 'Giảng viên & Hội đồng chấm thi',
-    createdAt: '2026-01-01T00:00:00Z',
-  },
-  {
-    id: 'promo-medfree',
-    code: 'MEDFREE',
-    name: 'Mã Kiểm Thử Hệ Thống MedSched',
-    description: 'Miễn 100% tiền cọc kiểm thử nghiệm thu toàn bộ tính năng luồng đặt lịch khám.',
-    discountType: 'FREE_DEPOSIT',
-    discountValue: 100,
-    maxUses: 9999,
-    usedCount: 0,
-    startDate: '2026-01-01',
-    endDate: '2026-12-31',
-    status: 'active',
-    targetAudience: 'Tester & Khách dùng thử',
-    createdAt: '2026-01-01T00:00:00Z',
-  },
-  {
-    id: 'promo-medvip',
-    code: 'MEDVIP',
-    name: 'Ưu Đãi Khách Hàng Thân Thiết (VIP)',
-    description: 'Giảm 50% tiền đặt cọc giữ chỗ khi đặt khám cùng Bác sĩ Chuyên khoa II / Phó Giáo Sư.',
-    discountType: 'PERCENT',
-    discountValue: 50,
-    maxUses: 200,
-    usedCount: 0,
-    startDate: '2026-03-01',
-    endDate: '2026-11-30',
-    status: 'active',
-    targetAudience: 'Bệnh nhân tái khám & Hội viên VIP',
-    createdAt: '2026-03-01T00:00:00Z',
-  },
-  {
-    id: 'promo-chaoban',
-    code: 'CHAOBAN',
-    name: 'Chào Đón Bệnh Nhân Mới Đặt Lịch Online',
-    description: 'Giảm ngay 30.000 đ tiền đặt cọc dịch vụ khám tổng quát & chuyên khoa.',
-    discountType: 'FIXED',
-    discountValue: 30000,
-    maxUses: 500,
-    usedCount: 0,
-    startDate: '2026-05-01',
-    endDate: '2026-12-31',
-    status: 'active',
-    targetAudience: 'Bệnh nhân mới lần đầu đặt khám',
-    createdAt: '2026-05-01T00:00:00Z',
   },
 ];
 
@@ -214,7 +169,7 @@ export function deletePromotion(id: string): boolean {
 export async function getPromotionsFromDb(): Promise<Promotion[]> {
   try {
     const list = await api.getAdminPromotions();
-    if (Array.isArray(list) && list.length > 0) {
+    if (Array.isArray(list)) {
       savePromotions(list);
       return list;
     }
@@ -264,9 +219,12 @@ export async function updatePromotionInDb(
       savePromotions(current);
       return updated;
     }
-  } catch (e) {
-    console.error('Lỗi cập nhật khuyến mãi trong MySQL:', e);
-    throw e;
+  } catch (e: any) {
+    console.warn('Lỗi cập nhật khuyến mãi trong MySQL:', e);
+    const msg = e?.message || '';
+    if (!msg.includes('404') && !msg.includes('Không tìm thấy') && !msg.includes('not found')) {
+      throw e;
+    }
   }
   return updatePromotion(id, updates);
 }
@@ -279,9 +237,12 @@ export async function togglePromotionStatusInDb(id: string): Promise<Promotion |
       savePromotions(current);
       return toggled;
     }
-  } catch (e) {
-    console.error('Lỗi toggle trạng thái khuyến mãi trong MySQL:', e);
-    throw e;
+  } catch (e: any) {
+    console.warn('Lỗi toggle trạng thái khuyến mãi trong MySQL:', e);
+    const msg = e?.message || '';
+    if (!msg.includes('404') && !msg.includes('Không tìm thấy') && !msg.includes('not found')) {
+      throw e;
+    }
   }
   return togglePromotionStatus(id);
 }
@@ -289,13 +250,16 @@ export async function togglePromotionStatusInDb(id: string): Promise<Promotion |
 export async function deletePromotionFromDb(id: string): Promise<boolean> {
   try {
     await api.deleteAdminPromotion(id);
-    const current = getPromotions().filter((p) => p.id !== id);
-    savePromotions(current);
-    return true;
-  } catch (e) {
-    console.error('Lỗi xóa khuyến mãi khỏi MySQL:', e);
-    throw e;
+  } catch (e: any) {
+    console.warn('Lỗi xóa khuyến mãi khỏi MySQL (có thể là mã cục bộ hoặc đã bị xóa):', e);
+    const msg = e?.message || '';
+    if (!msg.includes('404') && !msg.includes('Không tìm thấy') && !msg.includes('not found')) {
+      throw e;
+    }
   }
+  const current = getPromotions().filter((p) => p.id !== id);
+  savePromotions(current);
+  return true;
 }
 
 // Kiểm tra và áp dụng mã khuyến mãi khi đặt lịch khám
@@ -325,6 +289,25 @@ export function validatePromotion(
   const found = list.find((p) => p.code.toUpperCase() === cleanCode);
 
   if (!found) {
+    // Fallback cho các mã đặc quyền chấm thi & tester nếu chưa tạo trong CSDL MySQL
+    if (cleanCode === 'GIAOVIEN' || cleanCode === 'MEDFREE') {
+      return {
+        valid: true,
+        isFree: true,
+        discountAmount: baseDeposit,
+        finalDeposit: 0,
+        message: '✓ Áp dụng thành công mã đặc quyền: Miễn 100% tiền đặt cọc giữ chỗ (0 đ).',
+      };
+    }
+    if (cleanCode === 'DEMO2K') {
+      return {
+        valid: true,
+        isFree: false,
+        discountAmount: Math.max(0, baseDeposit - 2000),
+        finalDeposit: 2000,
+        message: '✓ Áp dụng thành công mã trải nghiệm: Giảm tiền cọc xuống đúng 2.000 đ để quét VietQR thật.',
+      };
+    }
     return {
       valid: false,
       isFree: false,

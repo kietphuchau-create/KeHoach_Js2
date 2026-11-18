@@ -565,7 +565,7 @@ public class AppointmentController {
             String timeStr = timeFormatter.format(s.getStartTime()) + " - " + timeFormatter.format(s.getEndTime());
             int startMinutes = startLt.getHour() * 60 + startLt.getMinute();
 
-            boolean isPast = targetDate.isBefore(LocalDate.now(vnZone)) || (isToday && !isDev && !startLt.isAfter(nowTime));
+            boolean isPast = targetDate.isBefore(LocalDate.now(vnZone)) || (isToday && !startLt.isAfter(nowTime));
             String status;
             String label;
             boolean disabled;

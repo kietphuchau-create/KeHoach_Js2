@@ -2906,7 +2906,7 @@ export default function ReceptionView() {
                                     handleApplyBillingPromo();
                                   }
                                 }}
-                                placeholder="Nhập mã ưu đãi (VD: CHAOBAN, MEDVIP, GIAOVIEN, DEMO2K...)"
+                                placeholder="Nhập mã ưu đãi viện phí..."
                                 className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-800 placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition uppercase shadow-2xs"
                               />
                             </div>
@@ -2925,29 +2925,6 @@ export default function ReceptionView() {
                               <span>{billingPromoError}</span>
                             </div>
                           )}
-
-                          {/* Danh sách mã nhanh */}
-                          <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
-                            <span className="text-[11px] text-slate-500 font-medium">Gợi ý nhanh:</span>
-                            {[
-                              { code: 'CHAOBAN', label: 'CHAOBAN (-30k)' },
-                              { code: 'MEDVIP', label: 'MEDVIP (-50%)' },
-                              { code: 'DEMO2K', label: 'DEMO2K (Đồng giá 2k)' },
-                              { code: 'GIAOVIEN', label: 'GIAOVIEN (Miễn 100%)' },
-                            ].map((item) => (
-                              <button
-                                key={item.code}
-                                type="button"
-                                onClick={() => {
-                                  setBillingPromoCode(item.code);
-                                  handleApplyBillingPromo(item.code);
-                                }}
-                                className="px-2.5 py-1 bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 border border-slate-200 hover:border-emerald-300 rounded-lg text-[10px] font-mono font-bold transition cursor-pointer shadow-2xs"
-                              >
-                                {item.label}
-                              </button>
-                            ))}
-                          </div>
                         </div>
                       )}
                     </div>

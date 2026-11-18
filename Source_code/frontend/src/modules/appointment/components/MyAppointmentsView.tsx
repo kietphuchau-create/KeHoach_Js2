@@ -336,7 +336,7 @@ export default function MyAppointmentsView() {
             bookingCode: apt.bookingCode,
             paymentType: 'PROMO_FREE',
             amount: 0,
-            promoCode: 'GIAOVIEN',
+            promoCode: apt.paidPromoCode || apt.promoCode || 'PROMO_FREE',
           }).catch(() => {});
           return { ...apt, status: 'CONFIRMED' };
         }

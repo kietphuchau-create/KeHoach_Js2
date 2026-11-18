@@ -1251,7 +1251,7 @@ export default function ScheduleConfigManager() {
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-600 leading-relaxed">
-                    Nếu thời gian còn lại trước ca hẹn tiếp theo $\ge$ ngưỡng này, hệ thống sẽ mở khóa nút gọi ca vãng lai. Nếu thời gian dưới ngưỡng này, hệ thống sẽ <strong>chặn đứng</strong> để tránh trễ giờ bệnh nhân đặt trước.
+                    Nếu thời gian còn lại trước ca hẹn tiếp theo ≥ ngưỡng này, hệ thống sẽ mở khóa nút gọi ca vãng lai. Nếu thời gian dưới ngưỡng này, hệ thống sẽ <strong>chặn đứng</strong> để tránh trễ giờ bệnh nhân đặt trước.
                   </p>
                   <div className="grid grid-cols-4 gap-2 pt-1">
                     {[10, 15, 20, 30].map((mins) => (
