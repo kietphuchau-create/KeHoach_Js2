@@ -63,6 +63,7 @@ import {
 } from '@/shared/lib/medicineInventory';
 import { Bot } from 'lucide-react';
 import UniversalAiAssistantModal from '@/shared/components/Feedback/UniversalAiAssistantModal';
+import MedicineSearchSelect from './MedicineSearchSelect';
 
 interface PatientQueueItem {
   id: string;
@@ -652,25 +653,14 @@ export default function DoctorClinicView() {
 
   const selectedInventoryMed = inventoryMedicines.find(m => m.id === selectedInventoryMedId);
 
-  const renderMedicineOptions = () => (
-    <>
-      <option value="">-- Chọn thuốc từ kho dược phòng khám --</option>
-      <optgroup label="Chi Nhánh Trần Đại Nghĩa">
-        {inventoryMedicines.filter(m => m.medicalCenterName?.includes('Trần Đại Nghĩa')).map(m => (
-          <option key={m.id} value={m.id} disabled={m.stockQuantity === 0}>
-            {m.name} ({m.activeIngredient || m.unit}) • {m.unitPrice.toLocaleString('vi-VN')} đ {m.stockQuantity === 0 ? '❌ [HẾT HÀNG]' : `[Còn ${m.stockQuantity} ${m.unit.toLowerCase()}]`}
-          </option>
-        ))}
-      </optgroup>
-      <optgroup label="Chi Nhánh Trịnh Đình Thảo (ITC)">
-        {inventoryMedicines.filter(m => m.medicalCenterName?.includes('Trịnh Đình Thảo')).map(m => (
-          <option key={m.id} value={m.id} disabled={m.stockQuantity === 0}>
-            {m.name} ({m.activeIngredient || m.unit}) • {m.unitPrice.toLocaleString('vi-VN')} đ {m.stockQuantity === 0 ? '❌ [HẾT HÀNG]' : `[Còn ${m.stockQuantity} ${m.unit.toLowerCase()}]`}
-          </option>
-        ))}
-      </optgroup>
-    </>
-  );
+  const applyInventoryMedToItem = (prev: MedicineItem, med: MedicineInventoryItem): MedicineItem => ({
+    ...prev,
+    medicineId: med.id,
+    medicineName: `${med.name}${med.activeIngredient ? ` (${med.activeIngredient})` : ''}`,
+    unit: med.unit,
+    unitPrice: med.unitPrice,
+    stockQuantity: med.stockQuantity,
+  });
 
   const findMatchingInventoryMed = (item: Pick<MedicineItem, 'medicineId' | 'medicineName'>) =>
     inventoryMedicines.find(
@@ -936,26 +926,13 @@ export default function DoctorClinicView() {
     <tr className="bg-teal-50/80 border-2 border-teal-400 shadow-xs">
       <td className="p-2 text-center text-teal-700 font-bold text-[11px] font-mono">➕</td>
       <td className="p-2">
-        <select
+        <MedicineSearchSelect
+          medicines={inventoryMedicines}
           value={insertItemData.medicineId || ''}
-          onChange={(e) => {
-            const medId = e.target.value;
-            const med = inventoryMedicines.find(m => m.id === medId);
-            if (med) {
-              setInsertItemData(prev => ({
-                ...prev,
-                medicineId: med.id,
-                medicineName: `${med.name}${med.activeIngredient ? ` (${med.activeIngredient})` : ''}`,
-                unit: med.unit,
-                unitPrice: med.unitPrice,
-                stockQuantity: med.stockQuantity,
-              }));
-            }
-          }}
-          className="w-full px-2 py-1 bg-white border border-teal-400 rounded text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-teal-600"
-        >
-          {renderMedicineOptions()}
-        </select>
+          onSelect={(med) => setInsertItemData((prev) => applyInventoryMedToItem(prev, med))}
+          size="sm"
+          accent="teal"
+        />
         {insertItemData.stockQuantity !== undefined && (
           <div className="flex items-center gap-1 mt-0.5 text-[10px]">
             <span className={insertItemData.stockQuantity === 0 ? 'text-rose-600 font-bold' : insertItemData.stockQuantity <= 30 ? 'text-amber-600 font-bold' : 'text-emerald-700 font-bold'}>
@@ -3056,26 +3033,13 @@ export default function DoctorClinicView() {
                               <span>➕ Thêm thuốc mới từ kho dược (Đầu đơn):</span>
                               <button type="button" onClick={handleCancelInsertRow} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X size={15} /></button>
                             </div>
-                            <select
+                            <MedicineSearchSelect
+                              medicines={inventoryMedicines}
                               value={insertItemData.medicineId || ''}
-                              onChange={(e) => {
-                                const medId = e.target.value;
-                                const med = inventoryMedicines.find(m => m.id === medId);
-                                if (med) {
-                                  setInsertItemData(prev => ({
-                                    ...prev,
-                                    medicineId: med.id,
-                                    medicineName: `${med.name}${med.activeIngredient ? ` (${med.activeIngredient})` : ''}`,
-                                    unit: med.unit,
-                                    unitPrice: med.unitPrice,
-                                    stockQuantity: med.stockQuantity,
-                                  }));
-                                }
-                              }}
-                              className="w-full px-2.5 py-1.5 bg-white border border-teal-400 rounded-lg text-xs font-bold text-slate-800"
-                            >
-                              {renderMedicineOptions()}
-                            </select>
+                              onSelect={(med) => setInsertItemData((prev) => applyInventoryMedToItem(prev, med))}
+                              size="sm"
+                              accent="teal"
+                            />
                             {insertItemData.stockQuantity !== undefined && (
                               <p className={`text-[10px] font-bold ${insertItemData.stockQuantity === 0 ? 'text-rose-600' : insertItemData.stockQuantity <= 30 ? 'text-amber-600' : 'text-emerald-700'}`}>
                                 📦 Tồn kho khả dụng: {insertItemData.stockQuantity} {insertItemData.unit.toLowerCase()}
@@ -3130,26 +3094,14 @@ export default function DoctorClinicView() {
                                     <span>✏️ Sửa thuốc #{idx + 1}:</span>
                                     <button type="button" onClick={handleCancelEditRow} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X size={15} /></button>
                                   </div>
-                                  <select
-                                    value={editingItemData?.medicineId || ''}
-                                    onChange={(e) => {
-                                      const medId = e.target.value;
-                                      const med = inventoryMedicines.find(m => m.id === medId);
-                                      if (med) {
-                                        setEditingItemData(prev => prev ? ({
-                                          ...prev,
-                                          medicineId: med.id,
-                                          medicineName: `${med.name}${med.activeIngredient ? ` (${med.activeIngredient})` : ''}`,
-                                          unit: med.unit,
-                                          unitPrice: med.unitPrice,
-                                          stockQuantity: med.stockQuantity,
-                                        }) : null);
-                                      }
-                                    }}
-                                    className="w-full px-2.5 py-1.5 bg-white border border-amber-400 rounded-lg text-xs font-bold text-slate-800"
-                                  >
-                                    {renderMedicineOptions()}
-                                  </select>
+                                  <MedicineSearchSelect
+                                    medicines={inventoryMedicines}
+                                    value={editingItemData?.medicineId || (editingItemData?.medicineName ? '__current__' : '')}
+                                    currentFallbackLabel={editingItemData?.medicineName}
+                                    onSelect={(med) => setEditingItemData((prev) => (prev ? applyInventoryMedToItem(prev, med) : null))}
+                                    size="sm"
+                                    accent="amber"
+                                  />
                                   {editingItemData?.stockQuantity !== undefined && (
                                     <p className={`text-[10px] font-bold ${editingItemData.stockQuantity === 0 ? 'text-rose-600' : editingItemData.stockQuantity <= 30 ? 'text-amber-600' : 'text-emerald-700'}`}>
                                       📦 Tồn kho khả dụng: {editingItemData.stockQuantity} {editingItemData.unit.toLowerCase()}
@@ -3255,26 +3207,13 @@ export default function DoctorClinicView() {
                                     <span>➕ Chèn thuốc mới từ kho sau dòng #{idx + 1}:</span>
                                     <button type="button" onClick={handleCancelInsertRow} className="text-slate-400 hover:text-slate-600 cursor-pointer"><X size={15} /></button>
                                   </div>
-                                  <select
+                                  <MedicineSearchSelect
+                                    medicines={inventoryMedicines}
                                     value={insertItemData.medicineId || ''}
-                                    onChange={(e) => {
-                                      const medId = e.target.value;
-                                      const med = inventoryMedicines.find(m => m.id === medId);
-                                      if (med) {
-                                        setInsertItemData(prev => ({
-                                          ...prev,
-                                          medicineId: med.id,
-                                          medicineName: `${med.name}${med.activeIngredient ? ` (${med.activeIngredient})` : ''}`,
-                                          unit: med.unit,
-                                          unitPrice: med.unitPrice,
-                                          stockQuantity: med.stockQuantity,
-                                        }));
-                                      }
-                                    }}
-                                    className="w-full px-2.5 py-1.5 bg-white border border-teal-400 rounded-lg text-xs font-bold text-slate-800"
-                                  >
-                                    {renderMedicineOptions()}
-                                  </select>
+                                    onSelect={(med) => setInsertItemData((prev) => applyInventoryMedToItem(prev, med))}
+                                    size="sm"
+                                    accent="teal"
+                                  />
                                   {insertItemData.stockQuantity !== undefined && (
                                     <p className={`text-[10px] font-bold ${insertItemData.stockQuantity === 0 ? 'text-rose-600' : insertItemData.stockQuantity <= 30 ? 'text-amber-600' : 'text-emerald-700'}`}>
                                       📦 Tồn kho khả dụng: {insertItemData.stockQuantity} {insertItemData.unit.toLowerCase()}
@@ -3356,26 +3295,14 @@ export default function DoctorClinicView() {
                                         #{idx + 1}
                                       </td>
                                       <td className="p-2">
-                                        <select
-                                          value={editingItemData?.medicineId || ''}
-                                          onChange={(e) => {
-                                            const medId = e.target.value;
-                                            const med = inventoryMedicines.find(m => m.id === medId);
-                                            if (med) {
-                                              setEditingItemData(prev => prev ? ({
-                                                ...prev,
-                                                medicineId: med.id,
-                                                medicineName: `${med.name}${med.activeIngredient ? ` (${med.activeIngredient})` : ''}`,
-                                                unit: med.unit,
-                                                unitPrice: med.unitPrice,
-                                                stockQuantity: med.stockQuantity,
-                                              }) : null);
-                                            }
-                                          }}
-                                          className="w-full px-2 py-1 bg-white border border-amber-400 rounded text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                                        >
-                                          {renderMedicineOptions()}
-                                        </select>
+                                        <MedicineSearchSelect
+                                          medicines={inventoryMedicines}
+                                          value={editingItemData?.medicineId || (editingItemData?.medicineName ? '__current__' : '')}
+                                          currentFallbackLabel={editingItemData?.medicineName}
+                                          onSelect={(med) => setEditingItemData((prev) => (prev ? applyInventoryMedToItem(prev, med) : null))}
+                                          size="sm"
+                                          accent="amber"
+                                        />
                                         {editingItemData?.stockQuantity !== undefined && (
                                           <div className="flex items-center gap-1 mt-0.5 text-[10px]">
                                             <span className={editingItemData.stockQuantity === 0 ? 'text-rose-600 font-bold' : editingItemData.stockQuantity <= 30 ? 'text-amber-600 font-bold' : 'text-emerald-700 font-bold'}>
@@ -3610,28 +3537,21 @@ export default function DoctorClinicView() {
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
                       <div className="sm:col-span-5">
-                        <select
+                        <MedicineSearchSelect
+                          medicines={inventoryMedicines}
                           value={selectedInventoryMedId}
-                          onChange={(e) => {
-                            const medId = e.target.value;
-                            setSelectedInventoryMedId(medId);
-                            const med = inventoryMedicines.find(m => m.id === medId);
-                            if (med) {
-                              setNewMedName(`${med.name}${med.activeIngredient ? ` (${med.activeIngredient})` : ''}`);
-                              setNewMedUnit(med.unit);
-                              setNewMedPrice(med.unitPrice);
-                              if (!newMedDosage) {
-                                setNewMedDosage('Ngày uống 2 lần, mỗi lần 1 viên sau ăn');
-                              }
-                            } else {
-                              setNewMedName('');
-                              setNewMedPrice(0);
+                          onSelect={(med) => {
+                            setSelectedInventoryMedId(med.id);
+                            setNewMedName(`${med.name}${med.activeIngredient ? ` (${med.activeIngredient})` : ''}`);
+                            setNewMedUnit(med.unit);
+                            setNewMedPrice(med.unitPrice);
+                            if (!newMedDosage) {
+                              setNewMedDosage('Ngày uống 2 lần, mỗi lần 1 viên sau ăn');
                             }
                           }}
-                          className="w-full px-3 py-1.5 bg-white border border-teal-500 rounded-lg text-xs font-bold text-slate-800 focus:ring-1 focus:ring-teal-600 focus:outline-none"
-                        >
-                          {renderMedicineOptions()}
-                        </select>
+                          size="sm"
+                          accent="teal"
+                        />
                       </div>
                       <div className="grid grid-cols-3 sm:contents gap-2">
                         <input
@@ -3873,12 +3793,13 @@ export default function DoctorClinicView() {
                 </div>
               )}
 
-              {/* Tên thuốc & chọn từ kho dược */}
+              {/* Tên thuốc & tìm kiếm chọn từ kho dược */}
               <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                  Tên thuốc &amp; Hàm lượng (Chọn từ kho dược)
+                  Tên thuốc &amp; Hàm lượng (Tìm kiếm hoặc chọn từ kho dược)
                 </label>
-                <select
+                <MedicineSearchSelect
+                  medicines={inventoryMedicines}
                   value={
                     popupEditItem.medicineId && inventoryMedicines.some(m => m.id === popupEditItem.medicineId)
                       ? popupEditItem.medicineId
@@ -3886,29 +3807,14 @@ export default function DoctorClinicView() {
                       ? '__current__'
                       : ''
                   }
-                  onChange={(e) => {
-                    const medId = e.target.value;
-                    if (!medId || medId === '__current__') return;
-                    const med = inventoryMedicines.find(m => m.id === medId);
-                    if (med) {
-                      setPopupError(null);
-                      setPopupEditItem(prev => prev ? ({
-                        ...prev,
-                        medicineId: med.id,
-                        medicineName: `${med.name}${med.activeIngredient ? ` (${med.activeIngredient})` : ''}`,
-                        unit: med.unit,
-                        unitPrice: med.unitPrice,
-                        stockQuantity: med.stockQuantity,
-                      }) : null);
-                    }
+                  currentFallbackLabel={popupEditItem.medicineName}
+                  onSelect={(med) => {
+                    setPopupError(null);
+                    setPopupEditItem((prev) => (prev ? applyInventoryMedToItem(prev, med) : null));
                   }}
-                  className="w-full px-3 py-2 bg-white border border-slate-300 focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-500/20 rounded-xl font-bold text-slate-900 text-sm"
-                >
-                  {popupEditItem.medicineName && !inventoryMedicines.some(m => m.id === popupEditItem.medicineId) && (
-                    <option value="__current__">{popupEditItem.medicineName} (Theo đơn hiện tại)</option>
-                  )}
-                  {renderMedicineOptions()}
-                </select>
+                  size="md"
+                  accent="slate"
+                />
                 {popupEditItem.stockQuantity !== undefined && (
                   <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-0.5">
                     <div className="flex items-center gap-1.5">
