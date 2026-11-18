@@ -1075,15 +1075,23 @@ export default function BookingForm() {
       return;
     }
 
+    const todayIso = getTodayISODate();
+    const isToday = bookingDate === todayIso;
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const [sh, sm] = (selectedSlot.time || '').split('-')[0].trim().split(':').map(Number);
+    const selectedStartMinutes = (sh || 0) * 60 + (sm || 0);
+
     if (
       !selectedSlot.id ||
       selectedSlot.id === 'default' ||
       selectedSlot.time === 'Chưa có ca trực' ||
       selectedSlot.time === 'Hết chỗ' ||
       selectedSlot.time === 'Chưa chọn' ||
-      timeSlots.find((s) => s.id === selectedSlot.id)?.disabled
+      timeSlots.find((s) => s.id === selectedSlot.id)?.disabled ||
+      (isToday && selectedStartMinutes <= currentMinutes)
     ) {
-      setError('Khung giờ bạn chọn đã qua, không còn khả dụng hoặc bác sĩ chưa mở ca trực. Vui lòng chọn khung giờ khác hoặc ngày khác.');
+      setError('Khung giờ bạn chọn đã qua, không còn khả dụng hoặc bác sĩ chưa mở ca trực. Vui lòng chọn khung giờ trong tương lai hoặc ngày khác.');
       return;
     }
     if (bookingFor === 'relative' && !relativeInfo.fullName.trim()) {
@@ -1529,18 +1537,45 @@ export default function BookingForm() {
   const timeSlots = useMemo(() => {
     if (!selectedDoctor?.id) return [];
     if (dynamicSlots.length > 0) {
-      return dynamicSlots.map((s) => ({
-        id: s.id,
-        time: s.time,
-        status: (s.status === 'full' ? 'full' : s.status === 'expired' ? 'expired' : s.status === 'locked' ? 'full' : 'available') as 'available' | 'full' | 'expired',
-        label: s.label,
-        disabled: s.disabled,
-      }));
+      const todayIso = getTodayISODate();
+      const isToday = bookingDate === todayIso;
+      const isPastDate = Boolean(bookingDate && bookingDate < todayIso);
+      const now = new Date();
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+      return dynamicSlots.map((s) => {
+        let slotStartMinutes = s.startMinutes;
+        if (slotStartMinutes === undefined) {
+          const [sh, sm] = (s.time || '').split('-')[0].trim().split(':').map(Number);
+          slotStartMinutes = (sh || 0) * 60 + (sm || 0);
+        }
+
+        const isPastSlot = isPastDate || (isToday && slotStartMinutes <= currentMinutes);
+        const isDisabled = Boolean(s.disabled || isPastSlot);
+        const status = isPastSlot
+          ? 'expired'
+          : s.status === 'full'
+          ? 'full'
+          : s.status === 'expired'
+          ? 'expired'
+          : s.status === 'locked'
+          ? 'full'
+          : 'available';
+        const label = isPastSlot ? 'Đã qua giờ' : s.label;
+
+        return {
+          id: s.id,
+          time: s.time,
+          status: status as 'available' | 'full' | 'expired',
+          label,
+          disabled: isDisabled,
+        };
+      });
     }
 
     // Khi bác sĩ chưa đăng ký ca trực hoặc dynamicSlots rỗng: Trả về rỗng, tuyệt đối không tự sinh slot ảo!
     return [];
-  }, [dynamicSlots, selectedDoctor?.id]);
+  }, [dynamicSlots, selectedDoctor?.id, bookingDate]);
 
   // Phân chia khung giờ Sáng & Chiều (Chuẩn YouMed - Ảnh 1 & Ảnh 3)
   const morningSlots = useMemo(() => {
@@ -1629,8 +1664,33 @@ export default function BookingForm() {
         });
       }
     }
-    // Nếu alreadyApplied = true: không tự động override slot user đã chọn
-  }, [bookingDate, timeSlots, selectedDoctor?.id, loadingSlots, loadedSlotsFor]);
+
+    // Kiểm tra an toàn: Nếu slot đang chọn đã rơi vào quá khứ hoặc bị khóa (CLAB-164)
+    if (selectedSlot.id && selectedSlot.id !== 'default') {
+      const currentSlotObj = timeSlots.find((slot) => slot.id === selectedSlot.id);
+      if (currentSlotObj?.disabled) {
+        const nextValidSlot = timeSlots.find((slot) => !slot.disabled);
+        if (nextValidSlot) {
+          setSelectedSlot({
+            id: nextValidSlot.id,
+            time: nextValidSlot.time,
+            date: formatISODateToVN(bookingDate),
+          });
+          setStep2Errors((previous) => ({ ...previous, slot: undefined }));
+        } else {
+          setSelectedSlot({
+            id: '',
+            time: 'Hết chỗ',
+            date: formatISODateToVN(bookingDate),
+          });
+          setStep2Errors((previous) => ({
+            ...previous,
+            slot: 'Toàn bộ khung giờ khám hôm nay đã qua hoặc đã kín chỗ. Vui lòng chọn ngày khám khác.',
+          }));
+        }
+      }
+    }
+  }, [bookingDate, timeSlots, selectedDoctor?.id, loadingSlots, loadedSlotsFor, selectedSlot.id]);
 
 
   const activeCenterObj = useMemo(() => {
