@@ -40,6 +40,26 @@ import { formatDoctorFullName } from '@/shared/lib/formatters';
 import { getClinicScheduleConfig, SCHEDULE_CONFIG_UPDATED_EVENT } from '@/shared/lib/scheduleConfig';
 import AlertMessage from '@/shared/components/Feedback/AlertMessage';
 
+// Helper chuẩn hóa chữ cái avatar bác sĩ (lấy chữ cái đầu của tên gọi in hoa)
+const getDoctorAvatarInitial = (fullName?: string | null, academicTitle?: string | null): string => {
+  if (!fullName) return academicTitle ? academicTitle.charAt(0).toUpperCase() : 'BS';
+  const cleanName = fullName
+    .replace(/^(BS\.CK[I|V]+|BS\.CK\d+|PGS\.TS|ThS\.BS|TS\.BS|GS\.TS|BS|TS|ThS|PGS|GS)\.?\s*/i, '')
+    .trim();
+  const words = cleanName.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return 'BS';
+  return words[words.length - 1].charAt(0).toUpperCase();
+};
+
+// Helper làm sạch tên bác sĩ không bị lặp học hàm/học vị khi thẻ đã có badge riêng
+const getDoctorPureName = (fullName?: string | null): string => {
+  if (!fullName) return 'Bác sĩ';
+  const cleanName = fullName
+    .replace(/^(BS\.CK[I|V]+|BS\.CK\d+|PGS\.TS|ThS\.BS|TS\.BS|GS\.TS|BS|TS|ThS|PGS|GS)\.?\s*/i, '')
+    .trim();
+  return cleanName || fullName;
+};
+
 interface ReceptionScheduleBoardProps {
   onSelectSlotForWalkin?: (doctor: any, slot: any, date: string) => void;
   specialties?: any[];
@@ -99,6 +119,7 @@ export default function ReceptionScheduleBoard({
   const [doctorSlotsMap, setDoctorSlotsMap] = useState<Record<string, any[]>>({});
   const [isGlobalDayShiftCollapsed, setIsGlobalDayShiftCollapsed] = useState<boolean>(false);
   const [collapsedDayShifts, setCollapsedDayShifts] = useState<Record<string, boolean>>({});
+  const [collapsedNightShifts, setCollapsedNightShifts] = useState<Record<string, boolean>>({});
 
   const isToday = selectedDate === getTodayISODate();
   const isTomorrow = selectedDate === getTomorrowISODate();
@@ -721,22 +742,36 @@ export default function ReceptionScheduleBoard({
             });
 
             const daySlots = [...morningSlots, ...afternoonSlots];
-            const dayAvailableCount = daySlots.filter((s) => {
-              if (s.disabled || s.status === 'full' || s.status === 'expired') return false;
+
+            // Hàm kiểm tra slot thực sự khả dụng để tiếp đón (loại bỏ ca đã đặt, đã qua, hoặc sát giờ < 15p)
+            const isSlotAvailableForReception = (s: any) => {
+              if (s.disabled || s.status === 'full' || s.status === 'expired' || s.status === 'booked' || s.status === 'locked') return false;
               const timing = getSlotTimingInfo(s.time);
               return !timing.isPast && !timing.isUrgentTooClose;
-            }).length;
+            };
+
+            const nightAvailableCount = nightSlots.filter(isSlotAvailableForReception).length;
+            const morningAvailableCount = morningSlots.filter(isSlotAvailableForReception).length;
+            const afternoonAvailableCount = afternoonSlots.filter(isSlotAvailableForReception).length;
+            const dayAvailableCount = morningAvailableCount + afternoonAvailableCount;
+            const eveningAvailableCount = eveningSlots.filter(isSlotAvailableForReception).length;
+
+            // Ca đêm tự động thu gọn khi toàn bộ slot đã qua giờ (0 slot trống)
+            const isNightCollapsed = collapsedNightShifts[doc.id] !== undefined
+              ? collapsedNightShifts[doc.id]
+              : (nightSlots.length > 0 && nightAvailableCount === 0);
 
             const isDayCollapsed = collapsedDayShifts[doc.id] !== undefined
               ? collapsedDayShifts[doc.id]
               : isGlobalDayShiftCollapsed;
 
             const totalSlots = rawSlots.length;
-            const availableCount = rawSlots.filter((s) => {
-              if (s.disabled || s.status === 'full' || s.status === 'expired') return false;
-              const timing = getSlotTimingInfo(s.time);
-              return !timing.isPast && !timing.isUrgentTooClose;
-            }).length;
+            // Số lượng slot trống tổng thể bằng tổng slot trống khả dụng của từng ca
+            const availableCount = nightAvailableCount + dayAvailableCount + eveningAvailableCount;
+
+            const eveningTimeRange = eveningSlots.length > 0
+              ? `(${eveningSlots[0].time.split(' - ')[0]} - ${eveningSlots[eveningSlots.length - 1].time.split(' - ')[1] || '23:30'})`
+              : '(17:00 - 23:30)';
 
             return (
               <div
@@ -747,7 +782,7 @@ export default function ReceptionScheduleBoard({
                 <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-50 via-teal-50/20 to-white border-b border-slate-100 flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-teal-700 to-emerald-800 text-white flex items-center justify-center font-extrabold text-lg shadow-sm shrink-0">
-                      {doc.fullName ? doc.fullName.charAt(doc.fullName.length - 1) : 'BS'}
+                      {getDoctorAvatarInitial(doc.fullName, doc.academicTitle)}
                     </div>
 
                     <div className="min-w-0">
@@ -762,7 +797,7 @@ export default function ReceptionScheduleBoard({
                       </div>
 
                       <h3 className="font-extrabold text-slate-800 text-sm sm:text-base mt-0.5 truncate">
-                        {docName}
+                        {getDoctorPureName(doc.fullName || docName)}
                       </h3>
 
                       <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5 font-medium">
@@ -819,83 +854,109 @@ export default function ReceptionScheduleBoard({
                       {/* Buổi Đêm (00:00 - 08:00) */}
                       {(nightSlots.length > 0 || clinicConfig.devMode247) && (
                         <div className="space-y-2 pb-2 border-b border-slate-100">
-                          <div className="flex items-center justify-between text-xs font-bold text-indigo-950">
-                            <span className="flex items-center gap-1.5">
-                              <Moon size={14} className="text-indigo-600" />
-                              <span>Ca Đêm (00:00 - 08:00)</span>
-                              {clinicConfig.devMode247 && (
-                                <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800">
-                                  24/7 DEV
-                                </span>
-                              )}
-                            </span>
-                            <span className="text-[10px] text-slate-400 font-normal">
-                              {nightSlots.length > 0 ? `${nightSlots.filter((s) => !s.disabled && s.status === 'available').length} slots còn lại` : 'Không có ca trực'}
-                            </span>
-                          </div>
-
                           {nightSlots.length > 0 ? (
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                              {nightSlots.map((slot) => {
-                                const timing = getSlotTimingInfo(slot.time);
-                                const isBooked = slot.status === 'full' || slot.status === 'booked';
-                                const isLocked = slot.status === 'locked';
-                                const isPast = timing.isPast || slot.status === 'expired';
-                                const isUrgent = timing.isUrgentTooClose;
-                                const isClickable = !isBooked && !isLocked && !isPast && !isUrgent && !slot.disabled;
-
-                                return (
-                                  <button
-                                    key={slot.id}
-                                    type="button"
-                                    disabled={!isClickable}
-                                    onClick={() => {
-                                      if (isClickable) {
-                                        handleSlotClick(doc, slot);
-                                      }
-                                    }}
-                                    className={`p-2 rounded-xl border text-center transition flex flex-col items-center justify-center min-w-0 ${
-                                      isBooked
-                                        ? 'bg-blue-50/80 border-blue-200 text-blue-800 cursor-not-allowed opacity-80'
-                                        : isPast
-                                        ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-60'
-                                        : isUrgent
-                                        ? 'bg-amber-50 border-amber-300 text-amber-800 cursor-not-allowed'
-                                        : isLocked
-                                        ? 'bg-amber-50/60 border-amber-200 text-amber-700 cursor-not-allowed'
-                                        : 'bg-indigo-50/80 hover:bg-indigo-600 border-indigo-300 text-indigo-900 hover:text-white shadow-2xs hover:shadow-sm cursor-pointer group'
-                                    }`}
-                                    title={
-                                      isBooked
-                                        ? 'Đã có người đặt lịch'
-                                        : isPast
-                                        ? 'Khung giờ đã qua'
-                                        : isUrgent
-                                        ? 'Quá sát giờ (< 15p), không nhận khách vãng lai'
-                                        : isLocked
-                                        ? 'Bác sĩ tạm khóa'
-                                        : 'Click để đặt lịch qua điện thoại hoặc tiếp đón tại quầy'
-                                    }
-                                  >
-                                    <span className="text-xs font-black tracking-tight">{slot.time}</span>
-                                    <span className={`text-[9px] font-bold mt-0.5 ${
-                                      isClickable ? 'text-indigo-700 group-hover:text-indigo-100 flex items-center gap-0.5' : 'opacity-80'
-                                    }`}>
-                                      {isBooked ? (
-                                        'ĐÃ ĐẶT'
-                                      ) : isPast ? (
-                                        'ĐÃ QUA'
-                                      ) : isUrgent ? (
-                                        'SÁT GIỜ (<15P)'
-                                      ) : isLocked ? (
-                                        'TẠM KHÓA'
-                                      ) : (
-                                        'CÒN TRỐNG'
-                                      )}
+                            <div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCollapsedNightShifts((prev) => ({
+                                    ...prev,
+                                    [doc.id]: !isNightCollapsed
+                                  }));
+                                }}
+                                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-bold transition border cursor-pointer ${
+                                  isNightCollapsed
+                                    ? 'bg-indigo-50/90 border-indigo-200 text-indigo-900 hover:bg-indigo-100 shadow-2xs'
+                                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 shadow-2xs'
+                                }`}
+                                title={isNightCollapsed ? 'Bấm để mở rộng ca đêm' : 'Bấm để thu gọn ca đêm'}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Moon size={15} className="text-indigo-600 shrink-0" />
+                                  <span className="font-extrabold text-slate-800">
+                                    Ca Đêm (00:00 - 08:00)
+                                  </span>
+                                  {clinicConfig.devMode247 && (
+                                    <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800">
+                                      24/7 DEV
                                     </span>
-                                  </button>
-                                );
-                              })}
+                                  )}
+                                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                                    nightAvailableCount > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'
+                                  }`}>
+                                    {nightAvailableCount > 0 ? `${nightAvailableCount} slot còn trống` : '0 slot trống • Đã qua'}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1.5 text-xs text-slate-500 font-semibold shrink-0">
+                                  <span>{isNightCollapsed ? 'Bấm để mở rộng' : 'Thu gọn ca đêm'}</span>
+                                  <ChevronDown size={14} className={`transition-transform duration-200 ${isNightCollapsed ? '' : 'rotate-180'}`} />
+                                </div>
+                              </button>
+
+                              {!isNightCollapsed && (
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2.5">
+                                  {nightSlots.map((slot) => {
+                                    const timing = getSlotTimingInfo(slot.time);
+                                    const isBooked = slot.status === 'full' || slot.status === 'booked';
+                                    const isLocked = slot.status === 'locked';
+                                    const isPast = timing.isPast || slot.status === 'expired';
+                                    const isUrgent = timing.isUrgentTooClose;
+                                    const isClickable = !isBooked && !isLocked && !isPast && !isUrgent && !slot.disabled;
+
+                                    return (
+                                      <button
+                                        key={slot.id}
+                                        type="button"
+                                        disabled={!isClickable}
+                                        onClick={() => {
+                                          if (isClickable) {
+                                            handleSlotClick(doc, slot);
+                                          }
+                                        }}
+                                        className={`p-2 rounded-xl border text-center transition flex flex-col items-center justify-center min-w-0 ${
+                                          isBooked
+                                            ? 'bg-blue-50/80 border-blue-200 text-blue-800 cursor-not-allowed opacity-80'
+                                            : isPast
+                                            ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-60'
+                                            : isUrgent
+                                            ? 'bg-amber-50 border-amber-300 text-amber-800 cursor-not-allowed'
+                                            : isLocked
+                                            ? 'bg-amber-50/60 border-amber-200 text-amber-700 cursor-not-allowed'
+                                            : 'bg-indigo-50/80 hover:bg-indigo-600 border-indigo-300 text-indigo-900 hover:text-white shadow-2xs hover:shadow-sm cursor-pointer group'
+                                        }`}
+                                        title={
+                                          isBooked
+                                            ? 'Đã có người đặt lịch'
+                                            : isPast
+                                            ? 'Khung giờ đã qua'
+                                            : isUrgent
+                                            ? 'Quá sát giờ (< 15p), không nhận khách vãng lai'
+                                            : isLocked
+                                            ? 'Bác sĩ tạm khóa'
+                                            : 'Click để đặt lịch qua điện thoại hoặc tiếp đón tại quầy'
+                                        }
+                                      >
+                                        <span className="text-xs font-black tracking-tight">{slot.time}</span>
+                                        <span className={`text-[9px] font-bold mt-0.5 ${
+                                          isClickable ? 'text-indigo-700 group-hover:text-indigo-100 flex items-center gap-0.5' : 'opacity-80'
+                                        }`}>
+                                          {isBooked ? (
+                                            'ĐÃ ĐẶT'
+                                          ) : isPast ? (
+                                            'ĐÃ QUA'
+                                          ) : isUrgent ? (
+                                            'SÁT GIỜ (<15P)'
+                                          ) : isLocked ? (
+                                            'TẠM KHÓA'
+                                          ) : (
+                                            'CÒN TRỐNG'
+                                          )}
+                                        </span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
                             </div>
                           ) : (
                             <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-400 text-xs text-center font-medium">
@@ -954,7 +1015,7 @@ export default function ReceptionScheduleBoard({
                             <span>Ca Sáng (08:00 - 12:00)</span>
                           </span>
                           <span className="text-[10px] text-slate-400 font-normal">
-                            {morningSlots.length > 0 ? `${morningSlots.filter((s) => !s.disabled && s.status === 'available').length} slots còn lại` : 'Không có ca trực'}
+                            {morningAvailableCount > 0 ? `${morningAvailableCount} slot còn trống` : (morningSlots.length > 0 ? '0 slot trống • Đã qua' : 'Không có ca trực')}
                           </span>
                         </div>
 
@@ -1038,7 +1099,7 @@ export default function ReceptionScheduleBoard({
                             <span>Ca Chiều (13:30 - 17:00)</span>
                           </span>
                           <span className="text-[10px] text-slate-400 font-normal">
-                            {afternoonSlots.length > 0 ? `${afternoonSlots.filter((s) => !s.disabled && s.status === 'available').length} slots còn lại` : 'Không có ca trực'}
+                            {afternoonAvailableCount > 0 ? `${afternoonAvailableCount} slot còn trống` : (afternoonSlots.length > 0 ? '0 slot trống • Đã qua' : 'Không có ca trực')}
                           </span>
                         </div>
 
@@ -1122,7 +1183,7 @@ export default function ReceptionScheduleBoard({
                           <div className="flex items-center justify-between text-xs font-bold text-purple-900">
                             <span className="flex items-center gap-1.5">
                               <Moon size={14} className="text-purple-600" />
-                              <span>Ca Tối &amp; Đêm (17:00 - 23:00)</span>
+                              <span>Ca Tối &amp; Đêm {eveningTimeRange}</span>
                               {clinicConfig.devMode247 && (
                                 <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-purple-100 text-purple-800">
                                   24/7 DEV
@@ -1130,7 +1191,7 @@ export default function ReceptionScheduleBoard({
                               )}
                             </span>
                             <span className="text-[10px] text-slate-400 font-normal">
-                              {eveningSlots.length > 0 ? `${eveningSlots.filter((s) => !s.disabled && s.status === 'available').length} slots còn lại` : 'Không có ca trực'}
+                              {eveningAvailableCount > 0 ? `${eveningAvailableCount} slot còn trống` : (eveningSlots.length > 0 ? '0 slot trống • Đã qua' : 'Không có ca trực')}
                             </span>
                           </div>
 
