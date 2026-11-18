@@ -281,7 +281,7 @@ export default function PromotionManager() {
             </div>
           </div>
           <div className="text-xl sm:text-2xl font-black text-amber-700 mt-2 font-mono">{freeDepositCount}</div>
-          <span className="text-[11px] text-amber-600">Mã miễn 100% (GIAOVIEN, MEDFREE...)</span>
+          <span className="text-[11px] text-amber-600">Mã ưu đãi miễn cọc 100% (0 đ)</span>
         </div>
       </div>
 
