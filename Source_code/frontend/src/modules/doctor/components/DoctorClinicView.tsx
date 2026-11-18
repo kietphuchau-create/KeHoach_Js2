@@ -37,6 +37,7 @@ import {
   Trash2,
   ClipboardList,
   Check,
+  Eye,
   Lock,
   Unlock,
   PauseCircle,
@@ -626,6 +627,8 @@ export default function DoctorClinicView() {
   // ── CLAB-157: Quản lý Thêm, Xóa, Sửa trực tiếp ở từng hàng ngang của đơn thuốc (Inline CRUD) ──
   const [editingRowIndex, setEditingRowIndex] = useState<number | null>(null);
   const [editingItemData, setEditingItemData] = useState<MedicineItem | null>(null);
+  // CLAB-169: Xem chi tiết toàn bộ hàng thuốc trong Popup Modal
+  const [viewMedicineDetail, setViewMedicineDetail] = useState<{ item: MedicineItem; index: number } | null>(null);
 
   // Vị trí chèn thêm dòng thuốc mới (null nếu không chèn; 0..n là index chèn vào)
   const [insertRowIndex, setInsertRowIndex] = useState<number | null>(null);
@@ -3067,7 +3070,16 @@ export default function DoctorClinicView() {
                                     <div className="text-center">ĐG: <span className="font-mono">{item.unitPrice?.toLocaleString('vi-VN')}đ</span></div>
                                     <div className="text-right font-bold text-slate-900 font-mono">{lineTotal.toLocaleString('vi-VN')}đ</div>
                                   </div>
-                                  <p className="text-[11px] text-slate-500 italic">👉 {item.dosage}</p>
+                                  <div className="pt-0.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => setViewMedicineDetail({ item, index: idx })}
+                                      className="inline-flex items-center gap-1.5 text-[11px] text-teal-700 hover:text-teal-900 font-medium cursor-pointer"
+                                    >
+                                      <Eye size={12} className="text-teal-600 shrink-0" />
+                                      <span className="truncate italic">👉 {item.dosage || 'Xem cách dùng'}</span>
+                                    </button>
+                                  </div>
                                 </div>
                               )}
 
@@ -3158,7 +3170,7 @@ export default function DoctorClinicView() {
                               <th className="p-2.5">Tên thuốc &amp; Hàm lượng</th>
                               <th className="p-2.5 w-20 text-center">ĐVT</th>
                               <th className="p-2.5 w-24 text-center">SL</th>
-                              <th className="p-2.5">Cách dùng / Liều uống</th>
+                              <th className="p-2.5 text-center font-bold">CÁCH DÙNG</th>
                               <th className="p-2.5 text-right w-24">Đơn giá</th>
                               <th className="p-2.5 text-right w-24">Thành tiền</th>
                               <th className="p-2.5 text-center w-28 font-semibold text-slate-700">Thao tác</th>
@@ -3429,7 +3441,42 @@ export default function DoctorClinicView() {
                                           >+</button>
                                         </div>
                                       </td>
-                                      <td className="p-2.5 text-slate-600 italic text-[11px]">{item.dosage}</td>
+                                      <td className="p-2.5 text-center">
+                                        <div className="relative group/dosage inline-flex items-center justify-center">
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setViewMedicineDetail({ item, index: idx });
+                                            }}
+                                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 shadow-2xs hover:shadow-xs transition cursor-pointer max-w-[170px]"
+                                            title="Bấm để xem đầy đủ hàng thuốc này trong popup"
+                                          >
+                                            <Eye size={14} className="text-teal-600 shrink-0 group-hover/dosage:scale-110 transition-transform" />
+                                            <span className="truncate text-[11px] font-medium text-slate-700 italic">
+                                              {item.dosage || 'Xem cách dùng'}
+                                            </span>
+                                          </button>
+
+                                          {/* Khung chi tiết đầy đủ khi rê chuột vào (Hover Tooltip) */}
+                                          {item.dosage && (
+                                            <div className="pointer-events-none opacity-0 group-hover/dosage:opacity-100 transition-opacity duration-150 absolute left-1/2 -translate-x-1/2 bottom-full mb-2 z-30 w-72 p-3 bg-slate-900 text-white text-xs rounded-xl shadow-xl border border-slate-700 text-left">
+                                              <div className="flex items-center gap-1 text-[10px] font-bold text-teal-300 uppercase tracking-wider mb-1">
+                                                <Eye size={11} />
+                                                <span>Cách dùng thuốc #{idx + 1}:</span>
+                                              </div>
+                                              <p className="text-slate-100 text-[11px] leading-relaxed font-normal whitespace-pre-wrap">
+                                                {item.dosage}
+                                              </p>
+                                              <div className="mt-1.5 pt-1.5 border-t border-slate-800 text-[10px] text-slate-400 flex items-center justify-between">
+                                                <span className="truncate max-w-[140px]">{item.medicineName}</span>
+                                                <span className="text-teal-400 font-semibold">Bấm để mở popup</span>
+                                              </div>
+                                              <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-slate-900"></div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </td>
                                       <td className="p-2.5 text-right text-slate-600 font-mono text-[11px] whitespace-nowrap">
                                         <span>{item.unitPrice?.toLocaleString('vi-VN')} đ</span>
                                         <span title="Đơn giá niêm yết kho dược cố định">
@@ -3854,6 +3901,117 @@ export default function DoctorClinicView() {
       </div>
 
 
+
+      {/* ── CLAB-169: Modal Popup Xem Toàn Bộ Chi Tiết Hàng Thuốc & Cách Dùng ── */}
+      {viewMedicineDetail && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150"
+          onClick={() => setViewMedicineDetail(null)}
+        >
+          <div
+            className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="px-6 py-4 bg-gradient-to-r from-teal-700 via-teal-800 to-emerald-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                  <Pill size={20} className="text-white" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm sm:text-base leading-tight">
+                    Chi Tiết Thuốc #{viewMedicineDetail.index + 1}
+                  </h3>
+                  <p className="text-[11px] text-teal-100 mt-0.5">
+                    Toàn bộ thông tin hàng thuốc &amp; hướng dẫn cách dùng
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewMedicineDetail(null)}
+                className="w-8 h-8 rounded-xl hover:bg-white/20 text-white/80 hover:text-white flex items-center justify-center transition cursor-pointer"
+                title="Đóng (Esc)"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-4">
+              {/* Tên thuốc */}
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                  Tên thuốc &amp; Hàm lượng
+                </div>
+                <div className="font-black text-slate-900 text-base sm:text-lg">
+                  {viewMedicineDetail.item.medicineName}
+                </div>
+                {viewMedicineDetail.item.stockQuantity !== undefined && (
+                  <div className="mt-1.5 flex items-center gap-2 text-xs">
+                    <span className="text-slate-500 font-medium">Tồn kho dược:</span>
+                    <span className={`font-bold ${
+                      viewMedicineDetail.item.stockQuantity === 0 ? 'text-rose-600' :
+                      viewMedicineDetail.item.stockQuantity <= 30 ? 'text-amber-600' : 'text-emerald-700'
+                    }`}>
+                      {viewMedicineDetail.item.stockQuantity} {viewMedicineDetail.item.unit?.toLowerCase()}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Thông số số lượng & giá */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="p-3 bg-teal-50/80 border border-teal-200 rounded-2xl text-center">
+                  <div className="text-[10px] font-bold text-teal-700 uppercase">Số lượng kê</div>
+                  <div className="text-xl font-black text-teal-900 font-mono mt-0.5">
+                    {viewMedicineDetail.item.quantity}
+                  </div>
+                  <div className="text-[11px] text-teal-700 font-semibold">{viewMedicineDetail.item.unit}</div>
+                </div>
+
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl text-right">
+                  <div className="text-[10px] font-bold text-slate-500 uppercase">Đơn giá</div>
+                  <div className="text-sm font-bold text-slate-700 font-mono mt-1">
+                    {(Number(viewMedicineDetail.item.unitPrice) || 0).toLocaleString('vi-VN')} đ
+                  </div>
+                  <div className="text-[10px] text-slate-400">Niêm yết kho</div>
+                </div>
+
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-right">
+                  <div className="text-[10px] font-bold text-emerald-700 uppercase">Thành tiền</div>
+                  <div className="text-sm font-black text-emerald-900 font-mono mt-1">
+                    {((Number(viewMedicineDetail.item.quantity) || 0) * (Number(viewMedicineDetail.item.unitPrice) || 0)).toLocaleString('vi-VN')} đ
+                  </div>
+                  <div className="text-[10px] text-emerald-600">Đã tính VAT</div>
+                </div>
+              </div>
+
+              {/* Hướng dẫn cách dùng chi tiết */}
+              <div className="p-4 bg-amber-50/90 rounded-2xl border border-amber-200 space-y-2">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900 uppercase tracking-wide">
+                  <FileText size={15} className="text-amber-700" />
+                  <span>HƯỚNG DẪN CÁCH DÙNG &amp; LIỀU UỐNG:</span>
+                </div>
+                <div className="text-xs sm:text-sm text-slate-800 leading-relaxed font-semibold bg-white p-3.5 rounded-xl border border-amber-200 whitespace-pre-wrap shadow-2xs">
+                  {viewMedicineDetail.item.dosage || 'Bác sĩ chưa ghi chú cách dùng cụ thể cho thuốc này.'}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setViewMedicineDetail(null)}
+                className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
+              >
+                Đóng cửa sổ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Modal Xác Nhận Hoàn Tất Ca Khám & Kê Đơn Thuốc (CLAB-107) ── */}
       {showCompleteModal && currentPatient && (
