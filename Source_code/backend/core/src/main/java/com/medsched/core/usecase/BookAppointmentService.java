@@ -82,7 +82,11 @@ public class BookAppointmentService implements BookAppointmentUseCase {
 
             String id = UUID.randomUUID().toString();
             String bookingCode = "MED" + (100000 + ThreadLocalRandom.current().nextInt(900000));
-            String queueNumber = "APP-" + (1000 + ThreadLocalRandom.current().nextInt(9000));
+            LocalDate todayVn = LocalDate.now(VN_ZONE);
+            Instant startOfDay = todayVn.atStartOfDay(VN_ZONE).toInstant();
+            Instant endOfDay = todayVn.plusDays(1).atStartOfDay(VN_ZONE).toInstant();
+            long nextSeq = appointmentRepository.countByDoctorIdAndCreatedAtBetween(command.doctorId(), startOfDay, endOfDay) + 1;
+            String queueNumber = String.format("APP-%03d", nextSeq);
 
             Appointment appointment = Appointment.createNew(
                     id,

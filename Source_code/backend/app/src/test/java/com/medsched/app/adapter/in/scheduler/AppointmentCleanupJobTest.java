@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
@@ -55,7 +56,10 @@ class AppointmentCleanupJobTest {
                 SlotStatus.BOOKED, thirtyMinsAgo, thirtyMinsAgo
         );
 
-        given(appointmentJpaRepository.findAll()).willReturn(List.of(appt));
+        given(appointmentJpaRepository.findByStatusAndCreatedAtBefore(eq(AppointmentStatus.PENDING), any()))
+                .willReturn(List.of(appt));
+        given(appointmentJpaRepository.findByStatus(AppointmentStatus.CONFIRMED))
+                .willReturn(List.of());
         given(timeSlotJpaRepository.findById("slot-1")).willReturn(Optional.of(slot));
 
         job.cleanupExpiredAppointments();
@@ -81,8 +85,11 @@ class AppointmentCleanupJobTest {
                 SlotStatus.BOOKED, thirtyMinsAgo, thirtyMinsAgo
         );
 
-        given(appointmentJpaRepository.findAll()).willReturn(List.of(appt));
-        given(timeSlotJpaRepository.findById("slot-past")).willReturn(Optional.of(slot));
+        given(appointmentJpaRepository.findByStatusAndCreatedAtBefore(eq(AppointmentStatus.PENDING), any()))
+                .willReturn(List.of());
+        given(appointmentJpaRepository.findByStatus(AppointmentStatus.CONFIRMED))
+                .willReturn(List.of(appt));
+        given(timeSlotJpaRepository.findAllById(any())).willReturn(List.of(slot));
 
         job.cleanupExpiredAppointments();
 
@@ -111,8 +118,11 @@ class AppointmentCleanupJobTest {
                 SlotStatus.BOOKED, fiveMinsAgo, fiveMinsAgo
         );
 
-        given(appointmentJpaRepository.findAll()).willReturn(List.of(appt));
-        given(timeSlotJpaRepository.findById("slot-recent")).willReturn(Optional.of(slot));
+        given(appointmentJpaRepository.findByStatusAndCreatedAtBefore(eq(AppointmentStatus.PENDING), any()))
+                .willReturn(List.of());
+        given(appointmentJpaRepository.findByStatus(AppointmentStatus.CONFIRMED))
+                .willReturn(List.of(appt));
+        given(timeSlotJpaRepository.findAllById(any())).willReturn(List.of(slot));
 
         job.cleanupExpiredAppointments();
 

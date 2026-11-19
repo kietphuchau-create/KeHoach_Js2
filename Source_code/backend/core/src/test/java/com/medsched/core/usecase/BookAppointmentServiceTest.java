@@ -125,7 +125,8 @@ class BookAppointmentServiceTest {
 
         assertThatThrownBy(() -> bookService.book(cmd))
                 .isInstanceOf(SlotNotAvailableException.class)
-                .hasMessageContaining("Bạn đã có ca khám mã #MED-111222");
+                .hasMessageContaining("MED-111222")
+                .hasMessageContaining("trùng giờ nhau");
     }
 
     @Test
@@ -216,8 +217,8 @@ class BookAppointmentServiceTest {
     }
 
     @Test
-    @DisplayName("Chống spam tài nguyên: Đã có 1 ca khám đang chờ trong cùng 1 ngày -> Chặn đặt ca thứ 2")
-    void givenPatientHasOneActiveAppointmentOnSameDay_whenBookSecond_thenThrowSlotNotAvailableException() {
+    @DisplayName("Cho phép đặt nhiều chuyên khoa/bác sĩ khác nhau trong cùng ngày nếu không trùng khung giờ")
+    void givenPatientHasOneActiveAppointmentWithDifferentDoctorOnSameDay_whenNonOverlapping_thenSuccess() {
         Instant start = nextWednesdayMorning(15, 0);
         Instant end = nextWednesdayMorning(15, 30);
         TimeSlot secondSlot = new TimeSlot("slot-second", "sch-doc3", start, end, "AVAILABLE", 0);
@@ -226,16 +227,19 @@ class BookAppointmentServiceTest {
         Appointment app1 = new Appointment("a1", "MED-001", "c1", "patient-1", "doc-1", "s1", "A-1", "ONLINE_BOOKED", "", null, null, "CONFIRMED", false, 0, null, Instant.now(), Instant.now());
 
         given(timeSlotRepository.findById("slot-second")).willReturn(Optional.of(secondSlot));
+        given(timeSlotRepository.lockSlot("slot-second")).willReturn(true);
         given(appointmentRepository.findByPatientProfileId("patient-1")).willReturn(List.of(app1));
         given(timeSlotRepository.findById("s1")).willReturn(Optional.of(slot1));
+        given(appointmentRepository.save(any(Appointment.class))).willAnswer(inv -> inv.getArgument(0));
 
         BookAppointmentUseCase.Command cmd = new BookAppointmentUseCase.Command(
                 "c1", "patient-1", "doc-3", "slot-second", "Khám chuyên khoa thứ 2", ""
         );
 
-        assertThatThrownBy(() -> bookService.book(cmd))
-                .isInstanceOf(SlotNotAvailableException.class)
-                .hasMessageContaining("hệ thống giới hạn tối đa 1 ca khám trong cùng một ngày");
+        Appointment result = bookService.book(cmd);
+        assertThat(result).isNotNull();
+        assertThat(result.slotId()).isEqualTo("slot-second");
+        assertThat(result.doctorId()).isEqualTo("doc-3");
     }
 
     @Test
