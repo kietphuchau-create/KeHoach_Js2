@@ -155,6 +155,33 @@ class BookAppointmentServiceTest {
     }
 
     @Test
+    @DisplayName("Đặt lại lịch đã hủy: Bệnh nhân đã hủy ca khám trước đó -> Được phép đặt lại đúng slot này thành công")
+    void givenPatientCancelledAppointmentOnSameSlot_whenBookAgain_thenSuccess() {
+        Instant start = nextWednesdayMorning(10, 0);
+        Instant end = nextWednesdayMorning(10, 30);
+        TimeSlot slot = new TimeSlot("slot-same", "sch-1", start, end, "AVAILABLE", 0);
+
+        Appointment cancelledApp = new Appointment(
+                "app-cancelled", "MED-CANCELLED", "center-1", "patient-1", "doc-1", "slot-same",
+                "APP-202", "ONLINE_BOOKED", "Đau dạ dày", null, null, "CANCELLED",
+                false, 0, null, Instant.now(), Instant.now()
+        );
+
+        given(timeSlotRepository.findById("slot-same")).willReturn(Optional.of(slot));
+        given(timeSlotRepository.lockSlot("slot-same")).willReturn(true);
+        given(appointmentRepository.findByPatientProfileId("patient-1")).willReturn(List.of(cancelledApp));
+        given(appointmentRepository.save(any(Appointment.class))).willAnswer(inv -> inv.getArgument(0));
+
+        BookAppointmentUseCase.Command cmd = new BookAppointmentUseCase.Command(
+                "center-1", "patient-1", "doc-1", "slot-same", "Đau dạ dày", ""
+        );
+
+        Appointment result = bookService.book(cmd);
+        assertThat(result).isNotNull();
+        assertThat(result.slotId()).isEqualTo("slot-same");
+    }
+
+    @Test
     @DisplayName("Cho phép ca khám khác ngày: Thứ Tư và Thứ Năm")
     void givenContiguousSlot_whenBook_thenSuccess() {
         Instant start = nextWednesdayMorning(9, 30).plus(1, java.time.temporal.ChronoUnit.DAYS);

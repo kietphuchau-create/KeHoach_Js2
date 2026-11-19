@@ -97,4 +97,26 @@ public record Appointment(
                 Instant.now()
         );
     }
+
+    public Appointment restore(String restoredStatus) {
+        return new Appointment(
+                id,
+                bookingCode,
+                medicalCenterId,
+                patientProfileId,
+                doctorId,
+                slotId,
+                queueNumber,
+                queueType,
+                patientSymptoms,
+                aiSummary,
+                checkinMethod,
+                restoredStatus != null ? restoredStatus : "CONFIRMED",
+                isDelayed,
+                delayMinutes,
+                checkInTime,
+                createdAt,
+                Instant.now()
+        );
+    }
 }

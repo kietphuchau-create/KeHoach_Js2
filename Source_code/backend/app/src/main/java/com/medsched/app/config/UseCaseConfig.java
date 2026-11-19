@@ -4,6 +4,7 @@ import com.medsched.core.port.in.BookAppointmentUseCase;
 import com.medsched.core.port.in.CancelAppointmentUseCase;
 import com.medsched.core.port.in.ChangePasswordUseCase;
 import com.medsched.core.port.in.CheckinUseCase;
+import com.medsched.core.port.in.RestoreAppointmentUseCase;
 import com.medsched.core.port.in.UpdateProfileUseCase;
 import com.medsched.core.port.out.AccountRepositoryPort;
 import com.medsched.core.port.out.AiTriagePort;
@@ -14,6 +15,7 @@ import com.medsched.core.usecase.BookAppointmentService;
 import com.medsched.core.usecase.CancelAppointmentService;
 import com.medsched.core.usecase.ChangePasswordService;
 import com.medsched.core.usecase.CheckinService;
+import com.medsched.core.usecase.RestoreAppointmentService;
 import com.medsched.core.usecase.UpdateProfileService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -42,6 +44,14 @@ public class UseCaseConfig {
             TimeSlotRepositoryPort timeSlotRepositoryPort
     ) {
         return new CancelAppointmentService(appointmentRepositoryPort, timeSlotRepositoryPort);
+    }
+
+    @Bean
+    public RestoreAppointmentUseCase restoreAppointmentUseCase(
+            AppointmentRepositoryPort appointmentRepositoryPort,
+            TimeSlotRepositoryPort timeSlotRepositoryPort
+    ) {
+        return new RestoreAppointmentService(appointmentRepositoryPort, timeSlotRepositoryPort);
     }
 
     @Bean
