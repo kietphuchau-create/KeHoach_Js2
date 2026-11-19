@@ -38,6 +38,7 @@ import {
   GraduationCap,
   Sparkles,
   ShieldAlert,
+  RotateCcw,
   Lock,
   X
 } from 'lucide-react';
@@ -604,6 +605,42 @@ export default function BookingForm() {
   const sameDoctorActiveAppointment = bookingFor === 'self' ? selfSameDoctorAppointment : currentRelativeActiveWithDoctor;
   const sameDoctorCompletedAppointment = bookingFor === 'self' ? selfSameDoctorCompletedAppointment : currentRelativeCompletedWithDoctor;
   const isDayBookingLimitReached = bookingFor === 'self' ? isSelfDayLimitReached : isRelativeDayLimitReached;
+
+  // 5. Kiểm tra ca khám đã HỦY (CANCELLED) trước đó tại đúng khung giờ đang chọn
+  const cancelledAppointmentOnSelectedSlot = useMemo(() => {
+    if (!selectedSlot?.id) return null;
+    return (
+      existingAppointments.find((apt) => {
+        const status = String(apt.status || '').toUpperCase();
+        if (status !== 'CANCELLED') return false;
+        return apt.slotId === selectedSlot.id;
+      }) || null
+    );
+  }, [existingAppointments, selectedSlot?.id]);
+
+  const [showRestoreConfirmModal, setShowRestoreConfirmModal] = useState(false);
+  const [restoringAppointment, setRestoringAppointment] = useState(false);
+  const forceNewBookingRef = useRef(false);
+
+  useEffect(() => {
+    forceNewBookingRef.current = false;
+  }, [selectedSlot?.id]);
+
+  const handleRestoreAppointment = async () => {
+    if (!cancelledAppointmentOnSelectedSlot?.id) return;
+    setRestoringAppointment(true);
+    try {
+      await api.restoreAppointment(cancelledAppointmentOnSelectedSlot.id);
+      setShowRestoreConfirmModal(false);
+      router.push('/my-appointments');
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Không thể khôi phục phiếu hẹn';
+      setError(msg);
+      setShowRestoreConfirmModal(false);
+    } finally {
+      setRestoringAppointment(false);
+    }
+  };
 
   // Khi ở Bước 3, nếu bản thân đã có lịch mà người dùng cố bấm chọn nút "Bản thân tôi" -> bật thông báo chi tiết
   const [showSelfConflictNotice, setShowSelfConflictNotice] = useState(false);
@@ -1281,6 +1318,12 @@ export default function BookingForm() {
       });
       setShowIncompleteProfileModal(true);
       setError('Hồ sơ bệnh nhân chưa đủ thông tin bắt buộc (Ngày sinh, Giới tính). Vui lòng cập nhật thông tin trước khi hoàn tất đặt lịch.');
+      return;
+    }
+
+    // Phát hiện người dùng đặt lại đúng khung giờ đã từng hủy trước đó -> Hỏi khôi phục
+    if (cancelledAppointmentOnSelectedSlot && !forceNewBookingRef.current) {
+      setShowRestoreConfirmModal(true);
       return;
     }
 
@@ -4813,6 +4856,69 @@ export default function BookingForm() {
           description={`Thanh toán tiền khám bệnh phiếu ${result.bookingCode}`}
           initialPromoCode={appliedPromo || undefined}
         />
+      )}
+
+      {/* Modal Hỏi Khôi Phục Lịch Hẹn Đã Hủy Trước Đó */}
+      {showRestoreConfirmModal && cancelledAppointmentOnSelectedSlot && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 text-center animate-scaleUp">
+            <div className="w-14 h-14 mx-auto rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center mb-4 border border-blue-200">
+              <RotateCcw size={28} />
+            </div>
+            <h3 className="text-base font-extrabold text-slate-900 mb-2">
+              Phát Hiện Lịch Hẹn Đã Hủy Trước Đó
+            </h3>
+            <p className="text-xs text-slate-600 leading-relaxed mb-4">
+              Hệ thống nhận diện bạn từng có phiếu hẹn <strong className="text-blue-700 font-mono">#{cancelledAppointmentOnSelectedSlot.bookingCode}</strong> tại đúng khung giờ này với Bác sĩ <strong>{selectedDoctor?.name}</strong> nhưng đã bấm hủy trước đó.
+            </p>
+            <div className="p-3 bg-blue-50/60 rounded-xl border border-blue-200 text-left text-xs mb-5 space-y-1.5">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">Mã phiếu cũ:</span>
+                <span className="font-mono font-bold text-blue-900">#{cancelledAppointmentOnSelectedSlot.bookingCode}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">Khung giờ hẹn:</span>
+                <span className="font-semibold text-slate-800">{selectedSlot.time} ({formatVietnameseFullDate(bookingDate)})</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">Bác sĩ phụ trách:</span>
+                <span className="font-semibold text-slate-800">{selectedDoctor?.name}</span>
+              </div>
+            </div>
+            <p className="text-xs font-semibold text-slate-700 mb-5">
+              Bạn có muốn <span className="text-blue-600 font-bold">khôi phục lại phiếu hẹn này</span> hay <span className="text-slate-700 font-bold">tạo một phiếu hẹn mới</span>?
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowRestoreConfirmModal(false);
+                  forceNewBookingRef.current = true;
+                  const fakeEvent = { preventDefault: () => {} } as React.FormEvent;
+                  handleBook(fakeEvent);
+                }}
+                className="flex-1 py-2.5 px-4 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-100 transition cursor-pointer"
+              >
+                Tạo phiếu hẹn mới
+              </button>
+              <button
+                type="button"
+                disabled={restoringAppointment}
+                onClick={handleRestoreAppointment}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs shadow-md shadow-blue-500/20 transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {restoringAppointment ? (
+                  <span>Đang khôi phục...</span>
+                ) : (
+                  <>
+                    <RotateCcw size={14} />
+                    <span>Khôi phục phiếu cũ</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Modal Báo Động Hồ Sơ Chưa Hoàn Tất */}

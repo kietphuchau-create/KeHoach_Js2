@@ -641,6 +641,12 @@ export const api = {
     });
   },
 
+  async restoreAppointment(appointmentId: string) {
+    return request<any>(`/appointments/${appointmentId}/restore`, {
+      method: "PATCH",
+    });
+  },
+
   async rescheduleAppointment(appointmentId: string, payload: { newSlotId: string; symptoms?: string }) {
     return request<any>(`/appointments/${appointmentId}/reschedule`, {
       method: "PATCH",
