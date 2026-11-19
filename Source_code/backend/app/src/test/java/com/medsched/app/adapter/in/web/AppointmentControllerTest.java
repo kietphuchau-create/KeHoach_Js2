@@ -60,6 +60,9 @@ class AppointmentControllerTest {
     private com.medsched.core.port.in.CancelAppointmentUseCase cancelAppointmentUseCase;
 
     @MockBean
+    private com.medsched.core.port.in.RestoreAppointmentUseCase restoreAppointmentUseCase;
+
+    @MockBean
     private com.medsched.persistence.repository.PatientProfileJpaRepository patientProfiles;
 
     @MockBean

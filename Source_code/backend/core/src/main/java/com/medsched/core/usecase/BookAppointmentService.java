@@ -185,16 +185,16 @@ public class BookAppointmentService implements BookAppointmentUseCase {
                 continue;
             }
 
-            // 1. Trùng chính xác slot ID (bất kể ai, slot đã được đặt thì không thể đặt lặp lại)
+            // Chỉ xét các ca có liên quan trong cùng ngày: Active hoặc Completed (Bỏ qua ca CANCELLED)
+            if (!isActive && !isCompleted) {
+                continue;
+            }
+
+            // 1. Trùng chính xác slot ID với ca đang hoạt động hoặc đã hoàn tất
             if (existing.slotId().equals(targetSlot.id())) {
                 throw new SlotNotAvailableException(
                         "Bạn đã có một lịch hẹn (Mã: " + existing.bookingCode()
                         + ") tại đúng khung giờ này. Không thể đặt trùng lặp!");
-            }
-
-            // Chỉ xét các ca có liên quan trong cùng ngày: Active hoặc Completed
-            if (!isActive && !isCompleted) {
-                continue;
             }
 
             // Xác định ngày và giờ của ca khám trước (ưu tiên tra cứu time_slots, fallback qua createdAt)

@@ -3,6 +3,7 @@ package com.medsched.app.adapter.in.web;
 import com.medsched.core.domain.model.Appointment;
 import com.medsched.core.port.in.BookAppointmentUseCase;
 import com.medsched.core.port.in.CancelAppointmentUseCase;
+import com.medsched.core.port.in.RestoreAppointmentUseCase;
 import com.medsched.core.port.out.AppointmentRepositoryPort;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -62,6 +63,7 @@ public class AppointmentController {
 
     private final BookAppointmentUseCase bookAppointmentUseCase;
     private final CancelAppointmentUseCase cancelAppointmentUseCase;
+    private final RestoreAppointmentUseCase restoreAppointmentUseCase;
     private final AppointmentRepositoryPort appointmentRepositoryPort;
     private final PatientProfileJpaRepository patientProfiles;
     private final DoctorJpaRepository doctors;
@@ -79,6 +81,7 @@ public class AppointmentController {
     public AppointmentController(
             BookAppointmentUseCase bookAppointmentUseCase,
             CancelAppointmentUseCase cancelAppointmentUseCase,
+            RestoreAppointmentUseCase restoreAppointmentUseCase,
             AppointmentRepositoryPort appointmentRepositoryPort,
             PatientProfileJpaRepository patientProfiles,
             DoctorJpaRepository doctors,
@@ -92,6 +95,7 @@ public class AppointmentController {
     ) {
         this.bookAppointmentUseCase = bookAppointmentUseCase;
         this.cancelAppointmentUseCase = cancelAppointmentUseCase;
+        this.restoreAppointmentUseCase = restoreAppointmentUseCase;
         this.appointmentRepositoryPort = appointmentRepositoryPort;
         this.patientProfiles = patientProfiles;
         this.doctors = doctors;
@@ -719,6 +723,30 @@ public class AppointmentController {
                 appointment.bookingCode(),
                 appointment.status(),
                 "Hủy lịch hẹn thành công và đã hoàn lại khung giờ khám."
+        ));
+    }
+
+    public record RestoreResponse(
+            String id,
+            String bookingCode,
+            String status,
+            String message
+    ) {}
+
+    /**
+     * Khôi phục ca khám đã hủy nhầm (Undo / Restore cancelled appointment).
+     */
+    @PatchMapping("/{id}/restore")
+    public ResponseEntity<RestoreResponse> restoreAppointment(
+            @PathVariable String id,
+            @AuthenticationPrincipal AppUserDetails principal) {
+        validateAppointmentOwnership(id, principal);
+        Appointment appointment = restoreAppointmentUseCase.restore(new RestoreAppointmentUseCase.Command(id));
+        return ResponseEntity.ok(new RestoreResponse(
+                appointment.id(),
+                appointment.bookingCode(),
+                appointment.status(),
+                "Khôi phục lịch hẹn #" + appointment.bookingCode() + " thành công! Khung giờ khám đã được giữ lại cho bạn."
         ));
     }
 
