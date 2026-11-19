@@ -43,33 +43,34 @@ public class AppointmentCleanupJob {
         Instant now = Instant.now();
         Instant fifteenMinsAgo = now.minus(15, ChronoUnit.MINUTES);
 
-        List<AppointmentEntity> allAppointments = appointmentJpaRepository.findAll();
-
         // 1. Dọn dẹp ca khám PENDING (chưa thanh toán quá 15 phút) -> Hủy và giải phóng slot
-        List<AppointmentEntity> pendingAppointments = allAppointments.stream()
-                .filter(a -> a.getStatus() == AppointmentStatus.PENDING)
-                .filter(a -> a.getCreatedAt().isBefore(fifteenMinsAgo))
-                .toList();
+        List<AppointmentEntity> pendingAppointments =
+                appointmentJpaRepository.findByStatusAndCreatedAtBefore(AppointmentStatus.PENDING, fifteenMinsAgo);
 
         for (AppointmentEntity appt : pendingAppointments) {
             cancelPendingAppointment(appt, "Hệ thống tự động hủy do không thanh toán trong thời gian quy định (15 phút).");
         }
 
         // 2. Dọn dẹp ca khám CONFIRMED nhưng đến trễ > 15 phút (TC_FM_PAT_01) -> Đổi MISSED_NO_SHOW (không giải phóng slot quá khứ)
-        List<AppointmentEntity> confirmedAppointments = allAppointments.stream()
-                .filter(a -> a.getStatus() == AppointmentStatus.CONFIRMED)
+        List<AppointmentEntity> confirmedAppointments =
+                appointmentJpaRepository.findByStatus(AppointmentStatus.CONFIRMED);
+
+        List<String> slotIds = confirmedAppointments.stream()
+                .map(AppointmentEntity::getSlotId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
                 .toList();
+        java.util.Map<String, TimeSlotEntity> slotMap = slotIds.isEmpty()
+                ? java.util.Map.of()
+                : timeSlotJpaRepository.findAllById(slotIds).stream()
+                        .collect(java.util.stream.Collectors.toMap(TimeSlotEntity::getId, s -> s));
 
         int missedCount = 0;
         for (AppointmentEntity appt : confirmedAppointments) {
-            if (appt.getSlotId() != null) {
-                Optional<TimeSlotEntity> slotOpt = timeSlotJpaRepository.findById(appt.getSlotId());
-                if (slotOpt.isPresent() && slotOpt.get().getStartTime() != null) {
-                    if (slotOpt.get().getStartTime().isBefore(fifteenMinsAgo)) {
-                        markMissedNoShow(appt, "Hệ thống tự động ghi nhận bệnh nhân vắng mặt do đến trễ quá 15 phút so với giờ hẹn.");
-                        missedCount++;
-                    }
-                }
+            TimeSlotEntity slot = appt.getSlotId() != null ? slotMap.get(appt.getSlotId()) : null;
+            if (slot != null && slot.getStartTime() != null && slot.getStartTime().isBefore(fifteenMinsAgo)) {
+                markMissedNoShow(appt, "Hệ thống tự động ghi nhận bệnh nhân vắng mặt do đến trễ quá 15 phút so với giờ hẹn.");
+                missedCount++;
             }
         }
 
@@ -79,7 +80,6 @@ public class AppointmentCleanupJob {
     private void cancelPendingAppointment(AppointmentEntity appt, String reason) {
         log.info("Hủy ca khám PENDING ID: {} - Lý do: {}", appt.getId(), reason);
         appt.setStatus(AppointmentStatus.CANCELLED);
-        appt.setPatientSymptoms((appt.getPatientSymptoms() == null ? "" : appt.getPatientSymptoms() + "\n") + "[AUTO-CANCEL]: " + reason);
         appt.setUpdatedAt(Instant.now());
         appointmentJpaRepository.save(appt);
 
@@ -95,7 +95,6 @@ public class AppointmentCleanupJob {
     private void markMissedNoShow(AppointmentEntity appt, String reason) {
         log.info("Ghi nhận vắng mặt (No-show) ca khám ID: {} - Lý do: {}", appt.getId(), reason);
         appt.setStatus(AppointmentStatus.MISSED_NO_SHOW);
-        appt.setPatientSymptoms((appt.getPatientSymptoms() == null ? "" : appt.getPatientSymptoms() + "\n") + "[AUTO-NO-SHOW]: " + reason);
         appt.setUpdatedAt(Instant.now());
         appointmentJpaRepository.save(appt);
         // Không giải phóng slot này thành AVAILABLE vì khung giờ đã trôi qua trong quá khứ!

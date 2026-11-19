@@ -70,7 +70,7 @@ public class SecurityConfig {
                                                                 "/health",
                                                                 "/api/health",
                                                                 "/api/v1/health",
-                                                                "/actuator/**", // <-- Mở đường dẫn cho Prometheus cào số liệu
+                                                                "/actuator/health",
                                                                 "/error",
                                                                 "/api/v1/auth/**",
                                                                 "/api/auth/**",
@@ -97,9 +97,7 @@ public class SecurityConfig {
                                                                 "/api/v1/admin/promotions/**",
                                                                 "/api/admin/promotions/**",
                                                                 "/api/v1/promotions/**",
-                                                                "/api/promotions/**",
-                                                                "/api/v1/prescriptions/**",
-                                                                "/api/prescriptions/**")
+                                                                "/api/promotions/**")
                                                 .permitAll()
 
                                                 // 3. Khách xem danh sách slot giờ khám, tra cứu lịch trực bác sĩ và tra
@@ -115,14 +113,12 @@ public class SecurityConfig {
                                                                 "/api/v1/appointments/booking-code/*")
                                                 .permitAll()
 
-                                                // 3.1 Kiosk / Bệnh nhân tự tiếp đón bằng mã QR tại quầy và sảnh chờ
-                                                // (CLAB-124)
+                                                // 3.1 Kiosk / Bệnh nhân tự tiếp đón bằng mã QR tại sảnh chờ
+                                                // (Quầy lễ tân /api/reception/checkin/qr yêu cầu STAFF hoặc ADMIN)
                                                 .requestMatchers(HttpMethod.POST,
-                                                                "/api/reception/checkin/qr",
-                                                                "/api/v1/reception/checkin/qr",
                                                                 "/api/appointments/checkin/qr",
                                                                 "/api/v1/appointments/checkin/qr")
-                                                .permitAll()
+                                                .authenticated()
 
                                                 // MCP tool execution is privileged; keep public AI chat/triage below
                                                 // for patients.
@@ -130,16 +126,24 @@ public class SecurityConfig {
                                                                 "/api/v1/ai/tools/execute")
                                                 .authenticated()
 
-                                                // 4. AI Triage định hướng chuyên khoa ban đầu & Webhook / Tra cứu thanh
-                                                // toán
+                                                // 4. AI Triage định hướng chuyên khoa ban đầu & Webhook thanh toán từ cổng ngân hàng
                                                 .requestMatchers(
                                                                 "/api/ai/**",
                                                                 "/api/v1/ai/**",
-                                                                "/api/payments/**",
-                                                                "/api/v1/payments/**", "/api/files/**", "/api/v1/files/**")
+                                                                "/api/payments/webhook",
+                                                                "/api/v1/payments/webhook",
+                                                                "/api/payments/webhook/sepay",
+                                                                "/api/v1/payments/webhook/sepay",
+                                                                "/api/payments/vnpay/ipn",
+                                                                "/api/v1/payments/vnpay/ipn",
+                                                                "/api/files/**", "/api/v1/files/**")
                                                 .permitAll()
 
                                                 // 5. Phân quyền theo vai trò cụ thể
+                                                .requestMatchers("/actuator/**").hasRole("ADMIN")
+                                                .requestMatchers("/api/payments/webhook/simulate",
+                                                                "/api/v1/payments/webhook/simulate")
+                                                .hasRole("ADMIN")
                                                 .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                                                 .requestMatchers("/api/v1/doctor/schedules/**",
                                                                 "/api/doctor/schedules/**",
