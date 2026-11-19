@@ -511,7 +511,10 @@ export default function BookingForm() {
       const isActive = status === 'PENDING' || status === 'CONFIRMED' || status === 'CHECKED_IN';
       if (!isActive) return false;
       const aptDate = apt.appointmentDate || (apt.startTime ? String(apt.startTime).slice(0, 10) : '');
-      return aptDate === bookingDate;
+      if (aptDate !== bookingDate) return false;
+      const sym = String(apt.patientSymptoms || (apt as any).symptoms || '');
+      const isRelative = sym.includes('Khám cho người thân:') || sym.includes('Kham cho nguoi than:');
+      return !isRelative;
     });
   }, [existingAppointments, bookingDate]);
 
@@ -544,6 +547,7 @@ export default function BookingForm() {
       if (bookingFor !== 'relative') {
         autoSwitchedToRelativeRef.current = true;
         setBookingFor('relative');
+        setShowSelfConflictNotice(false);
       }
     } else if (autoSwitchedToRelativeRef.current) {
       autoSwitchedToRelativeRef.current = false;
@@ -1136,7 +1140,7 @@ export default function BookingForm() {
     }
     if (bookingFor === 'self' && isSelfDayLimitReached) {
       setShowSelfConflictNotice(true);
-      setError(`Bạn đã có ${selfActiveAppointmentsOnSelectedDate.length} ca khám đang chờ trong ngày ${selectedSlot.date || bookingDate}. Để chống spam giữ chỗ ảo, bạn chỉ có thể đặt thêm cho Người Thân.`);
+      setError(`Bạn đã có 1 ca khám của bản thân trong ngày ${selectedSlot.date || bookingDate}. Bạn vẫn có thể đặt thêm lịch cho Người Thân (chọn mục "Người Thân" ở bên cạnh).`);
       return;
     }
 
@@ -3300,53 +3304,66 @@ export default function BookingForm() {
                     </div>
 
                     {/* Thông báo chi tiết khi người dùng cố bấm chọn nút Bản thân trong lúc đã có lịch */}
-                    {showSelfConflictNotice && hasSelfBookingConflict && (() => {
+                    {bookingFor === 'self' && showSelfConflictNotice && hasSelfBookingConflict && (() => {
                       const isSameDoctor = Boolean(selfSameDoctorAppointment);
+                      const existingApt = selfSameDoctorAppointment || selfActiveAppointmentsOnSelectedDate[0];
+                      const existingCode = existingApt?.bookingCode;
+                      const existingTime = existingApt?.slotTime;
+                      const existingDoc = existingApt?.doctorName || (isSameDoctor ? selectedDoctor?.name : undefined);
+
                       return (
-                        <div className={`p-4 border-2 rounded-2xl flex items-start gap-3 shadow-2xs animate-fadeIn ${
-                          isSameDoctor ? 'bg-amber-50/95 border-amber-300' : 'bg-rose-50/95 border-rose-300'
-                        }`}>
-                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
-                            isSameDoctor ? 'bg-amber-200/80 text-amber-800' : 'bg-rose-200/80 text-rose-800'
-                          }`}>
-                            <ShieldAlert size={20} />
+                        <div className="p-4 border-2 rounded-2xl flex items-start gap-3.5 shadow-2xs animate-fadeIn bg-gradient-to-br from-amber-50/95 via-orange-50/40 to-blue-50/50 border-amber-300">
+                          <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 bg-amber-100 text-amber-800 border border-amber-300">
+                            <AlertCircle size={20} />
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <h4 className={`text-xs font-bold ${isSameDoctor ? 'text-amber-900' : 'text-rose-900'}`}>
+                              <h4 className="text-xs font-bold text-amber-950">
                                 {isSameDoctor
-                                  ? `Bạn đã có ca khám đang chờ với Bác sĩ ${selectedDoctor?.name || 'này'}`
-                                  : `Đã có ca khám đang chờ trong ngày (${selfActiveAppointmentsOnSelectedDate.length}/1 ca)`}
+                                  ? `Bạn đã có ca khám với Bác sĩ ${selectedDoctor?.name || 'này'} trong ngày`
+                                  : 'Bạn đã có 1 ca khám của bản thân trong ngày này'}
                               </h4>
-                              {isSameDoctor && selfSameDoctorAppointment && (
-                                <span className="font-mono bg-amber-200 text-amber-900 border border-amber-400 px-2 py-0.5 rounded text-[11px] font-bold">
-                                  #{selfSameDoctorAppointment.bookingCode}
+                              {existingCode && (
+                                <span className="font-mono bg-amber-200/90 text-amber-900 border border-amber-400 px-2 py-0.5 rounded text-[11px] font-bold">
+                                  #{existingCode}
                                 </span>
                               )}
                             </div>
-                            <p className={`text-[11px] mt-1.5 leading-relaxed ${isSameDoctor ? 'text-amber-800' : 'text-rose-800'}`}>
-                              {isSameDoctor && selfSameDoctorAppointment ? (
-                                <>
-                                  Hệ thống ghi nhận bạn đã có 1 ca khám vào ngày <strong>{formatVietnameseFullDate(bookingDate)}</strong> ({selfSameDoctorAppointment.slotTime || 'Khung giờ cũ'}).
-                                  {' '}Để tránh giữ chỗ ảo (spam lịch), mỗi bệnh nhân không thể đặt thêm khung giờ khác với cùng Bác sĩ trong ngày.
-                                </>
-                              ) : (
-                                <>
-                                  Bạn đã có ca khám đang chờ trong ngày <strong>{formatVietnameseFullDate(bookingDate)}</strong>. Để tránh chiếm giữ chỗ ảo (spam lịch) và đảm bảo công bằng cho mọi bệnh nhân, hệ thống giới hạn tối đa 1 ca khám/ngày cho bản thân.
-                                </>
-                              )}
+                            <p className="text-[11px] mt-1.5 leading-relaxed text-amber-900">
+                              Hệ thống ghi nhận bạn đã có lịch khám vào ngày <strong>{formatVietnameseFullDate(bookingDate)}</strong>
+                              {existingTime ? ` (${existingTime})` : ''}
+                              {existingDoc ? ` với ${existingDoc}` : ''}.
+                              {' '}Để đảm bảo thời gian theo dõi điều trị y tế, mỗi bệnh nhân chỉ được đặt tối đa <strong>1 ca khám/ngày cho chính bản thân</strong>.
                             </p>
-                            <div className="mt-3 flex items-center gap-2 flex-wrap">
+
+                            {/* Hộp gợi ý & chuyển tiếp rõ ràng: Đặt cho người thân */}
+                            <div className="mt-2.5 p-2.5 bg-white/95 border border-blue-200 rounded-xl flex items-center justify-between gap-2.5 flex-wrap sm:flex-nowrap shadow-2xs">
+                              <div className="text-[11px] text-slate-700 min-w-0">
+                                <span className="font-bold text-blue-900 flex items-center gap-1">
+                                  <Users size={13} className="text-blue-600 shrink-0" />
+                                  Bạn muốn đặt lịch cho Người Thân?
+                                </span>
+                                <span className="text-[10.5px] text-slate-600 block leading-tight mt-0.5">
+                                  Bạn vẫn có thể đặt thêm lịch cho ba, mẹ, con, vợ/chồng bình thường trong ngày này.
+                                </span>
+                              </div>
                               <button
                                 type="button"
-                                onClick={() => router.push('/my-appointments')}
-                                className={`px-3 py-1.5 text-white rounded-xl font-bold text-xs transition inline-flex items-center gap-1.5 shadow-2xs cursor-pointer ${
-                                  isSameDoctor ? 'bg-amber-700 hover:bg-amber-800' : 'bg-rose-700 hover:bg-rose-800'
-                                }`}
+                                onClick={() => {
+                                  setShowSelfConflictNotice(false);
+                                  setBookingFor('relative');
+                                  if (!relativeInfo.fullName) {
+                                    setShowRelativeModal(true);
+                                  }
+                                }}
+                                className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg font-bold text-xs inline-flex items-center gap-1.5 shrink-0 shadow-xs cursor-pointer transition"
                               >
-                                <FileText size={13} />
-                                <span>{isSameDoctor ? 'Xem phiếu hẹn & Đổi giờ' : 'Xem danh sách phiếu hẹn'}</span>
+                                <span>Tiếp tục đặt cho Người Thân</span>
+                                <ArrowRight size={13} />
                               </button>
+                            </div>
+
+                            <div className="mt-3 flex items-center gap-2 flex-wrap">
                               <button
                                 type="button"
                                 onClick={() => {
@@ -3354,14 +3371,18 @@ export default function BookingForm() {
                                   setStep(2);
                                   setShowDatePicker(true);
                                 }}
-                                className={`px-3 py-1.5 bg-white border rounded-xl font-bold text-xs transition inline-flex items-center gap-1.5 cursor-pointer ${
-                                  isSameDoctor
-                                    ? 'hover:bg-amber-100 border-amber-400 text-amber-900'
-                                    : 'hover:bg-rose-100 border-rose-400 text-rose-900'
-                                }`}
+                                className="px-3 py-1.5 bg-white hover:bg-amber-100 border border-amber-400 text-amber-900 rounded-xl font-bold text-xs transition inline-flex items-center gap-1.5 cursor-pointer"
                               >
                                 <Calendar size={13} />
-                                <span>Chọn ngày khám khác</span>
+                                <span>Đổi ngày khám khác cho bản thân</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => router.push('/my-appointments')}
+                                className="px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 rounded-xl font-bold text-xs transition inline-flex items-center gap-1.5 cursor-pointer"
+                              >
+                                <FileText size={13} />
+                                <span>{isSameDoctor ? 'Xem phiếu hẹn & Đổi giờ' : 'Xem danh sách phiếu hẹn'}</span>
                               </button>
                             </div>
                           </div>

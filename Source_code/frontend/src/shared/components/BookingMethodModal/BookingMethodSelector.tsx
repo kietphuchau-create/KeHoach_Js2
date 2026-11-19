@@ -1574,7 +1574,10 @@ export default function BookingMethodSelector({
       const isActive = status === 'PENDING' || status === 'CONFIRMED' || status === 'CHECKED_IN';
       if (!isActive) return false;
       const aptDate = apt.appointmentDate || (apt.startTime ? String(apt.startTime).slice(0, 10) : '');
-      return aptDate === bookingDate;
+      if (aptDate !== bookingDate) return false;
+      const sym = String((apt as any).patientSymptoms || apt.symptoms || '');
+      const isRelative = sym.includes('Khám cho người thân:') || sym.includes('Kham cho nguoi than:');
+      return !isRelative;
     });
   }, [existingPatientAppointments, bookingDate]);
 
@@ -5310,16 +5313,22 @@ export default function BookingMethodSelector({
                               <div className="flex items-center justify-between">
                                 <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
                                   <AlertCircle size={15} className="text-amber-600 shrink-0" />
-                                  Bạn đã có ca khám đang chờ trong ngày này
+                                  Bạn đã có 1 ca khám của bản thân trong ngày này
                                 </span>
                                 <span className="font-mono bg-amber-200 text-amber-900 border border-amber-400 px-2 py-0.5 rounded text-[10px] font-bold">
                                   #{existingSameDayAppointment.bookingCode}
                                 </span>
                               </div>
                               <p className="text-[11px] text-amber-900 leading-relaxed">
-                                Hệ thống ghi nhận bạn đã có 1 ca khám vào ngày <strong>{formatVietnameseFullDate(bookingDate)}</strong> ({existingSameDayAppointment.slotTime || 'Khung giờ cũ'}). Để tránh chiếm giữ chỗ ảo (spam lịch), mỗi bệnh nhân chỉ được đặt tối đa 1 ca khám trong ngày.
+                                Hệ thống ghi nhận bạn đã có 1 ca khám vào ngày <strong>{formatVietnameseFullDate(bookingDate)}</strong> ({existingSameDayAppointment.slotTime || 'Khung giờ cũ'}). Mỗi bệnh nhân chỉ đặt tối đa 1 ca khám/ngày cho bản thân. Nếu bạn muốn đặt lịch cho Người Thân (ba, mẹ, con, vợ/chồng), hãy chuyển sang hình thức Đặt khám thông thường.
                               </p>
                               <div className="flex items-center gap-2 pt-1 flex-wrap">
+                                <a
+                                  href="/booking"
+                                  className="px-2.5 py-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg font-bold text-[11px] cursor-pointer inline-flex items-center gap-1"
+                                >
+                                  <span>👥 Đặt cho Người Thân</span>
+                                </a>
                                 <button
                                   type="button"
                                   onClick={() => {

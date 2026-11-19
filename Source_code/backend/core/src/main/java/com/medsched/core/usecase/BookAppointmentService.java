@@ -67,7 +67,7 @@ public class BookAppointmentService implements BookAppointmentUseCase {
         validateBusinessHours(slot);
 
         // ── Kiểm tra tránh bệnh nhân đặt trùng giờ 2 bác sĩ & chống spam ──────────
-        validatePatientNotDoubleBooked(command.patientProfileId(), command.doctorId(), slot);
+        validatePatientNotDoubleBooked(command.patientProfileId(), command.doctorId(), slot, command.symptoms());
 
         boolean locked = timeSlotRepository.lockSlot(command.slotId());
         if (!locked) {
@@ -146,14 +146,16 @@ public class BookAppointmentService implements BookAppointmentUseCase {
     }
 
     /**
-     * Ngăn chặn bệnh nhân đặt trùng lịch và chống spam giữ chỗ ảo (Phương án 1):
-     * 1. Không được đặt trùng chính xác cùng 1 slot_id.
-     * 2. Không được đặt hai ca khám có khung giờ bị chồng lấn lên nhau (Time Overlap).
-     * 3. Ràng buộc cứng chống spam (CLAB-174): Mỗi bệnh nhân chỉ được phép có tối đa 01 ca khám đang hoạt động
-     *    (PENDING, CONFIRMED, CHECKED_IN) trong cùng một ngày (workDate). Muốn đổi giờ phải dùng chức năng Đổi lịch hoặc hủy ca cũ.
-     *    Tuyệt đối không cho phép đặt nhiều ca trong ngày dù cùng bác sĩ hay khác bác sĩ.
+     * Ngăn chặn bệnh nhân đặt trùng lịch và chống spam giữ chỗ ảo (Phương án 1 - CLAB-174):
+     * 1. Không được đặt trùng chính xác cùng 1 slot_id (khung giờ đã được giữ chỗ).
+     * 2. Ràng buộc cứng chống spam: Mỗi người (Bản thân hoặc từng Người Thân riêng biệt)
+     *    chỉ được phép có tối đa 01 ca khám đang hoạt động (PENDING, CONFIRMED, CHECKED_IN) trong cùng một ngày.
+     *    - Đặt cho Bản thân: chỉ so sánh với các ca khám của Bản thân.
+     *    - Đặt cho Người Thân: chỉ so sánh với các ca khám của chính Người Thân đó (phân biệt qua họ tên & thông tin người thân).
+     *    - Tuyệt đối không để ca khám của Bản thân chặn quyền đặt khám cho Người Thân và ngược lại.
+     * 3. Không được đặt hai ca khám có khung giờ bị chồng lấn lên nhau (Time Overlap) cho cùng một người.
      */
-    private void validatePatientNotDoubleBooked(String patientProfileId, String targetDoctorId, TimeSlot targetSlot) {
+    private void validatePatientNotDoubleBooked(String patientProfileId, String targetDoctorId, TimeSlot targetSlot, String currentSymptoms) {
         if (patientProfileId == null || patientProfileId.isBlank() || targetSlot.startTime() == null || targetSlot.endTime() == null) {
             return;
         }
@@ -164,6 +166,8 @@ public class BookAppointmentService implements BookAppointmentUseCase {
         }
 
         LocalDate targetDate = targetSlot.startTime().atZone(VN_ZONE).toLocalDate();
+        boolean isCurrentRelative = isRelativeAppointment(currentSymptoms);
+        String currentRelativeKey = extractRelativeKey(currentSymptoms);
 
         for (Appointment existing : existingApps) {
             String status = existing.status();
@@ -175,11 +179,25 @@ public class BookAppointmentService implements BookAppointmentUseCase {
                 continue;
             }
 
-            // 1. Trùng chính xác slot ID
+            // 1. Trùng chính xác slot ID (bất kể ai, slot đã được đặt thì không thể đặt lặp lại)
             if (existing.slotId().equals(targetSlot.id())) {
                 throw new SlotNotAvailableException(
                         "Bạn đã có một lịch hẹn (Mã: " + existing.bookingCode()
                         + ") tại đúng khung giờ này. Không thể đặt trùng lặp!");
+            }
+
+            // Phân biệt đối tượng khám: Bản thân vs Người Thân
+            boolean isExistingRelative = isRelativeAppointment(existing.patientSymptoms());
+            String existingRelativeKey = extractRelativeKey(existing.patientSymptoms());
+
+            // Ca khám của Bản thân và ca khám của Người Thân là 2 người hoàn toàn khác nhau -> không chặn nhau!
+            if (isCurrentRelative != isExistingRelative) {
+                continue;
+            }
+
+            // Cùng là Người Thân nhưng khác đối tượng (ví dụ Ba vs Mẹ, hoặc khác họ tên/SĐT) -> không chặn nhau!
+            if (isCurrentRelative && isExistingRelative && !currentRelativeKey.equals(existingRelativeKey)) {
+                continue;
             }
 
             // 2. Xác định ngày và giờ của ca khám trước (ưu tiên tra cứu time_slots, fallback qua createdAt)
@@ -203,27 +221,60 @@ public class BookAppointmentService implements BookAppointmentUseCase {
             if (existingDate != null && targetDate.equals(existingDate)) {
                 String timeStr = existingStartTime != null ? existingStartTime.toString() : null;
                 boolean isSameDoc = targetDoctorId != null && targetDoctorId.equals(existing.doctorId());
+                String personSubject = isCurrentRelative ? "Người thân này" : "Bạn";
 
                 if (isSameDoc) {
                     throw new SlotNotAvailableException(
-                            "Bạn đã có ca khám mã #" + existing.bookingCode()
+                            personSubject + " đã có ca khám mã #" + existing.bookingCode()
                             + " vào ngày " + targetDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
                             + (timeStr != null ? " (lúc " + timeStr + ")" : "")
                             + " với Bác sĩ này đang chờ phục vụ. "
+                            + "Để tránh chiếm giữ chỗ ảo (spam lịch), mỗi bệnh nhân chỉ được đặt tối đa 1 ca khám trong ngày. "
+                            + "Vui lòng hoàn tất khám, đổi giờ hoặc hủy ca cũ trước khi đặt thêm!");
+                } else {
+                    throw new SlotNotAvailableException(
+                            personSubject + " đã có ca khám mã #" + existing.bookingCode()
+                            + " vào ngày " + targetDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                            + (timeStr != null ? " (lúc " + timeStr + ")" : "")
+                            + " đang chờ phục vụ. "
+                            + "Để tránh chiếm giữ chỗ ảo (spam lịch) và đảm bảo cơ hội tiếp cận cho mọi bệnh nhân, hệ thống giới hạn tối đa 1 ca khám trong cùng một ngày cho mỗi người bệnh. "
                             + "Vui lòng hoàn tất khám, đổi giờ hoặc hủy ca cũ trước khi đặt thêm!");
                 }
             }
 
-            // 3. Kiểm tra trùng lấn khung giờ (Time Overlap)
+            // 3. Kiểm tra trùng lấn khung giờ (Time Overlap) cho cùng đối tượng khám
             if (existingStartInstant != null && existingEndInstant != null) {
                 boolean overlap = targetSlot.startTime().isBefore(existingEndInstant)
                         && targetSlot.endTime().isAfter(existingStartInstant);
                 if (overlap) {
                     throw new SlotNotAvailableException(
-                            "Bạn đã có lịch khám (Mã vé: " + existing.bookingCode()
+                            (isCurrentRelative ? "Người thân này" : "Bạn") + " đã có lịch khám (Mã vé: " + existing.bookingCode()
                             + ") trong cùng khung giờ này. Không thể đặt đồng thời hai ca khám trùng giờ nhau!");
                 }
             }
         }
+    }
+
+    private boolean isRelativeAppointment(String symptoms) {
+        if (symptoms == null) return false;
+        String trimmed = symptoms.trim();
+        return trimmed.startsWith("[Khám cho người thân:")
+                || trimmed.startsWith("[Kham cho nguoi than:")
+                || trimmed.startsWith("[Khám cho người thân")
+                || trimmed.startsWith("[Kham cho nguoi than");
+    }
+
+    private String extractRelativeKey(String symptoms) {
+        if (symptoms == null) return "";
+        String trimmed = symptoms.trim();
+        int openIdx = trimmed.indexOf('[');
+        int closeIdx = trimmed.indexOf(']');
+        if (openIdx >= 0 && closeIdx > openIdx) {
+            String bracketContent = trimmed.substring(openIdx, closeIdx + 1);
+            if (bracketContent.contains("người thân") || bracketContent.contains("nguoi than")) {
+                return bracketContent.toLowerCase().replaceAll("\\s+", " ").trim();
+            }
+        }
+        return "";
     }
 }
