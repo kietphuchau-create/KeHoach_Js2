@@ -845,12 +845,16 @@ public class AppointmentController {
         String currentRelativeKey = extractRelativeKey(currentSymptoms);
 
         List<AppointmentEntity> patientApps = appointmentJpaRepository.findByPatientProfileIdOrderByCreatedAtDesc(currentApp.getPatientProfileId());
+        int activeSelfCountOnNewDate = 0;
+        int activeRelativeCountOnNewDate = 0;
+
         for (AppointmentEntity app : patientApps) {
             if (app.getId().equals(currentApp.getId())) continue;
             boolean isActive = app.getStatus() == AppointmentStatus.PENDING
                     || app.getStatus() == AppointmentStatus.CONFIRMED
                     || app.getStatus() == AppointmentStatus.CHECKED_IN;
-            if (!isActive || app.getSlotId() == null) continue;
+            boolean isCompleted = app.getStatus() == AppointmentStatus.COMPLETED;
+            if ((!isActive && !isCompleted) || app.getSlotId() == null) continue;
 
             if (app.getSlotId().equals(newSlot.getId())) {
                 throw new IllegalArgumentException("Khung giờ khám này đã có người đặt trước.");
@@ -859,35 +863,55 @@ public class AppointmentController {
             boolean isExistingRelative = isRelativeAppointment(app.getPatientSymptoms());
             String existingRelativeKey = extractRelativeKey(app.getPatientSymptoms());
 
-            // Bản thân vs Người Thân không chặn nhau
-            if (isCurrentRelative != isExistingRelative) {
-                continue;
-            }
-            // Người Thân khác đối tượng (Ba vs Mẹ) không chặn nhau
-            if (isCurrentRelative && isExistingRelative && !currentRelativeKey.equals(existingRelativeKey)) {
-                continue;
-            }
+            boolean isSameSubject = (!isCurrentRelative && !isExistingRelative)
+                    || (isCurrentRelative && isExistingRelative && currentRelativeKey.equals(existingRelativeKey));
 
-            timeSlotJpaRepository.findById(app.getSlotId()).ifPresent(s -> {
+            java.util.Optional<TimeSlotEntity> slotOpt = timeSlotJpaRepository.findById(app.getSlotId());
+            if (slotOpt.isPresent()) {
+                TimeSlotEntity s = slotOpt.get();
                 if (s.getStartTime() != null && s.getEndTime() != null) {
                     LocalDate existingDate = s.getStartTime().atZone(vnZone).toLocalDate();
                     if (newDate.equals(existingDate)) {
-                        String docNotice = (newSlot.getDoctorId() != null && newSlot.getDoctorId().equals(app.getDoctorId()))
-                                ? "với Bác sĩ này "
-                                : "";
                         String subject = isCurrentRelative ? "Người thân này" : "Bệnh nhân";
-                        throw new IllegalArgumentException(
-                                subject + " đã có một ca khám khác (Mã #" + app.getBookingCode() + ") " + docNotice + "trong ngày "
-                                + newDate.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy")) + ". "
-                                + "Hệ thống giới hạn tối đa 1 ca khám trong cùng một ngày để tránh spam giữ chỗ, không thể đổi lịch sang ngày này.");
-                    }
-                    boolean overlap = newSlot.getStartTime().isBefore(s.getEndTime()) && newSlot.getEndTime().isAfter(s.getStartTime());
-                    if (overlap) {
-                        String subject = isCurrentRelative ? "Người thân này" : "Bệnh nhân";
-                        throw new IllegalArgumentException(subject + " đã có một ca khám khác trùng khung giờ khám này.");
+                        boolean isSameDoc = newSlot.getDoctorId() != null && newSlot.getDoctorId().equals(app.getDoctorId());
+
+                        if (isSameSubject && isSameDoc) {
+                            if (isCompleted) {
+                                throw new IllegalArgumentException(subject + " đã hoàn tất ca khám mã #" + app.getBookingCode() + " với Bác sĩ này trong ngày "
+                                        + newDate.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy")) + ". Không thể đổi lịch sang cùng Bác sĩ trong ngày.");
+                            } else if (isActive) {
+                                throw new IllegalArgumentException(subject + " đã có ca khám mã #" + app.getBookingCode() + " với Bác sĩ này đang chờ phục vụ trong ngày "
+                                        + newDate.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy")) + ".");
+                            }
+                        }
+
+                        if (isActive) {
+                            if (!isExistingRelative) {
+                                activeSelfCountOnNewDate++;
+                            } else {
+                                activeRelativeCountOnNewDate++;
+                            }
+
+                            if (isSameSubject) {
+                                boolean overlap = newSlot.getStartTime().isBefore(s.getEndTime()) && newSlot.getEndTime().isAfter(s.getStartTime());
+                                if (overlap) {
+                                    throw new IllegalArgumentException(subject + " đã có một ca khám khác trùng khung giờ khám này.");
+                                }
+                            }
+                        }
                     }
                 }
-            });
+            }
+        }
+
+        if (!isCurrentRelative && activeSelfCountOnNewDate >= 1) {
+            throw new IllegalArgumentException("Bệnh nhân đã có 1 ca khám khác đang chờ phục vụ trong ngày "
+                    + newDate.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                    + ". Hệ thống giới hạn tối đa 1 ca chờ khám cho bản thân trong ngày.");
+        }
+        if (isCurrentRelative && activeRelativeCountOnNewDate >= 2) {
+            throw new IllegalArgumentException("Tài khoản đã có 2 ca khám cho Người Thân đang chờ phục vụ trong ngày "
+                    + newDate.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy")) + ".");
         }
     }
 
