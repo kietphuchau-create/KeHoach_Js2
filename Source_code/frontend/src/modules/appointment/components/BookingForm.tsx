@@ -511,7 +511,10 @@ export default function BookingForm() {
       const isActive = status === 'PENDING' || status === 'CONFIRMED' || status === 'CHECKED_IN';
       if (!isActive) return false;
       const aptDate = apt.appointmentDate || (apt.startTime ? String(apt.startTime).slice(0, 10) : '');
-      return aptDate === bookingDate;
+      if (aptDate !== bookingDate) return false;
+      const sym = String(apt.patientSymptoms || (apt as any).symptoms || '');
+      const isRelative = sym.includes('Khám cho người thân:') || sym.includes('Kham cho nguoi than:');
+      return !isRelative;
     });
   }, [existingAppointments, bookingDate]);
 
@@ -544,6 +547,7 @@ export default function BookingForm() {
       if (bookingFor !== 'relative') {
         autoSwitchedToRelativeRef.current = true;
         setBookingFor('relative');
+        setShowSelfConflictNotice(false);
       }
     } else if (autoSwitchedToRelativeRef.current) {
       autoSwitchedToRelativeRef.current = false;
@@ -3300,7 +3304,7 @@ export default function BookingForm() {
                     </div>
 
                     {/* Thông báo chi tiết khi người dùng cố bấm chọn nút Bản thân trong lúc đã có lịch */}
-                    {showSelfConflictNotice && hasSelfBookingConflict && (() => {
+                    {bookingFor === 'self' && showSelfConflictNotice && hasSelfBookingConflict && (() => {
                       const isSameDoctor = Boolean(selfSameDoctorAppointment);
                       const existingApt = selfSameDoctorAppointment || selfActiveAppointmentsOnSelectedDate[0];
                       const existingCode = existingApt?.bookingCode;

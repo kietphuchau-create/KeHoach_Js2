@@ -777,7 +777,7 @@ public class AppointmentController {
         }
 
         // Kiểm tra bệnh nhân không bị trùng lịch khám khác cùng khung giờ (Double-booking)
-        validatePatientNotDoubleBookedForReschedule(appointment.getPatientProfileId(), appointment.getId(), newSlot);
+        validatePatientNotDoubleBookedForReschedule(appointment, newSlot);
 
         // 1. Giải phóng slot cũ
         if (appointment.getSlotId() != null && !appointment.getSlotId().isBlank()) {
@@ -834,24 +834,40 @@ public class AppointmentController {
         });
     }
 
-    private void validatePatientNotDoubleBookedForReschedule(String patientProfileId, String currentAppId, TimeSlotEntity newSlot) {
-        if (patientProfileId == null || newSlot.getStartTime() == null || newSlot.getEndTime() == null) {
+    private void validatePatientNotDoubleBookedForReschedule(AppointmentEntity currentApp, TimeSlotEntity newSlot) {
+        if (currentApp == null || currentApp.getPatientProfileId() == null || newSlot.getStartTime() == null || newSlot.getEndTime() == null) {
             return;
         }
         java.time.ZoneId vnZone = java.time.ZoneId.of("Asia/Ho_Chi_Minh");
         LocalDate newDate = newSlot.getStartTime().atZone(vnZone).toLocalDate();
+        String currentSymptoms = currentApp.getPatientSymptoms();
+        boolean isCurrentRelative = isRelativeAppointment(currentSymptoms);
+        String currentRelativeKey = extractRelativeKey(currentSymptoms);
 
-        List<AppointmentEntity> patientApps = appointmentJpaRepository.findByPatientProfileIdOrderByCreatedAtDesc(patientProfileId);
+        List<AppointmentEntity> patientApps = appointmentJpaRepository.findByPatientProfileIdOrderByCreatedAtDesc(currentApp.getPatientProfileId());
         for (AppointmentEntity app : patientApps) {
-            if (app.getId().equals(currentAppId)) continue;
+            if (app.getId().equals(currentApp.getId())) continue;
             boolean isActive = app.getStatus() == AppointmentStatus.PENDING
                     || app.getStatus() == AppointmentStatus.CONFIRMED
                     || app.getStatus() == AppointmentStatus.CHECKED_IN;
             if (!isActive || app.getSlotId() == null) continue;
 
             if (app.getSlotId().equals(newSlot.getId())) {
-                throw new IllegalArgumentException("Bệnh nhân đã có ca khám khác trong cùng khung giờ này.");
+                throw new IllegalArgumentException("Khung giờ khám này đã có người đặt trước.");
             }
+
+            boolean isExistingRelative = isRelativeAppointment(app.getPatientSymptoms());
+            String existingRelativeKey = extractRelativeKey(app.getPatientSymptoms());
+
+            // Bản thân vs Người Thân không chặn nhau
+            if (isCurrentRelative != isExistingRelative) {
+                continue;
+            }
+            // Người Thân khác đối tượng (Ba vs Mẹ) không chặn nhau
+            if (isCurrentRelative && isExistingRelative && !currentRelativeKey.equals(existingRelativeKey)) {
+                continue;
+            }
+
             timeSlotJpaRepository.findById(app.getSlotId()).ifPresent(s -> {
                 if (s.getStartTime() != null && s.getEndTime() != null) {
                     LocalDate existingDate = s.getStartTime().atZone(vnZone).toLocalDate();
@@ -859,18 +875,43 @@ public class AppointmentController {
                         String docNotice = (newSlot.getDoctorId() != null && newSlot.getDoctorId().equals(app.getDoctorId()))
                                 ? "với Bác sĩ này "
                                 : "";
+                        String subject = isCurrentRelative ? "Người thân này" : "Bệnh nhân";
                         throw new IllegalArgumentException(
-                                "Bệnh nhân đã có một ca khám khác (Mã #" + app.getBookingCode() + ") " + docNotice + "trong ngày "
+                                subject + " đã có một ca khám khác (Mã #" + app.getBookingCode() + ") " + docNotice + "trong ngày "
                                 + newDate.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy")) + ". "
                                 + "Hệ thống giới hạn tối đa 1 ca khám trong cùng một ngày để tránh spam giữ chỗ, không thể đổi lịch sang ngày này.");
                     }
                     boolean overlap = newSlot.getStartTime().isBefore(s.getEndTime()) && newSlot.getEndTime().isAfter(s.getStartTime());
                     if (overlap) {
-                        throw new IllegalArgumentException("Bệnh nhân đã có một ca khám khác trùng khung giờ khám này.");
+                        String subject = isCurrentRelative ? "Người thân này" : "Bệnh nhân";
+                        throw new IllegalArgumentException(subject + " đã có một ca khám khác trùng khung giờ khám này.");
                     }
                 }
             });
         }
+    }
+
+    private static boolean isRelativeAppointment(String symptoms) {
+        if (symptoms == null) return false;
+        String trimmed = symptoms.trim();
+        return trimmed.startsWith("[Khám cho người thân:")
+                || trimmed.startsWith("[Kham cho nguoi than:")
+                || trimmed.startsWith("[Khám cho người thân")
+                || trimmed.startsWith("[Kham cho nguoi than");
+    }
+
+    private static String extractRelativeKey(String symptoms) {
+        if (symptoms == null) return "";
+        String trimmed = symptoms.trim();
+        int openIdx = trimmed.indexOf('[');
+        int closeIdx = trimmed.indexOf(']');
+        if (openIdx >= 0 && closeIdx > openIdx) {
+            String bracketContent = trimmed.substring(openIdx, closeIdx + 1);
+            if (bracketContent.contains("người thân") || bracketContent.contains("nguoi than")) {
+                return bracketContent.toLowerCase().replaceAll("\\s+", " ").trim();
+            }
+        }
+        return "";
     }
 
     /**

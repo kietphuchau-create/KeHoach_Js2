@@ -237,4 +237,94 @@ class BookAppointmentServiceTest {
                 .isInstanceOf(SlotNotAvailableException.class)
                 .hasMessageContaining("hệ thống giới hạn tối đa 1 ca khám trong cùng một ngày");
     }
+
+    @Test
+    @DisplayName("Đặt cho Người Thân: Dù bản thân đã có 1 ca khám trong ngày -> Vẫn cho phép đặt lịch cho Người Thân")
+    void givenPatientHasActiveSelfAppointmentOnSameDay_whenBookForRelative_thenSuccess() {
+        Instant start = nextWednesdayMorning(14, 0);
+        Instant end = nextWednesdayMorning(14, 30);
+        TimeSlot relativeSlot = new TimeSlot("slot-rel", "sch-doc1", start, end, "AVAILABLE", 0);
+
+        TimeSlot selfSlot = new TimeSlot("slot-self", "sch-doc1", nextWednesdayMorning(9, 0), nextWednesdayMorning(9, 30), "BOOKED", 1);
+        Appointment selfApp = new Appointment(
+                "app-self", "MED-111", "c1", "patient-1", "doc-1", "slot-self",
+                "A-1", "ONLINE_BOOKED", "Bản thân đau đầu", null, null, "CONFIRMED",
+                false, 0, null, Instant.now(), Instant.now()
+        );
+
+        given(timeSlotRepository.findById("slot-rel")).willReturn(Optional.of(relativeSlot));
+        given(timeSlotRepository.lockSlot("slot-rel")).willReturn(true);
+        given(appointmentRepository.findByPatientProfileId("patient-1")).willReturn(List.of(selfApp));
+        given(appointmentRepository.save(any(Appointment.class))).willAnswer(inv -> inv.getArgument(0));
+
+        BookAppointmentUseCase.Command cmd = new BookAppointmentUseCase.Command(
+                "c1", "patient-1", "doc-1", "slot-rel",
+                "[Khám cho người thân: Nguyễn Văn Ba (1960) - Quan hệ: Ba - SĐT: 0912345678] Đau lưng", ""
+        );
+
+        Appointment result = bookService.book(cmd);
+        assertThat(result).isNotNull();
+        assertThat(result.slotId()).isEqualTo("slot-rel");
+        assertThat(result.patientSymptoms()).contains("[Khám cho người thân: Nguyễn Văn Ba");
+    }
+
+    @Test
+    @DisplayName("Đặt cho nhiều Người Thân khác nhau: Đã có ca khám cho Ba -> Vẫn cho phép đặt tiếp cho Mẹ trong cùng ngày")
+    void givenPatientHasActiveRelativeAppointmentOnSameDay_whenBookForDifferentRelative_thenSuccess() {
+        Instant start = nextWednesdayMorning(15, 0);
+        Instant end = nextWednesdayMorning(15, 30);
+        TimeSlot motherSlot = new TimeSlot("slot-mom", "sch-doc2", start, end, "AVAILABLE", 0);
+
+        TimeSlot fatherSlot = new TimeSlot("slot-dad", "sch-doc1", nextWednesdayMorning(10, 0), nextWednesdayMorning(10, 30), "BOOKED", 1);
+        Appointment fatherApp = new Appointment(
+                "app-dad", "MED-222", "c1", "patient-1", "doc-1", "slot-dad",
+                "A-2", "ONLINE_BOOKED",
+                "[Khám cho người thân: Nguyễn Văn Ba (1960) - Quan hệ: Ba - SĐT: 0912345678] Khám tim",
+                null, null, "CONFIRMED", false, 0, null, Instant.now(), Instant.now()
+        );
+
+        given(timeSlotRepository.findById("slot-mom")).willReturn(Optional.of(motherSlot));
+        given(timeSlotRepository.lockSlot("slot-mom")).willReturn(true);
+        given(appointmentRepository.findByPatientProfileId("patient-1")).willReturn(List.of(fatherApp));
+        given(appointmentRepository.save(any(Appointment.class))).willAnswer(inv -> inv.getArgument(0));
+
+        BookAppointmentUseCase.Command cmd = new BookAppointmentUseCase.Command(
+                "c1", "patient-1", "doc-2", "slot-mom",
+                "[Khám cho người thân: Trần Thị Mẹ (1965) - Quan hệ: Mẹ - SĐT: 0987654321] Khám mắt", ""
+        );
+
+        Appointment result = bookService.book(cmd);
+        assertThat(result).isNotNull();
+        assertThat(result.slotId()).isEqualTo("slot-mom");
+        assertThat(result.patientSymptoms()).contains("[Khám cho người thân: Trần Thị Mẹ");
+    }
+
+    @Test
+    @DisplayName("Chống spam cho cùng một Người Thân: Đã có ca cho Ba -> Chặn đặt thêm ca thứ 2 cho chính người Ba đó")
+    void givenPatientHasActiveRelativeAppointmentOnSameDay_whenBookAgainForSameRelative_thenThrowSlotNotAvailableException() {
+        Instant start = nextWednesdayMorning(16, 0);
+        Instant end = nextWednesdayMorning(16, 30);
+        TimeSlot secondSlot = new TimeSlot("slot-dad-2", "sch-doc3", start, end, "AVAILABLE", 0);
+
+        TimeSlot firstSlot = new TimeSlot("slot-dad-1", "sch-doc1", nextWednesdayMorning(10, 0), nextWednesdayMorning(10, 30), "BOOKED", 1);
+        Appointment firstApp = new Appointment(
+                "app-dad-1", "MED-333", "c1", "patient-1", "doc-1", "slot-dad-1",
+                "A-3", "ONLINE_BOOKED",
+                "[Khám cho người thân: Nguyễn Văn Ba (1960) - Quan hệ: Ba - SĐT: 0912345678] Khám tim",
+                null, null, "CONFIRMED", false, 0, null, Instant.now(), Instant.now()
+        );
+
+        given(timeSlotRepository.findById("slot-dad-2")).willReturn(Optional.of(secondSlot));
+        given(appointmentRepository.findByPatientProfileId("patient-1")).willReturn(List.of(firstApp));
+        given(timeSlotRepository.findById("slot-dad-1")).willReturn(Optional.of(firstSlot));
+
+        BookAppointmentUseCase.Command cmd = new BookAppointmentUseCase.Command(
+                "c1", "patient-1", "doc-3", "slot-dad-2",
+                "[Khám cho người thân: Nguyễn Văn Ba (1960) - Quan hệ: Ba - SĐT: 0912345678] Khám xương khớp", ""
+        );
+
+        assertThatThrownBy(() -> bookService.book(cmd))
+                .isInstanceOf(SlotNotAvailableException.class)
+                .hasMessageContaining("Người thân này đã có ca khám mã #MED-333");
+    }
 }

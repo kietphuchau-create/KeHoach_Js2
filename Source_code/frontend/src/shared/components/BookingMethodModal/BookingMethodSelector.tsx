@@ -1574,7 +1574,10 @@ export default function BookingMethodSelector({
       const isActive = status === 'PENDING' || status === 'CONFIRMED' || status === 'CHECKED_IN';
       if (!isActive) return false;
       const aptDate = apt.appointmentDate || (apt.startTime ? String(apt.startTime).slice(0, 10) : '');
-      return aptDate === bookingDate;
+      if (aptDate !== bookingDate) return false;
+      const sym = String((apt as any).patientSymptoms || apt.symptoms || '');
+      const isRelative = sym.includes('Khám cho người thân:') || sym.includes('Kham cho nguoi than:');
+      return !isRelative;
     });
   }, [existingPatientAppointments, bookingDate]);
 
