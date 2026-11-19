@@ -1664,7 +1664,7 @@ export default function BookingForm() {
     });
   }, [afternoonSlots]);
 
-  // Giữ đúng slot AI đã đề xuất. Chỉ chọn slot đầu tiên khi luồng không đến từ AI.
+  // Giữ đúng khung giờ người dùng hoặc AI đã chọn. Tuyệt đối không tự ý ghi đè về slot đầu tiên.
   useEffect(() => {
     if (!selectedDoctor?.id) {
       setSelectedSlot({
@@ -1677,56 +1677,15 @@ export default function BookingForm() {
     const currentRequestKey = `${selectedDoctor.id}|${bookingDate}`;
     if (loadingSlots || loadedSlotsFor !== currentRequestKey) return;
 
-    const requestedAiSlotId = aiPrefillRef.current?.slotId || '';
-    const alreadyApplied = aiSlotAppliedRef.current;
-
-    if (requestedAiSlotId && !alreadyApplied) {
-      // Có AI slotId và chưa apply: tìm đúng slot đó
-      const requestedAiSlot = timeSlots.find((slot) => slot.id === requestedAiSlotId && !slot.disabled);
-      if (requestedAiSlot) {
-        // Slot AI đề xuất vẫn khả dụng → chọn nó
-        aiSlotAppliedRef.current = true;
-        setStep2Errors((previous) => ({ ...previous, slot: undefined }));
-        setSelectedSlot({
-          id: requestedAiSlot.id,
-          time: requestedAiSlot.time,
-          date: formatISODateToVN(bookingDate),
-        });
-      } else {
-        // Slot AI đề xuất không còn khả dụng → yêu cầu user chọn lại
-        setSelectedSlot({
-          id: '',
-          time: 'Chưa chọn',
-          date: formatISODateToVN(bookingDate),
-        });
-        setStep2Errors((previous) => ({
-          ...previous,
-          slot: 'Khung giờ AI đề xuất không còn khả dụng. Vui lòng chọn một khung giờ khác.',
-        }));
-      }
-    } else if (!requestedAiSlotId && !alreadyApplied) {
-      // Không có AI slotId: tự động chọn slot đầu tiên còn trống
-      const firstAvailable = timeSlots.find((slot) => !slot.disabled);
-      if (firstAvailable) {
-        setStep2Errors((previous) => ({ ...previous, slot: undefined }));
-        setSelectedSlot({
-          id: firstAvailable.id,
-          time: firstAvailable.time,
-          date: formatISODateToVN(bookingDate),
-        });
-      } else {
-        setSelectedSlot({
-          id: '',
-          time: 'Hết chỗ',
-          date: formatISODateToVN(bookingDate),
-        });
-      }
-    }
-
-    // Kiểm tra an toàn: Nếu slot đang chọn đã rơi vào quá khứ hoặc bị khóa (CLAB-164)
+    // 1. Nếu slot hiện tại đang chọn vẫn hợp lệ và khả dụng trong danh sách timeSlots -> GIỮ NGUYÊN KHUNG GIỜ!
     if (selectedSlot.id && selectedSlot.id !== 'default') {
       const currentSlotObj = timeSlots.find((slot) => slot.id === selectedSlot.id);
+      if (currentSlotObj && !currentSlotObj.disabled) {
+        // Slot người dùng chọn vẫn khả dụng tốt -> KHÔNG ĐƯỢC GHI ĐÈ!
+        return;
+      }
       if (currentSlotObj?.disabled) {
+        // Slot đang chọn bị rơi vào quá khứ hoặc bị khóa -> tự động chọn slot kế tiếp
         const nextValidSlot = timeSlots.find((slot) => !slot.disabled);
         if (nextValidSlot) {
           setSelectedSlot({
@@ -1743,9 +1702,58 @@ export default function BookingForm() {
           });
           setStep2Errors((previous) => ({
             ...previous,
-            slot: 'Toàn bộ khung giờ khám hôm nay đã qua hoặc đã kín chỗ. Vui lòng chọn ngày khám khác.',
+            slot: 'Toàn bộ khung giờ khám trong ngày này đã qua hoặc đã kín chỗ. Vui lòng chọn ngày khám khác.',
           }));
         }
+        return;
+      }
+    }
+
+    // 2. Nếu có slot do AI đề xuất và chưa apply:
+    const requestedAiSlotId = aiPrefillRef.current?.slotId || '';
+    const alreadyApplied = aiSlotAppliedRef.current;
+
+    if (requestedAiSlotId && !alreadyApplied) {
+      const requestedAiSlot = timeSlots.find((slot) => slot.id === requestedAiSlotId && !slot.disabled);
+      if (requestedAiSlot) {
+        aiSlotAppliedRef.current = true;
+        setStep2Errors((previous) => ({ ...previous, slot: undefined }));
+        setSelectedSlot({
+          id: requestedAiSlot.id,
+          time: requestedAiSlot.time,
+          date: formatISODateToVN(bookingDate),
+        });
+        return;
+      } else {
+        setSelectedSlot({
+          id: '',
+          time: 'Chưa chọn',
+          date: formatISODateToVN(bookingDate),
+        });
+        setStep2Errors((previous) => ({
+          ...previous,
+          slot: 'Khung giờ AI đề xuất không còn khả dụng. Vui lòng chọn một khung giờ khác.',
+        }));
+        return;
+      }
+    }
+
+    // 3. Chỉ tự động chọn slot đầu tiên khi CHƯA CÓ SLOT NÀO được chọn (selectedSlot.id rỗng)
+    if (!selectedSlot.id || selectedSlot.id === '') {
+      const firstAvailable = timeSlots.find((slot) => !slot.disabled);
+      if (firstAvailable) {
+        setStep2Errors((previous) => ({ ...previous, slot: undefined }));
+        setSelectedSlot({
+          id: firstAvailable.id,
+          time: firstAvailable.time,
+          date: formatISODateToVN(bookingDate),
+        });
+      } else {
+        setSelectedSlot({
+          id: '',
+          time: 'Hết chỗ',
+          date: formatISODateToVN(bookingDate),
+        });
       }
     }
   }, [bookingDate, timeSlots, selectedDoctor?.id, loadingSlots, loadedSlotsFor, selectedSlot.id]);
@@ -3145,6 +3153,7 @@ export default function BookingForm() {
                                           type="button"
                                           disabled={slot.disabled}
                                           onClick={() => {
+                                            aiSlotAppliedRef.current = true;
                                             setSelectedSlot({
                                               id: slot.id,
                                               time: slot.time,
