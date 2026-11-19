@@ -16,6 +16,7 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -146,14 +147,16 @@ public class BookAppointmentService implements BookAppointmentUseCase {
     }
 
     /**
-     * Ngăn chặn bệnh nhân đặt trùng lịch và chống spam giữ chỗ ảo (Phương án 1 - CLAB-174):
+     * Ngăn chặn bệnh nhân đặt trùng lịch, chống spam giữ chỗ ảo và kiểm soát tần suất khám:
      * 1. Không được đặt trùng chính xác cùng 1 slot_id (khung giờ đã được giữ chỗ).
-     * 2. Ràng buộc cứng chống spam: Mỗi người (Bản thân hoặc từng Người Thân riêng biệt)
-     *    chỉ được phép có tối đa 01 ca khám đang hoạt động (PENDING, CONFIRMED, CHECKED_IN) trong cùng một ngày.
-     *    - Đặt cho Bản thân: chỉ so sánh với các ca khám của Bản thân.
-     *    - Đặt cho Người Thân: chỉ so sánh với các ca khám của chính Người Thân đó (phân biệt qua họ tên & thông tin người thân).
-     *    - Tuyệt đối không để ca khám của Bản thân chặn quyền đặt khám cho Người Thân và ngược lại.
-     * 3. Không được đặt hai ca khám có khung giờ bị chồng lấn lên nhau (Time Overlap) cho cùng một người.
+     * 2. Không được đặt lại cùng một Bác sĩ đã khám (COMPLETED) hoặc đang chờ khám (PENDING/CONFIRMED/CHECKED_IN) trong vòng 1 ngày:
+     *    - Áp dụng cho cùng một đối tượng người khám (Bản thân hoặc cùng 1 Người Thân).
+     *    - Khám xong với Bác sĩ A thì được đặt tiếp với Bác sĩ B trong cùng ngày, nhưng không được khám 2 lần với BS A.
+     * 3. Ràng buộc số ca khám đang hoạt động (ACTIVE: PENDING, CONFIRMED, CHECKED_IN) đồng thời trong ngày:
+     *    - Bản thân: Tối đa 01 ca active trong ngày.
+     *    - Người Thân: Tối đa 02 ca active trong ngày trên toàn bộ tài khoản.
+     *    - Khi ca cũ hoàn tất khám (COMPLETED) hoặc bị hủy (CANCELLED): Không còn tính vào quota active, được phép đặt tiếp ngay lập tức.
+     * 4. Không được đặt hai ca khám có khung giờ bị chồng lấn (Time Overlap) cho cùng một người.
      */
     private void validatePatientNotDoubleBooked(String patientProfileId, String targetDoctorId, TimeSlot targetSlot, String currentSymptoms) {
         if (patientProfileId == null || patientProfileId.isBlank() || targetSlot.startTime() == null || targetSlot.endTime() == null) {
@@ -166,16 +169,19 @@ public class BookAppointmentService implements BookAppointmentUseCase {
         }
 
         LocalDate targetDate = targetSlot.startTime().atZone(VN_ZONE).toLocalDate();
+        String targetDateStr = targetDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
         boolean isCurrentRelative = isRelativeAppointment(currentSymptoms);
         String currentRelativeKey = extractRelativeKey(currentSymptoms);
 
-        for (Appointment existing : existingApps) {
-            String status = existing.status();
-            boolean isActive = "PENDING".equalsIgnoreCase(status)
-                    || "CONFIRMED".equalsIgnoreCase(status)
-                    || "CHECKED_IN".equalsIgnoreCase(status);
+        List<Appointment> sameDayActiveSelfApps = new ArrayList<>();
+        List<Appointment> sameDayActiveRelativeApps = new ArrayList<>();
 
-            if (!isActive || existing.slotId() == null || existing.slotId().isBlank()) {
+        for (Appointment existing : existingApps) {
+            String status = existing.status() != null ? existing.status().toUpperCase() : "";
+            boolean isActive = "PENDING".equals(status) || "CONFIRMED".equals(status) || "CHECKED_IN".equals(status);
+            boolean isCompleted = "COMPLETED".equals(status);
+
+            if (existing.slotId() == null || existing.slotId().isBlank()) {
                 continue;
             }
 
@@ -186,21 +192,12 @@ public class BookAppointmentService implements BookAppointmentUseCase {
                         + ") tại đúng khung giờ này. Không thể đặt trùng lặp!");
             }
 
-            // Phân biệt đối tượng khám: Bản thân vs Người Thân
-            boolean isExistingRelative = isRelativeAppointment(existing.patientSymptoms());
-            String existingRelativeKey = extractRelativeKey(existing.patientSymptoms());
-
-            // Ca khám của Bản thân và ca khám của Người Thân là 2 người hoàn toàn khác nhau -> không chặn nhau!
-            if (isCurrentRelative != isExistingRelative) {
+            // Chỉ xét các ca có liên quan trong cùng ngày: Active hoặc Completed
+            if (!isActive && !isCompleted) {
                 continue;
             }
 
-            // Cùng là Người Thân nhưng khác đối tượng (ví dụ Ba vs Mẹ, hoặc khác họ tên/SĐT) -> không chặn nhau!
-            if (isCurrentRelative && isExistingRelative && !currentRelativeKey.equals(existingRelativeKey)) {
-                continue;
-            }
-
-            // 2. Xác định ngày và giờ của ca khám trước (ưu tiên tra cứu time_slots, fallback qua createdAt)
+            // Xác định ngày và giờ của ca khám trước (ưu tiên tra cứu time_slots, fallback qua createdAt)
             LocalDate existingDate = null;
             LocalTime existingStartTime = null;
             Instant existingStartInstant = null;
@@ -218,40 +215,91 @@ public class BookAppointmentService implements BookAppointmentUseCase {
                 existingStartTime = existing.createdAt().atZone(VN_ZONE).toLocalTime();
             }
 
-            if (existingDate != null && targetDate.equals(existingDate)) {
-                String timeStr = existingStartTime != null ? existingStartTime.toString() : null;
-                boolean isSameDoc = targetDoctorId != null && targetDoctorId.equals(existing.doctorId());
+            if (existingDate == null || !targetDate.equals(existingDate)) {
+                continue;
+            }
+
+            boolean isExistingRelative = isRelativeAppointment(existing.patientSymptoms());
+            String existingRelativeKey = extractRelativeKey(existing.patientSymptoms());
+
+            // Phân biệt cùng đối tượng người khám:
+            // - Đặt cho Bản Thân: cùng đối tượng khi ca khám trước là Bản Thân (!isExistingRelative)
+            // - Đặt cho Người Thân: cùng đối tượng khi ca khám trước là Người Thân và khớp key người thân
+            boolean isSamePatientSubject = (!isCurrentRelative && !isExistingRelative)
+                    || (isCurrentRelative && isExistingRelative && currentRelativeKey.equals(existingRelativeKey));
+
+            // 2. Kiểm soát theo từng người bệnh cụ thể (Bản thân hoặc cùng 1 Người Thân):
+            if (isSamePatientSubject) {
                 String personSubject = isCurrentRelative ? "Người thân này" : "Bạn";
+                boolean isSameDoc = targetDoctorId != null && targetDoctorId.equals(existing.doctorId());
 
-                if (isSameDoc) {
+                // 2a. Nếu ca trước đã COMPLETED (khám xong): Không được đặt lại cùng Bác sĩ đó trong ngày
+                if (isCompleted && isSameDoc) {
                     throw new SlotNotAvailableException(
-                            personSubject + " đã có ca khám mã #" + existing.bookingCode()
-                            + " vào ngày " + targetDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
-                            + (timeStr != null ? " (lúc " + timeStr + ")" : "")
-                            + " với Bác sĩ này đang chờ phục vụ. "
-                            + "Để tránh chiếm giữ chỗ ảo (spam lịch), mỗi bệnh nhân chỉ được đặt tối đa 1 ca khám trong ngày. "
-                            + "Vui lòng hoàn tất khám, đổi giờ hoặc hủy ca cũ trước khi đặt thêm!");
+                            personSubject + " đã hoàn tất ca khám mã #" + existing.bookingCode()
+                            + " với Bác sĩ này trong ngày " + targetDateStr + ". "
+                            + "Theo quy định y tế, mỗi người chỉ khám tối đa 1 lần/ngày với cùng một Bác sĩ. "
+                            + "Vui lòng chọn Bác sĩ khác hoặc đặt lịch vào ngày tiếp theo!");
+                }
+
+                // 2b. Kiểm tra trùng lấn khung giờ (Time Overlap) cho cùng đối tượng khám
+                if (isActive && existingStartInstant != null && existingEndInstant != null) {
+                    boolean overlap = targetSlot.startTime().isBefore(existingEndInstant)
+                            && targetSlot.endTime().isAfter(existingStartInstant);
+                    if (overlap) {
+                        throw new SlotNotAvailableException(
+                                personSubject + " đã có lịch khám (Mã vé: " + existing.bookingCode()
+                                + ") trong cùng khung giờ này. Không thể đặt đồng thời hai ca khám trùng giờ nhau!");
+                    }
+                }
+
+                // 2c. Nếu ca trước đang ACTIVE (chờ khám): Mỗi người chỉ được giữ tối đa 1 ca active cùng lúc
+                if (isActive) {
+                    String timeStr = existingStartTime != null ? " (lúc " + existingStartTime + ")" : "";
+                    if (isSameDoc) {
+                        throw new SlotNotAvailableException(
+                                personSubject + " đã có ca khám mã #" + existing.bookingCode()
+                                + " vào ngày " + targetDateStr + timeStr
+                                + " với Bác sĩ này đang chờ phục vụ. "
+                                + "Vui lòng hoàn tất khám, đổi giờ hoặc hủy ca cũ trước khi đặt thêm!");
+                    } else {
+                        throw new SlotNotAvailableException(
+                                personSubject + " đã có ca khám mã #" + existing.bookingCode()
+                                + " vào ngày " + targetDateStr + timeStr
+                                + " đang chờ phục vụ. "
+                                + "Hệ thống giới hạn tối đa 1 ca chờ khám trong ngày cho mỗi người bệnh. "
+                                + "Sau khi hoàn tất khám hoặc hủy ca cũ, bạn có thể tiếp tục đặt ca mới với Bác sĩ khác!");
+                    }
+                }
+            }
+
+            // Thu thập các ca ACTIVE trong ngày để kiểm tra quota
+            if (isActive) {
+                if (!isExistingRelative) {
+                    sameDayActiveSelfApps.add(existing);
                 } else {
-                    throw new SlotNotAvailableException(
-                            personSubject + " đã có ca khám mã #" + existing.bookingCode()
-                            + " vào ngày " + targetDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
-                            + (timeStr != null ? " (lúc " + timeStr + ")" : "")
-                            + " đang chờ phục vụ. "
-                            + "Để tránh chiếm giữ chỗ ảo (spam lịch) và đảm bảo cơ hội tiếp cận cho mọi bệnh nhân, hệ thống giới hạn tối đa 1 ca khám trong cùng một ngày cho mỗi người bệnh. "
-                            + "Vui lòng hoàn tất khám, đổi giờ hoặc hủy ca cũ trước khi đặt thêm!");
+                    sameDayActiveRelativeApps.add(existing);
                 }
             }
+        }
 
-            // 3. Kiểm tra trùng lấn khung giờ (Time Overlap) cho cùng đối tượng khám
-            if (existingStartInstant != null && existingEndInstant != null) {
-                boolean overlap = targetSlot.startTime().isBefore(existingEndInstant)
-                        && targetSlot.endTime().isAfter(existingStartInstant);
-                if (overlap) {
-                    throw new SlotNotAvailableException(
-                            (isCurrentRelative ? "Người thân này" : "Bạn") + " đã có lịch khám (Mã vé: " + existing.bookingCode()
-                            + ") trong cùng khung giờ này. Không thể đặt đồng thời hai ca khám trùng giờ nhau!");
-                }
-            }
+        // 4. Ràng buộc số ca khám đang hoạt động (ACTIVE) trong ngày:
+        // A. Bản thân: Tối đa 1 ca active
+        if (!isCurrentRelative && sameDayActiveSelfApps.size() >= 1) {
+            Appointment existingSelf = sameDayActiveSelfApps.get(0);
+            throw new SlotNotAvailableException(
+                    "Bạn đang có 1 ca khám của bản thân mã #" + existingSelf.bookingCode()
+                    + " trong ngày " + targetDateStr + " đang chờ phục vụ. "
+                    + "Hệ thống giới hạn tối đa 1 ca chờ khám trong ngày cho bản thân. "
+                    + "Sau khi Bác sĩ hoàn tất khám hoặc hủy ca cũ, bạn có thể tiếp tục đặt ca mới với Bác sĩ khác!");
+        }
+
+        // B. Người thân: Tối đa 2 ca active trên toàn tài khoản
+        if (isCurrentRelative && sameDayActiveRelativeApps.size() >= 2) {
+            throw new SlotNotAvailableException(
+                    "Tài khoản của bạn đã đạt tối đa 2 ca khám cho Người Thân đang chờ phục vụ trong ngày " + targetDateStr + ". "
+                    + "Hệ thống giới hạn tối đa 2 ca chờ khám cho người thân cùng ngày để tránh spam giữ chỗ. "
+                    + "Sau khi hoàn tất khám hoặc hủy ca cũ, bạn có thể tiếp tục đặt thêm cho người thân!");
         }
     }
 

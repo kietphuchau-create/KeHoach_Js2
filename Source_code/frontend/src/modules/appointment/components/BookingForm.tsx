@@ -503,8 +503,8 @@ export default function BookingForm() {
     };
   });
 
-  // ── CHỐNG SPAM LỊCH & GIỮ CHỖ ẢO (CLAB-160 / CLAB-173) ──────────────────────
-  // 1. Lọc tất cả ca khám đang chờ (PENDING, CONFIRMED, CHECKED_IN) của chính chủ trong ngày đang chọn
+  // ── CHỐNG SPAM LỊCH & QUẢN LÝ QUOTA ĐẶT KHÁM (CLAB-160 / CLAB-174) ───────────
+  // 1. Lọc tất cả ca khám đang chờ (PENDING, CONFIRMED, CHECKED_IN) của bản thân trong ngày đang chọn
   const selfActiveAppointmentsOnSelectedDate = useMemo(() => {
     return existingAppointments.filter((apt) => {
       const status = String(apt.status || '').toUpperCase();
@@ -518,21 +518,92 @@ export default function BookingForm() {
     });
   }, [existingAppointments, bookingDate]);
 
-  // 2. Kiểm tra ca khám của bản thân có trùng Bác sĩ đang chọn hoặc đã có ca khám trong ngày không (CLAB-174: Giới hạn tối đa 1 ca/ngày)
+  // 2. Ca khám của bản thân đang chờ với Bác sĩ đang chọn trong ngày
   const selfSameDoctorAppointment = useMemo(() => {
     if (!selectedDoctor?.id) return null;
     return selfActiveAppointmentsOnSelectedDate.find((apt) => apt.doctorId === selectedDoctor.id) || null;
   }, [selfActiveAppointmentsOnSelectedDate, selectedDoctor]);
 
+  // 3. Ca khám của bản thân đã hoàn tất (COMPLETED) với Bác sĩ này trong ngày (Quy định: Không khám lặp lại cùng BS trong ngày)
+  const selfSameDoctorCompletedAppointment = useMemo(() => {
+    if (!selectedDoctor?.id) return null;
+    return (
+      existingAppointments.find((apt) => {
+        const status = String(apt.status || '').toUpperCase();
+        if (status !== 'COMPLETED') return false;
+        const aptDate = apt.appointmentDate || (apt.startTime ? String(apt.startTime).slice(0, 10) : '');
+        if (aptDate !== bookingDate) return false;
+        if (apt.doctorId !== selectedDoctor.id) return false;
+        const sym = String(apt.patientSymptoms || (apt as any).symptoms || '');
+        const isRelative = sym.includes('Khám cho người thân:') || sym.includes('Kham cho nguoi than:');
+        return !isRelative;
+      }) || null
+    );
+  }, [existingAppointments, bookingDate, selectedDoctor]);
+
+  // Bản thân: Tối đa 1 ca active trong ngày
   const isSelfDayLimitReached = useMemo(() => {
     return selfActiveAppointmentsOnSelectedDate.length >= 1;
   }, [selfActiveAppointmentsOnSelectedDate]);
 
-  const hasSelfBookingConflict = Boolean(selfSameDoctorAppointment || isSelfDayLimitReached);
+  // Xung đột khi đặt cho bản thân (đang chờ cùng BS, đã hoàn tất cùng BS, hoặc đã có 1 ca active)
+  const hasSelfBookingConflict = Boolean(
+    selfSameDoctorAppointment || selfSameDoctorCompletedAppointment || isSelfDayLimitReached
+  );
 
-  // Giữ các biến active theo ngữ cảnh bookingFor hiện tại (chỉ chặn submit khi đặt cho 'self')
-  const sameDoctorActiveAppointment = bookingFor === 'self' ? selfSameDoctorAppointment : null;
-  const isDayBookingLimitReached = bookingFor === 'self' && isSelfDayLimitReached;
+  // 4. Lọc tất cả ca khám đang chờ (active) của NGƯỜI THÂN trong ngày đang chọn (Tối đa 2 ca)
+  const relativeActiveAppointmentsOnSelectedDate = useMemo(() => {
+    return existingAppointments.filter((apt) => {
+      const status = String(apt.status || '').toUpperCase();
+      const isActive = status === 'PENDING' || status === 'CONFIRMED' || status === 'CHECKED_IN';
+      if (!isActive) return false;
+      const aptDate = apt.appointmentDate || (apt.startTime ? String(apt.startTime).slice(0, 10) : '');
+      if (aptDate !== bookingDate) return false;
+      const sym = String(apt.patientSymptoms || (apt as any).symptoms || '');
+      const isRelative = sym.includes('Khám cho người thân:') || sym.includes('Kham cho nguoi than:');
+      return isRelative;
+    });
+  }, [existingAppointments, bookingDate]);
+
+  // Người thân: Tối đa 2 ca active trên toàn tài khoản
+  const isRelativeDayLimitReached = useMemo(() => {
+    return relativeActiveAppointmentsOnSelectedDate.length >= 2;
+  }, [relativeActiveAppointmentsOnSelectedDate]);
+
+  // Người thân cụ thể đã hoàn tất khám với Bác sĩ này trong ngày
+  const currentRelativeCompletedWithDoctor = useMemo(() => {
+    if (!selectedDoctor?.id || !relativeInfo.fullName.trim()) return null;
+    const targetName = relativeInfo.fullName.trim().toLowerCase();
+    return (
+      existingAppointments.find((apt) => {
+        const status = String(apt.status || '').toUpperCase();
+        if (status !== 'COMPLETED') return false;
+        const aptDate = apt.appointmentDate || (apt.startTime ? String(apt.startTime).slice(0, 10) : '');
+        if (aptDate !== bookingDate) return false;
+        if (apt.doctorId !== selectedDoctor.id) return false;
+        const sym = String(apt.patientSymptoms || (apt as any).symptoms || '').toLowerCase();
+        return (sym.includes('khám cho người thân:') || sym.includes('kham cho nguoi than:')) && sym.includes(targetName);
+      }) || null
+    );
+  }, [existingAppointments, bookingDate, selectedDoctor, relativeInfo.fullName]);
+
+  // Người thân cụ thể đang có ca active với Bác sĩ này
+  const currentRelativeActiveWithDoctor = useMemo(() => {
+    if (!selectedDoctor?.id || !relativeInfo.fullName.trim()) return null;
+    const targetName = relativeInfo.fullName.trim().toLowerCase();
+    return (
+      relativeActiveAppointmentsOnSelectedDate.find((apt) => {
+        if (apt.doctorId !== selectedDoctor.id) return false;
+        const sym = String(apt.patientSymptoms || (apt as any).symptoms || '').toLowerCase();
+        return sym.includes(targetName);
+      }) || null
+    );
+  }, [relativeActiveAppointmentsOnSelectedDate, selectedDoctor, relativeInfo.fullName]);
+
+  // Biến xung đột theo ngữ cảnh bookingFor đang chọn:
+  const sameDoctorActiveAppointment = bookingFor === 'self' ? selfSameDoctorAppointment : currentRelativeActiveWithDoctor;
+  const sameDoctorCompletedAppointment = bookingFor === 'self' ? selfSameDoctorCompletedAppointment : currentRelativeCompletedWithDoctor;
+  const isDayBookingLimitReached = bookingFor === 'self' ? isSelfDayLimitReached : isRelativeDayLimitReached;
 
   // Khi ở Bước 3, nếu bản thân đã có lịch mà người dùng cố bấm chọn nút "Bản thân tôi" -> bật thông báo chi tiết
   const [showSelfConflictNotice, setShowSelfConflictNotice] = useState(false);
@@ -777,6 +848,7 @@ export default function BookingForm() {
     aiSlotAppliedRef.current = false;
     userSelectedDateRef.current = true;
     setBookingDate(isoString);
+    setLoadingSlots(true);
     const formatted = `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
     setSelectedSlot((prev) => ({
       ...prev,
@@ -1156,16 +1228,37 @@ export default function BookingForm() {
       return;
     }
 
-    // Chốt chặn chống spam lịch & giữ chỗ ảo khi đặt cho bản thân (CLAB-160)
-    if (bookingFor === 'self' && selfSameDoctorAppointment) {
-      setShowSelfConflictNotice(true);
-      setError(`Bạn đã có ca khám mã #${selfSameDoctorAppointment.bookingCode} (${selfSameDoctorAppointment.slotTime || 'Khung giờ cũ'}) với Bác sĩ này trong ngày ${selectedSlot.date || bookingDate}. Vui lòng chuyển sang đặt cho Người Thân hoặc đổi giờ/hủy ca cũ.`);
-      return;
-    }
-    if (bookingFor === 'self' && isSelfDayLimitReached) {
-      setShowSelfConflictNotice(true);
-      setError(`Bạn đã có 1 ca khám của bản thân trong ngày ${selectedSlot.date || bookingDate}. Bạn vẫn có thể đặt thêm lịch cho Người Thân (chọn mục "Người Thân" ở bên cạnh).`);
-      return;
+    // Chốt chặn chống spam lịch & kiểm tra quota đặt khám (CLAB-160 / CLAB-174)
+    if (bookingFor === 'self') {
+      if (selfSameDoctorCompletedAppointment) {
+        setShowSelfConflictNotice(true);
+        setError(`Bạn đã hoàn tất ca khám với Bác sĩ ${selectedDoctor?.name || 'này'} trong ngày hôm nay. Theo quy định y tế, mỗi người chỉ khám 1 lần/ngày với cùng 1 Bác sĩ. Vui lòng chọn Bác sĩ khác hoặc ngày khác.`);
+        return;
+      }
+      if (selfSameDoctorAppointment) {
+        setShowSelfConflictNotice(true);
+        setError(`Bạn đã có ca khám mã #${selfSameDoctorAppointment.bookingCode} (${selfSameDoctorAppointment.slotTime || 'Khung giờ cũ'}) với Bác sĩ này trong ngày ${selectedSlot.date || bookingDate} đang chờ phục vụ. Vui lòng hoàn tất khám, đổi giờ hoặc hủy ca cũ.`);
+        return;
+      }
+      if (isSelfDayLimitReached) {
+        setShowSelfConflictNotice(true);
+        setError(`Bạn đã có 1 ca khám của bản thân trong ngày ${selectedSlot.date || bookingDate} đang chờ phục vụ. Hệ thống giới hạn tối đa 1 ca chờ khám trong ngày cho bản thân. Bạn vẫn có thể đặt thêm lịch cho Người Thân.`);
+        return;
+      }
+    } else {
+      // Đặt cho Người Thân
+      if (currentRelativeCompletedWithDoctor) {
+        setError(`Người thân này (${relativeInfo.fullName}) đã hoàn tất ca khám với Bác sĩ ${selectedDoctor?.name || 'này'} trong ngày hôm nay. Vui lòng chọn Bác sĩ khác hoặc ngày khác.`);
+        return;
+      }
+      if (currentRelativeActiveWithDoctor) {
+        setError(`Người thân này (${relativeInfo.fullName}) đã có ca khám mã #${currentRelativeActiveWithDoctor.bookingCode} với Bác sĩ này đang chờ phục vụ. Vui lòng hoàn tất khám trước khi đặt thêm.`);
+        return;
+      }
+      if (isRelativeDayLimitReached) {
+        setError(`Tài khoản của bạn đã đạt tối đa 2 ca khám cho Người Thân đang chờ phục vụ trong ngày ${selectedSlot.date || bookingDate}. Vui lòng hoàn tất khám hoặc hủy bớt ca cũ trước khi đặt thêm.`);
+        return;
+      }
     }
 
     // Chốt chặn kiểm tra hồ sơ y tế bệnh nhân bắt buộc
@@ -3318,8 +3411,12 @@ export default function BookingForm() {
                           <span className={`text-[10px] block truncate mt-0.5 leading-tight ${
                             hasSelfBookingConflict ? 'text-amber-700 font-medium' : 'text-slate-500'
                           }`}>
-                            {hasSelfBookingConflict
-                              ? 'Không thể đặt thêm cho bản thân'
+                            {selfSameDoctorCompletedAppointment
+                              ? 'Đã khám BS này hôm nay'
+                              : selfSameDoctorAppointment
+                              ? 'Đang có ca chờ BS này'
+                              : isSelfDayLimitReached
+                              ? 'Đang có 1 ca chờ (1/1)'
                               : currentUser?.phone || 'Chủ tài khoản'}
                           </span>
                         </div>
@@ -3328,6 +3425,7 @@ export default function BookingForm() {
                       <button
                         type="button"
                         onClick={() => {
+                          if (isRelativeDayLimitReached) return;
                           autoSwitchedToRelativeRef.current = false;
                           setShowSelfConflictNotice(false);
                           setBookingFor('relative');
@@ -3335,17 +3433,25 @@ export default function BookingForm() {
                             setShowRelativeModal(true);
                           }
                         }}
-                        className={`p-2.5 sm:p-3 rounded-2xl border-2 text-left transition cursor-pointer flex flex-col justify-between min-h-[78px] sm:min-h-[84px] ${
-                          bookingFor === 'relative'
-                            ? 'border-blue-600 bg-blue-50/50 shadow-xs'
-                            : 'border-slate-200 hover:border-slate-300 bg-white'
+                        disabled={isRelativeDayLimitReached}
+                        className={`p-2.5 sm:p-3 rounded-2xl border-2 text-left transition flex flex-col justify-between min-h-[78px] sm:min-h-[84px] ${
+                          isRelativeDayLimitReached
+                            ? 'border-slate-200 bg-slate-50/70 opacity-60 cursor-not-allowed'
+                            : bookingFor === 'relative'
+                            ? 'border-blue-600 bg-blue-50/50 shadow-xs cursor-pointer'
+                            : 'border-slate-200 hover:border-slate-300 bg-white cursor-pointer'
                         }`}
                       >
                         <div className="flex items-center justify-between w-full">
                           <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-xs shrink-0">
                             +
                           </div>
-                          {bookingFor === 'relative' ? (
+                          {isRelativeDayLimitReached ? (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-bold shrink-0">
+                              <Lock size={10} />
+                              <span>Đã đủ 2 ca</span>
+                            </span>
+                          ) : bookingFor === 'relative' ? (
                             <CheckCircle2 size={16} className="text-blue-600 shrink-0" />
                           ) : (
                             <div className="w-4 h-4 rounded-full border border-slate-300 shrink-0" />
@@ -3356,9 +3462,13 @@ export default function BookingForm() {
                             Người Thân
                           </strong>
                           <span className="text-[10px] text-slate-500 block truncate mt-0.5 leading-tight">
-                            {bookingFor === 'relative' && relativeInfo.fullName
+                            {isRelativeDayLimitReached
+                              ? 'Đã đạt tối đa 2 ca chờ (2/2)'
+                              : bookingFor === 'relative' && relativeInfo.fullName
                               ? `${relativeInfo.fullName} (${relativeInfo.relationship})`
-                              : 'Ba, Mẹ, Con, Vợ/Chồng'}
+                              : relativeActiveAppointmentsOnSelectedDate.length === 1
+                              ? 'Đang có 1/2 ca chờ'
+                              : 'Ba, Mẹ, Con, Vợ/Chồng (Tối đa 2)'}
                           </span>
                         </div>
                       </button>
@@ -3366,11 +3476,12 @@ export default function BookingForm() {
 
                     {/* Thông báo chi tiết khi người dùng cố bấm chọn nút Bản thân trong lúc đã có lịch */}
                     {bookingFor === 'self' && showSelfConflictNotice && hasSelfBookingConflict && (() => {
+                      const isCompletedSameDoc = Boolean(selfSameDoctorCompletedAppointment);
                       const isSameDoctor = Boolean(selfSameDoctorAppointment);
-                      const existingApt = selfSameDoctorAppointment || selfActiveAppointmentsOnSelectedDate[0];
+                      const existingApt = selfSameDoctorCompletedAppointment || selfSameDoctorAppointment || selfActiveAppointmentsOnSelectedDate[0];
                       const existingCode = existingApt?.bookingCode;
                       const existingTime = existingApt?.slotTime;
-                      const existingDoc = existingApt?.doctorName || (isSameDoctor ? selectedDoctor?.name : undefined);
+                      const existingDoc = existingApt?.doctorName || (isSameDoctor || isCompletedSameDoc ? selectedDoctor?.name : undefined);
 
                       return (
                         <div className="p-4 border-2 rounded-2xl flex items-start gap-3.5 shadow-2xs animate-fadeIn bg-gradient-to-br from-amber-50/95 via-orange-50/40 to-blue-50/50 border-amber-300">
@@ -3380,8 +3491,10 @@ export default function BookingForm() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <h4 className="text-xs font-bold text-amber-950">
-                                {isSameDoctor
-                                  ? `Bạn đã có ca khám với Bác sĩ ${selectedDoctor?.name || 'này'} trong ngày`
+                                {isCompletedSameDoc
+                                  ? `Bạn đã hoàn tất ca khám với Bác sĩ ${selectedDoctor?.name || 'này'} trong ngày`
+                                  : isSameDoctor
+                                  ? `Bạn đã có ca khám đang chờ với Bác sĩ ${selectedDoctor?.name || 'này'} trong ngày`
                                   : 'Bạn đã có 1 ca khám của bản thân trong ngày này'}
                               </h4>
                               {existingCode && (
@@ -3391,10 +3504,19 @@ export default function BookingForm() {
                               )}
                             </div>
                             <p className="text-[11px] mt-1.5 leading-relaxed text-amber-900">
-                              Hệ thống ghi nhận bạn đã có lịch khám vào ngày <strong>{formatVietnameseFullDate(bookingDate)}</strong>
-                              {existingTime ? ` (${existingTime})` : ''}
-                              {existingDoc ? ` với ${existingDoc}` : ''}.
-                              {' '}Để đảm bảo thời gian theo dõi điều trị y tế, mỗi bệnh nhân chỉ được đặt tối đa <strong>1 ca khám/ngày cho chính bản thân</strong>.
+                              {isCompletedSameDoc ? (
+                                <>
+                                  Hệ thống ghi nhận bạn đã hoàn tất ca khám vào ngày <strong>{formatVietnameseFullDate(bookingDate)}</strong>
+                                  {existingDoc ? ` với ${existingDoc}` : ''}. Theo quy chế y tế, mỗi bệnh nhân chỉ khám 1 lần/ngày với cùng một Bác sĩ. Bạn có thể chọn Bác sĩ khác hoặc đặt lịch cho Người Thân.
+                                </>
+                              ) : (
+                                <>
+                                  Hệ thống ghi nhận bạn đã có lịch khám vào ngày <strong>{formatVietnameseFullDate(bookingDate)}</strong>
+                                  {existingTime ? ` (${existingTime})` : ''}
+                                  {existingDoc ? ` với ${existingDoc}` : ''}.
+                                  {' '}Để đảm bảo thời gian theo dõi điều trị y tế, mỗi bệnh nhân chỉ được giữ tối đa <strong>1 ca chờ khám trong ngày cho bản thân</strong>.
+                                </>
+                              )}
                             </p>
 
                             {/* Hộp gợi ý & chuyển tiếp rõ ràng: Đặt cho người thân */}
@@ -3702,9 +3824,9 @@ export default function BookingForm() {
                       </button>
                       <button
                         type="submit"
-                        disabled={submitting || Boolean(sameDoctorActiveAppointment || isDayBookingLimitReached)}
+                        disabled={submitting || Boolean(sameDoctorActiveAppointment || sameDoctorCompletedAppointment || isDayBookingLimitReached)}
                         className={`font-bold py-2.5 px-5 sm:px-7 rounded-xl transition flex items-center justify-center gap-1.5 text-xs sm:text-sm w-1/2 sm:w-auto shrink-0 ${
-                          sameDoctorActiveAppointment || isDayBookingLimitReached
+                          sameDoctorActiveAppointment || sameDoctorCompletedAppointment || isDayBookingLimitReached
                             ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none border border-slate-300'
                             : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-600/25 cursor-pointer disabled:opacity-50'
                         }`}

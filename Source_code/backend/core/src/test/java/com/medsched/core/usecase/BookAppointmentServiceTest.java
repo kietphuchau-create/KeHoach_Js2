@@ -217,14 +217,14 @@ class BookAppointmentServiceTest {
     }
 
     @Test
-    @DisplayName("Cho phép đặt nhiều chuyên khoa/bác sĩ khác nhau trong cùng ngày nếu không trùng khung giờ")
-    void givenPatientHasOneActiveAppointmentWithDifferentDoctorOnSameDay_whenNonOverlapping_thenSuccess() {
+    @DisplayName("Sau khi khám xong (COMPLETED): Cho phép đặt tiếp Bác sĩ khác trong cùng ngày nếu không trùng khung giờ")
+    void givenPatientCompletedAppointmentWithDoctor1_whenBookDifferentDoctorOnSameDay_thenSuccess() {
         Instant start = nextWednesdayMorning(15, 0);
         Instant end = nextWednesdayMorning(15, 30);
         TimeSlot secondSlot = new TimeSlot("slot-second", "sch-doc3", start, end, "AVAILABLE", 0);
 
         TimeSlot slot1 = new TimeSlot("s1", "sch-doc1", nextWednesdayMorning(8, 0), nextWednesdayMorning(8, 30), "BOOKED", 1);
-        Appointment app1 = new Appointment("a1", "MED-001", "c1", "patient-1", "doc-1", "s1", "A-1", "ONLINE_BOOKED", "", null, null, "CONFIRMED", false, 0, null, Instant.now(), Instant.now());
+        Appointment app1 = new Appointment("a1", "MED-001", "c1", "patient-1", "doc-1", "s1", "A-1", "ONLINE_BOOKED", "", null, null, "COMPLETED", false, 0, null, Instant.now(), Instant.now());
 
         given(timeSlotRepository.findById("slot-second")).willReturn(Optional.of(secondSlot));
         given(timeSlotRepository.lockSlot("slot-second")).willReturn(true);
@@ -240,6 +240,59 @@ class BookAppointmentServiceTest {
         assertThat(result).isNotNull();
         assertThat(result.slotId()).isEqualTo("slot-second");
         assertThat(result.doctorId()).isEqualTo("doc-3");
+    }
+
+    @Test
+    @DisplayName("Sau khi khám xong (COMPLETED): Không được phép đặt lại cùng Bác sĩ đã khám trong ngày")
+    void givenPatientCompletedAppointmentWithDoctor1_whenBookSameDoctorOnSameDay_thenThrowSlotNotAvailableException() {
+        Instant start = nextWednesdayMorning(14, 0);
+        Instant end = nextWednesdayMorning(14, 30);
+        TimeSlot newSlot = new TimeSlot("slot-afternoon", "sch-doc1", start, end, "AVAILABLE", 0);
+
+        Instant morningStart = nextWednesdayMorning(8, 30);
+        Instant morningEnd = nextWednesdayMorning(9, 0);
+        TimeSlot morningSlot = new TimeSlot("slot-morning", "sch-doc1", morningStart, morningEnd, "BOOKED", 1);
+
+        Appointment morningApp = new Appointment(
+                "app-morning", "MED-888999", "center-1", "patient-1", "doc-1", "slot-morning",
+                "APP-101", "ONLINE_BOOKED", "Khám da liễu", null, null, "COMPLETED",
+                false, 0, null, Instant.now(), Instant.now()
+        );
+
+        given(timeSlotRepository.findById("slot-afternoon")).willReturn(Optional.of(newSlot));
+        given(appointmentRepository.findByPatientProfileId("patient-1")).willReturn(List.of(morningApp));
+        given(timeSlotRepository.findById("slot-morning")).willReturn(Optional.of(morningSlot));
+
+        BookAppointmentUseCase.Command cmd = new BookAppointmentUseCase.Command(
+                "center-1", "patient-1", "doc-1", "slot-afternoon", "Tái khám chiều", ""
+        );
+
+        assertThatThrownBy(() -> bookService.book(cmd))
+                .isInstanceOf(SlotNotAvailableException.class)
+                .hasMessageContaining("đã hoàn tất ca khám mã #MED-888999 với Bác sĩ này trong ngày");
+    }
+
+    @Test
+    @DisplayName("Giới hạn ca active bản thân: Khi ca cũ đang CONFIRMED/PENDING -> Không được đặt thêm ca thứ 2 cho bản thân dù khác bác sĩ")
+    void givenPatientHasActiveAppointmentWithDoctor1_whenBookDifferentDoctor_thenThrowSlotNotAvailableException() {
+        Instant start = nextWednesdayMorning(15, 0);
+        Instant end = nextWednesdayMorning(15, 30);
+        TimeSlot secondSlot = new TimeSlot("slot-second", "sch-doc3", start, end, "AVAILABLE", 0);
+
+        TimeSlot slot1 = new TimeSlot("s1", "sch-doc1", nextWednesdayMorning(8, 0), nextWednesdayMorning(8, 30), "BOOKED", 1);
+        Appointment app1 = new Appointment("a1", "MED-001", "c1", "patient-1", "doc-1", "s1", "A-1", "ONLINE_BOOKED", "", null, null, "CONFIRMED", false, 0, null, Instant.now(), Instant.now());
+
+        given(timeSlotRepository.findById("slot-second")).willReturn(Optional.of(secondSlot));
+        given(appointmentRepository.findByPatientProfileId("patient-1")).willReturn(List.of(app1));
+        given(timeSlotRepository.findById("s1")).willReturn(Optional.of(slot1));
+
+        BookAppointmentUseCase.Command cmd = new BookAppointmentUseCase.Command(
+                "c1", "patient-1", "doc-3", "slot-second", "Khám chuyên khoa thứ 2", ""
+        );
+
+        assertThatThrownBy(() -> bookService.book(cmd))
+                .isInstanceOf(SlotNotAvailableException.class)
+                .hasMessageContaining("đang chờ phục vụ. Hệ thống giới hạn tối đa 1 ca chờ khám trong ngày");
     }
 
     @Test
@@ -330,5 +383,60 @@ class BookAppointmentServiceTest {
         assertThatThrownBy(() -> bookService.book(cmd))
                 .isInstanceOf(SlotNotAvailableException.class)
                 .hasMessageContaining("Người thân này đã có ca khám mã #MED-333");
+    }
+    @Test
+    @DisplayName("Giới hạn Người Thân: Tối đa 2 ca active cho Người Thân trong ngày -> Ca thứ 3 bị chặn")
+    void givenPatientHas2ActiveRelativeAppointments_whenBook3rdRelative_thenThrowSlotNotAvailableException() {
+        Instant start = nextWednesdayMorning(17, 0);
+        Instant end = nextWednesdayMorning(17, 30);
+        TimeSlot slot3 = new TimeSlot("slot-child", "sch-doc4", start, end, "AVAILABLE", 0);
+
+        TimeSlot slotDad = new TimeSlot("slot-dad", "sch-doc1", nextWednesdayMorning(9, 0), nextWednesdayMorning(9, 30), "BOOKED", 1);
+        Appointment appDad = new Appointment("a-dad", "MED-D1", "c1", "patient-1", "doc-1", "slot-dad", "A-1", "ONLINE_BOOKED", "[Khám cho người thân: Ba (1960) - Quan hệ: Ba - SĐT: 091] Khám", null, null, "CONFIRMED", false, 0, null, Instant.now(), Instant.now());
+
+        TimeSlot slotMom = new TimeSlot("slot-mom", "sch-doc2", nextWednesdayMorning(10, 0), nextWednesdayMorning(10, 30), "BOOKED", 1);
+        Appointment appMom = new Appointment("a-mom", "MED-M1", "c1", "patient-1", "doc-2", "slot-mom", "A-2", "ONLINE_BOOKED", "[Khám cho người thân: Mẹ (1965) - Quan hệ: Mẹ - SĐT: 092] Khám", null, null, "CONFIRMED", false, 0, null, Instant.now(), Instant.now());
+
+        given(timeSlotRepository.findById("slot-child")).willReturn(Optional.of(slot3));
+        given(appointmentRepository.findByPatientProfileId("patient-1")).willReturn(List.of(appDad, appMom));
+        given(timeSlotRepository.findById("slot-dad")).willReturn(Optional.of(slotDad));
+        given(timeSlotRepository.findById("slot-mom")).willReturn(Optional.of(slotMom));
+
+        BookAppointmentUseCase.Command cmd = new BookAppointmentUseCase.Command(
+                "c1", "patient-1", "doc-4", "slot-child", "[Khám cho người thân: Con (2010) - Quan hệ: Con - SĐT: 093] Khám", ""
+        );
+
+        assertThatThrownBy(() -> bookService.book(cmd))
+                .isInstanceOf(SlotNotAvailableException.class)
+                .hasMessageContaining("đã đạt tối đa 2 ca khám cho Người Thân");
+    }
+
+    @Test
+    @DisplayName("Giới hạn Người Thân: Khi 1 ca Người Thân đã COMPLETED -> Cho phép đặt thêm ca Người Thân thứ 3")
+    void givenPatientHas1CompletedAnd1ActiveRelative_whenBook3rdRelative_thenSuccess() {
+        Instant start = nextWednesdayMorning(17, 0);
+        Instant end = nextWednesdayMorning(17, 30);
+        TimeSlot slot3 = new TimeSlot("slot-child", "sch-doc4", start, end, "AVAILABLE", 0);
+
+        TimeSlot slotDad = new TimeSlot("slot-dad", "sch-doc1", nextWednesdayMorning(9, 0), nextWednesdayMorning(9, 30), "BOOKED", 1);
+        Appointment appDad = new Appointment("a-dad", "MED-D1", "c1", "patient-1", "doc-1", "slot-dad", "A-1", "ONLINE_BOOKED", "[Khám cho người thân: Ba (1960) - Quan hệ: Ba - SĐT: 091] Khám", null, null, "COMPLETED", false, 0, null, Instant.now(), Instant.now());
+
+        TimeSlot slotMom = new TimeSlot("slot-mom", "sch-doc2", nextWednesdayMorning(10, 0), nextWednesdayMorning(10, 30), "BOOKED", 1);
+        Appointment appMom = new Appointment("a-mom", "MED-M1", "c1", "patient-1", "doc-2", "slot-mom", "A-2", "ONLINE_BOOKED", "[Khám cho người thân: Mẹ (1965) - Quan hệ: Mẹ - SĐT: 092] Khám", null, null, "CONFIRMED", false, 0, null, Instant.now(), Instant.now());
+
+        given(timeSlotRepository.findById("slot-child")).willReturn(Optional.of(slot3));
+        given(timeSlotRepository.lockSlot("slot-child")).willReturn(true);
+        given(appointmentRepository.findByPatientProfileId("patient-1")).willReturn(List.of(appDad, appMom));
+        given(timeSlotRepository.findById("slot-dad")).willReturn(Optional.of(slotDad));
+        given(timeSlotRepository.findById("slot-mom")).willReturn(Optional.of(slotMom));
+        given(appointmentRepository.save(any(Appointment.class))).willAnswer(inv -> inv.getArgument(0));
+
+        BookAppointmentUseCase.Command cmd = new BookAppointmentUseCase.Command(
+                "c1", "patient-1", "doc-4", "slot-child", "[Khám cho người thân: Con (2010) - Quan hệ: Con - SĐT: 093] Khám", ""
+        );
+
+        Appointment result = bookService.book(cmd);
+        assertThat(result).isNotNull();
+        assertThat(result.slotId()).isEqualTo("slot-child");
     }
 }
