@@ -61,6 +61,12 @@ public class AppointmentRepositoryAdapter implements AppointmentRepositoryPort {
         return result;
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public long countByDoctorIdAndCreatedAtBetween(String doctorId, java.time.Instant start, java.time.Instant end) {
+        return appointments.countByDoctorIdAndCreatedAtBetween(doctorId, start, end);
+    }
+
     private static AppointmentEntity newEntity(Appointment a) {
         AppointmentEntity entity = new AppointmentEntity(
                 a.id(), a.bookingCode(), a.medicalCenterId(), a.patientProfileId(), a.doctorId(), a.slotId(),

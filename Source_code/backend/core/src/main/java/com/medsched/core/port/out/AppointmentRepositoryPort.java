@@ -2,6 +2,7 @@ package com.medsched.core.port.out;
 
 import com.medsched.core.domain.model.Appointment;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -20,4 +21,9 @@ public interface AppointmentRepositoryPort {
 
     /** Lịch sử khám của một hồ sơ bệnh nhân, mới nhất trước. */
     List<Appointment> findByPatientProfileId(String patientProfileId);
+
+    /** Đếm số ca khám của bác sĩ trong khoảng thời gian (dùng cấp STT tuần tự). */
+    default long countByDoctorIdAndCreatedAtBetween(String doctorId, Instant start, Instant end) {
+        return 0;
+    }
 }

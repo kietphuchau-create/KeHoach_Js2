@@ -23,6 +23,9 @@ public class PaymentController {
     private final PaymentJpaRepository paymentJpaRepository;
     private final PayOsService payOsService;
 
+    @org.springframework.beans.factory.annotation.Value("${medsched.frontend.base-url:http://localhost:3000}")
+    private String frontendBaseUrl = "http://localhost:3000";
+
     // Bộ nhớ đệm lưu trạng thái thanh toán theo bookingCode (hỗ trợ đặt lịch qua AI / Standalone trước khi lưu DB)
     private static final java.util.concurrent.ConcurrentHashMap<String, Map<String, Object>> standalonePaymentMap = new java.util.concurrent.ConcurrentHashMap<>();
     private static final java.util.concurrent.ConcurrentHashMap<String, Long> standaloneOrderMap = new java.util.concurrent.ConcurrentHashMap<>();
@@ -214,12 +217,15 @@ public class PaymentController {
         // Gọi PayOS API để tạo Payment Link và VietQR PRO động
         if (payOsService != null) {
             try {
+                String baseUrl = (frontendBaseUrl != null && !frontendBaseUrl.isBlank())
+                        ? frontendBaseUrl.replaceAll("/+$", "")
+                        : "http://localhost:3000";
                 var payOsResult = payOsService.createPaymentLink(
                         orderCode,
                         finalAmount.intValue(),
                         transferContent,
-                        "http://localhost:3000/my-appointments?status=success",
-                        "http://localhost:3000/my-appointments?status=cancelled"
+                        baseUrl + "/my-appointments?status=success",
+                        baseUrl + "/my-appointments?status=cancelled"
                 );
                 if (payOsResult.isPresent()) {
                     var info = payOsResult.get();
