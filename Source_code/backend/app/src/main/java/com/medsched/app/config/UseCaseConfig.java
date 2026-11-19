@@ -27,6 +27,7 @@ public class UseCaseConfig {
             TimeSlotRepositoryPort timeSlotRepositoryPort,
             AiTriagePort aiTriagePort
     ) {
+        BookAppointmentService.setDevModeSupplier(com.medsched.doctor.DoctorScheduleService::isDevMode247Active);
         return new BookAppointmentService(appointmentRepositoryPort, timeSlotRepositoryPort, aiTriagePort);
     }
 

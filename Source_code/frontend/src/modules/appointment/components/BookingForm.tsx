@@ -515,14 +515,14 @@ export default function BookingForm() {
     });
   }, [existingAppointments, bookingDate]);
 
-  // 2. Kiểm tra ca khám của bản thân có trùng Bác sĩ đang chọn hoặc chạm giới hạn 2 ca/ngày không
+  // 2. Kiểm tra ca khám của bản thân có trùng Bác sĩ đang chọn hoặc đã có ca khám trong ngày không (CLAB-174: Giới hạn tối đa 1 ca/ngày)
   const selfSameDoctorAppointment = useMemo(() => {
     if (!selectedDoctor?.id) return null;
     return selfActiveAppointmentsOnSelectedDate.find((apt) => apt.doctorId === selectedDoctor.id) || null;
   }, [selfActiveAppointmentsOnSelectedDate, selectedDoctor]);
 
   const isSelfDayLimitReached = useMemo(() => {
-    return selfActiveAppointmentsOnSelectedDate.length >= 2;
+    return selfActiveAppointmentsOnSelectedDate.length >= 1;
   }, [selfActiveAppointmentsOnSelectedDate]);
 
   const hasSelfBookingConflict = Boolean(selfSameDoctorAppointment || isSelfDayLimitReached);
@@ -3316,7 +3316,7 @@ export default function BookingForm() {
                               <h4 className={`text-xs font-bold ${isSameDoctor ? 'text-amber-900' : 'text-rose-900'}`}>
                                 {isSameDoctor
                                   ? `Bạn đã có ca khám đang chờ với Bác sĩ ${selectedDoctor?.name || 'này'}`
-                                  : `Đã đạt giới hạn số ca khám trong ngày (${selfActiveAppointmentsOnSelectedDate.length}/2 ca đang chờ)`}
+                                  : `Đã có ca khám đang chờ trong ngày (${selfActiveAppointmentsOnSelectedDate.length}/1 ca)`}
                               </h4>
                               {isSameDoctor && selfSameDoctorAppointment && (
                                 <span className="font-mono bg-amber-200 text-amber-900 border border-amber-400 px-2 py-0.5 rounded text-[11px] font-bold">
@@ -3332,7 +3332,7 @@ export default function BookingForm() {
                                 </>
                               ) : (
                                 <>
-                                  Bạn đã có {selfActiveAppointmentsOnSelectedDate.length} ca khám đang chờ trong ngày <strong>{formatVietnameseFullDate(bookingDate)}</strong>. Để đảm bảo cơ hội tiếp cận y tế công bằng cho mọi bệnh nhân, hệ thống giới hạn tối đa 2 ca khám/ngày cho bản thân.
+                                  Bạn đã có ca khám đang chờ trong ngày <strong>{formatVietnameseFullDate(bookingDate)}</strong>. Để tránh chiếm giữ chỗ ảo (spam lịch) và đảm bảo công bằng cho mọi bệnh nhân, hệ thống giới hạn tối đa 1 ca khám/ngày cho bản thân.
                                 </>
                               )}
                             </p>

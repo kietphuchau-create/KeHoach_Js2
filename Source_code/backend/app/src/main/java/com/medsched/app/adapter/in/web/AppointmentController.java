@@ -539,7 +539,8 @@ public class AppointmentController {
             for (LocalTime[] pair : standardTimes) {
                 Instant slotStart = targetDate.atTime(pair[0]).atZone(vnZone).toInstant();
                 Instant slotEnd = targetDate.atTime(pair[1]).atZone(vnZone).toInstant();
-                boolean isPast = isPastDate || (isToday && !pair[0].isAfter(nowTime));
+                boolean isPast = !com.medsched.doctor.DoctorScheduleService.isDevMode247Active()
+                        && (isPastDate || (isToday && !pair[0].isAfter(nowTime)));
                 TimeSlotEntity slot = new TimeSlotEntity(
                         UUID.randomUUID().toString(),
                         scheduleId,
@@ -565,7 +566,7 @@ public class AppointmentController {
             String timeStr = timeFormatter.format(s.getStartTime()) + " - " + timeFormatter.format(s.getEndTime());
             int startMinutes = startLt.getHour() * 60 + startLt.getMinute();
 
-            boolean isPast = targetDate.isBefore(LocalDate.now(vnZone)) || (isToday && !startLt.isAfter(nowTime));
+            boolean isPast = !isDev && (targetDate.isBefore(LocalDate.now(vnZone)) || (isToday && !startLt.isAfter(nowTime)));
             String status;
             String label;
             boolean disabled;
@@ -854,10 +855,14 @@ public class AppointmentController {
             timeSlotJpaRepository.findById(app.getSlotId()).ifPresent(s -> {
                 if (s.getStartTime() != null && s.getEndTime() != null) {
                     LocalDate existingDate = s.getStartTime().atZone(vnZone).toLocalDate();
-                    if (newDate.equals(existingDate) && newSlot.getDoctorId() != null && newSlot.getDoctorId().equals(app.getDoctorId())) {
+                    if (newDate.equals(existingDate)) {
+                        String docNotice = (newSlot.getDoctorId() != null && newSlot.getDoctorId().equals(app.getDoctorId()))
+                                ? "với Bác sĩ này "
+                                : "";
                         throw new IllegalArgumentException(
-                                "Bệnh nhân đã có một ca khám khác (Mã #" + app.getBookingCode() + ") với Bác sĩ này trong cùng ngày. "
-                                + "Không thể đổi lịch sang khung giờ này.");
+                                "Bệnh nhân đã có một ca khám khác (Mã #" + app.getBookingCode() + ") " + docNotice + "trong ngày "
+                                + newDate.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy")) + ". "
+                                + "Hệ thống giới hạn tối đa 1 ca khám trong cùng một ngày để tránh spam giữ chỗ, không thể đổi lịch sang ngày này.");
                     }
                     boolean overlap = newSlot.getStartTime().isBefore(s.getEndTime()) && newSlot.getEndTime().isAfter(s.getStartTime());
                     if (overlap) {
