@@ -605,45 +605,68 @@ export default function BookingForm() {
     }
   }, [bookingDate, hasSelectedDate, isPastAllTodaySlots, getNextAvailableWeekday, isDev247]);
 
-  // Khi chọn bác sĩ hoặc nạp lịch trực: tự động ưu tiên ngày có ca trực khả dụng của bác sĩ
+  // Đánh dấu người dùng đã chủ động tự bấm chọn ngày cụ thể trên lịch
+  const userSelectedDateRef = useRef<boolean>(false);
+  const prevDoctorIdRef = useRef<string | null>(null);
+
+  // Khi chọn bác sĩ hoặc nạp lịch trực: tự động ưu tiên ngày có ca trực khả dụng của bác sĩ (chỉ áp dụng khi chưa tự chọn ngày)
   useEffect(() => {
-    if (selectedDoctor && schedules.length > 0) {
-      const todayIso = getTodayISODate();
-      const clinicConfig = getClinicScheduleConfig();
-      const active247 = isDev247 || Boolean(clinicConfig?.devMode247);
-      const docSchedules = schedules.filter(
-        (sch) => isDoctorActiveOnSchedule(selectedDoctor, sch)
-      );
-      if (docSchedules.length > 0) {
-        // Kiểm tra xem hôm nay bác sĩ có ca và chưa hết giờ không (trong 24/7 luôn ưu tiên hôm nay)
-        const todaySched = docSchedules.find((sch) => isScheduleOnDate(sch, todayIso));
-        if (todaySched && (active247 || !isPastAllTodaySlots(selectedDoctor))) {
-          setBookingDate(todayIso);
-          setHasSelectedDate(true);
-          setSelectedSlot((prev) => ({
-            ...prev,
-            date: formatISODateToVN(todayIso),
-          }));
-          return;
-        }
+    if (!selectedDoctor?.id || schedules.length === 0) return;
 
-        // Nếu hôm nay không có ca hoặc đã hết giờ, tìm ngày tương lai gần nhất mà bác sĩ có ca trực
-        const futureSched = docSchedules
-          .filter((sch) => String(sch.workDate || '').slice(0, 10) >= todayIso)
-          .sort((a, b) => String(a.workDate).localeCompare(String(b.workDate)))[0];
+    const isDoctorChanged = prevDoctorIdRef.current !== null && prevDoctorIdRef.current !== selectedDoctor.id;
+    prevDoctorIdRef.current = selectedDoctor.id;
 
-        if (futureSched) {
-          const futureIso = String(futureSched.workDate).slice(0, 10);
-          setBookingDate(futureIso);
-          setHasSelectedDate(true);
-          setSelectedSlot((prev) => ({
-            ...prev,
-            date: formatISODateToVN(futureIso),
-          }));
-        }
+    const docSchedules = schedules.filter(
+      (sch) => isDoctorActiveOnSchedule(selectedDoctor, sch)
+    );
+    if (docSchedules.length === 0) return;
+
+    // NẾU NGƯỜI DÙNG ĐÃ CHỦ ĐỘNG CHỌN NGÀY TRÊN LỊCH:
+    // 1. Nếu không đổi bác sĩ -> Tuyệt đối giữ nguyên ngày người dùng đã chọn!
+    // 2. Nếu đổi sang bác sĩ khác -> nếu bác sĩ mới cũng có ca trực ngày này thì giữ nguyên!
+    if (userSelectedDateRef.current && bookingDate) {
+      if (!isDoctorChanged) {
+        return;
+      }
+      const hasShiftOnCurrentDate = docSchedules.some((sch) => isScheduleOnDate(sch, bookingDate));
+      if (hasShiftOnCurrentDate) {
+        return;
       }
     }
-  }, [selectedDoctor?.id, schedules, isPastAllTodaySlots]);
+
+    const todayIso = getTodayISODate();
+    const clinicConfig = getClinicScheduleConfig();
+    const active247 = isDev247 || Boolean(clinicConfig?.devMode247);
+
+    // Kiểm tra xem hôm nay bác sĩ có ca và chưa hết giờ không (trong 24/7 luôn ưu tiên hôm nay)
+    const todaySched = docSchedules.find((sch) => isScheduleOnDate(sch, todayIso));
+    if (todaySched && (active247 || !isPastAllTodaySlots(selectedDoctor))) {
+      if (!userSelectedDateRef.current) {
+        setBookingDate(todayIso);
+        setHasSelectedDate(true);
+        setSelectedSlot((prev) => ({
+          ...prev,
+          date: formatISODateToVN(todayIso),
+        }));
+      }
+      return;
+    }
+
+    // Nếu hôm nay không có ca hoặc đã hết giờ, tìm ngày tương lai gần nhất mà bác sĩ có ca trực
+    const futureSched = docSchedules
+      .filter((sch) => String(sch.workDate || '').slice(0, 10) >= todayIso)
+      .sort((a, b) => String(a.workDate).localeCompare(String(b.workDate)))[0];
+
+    if (futureSched && !userSelectedDateRef.current) {
+      const futureIso = String(futureSched.workDate).slice(0, 10);
+      setBookingDate(futureIso);
+      setHasSelectedDate(true);
+      setSelectedSlot((prev) => ({
+        ...prev,
+        date: formatISODateToVN(futureIso),
+      }));
+    }
+  }, [selectedDoctor?.id, schedules, isPastAllTodaySlots, isDev247, bookingDate]);
 
   // Tự động đồng bộ Buổi theo Khung giờ đã chọn
   useEffect(() => {
@@ -752,6 +775,7 @@ export default function BookingForm() {
       aiPrefillRef.current = { ...aiPrefillRef.current, slotId: '' };
     }
     aiSlotAppliedRef.current = false;
+    userSelectedDateRef.current = true;
     setBookingDate(isoString);
     const formatted = `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
     setSelectedSlot((prev) => ({
@@ -936,10 +960,10 @@ export default function BookingForm() {
     loadCategories();
   }, []);
 
-  // Tự động làm mới danh sách ca trực khi đổi chi nhánh hoặc ngày khám
+  // Tự động làm mới danh sách ca trực khi đổi chi nhánh
   useEffect(() => {
     refreshSchedules();
-  }, [selectedCenter, bookingDate, refreshSchedules]);
+  }, [selectedCenter, refreshSchedules]);
 
   // Lọc chuyên khoa theo chi nhánh đã chọn
   const filteredSpecialties = useMemo(() => {
@@ -2947,7 +2971,7 @@ export default function BookingForm() {
                                   </div>
                                   <div className="pt-2 border-t border-slate-100/80 flex items-center justify-between">
                                     <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg">
-                                      {morningSlots.filter((s) => !s.disabled).length} giờ trống
+                                      {loadingSlots ? 'Đang tải...' : `${morningSlots.filter((s) => !s.disabled).length} giờ trống`}
                                     </span>
                                     <span className="text-xs font-bold text-blue-600 flex items-center gap-0.5">
                                       Chọn giờ <ChevronRight size={13} />
@@ -2988,7 +3012,7 @@ export default function BookingForm() {
                                   </div>
                                   <div className="pt-2 border-t border-slate-100/80 flex items-center justify-between">
                                     <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg">
-                                      {afternoonSlots.filter((s) => !s.disabled).length} giờ trống
+                                      {loadingSlots ? 'Đang tải...' : `${afternoonSlots.filter((s) => !s.disabled).length} giờ trống`}
                                     </span>
                                     <span className="text-xs font-bold text-blue-600 flex items-center gap-0.5">
                                       Chọn giờ <ChevronRight size={13} />
@@ -2996,6 +3020,34 @@ export default function BookingForm() {
                                   </div>
                                 </div>
                               </div>
+
+                              {/* Cảnh báo rõ ràng khi Bác sĩ chưa có ca trực trong ngày đã chọn */}
+                              {!loadingSlots && morningSlots.filter((s) => !s.disabled).length === 0 && afternoonSlots.filter((s) => !s.disabled).length === 0 && (
+                                <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-2xl flex items-start gap-2.5 text-xs text-amber-900 animate-fadeIn">
+                                  <AlertCircle size={17} className="text-amber-600 shrink-0 mt-0.5" />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-bold text-amber-950">
+                                      Bác sĩ {selectedDoctor?.name || 'này'} chưa có ca trực vào ngày {selectedSlot.date || formatISODateToVN(bookingDate)}.
+                                    </p>
+                                    <p className="text-[11px] text-amber-800 mt-1 leading-relaxed">
+                                      Để tránh đặt nhầm ngày Bác sĩ không làm việc, hệ thống chỉ mở khung giờ theo ca trực thực tế. Vui lòng chọn các ngày có <strong>chấm xanh lá</strong> trên lịch (ngày Bác sĩ mở ca trực).
+                                    </p>
+                                    <div className="mt-2.5 flex items-center gap-2 flex-wrap">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setShowSessionModal(false);
+                                          setShowDatePicker(true);
+                                        }}
+                                        className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition cursor-pointer inline-flex items-center gap-1.5 shadow-2xs"
+                                      >
+                                        <Calendar size={13} />
+                                        <span>Đổi sang ngày có ca trực</span>
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
 
                               <div className="pt-2 border-t border-slate-100 flex items-center gap-1.5 text-[11px] text-slate-500 whitespace-nowrap overflow-hidden">
                                 <Info size={13} className="shrink-0 text-blue-500" />
