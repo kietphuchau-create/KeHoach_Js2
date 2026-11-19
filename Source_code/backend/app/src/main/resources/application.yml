@@ -73,6 +73,8 @@ brevo:
     name: MedSched Smart Healthcare
   cors:
     allowed-origins: ${CORS_ORIGINS:http://localhost:3000,http://localhost:3001}
+  frontend:
+    base-url: ${FRONTEND_BASE_URL:http://localhost:3000}
 
 app:
   openrouter:

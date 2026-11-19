@@ -68,6 +68,20 @@ class CheckinServiceTest {
     }
 
     @Test
+    @DisplayName("Check-in QR thất bại khi lịch hẹn đã hủy (CANCELLED)")
+    void testCheckinQrCancelledFails() {
+        Appointment app = Appointment.createNew(
+                "app-cancel", "MED999888", "center-1", "patient-1", "doc-1",
+                "slot-1", "APP-1002", "Đau đầu", null
+        ).cancel();
+        repo.save(app);
+
+        assertThatThrownBy(() -> service.checkinByQrCode("MED999888"))
+                .isInstanceOf(DomainException.class)
+                .hasMessageContaining("CANCELLED");
+    }
+
+    @Test
     @DisplayName("Check-in QR thất bại khi không tìm thấy bookingCode -> ném ResourceNotFoundException")
     void testCheckinQrNotFound() {
         assertThatThrownBy(() -> service.checkinByQrCode("NON_EXISTENT_CODE"))

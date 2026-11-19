@@ -82,7 +82,11 @@ public class BookAppointmentService implements BookAppointmentUseCase {
 
             String id = UUID.randomUUID().toString();
             String bookingCode = "MED" + (100000 + ThreadLocalRandom.current().nextInt(900000));
-            String queueNumber = "APP-" + (1000 + ThreadLocalRandom.current().nextInt(9000));
+            LocalDate todayVn = LocalDate.now(VN_ZONE);
+            Instant startOfDay = todayVn.atStartOfDay(VN_ZONE).toInstant();
+            Instant endOfDay = todayVn.plusDays(1).atStartOfDay(VN_ZONE).toInstant();
+            long nextSeq = appointmentRepository.countByDoctorIdAndCreatedAtBetween(command.doctorId(), startOfDay, endOfDay) + 1;
+            String queueNumber = String.format("APP-%03d", nextSeq);
 
             Appointment appointment = Appointment.createNew(
                     id,
@@ -206,15 +210,6 @@ public class BookAppointmentService implements BookAppointmentUseCase {
                             + " vào ngày " + targetDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
                             + (timeStr != null ? " (lúc " + timeStr + ")" : "")
                             + " với Bác sĩ này đang chờ phục vụ. "
-                            + "Để tránh chiếm giữ chỗ ảo (spam lịch), mỗi bệnh nhân chỉ được đặt tối đa 1 ca khám trong ngày. "
-                            + "Vui lòng hoàn tất khám, đổi giờ hoặc hủy ca cũ trước khi đặt thêm!");
-                } else {
-                    throw new SlotNotAvailableException(
-                            "Bạn đã có ca khám mã #" + existing.bookingCode()
-                            + " vào ngày " + targetDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
-                            + (timeStr != null ? " (lúc " + timeStr + ")" : "")
-                            + " đang chờ phục vụ. "
-                            + "Để tránh chiếm giữ chỗ ảo (spam lịch) và đảm bảo cơ hội tiếp cận cho mọi bệnh nhân, hệ thống giới hạn tối đa 1 ca khám trong cùng một ngày cho mỗi người bệnh. "
                             + "Vui lòng hoàn tất khám, đổi giờ hoặc hủy ca cũ trước khi đặt thêm!");
                 }
             }

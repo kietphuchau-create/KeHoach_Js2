@@ -31,6 +31,13 @@ public class CheckinService implements CheckinUseCase {
             );
         }
 
+        if ("CANCELLED".equalsIgnoreCase(appointment.status())
+                || "COMPLETED".equalsIgnoreCase(appointment.status())
+                || "MISSED_NO_SHOW".equalsIgnoreCase(appointment.status())) {
+            throw new com.medsched.core.domain.exception.DomainException(
+                    "Không thể tiếp đón lịch hẹn đang ở trạng thái: " + appointment.status());
+        }
+
         Appointment updated = appointment.checkIn("QR_CODE", Instant.now());
         appointmentRepository.save(updated);
 
