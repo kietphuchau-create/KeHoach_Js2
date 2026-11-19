@@ -1,139 +1,143 @@
-# 🏥 MEDSCHED PRO — CLEAN SOURCE CODE
-## HỆ THỐNG ĐẶT LỊCH KHÁM BỆNH & ĐIỀU PHỐI TIẾP ĐÓN THÔNG MINH
-> **Học phần:** Chuyên đề Phát triển Phần mềm (Java Web Fullstack)  
-> **Lớp:** CD25CT_CLC — **Nhóm:** 02  
-> **Giảng viên hướng dẫn:** Thầy Trương Thanh Bình (Khoa CNTT - Điện tử, ITC)  
-> **Video thuyết trình nghiệm thu:** [https://www.youtube.com/watch?v=cdJe2Y0I3G0](https://www.youtube.com/watch?v=cdJe2Y0I3G0)  
-> **Web triển khai thực tế (Live Cloud):** [https://medsched-lyart.vercel.app](https://medsched-lyart.vercel.app)  
-> **Swagger API Backend (Render Cloud):** [https://medsched-zui5.onrender.com/swagger-ui/index.html](https://medsched-zui5.onrender.com/swagger-ui/index.html)  
+# 🏥 MedSched Pro — Smart Healthcare Scheduling & Reception System
+## Enterprise Healthcare Appointment & Queue Dispatching Platform
+
+> **Course:** Advanced Software Development Capstone (Java Web Fullstack)  
+> **Class:** CD25CT_CLC — **Team:** 02  
+> **Supervisor / Instructor:** MSc. Truong Thanh Binh (Faculty of IT & Electronics, ITC)  
+> **Final Defense Presentation Video:** [https://www.youtube.com/watch?v=cdJe2Y0I3G0](https://www.youtube.com/watch?v=cdJe2Y0I3G0)  
+> **Live Production Web (Vercel):** [https://medsched-lyart.vercel.app](https://medsched-lyart.vercel.app)  
+> **Live Backend OpenAPI / Swagger UI (Render):** [https://medsched-zui5.onrender.com/swagger-ui/index.html](https://medsched-zui5.onrender.com/swagger-ui/index.html)  
 
 ---
 
-## 👥 Danh Sách Thành Viên Thực Hiện (Nhóm 02)
+## 👥 Project Team Members (Team 02)
 
-| STT | MSSV | Họ và tên | Vai trò chính trong dự án |
-| :---: | :---: | :--- | :--- |
-| 1 | **506250495** | **Châu Tuấn Kiệt** | Trưởng nhóm (Leader) / Kiến trúc sư phần mềm (Architect) & Fullstack |
-| 2 | **501250367** | **Nguyễn Văn Hiếu** | Backend Developer / Bảo mật Spring Security JWT & Triển khai Cloud |
-| 3 | **501250471** | **Lê Thành Tài** | Database Developer / Thiết kế & Chuẩn hóa CSDL 23 bảng chuẩn 3NF |
-| 4 | **501250114** | **Huỳnh Thị Kim Trang** | Frontend Developer / Xây dựng giao diện Next.js 15 & Tối ưu UX |
-| 5 | **501250145** | **Nguyễn Thị Yến Nhi** | Business Analyst (BA) & Tester / Đặc tả tài liệu SRS & Kiểm thử UAT |
-| 6 | **501250392** | **Trần Nhật Tân** | AI Integration & MCP Engineer / Trợ lý AI Triage & Model Context Protocol |
+| # | Student ID | Full Name | Primary Roles & Responsibilities |
+| :-: | :-: | :--- | :--- |
+| 1 | **506250495** | **Chau Tuan Kiet** | **Team Leader / System Architect & Fullstack**<br>Project governance, Hexagonal Clean Architecture design, API orchestration, CI/CD pipeline, and final reporting. |
+| 2 | **501250367** | **Nguyen Van Hieu** | **Backend Developer / Cloud Security**<br>Core domain use cases, Spring Security stateless JWT authentication, slot concurrency control, and Cloud deployment. |
+| 3 | **501250471** | **Le Thanh Tai** | **Database Developer / Data Modeling**<br>Relational schema design (23 tables normalized to 3NF), JPA query optimization, seed data, and migration integrity. |
+| 4 | **501250114** | **Huynh Thi Kim Trang** | **Frontend Developer / UI-UX Engineer**<br>Next.js 15 App Router architecture, responsive UI components, REST client integration, and 4-tier role-based views. |
+| 5 | **501250145** | **Nguyen Thi Yen Nhi** | **Business Analyst (BA) / QA & Tester**<br>IEEE 830 / ISO 29148 SRS v2.0 specification, clinic reception workflows, test matrix design, and final defense presentation. |
+| 6 | **501250392** | **Tran Nhat Tan** | **AI Integration & MCP Engineer**<br>Spring AI Clinical Triage integration, symptom-to-specialty classification prompt engineering, and Model Context Protocol server. |
 
 ---
 
-## 📂 Cấu Trúc Thư Mục Mã Nguồn
+## 📂 Source Code Structure
 
 ```text
 Source_code/
-├── backend/               # Mã nguồn Backend Java 21 LTS & Spring Boot 3.4.3
-│   ├── core/              # Domain Layer & Use Cases (Độc lập framework, chuẩn Hexagonal)
-│   │   ├── domain/model/  # Domain Entities (Appointment, Slot, Doctor, Patient...)
-│   │   ├── port/in/       # Inbound Ports (Use Cases interfaces)
-│   │   ├── port/out/      # Outbound Ports (Repository & Gateway interfaces)
-│   │   └── usecase/       # Nghiệp vụ lõi (Book, Cancel, Restore, Schedule, Triage...)
-│   ├── app/               # Application & Infrastructure Adapters Layer
-│   │   ├── adapter/in/web # REST Controllers (Web Adapters, Swagger OpenAPI)
-│   │   ├── adapter/out/   # JPA Repositories (MySQL Aiven/Local), AI Client, Cloudinary
-│   │   ├── config/        # Spring Security JWT, CORS, Dependency Injection wiring
-│   │   └── common/        # Global Exception Handler, RFC 7807 Problem Details
-│   └── Dockerfile         # Docker Multi-stage build tối ưu ram (<384MB cho Render)
+├── backend/                  # Java 21 LTS & Spring Boot 3.4.3 Multi-module backend
+│   ├── core/                 # Pure domain business logic (Hexagonal inner core - zero Spring dependencies)
+│   │   ├── domain/model/     # Domain entities (Appointment, Slot, Doctor, PatientProfile, MedicalRecord)
+│   │   ├── port/in/          # Inbound ports / Use case contracts (Book, Cancel, Restore, Schedule, Triage)
+│   │   ├── port/out/         # Outbound ports / Gateway contracts (Persistence, AI Client, Notification)
+│   │   └── usecase/          # Core implementations (BookAppointmentService, RestoreAppointmentService, etc.)
+│   ├── app/                  # Application adapters & infrastructure layer
+│   │   ├── adapter/in/web/   # REST Controllers, DTOs, Swagger annotations, Rate limiter
+│   │   ├── adapter/out/      # Spring Data JPA repositories, MySQL adapters, Cloudinary storage, AI adapter
+│   │   ├── config/           # Security configuration, JWT filter, CORS, Dependency Injection wiring
+│   │   └── common/           # Global exception handler, RFC 7807 Problem Details, Error codes
+│   └── Dockerfile            # Lightweight multi-stage Docker build optimized for cloud memory constraints (<384MB)
 │
-├── frontend/              # Mã nguồn Frontend Next.js 15 (React 19, TypeScript, Tailwind)
-│   ├── src/app/           # App Router 27 routes (booking, reception, doctor, admin...)
-│   ├── src/modules/       # Modularity components (appointment, doctor, profile, auth...)
-│   └── src/shared/        # Shared UI components, API client Axios, hooks, utils
+├── frontend/                 # Next.js 15 App Router (React 19, TypeScript, Tailwind CSS)
+│   ├── src/app/              # 27 application routes (booking, reception, doctor, admin, auth...)
+│   ├── src/modules/          # Domain-driven UI components (appointment, doctor, profile, queue)
+│   └── src/shared/           # Shared UI primitives, Axios API client, hooks, utilities, formatting
 │
-├── mcp-server/            # Model Context Protocol Server (Node.js) cho AI Agent
-│   ├── tools/             # MCP Tools (get_available_slots, book_appointment, triage...)
-│   └── server.js          # Khởi chạy máy chủ MCP tích hợp Antigravity / Claude
+├── mcp-server/               # Model Context Protocol (MCP) Server (Node.js) for AI Agent integration
+│   ├── tools/                # MCP tools (get_available_slots, book_appointment, clinical_triage)
+│   └── server.js             # Standalone MCP server communicating via JSON-RPC
 │
-├── database/              # Cơ sở dữ liệu quan hệ MySQL 8.0 (23 bảng chuẩn hóa 3NF)
-│   └── medsched_db.sql    # Kịch bản DDL + DML nạp toàn bộ cấu trúc & dữ liệu mẫu
+├── database/                 # Relational Database scripts (MySQL 8.0)
+│   └── medsched_db.sql       # Unified DDL + DML script initializing 23 tables with comprehensive seed data
 │
-├── api-spec/              # Đặc tả API chuẩn OpenAPI 3.0 / Swagger JSON
-├── monitoring/            # Kịch bản kiểm thử tải đồng thời JMeter (.jmx)
-├── docker-compose.yml     # Khởi chạy toàn bộ hệ thống cục bộ chỉ bằng 1 câu lệnh Docker
-├── start_all.bat          # Script 1-click khởi chạy song song Backend + Frontend trên Windows
-└── README.md              # Tài liệu hướng dẫn này
+├── api-spec/                 # OpenAPI 3.0 / Swagger JSON specifications
+├── monitoring/               # Apache JMeter load and concurrency test scripts (.jmx)
+├── docker-compose.yml        # Docker compose orchestrating MySQL, Backend, and Frontend locally
+├── start_all.bat             # 1-Click Windows execution script to start Backend + Frontend simultaneously
+└── README.md                 # Project documentation (this file)
 ```
 
 ---
 
-## 🛠️ Công Nghệ & Tiêu Chuẩn Kỹ Thuật (Đáp ứng 5 Tiêu Chí Thầy Bình)
+## 🏛️ Architecture & Enterprise Engineering Standards
 
-1. **Kiến trúc Hexagonal (Clean Architecture / Ports & Adapters)**:
-   - Module `core`: Hoàn toàn không phụ thuộc Spring framework, bảo vệ 100% nghiệp vụ phòng khám (Domain logic độc lập).
-   - Module `app`: Chứa Adapters bên ngoài (Web REST API, JPA Persistence, Spring Security JWT, Spring AI Client).
-2. **Tự động hóa CI/CD (GitHub Actions)**:
-   - Pipeline tự động chạy kiểm thử đơn vị JUnit 5 (`core` & `app`) và build TypeScript tĩnh Next.js 15 trước khi merge code.
-3. **Triển khai Đám mây Chi phí 0đ**:
-   - Backend chạy trên **Render Cloud** với Docker container tối ưu tài nguyên (`-Xmx384m`).
-   - Frontend chạy trên **Vercel Edge Network** với CDN toàn cầu và HTTPS tự động.
-   - Database MySQL chạy trên **Aiven Cloud** với kết nối bảo mật SSL.
-4. **Phòng thủ ngoại lệ toàn diện (Unhappy Paths & Anti-spam)**:
-   - Cơ chế khóa lạc quan / CAS kiểm soát tranh chấp khung giờ, chống Double Booking tuyệt đối.
-   - Giới hạn quota: Tối đa 1 ca đang chờ khám/ngày cho bản thân và 2 ca cho người thân. Sau khi khám xong (`COMPLETED`), cho phép đặt ca tiếp theo nhưng chặn đặt lại cùng bác sĩ trong 1 ngày.
-   - Hỗ trợ tính năng phát hiện và khôi phục phiếu hẹn đã hủy (`Restore cancelled appointment`).
-5. **Giao thức MCP Server & AI Clinical Triage**:
-   - Trợ lý AI hỗ trợ gợi ý chuyên khoa 24/7 theo mô tả triệu chứng bệnh nhân.
-   - Máy chủ Model Context Protocol (MCP) chuẩn mở cho phép AI Agent đọc lịch và đặt khám tự động.
+The project strictly fulfills all **5 enterprise-grade requirements** mandated by Instructor Truong Thanh Binh:
 
----
-
-## 🚀 Hướng Dẫn Cài Đặt & Khởi Chạy Hệ Thống Cục Bộ (Local)
-
-### Yêu cầu tiên quyết (Prerequisites)
-- **Java Development Kit (JDK)**: Phiên bản 21 LTS trở lên.
-- **Node.js**: Phiên bản 20 LTS trở lên (khuyên dùng kèm package manager `pnpm` hoặc `npm`).
-- **MySQL / MariaDB**: Phiên bản 8.0+ (hoặc phần mềm XAMPP Control Panel).
+1. **Hexagonal / Clean Architecture (Ports & Adapters)**:
+   - The `:core` module contains purely POJO business models and use case services, decoupled from frameworks, libraries, or persistence details.
+   - The `:app` module adapts infrastructure concerns (Spring Boot, JPA, Security, HTTP, AI APIs).
+2. **Automated CI/CD Quality Gate (GitHub Actions)**:
+   - Every commit and pull request runs an automated CI pipeline running parallel jobs for backend unit tests (`JUnit 5`) and frontend static typechecking (`TypeScript` + Next.js production build).
+3. **Zero-Cost Cloud Deployment (Production Live)**:
+   - **Frontend**: Deployed on **Vercel** with global edge CDN caching and automated SSL/TLS certificates.
+   - **Backend**: Containerized via multi-stage Docker and hosted on **Render Cloud** with strict heap memory boundaries (`-Xmx384m`).
+   - **Database**: High-availability cloud-hosted **MySQL 8.0** on **Aiven Cloud** over encrypted SSL channels.
+4. **Resilient Unhappy Path Defense & Concurrency Control**:
+   - Double-booking prevention via optimistic locking (CAS pattern) on slot allocations.
+   - Daily quota constraints: Maximum 1 pending appointment per patient profile per day; up to 2 appointments for relatives.
+   - Post-completion policy: Completed patients can book other doctors on the same day, but cannot re-book the same doctor on that day.
+   - Restorative workflow: Ability to restore a mistakenly cancelled appointment (`PATCH /api/appointments/{id}/restore`) if the slot is still open.
+5. **Model Context Protocol (MCP) & AI Clinical Triage**:
+   - An open-standard MCP server exposing clinic APIs to external AI Agents (such as Claude / Antigravity).
+   - Clinical Triage assistant powered by Spring AI with specialized system prompts suggesting appropriate departments 24/7.
 
 ---
 
-### Cách 1: Khởi chạy nhanh 1-Click bằng Script Windows
-1. Đảm bảo dịch vụ MySQL trên máy đã được bật (cổng `3306`). Nạp file `database/medsched_db.sql`.
-2. Nhấp đúp chuột vào file:
+## 🚀 Local Installation & Quick Start Guide
+
+### Prerequisites
+- **Java Development Kit (JDK)**: Version 21 LTS or higher.
+- **Node.js**: Version 20 LTS or higher (`pnpm` recommended; `npm` also supported).
+- **MySQL / MariaDB**: Version 8.0+ (or XAMPP Control Panel).
+
+---
+
+### Option 1: 1-Click Launch on Windows (Recommended)
+1. Ensure MySQL is running on port `3306` and import `database/medsched_db.sql`.
+2. Double-click the file:
    ```text
    start_all.bat
    ```
-   *(Script sẽ tự động khởi động Backend tại cổng 8080, khởi động Frontend tại cổng 3000 và tự động mở trình duyệt web)*.
+   *(This launches Backend at `localhost:8080`, Frontend at `localhost:3000`, and automatically opens your default browser).*
 
 ---
 
-### Cách 2: Khởi chạy nhanh bằng Docker Compose
-Nếu máy tính đã cài đặt **Docker Desktop**:
+### Option 2: Docker Compose (All-in-One Containerized)
+If you have **Docker Desktop** installed:
 ```bash
 docker-compose up -d
 ```
-Hệ thống sẽ tự động kéo image, khởi tạo cơ sở dữ liệu MySQL và khởi chạy toàn bộ dịch vụ.
+All containers (MySQL database, Spring Boot application, Next.js frontend) will spin up automatically.
 
 ---
 
-### Cách 3: Khởi chạy thủ công từng phân hệ
+### Option 3: Manual Execution by Service
 
-#### 1. Khởi tạo Cơ sở dữ liệu:
-- Mở **phpMyAdmin** (hoặc MySQL Workbench / DBeaver).
-- Tạo CSDL tên: `medsched_db`.
-- Import file: `database/medsched_db.sql`.
+#### 1. Setup Database
+- Open **phpMyAdmin** or your preferred MySQL client (Workbench, DBeaver).
+- Create database: `medsched_db`.
+- Import script: `database/medsched_db.sql`.
 
-#### 2. Khởi chạy Backend (Java Spring Boot 3):
+#### 2. Start Backend (Spring Boot 3)
 ```bash
 cd backend
 ./gradlew :app:bootRun
 ```
-*(Trên Windows có thể chạy: `gradlew.bat :app:bootRun`)*.  
-- Backend REST API chạy tại: `http://localhost:8080`  
-- Tài liệu Swagger UI: `http://localhost:8080/swagger-ui/index.html`
+*(On Windows command prompt, use `gradlew.bat :app:bootRun`)*.  
+- REST API Server: `http://localhost:8080`  
+- Interactive OpenAPI / Swagger UI: `http://localhost:8080/swagger-ui/index.html`
 
-#### 3. Khởi chạy Frontend (Next.js 15):
+#### 3. Start Frontend (Next.js 15)
 ```bash
 cd frontend
-pnpm install   # hoặc: npm install
-pnpm dev       # hoặc: npm run dev
+pnpm install   # or: npm install
+pnpm dev       # or: npm run dev
 ```
-- Truy cập giao diện ứng dụng tại: `http://localhost:3000`
+- Open client application: `http://localhost:3000`
 
-#### 4. Khởi chạy MCP Server (Tùy chọn cho AI Agent):
+#### 4. Start Model Context Protocol (MCP) Server (Optional)
 ```bash
 cd mcp-server
 npm install
@@ -142,21 +146,21 @@ node server.js
 
 ---
 
-## 🔑 Tài Khoản Demo Trải Nghiệm 4 Phân Quyền (Roles)
+## 🔑 Demo Credentials (4 Distinct Roles)
 
-Hệ thống đã nạp sẵn các tài khoản demo chuẩn với mật khẩu đồng bộ để Thầy và người dùng dễ dàng kiểm thử nghiệm thu:
+Pre-configured accounts with synchronized credentials for comprehensive evaluation:
 
-| Vai trò (Role) | Tên đăng nhập (Username) | Mật khẩu (Password) | Phân hệ truy cập chính |
+| Role | Username | Password | Default Portal & Functions |
 | :--- | :--- | :--- | :--- |
-| **Quản trị viên (Admin)** | `admin` | `Admin@123` | `/admin` (Quản lý hệ thống, cấu hình ca trực, thống kê) |
-| **Tiếp đón (Receptionist)** | `reception` | `Reception@123` | `/reception` (Tiếp đón bệnh nhân, gọi số, check-in QR, thu phí) |
-| **Bác sĩ (Doctor)** | `doctor` | `Doctor@123` | `/doctor` (Hàng đợi khám, nhập chẩn đoán ICD-10, kê đơn thuốc) |
-| **Bệnh nhân (Patient)** | `patient` | `Patient@123` | `/booking`, `/my-appointments` (Đặt lịch AI, xem E-Ticket) |
+| **Administrator** | `admin` | `Admin@123` | `/admin` — System metrics, schedule slot generators, catalog management |
+| **Receptionist** | `reception` | `Reception@123` | `/reception` — In-person walk-ins, QR check-in, queue calling, invoicing |
+| **Doctor** | `doctor` | `Doctor@123` | `/doctor` — Examination queue, ICD-10 diagnostic entry, prescription dispatch |
+| **Patient** | `patient` | `Patient@123` | `/booking`, `/my-appointments` — AI triage booking, digital e-tickets, payment |
 
 ---
 
-## 🌐 Đường Dẫn Trực Tuyến Đã Triển Khai (Live Production)
+## 🌐 Live Production References
 
-- **Ứng dụng Web Bệnh nhân & Nhân viên Y tế**: [https://medsched-lyart.vercel.app](https://medsched-lyart.vercel.app)
-- **Tài liệu OpenAPI / Swagger UI Backend**: [https://medsched-zui5.onrender.com/swagger-ui/index.html](https://medsched-zui5.onrender.com/swagger-ui/index.html)
-- **Video Final Thuyết trình Nghiệm thu Đồ án**: [https://www.youtube.com/watch?v=cdJe2Y0I3G0](https://www.youtube.com/watch?v=cdJe2Y0I3G0)
+- **Production Web Application:** [https://medsched-lyart.vercel.app](https://medsched-lyart.vercel.app)
+- **Production API & Swagger Docs:** [https://medsched-zui5.onrender.com/swagger-ui/index.html](https://medsched-zui5.onrender.com/swagger-ui/index.html)
+- **Final Defense Presentation Video:** [https://www.youtube.com/watch?v=cdJe2Y0I3G0](https://www.youtube.com/watch?v=cdJe2Y0I3G0)
